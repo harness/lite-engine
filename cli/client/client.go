@@ -11,6 +11,7 @@ import (
 
 	"github.com/drone/lite-engine/config"
 	"github.com/joho/godotenv"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -30,53 +31,52 @@ func (c *clientCommand) run(*kingpin.ParseContext) error {
 		return err
 	}
 
-	checkServerHealth(config.Client.Bind, config.Client.CaCertFile,
+	return checkServerHealth(config.Client.Bind, config.ServerName, config.Client.CaCertFile,
 		config.Client.CertFile, config.Client.KeyFile)
-
-	return nil
 }
 
-func checkServerHealth(addr, caCertFile, certFile, keyFile string) {
-	c := getClient(caCertFile, certFile, keyFile)
+func checkServerHealth(addr, serverName, caCertFile, certFile, keyFile string) error {
+	c, err := getClient(serverName, caCertFile, certFile, keyFile)
+	if err != nil {
+		return errors.Wrap(err, "failed to get client")
+	}
 	r, err := c.Get(fmt.Sprintf("https://%s/healthz", addr))
 	if err != nil {
-		log.Fatal(err)
+		return errors.Wrap(err, "health check call failed")
 	}
 	defer r.Body.Close()
 
 	_, err = io.ReadAll(r.Body)
 	if err != nil {
-		log.Fatal(err)
+		return errors.Wrap(err, "failed to read from server")
 	}
 	fmt.Printf("%v\n", r.Status)
+	return nil
 }
 
-func getClient(caCertFile, certFile, keyFile string) *http.Client {
-	// Load our client certificate and key.
-	clientCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+func getClient(serverName, caCertFile, tlsCertFile, tlsKeyFile string) (*http.Client, error) {
+	tlsCert, err := tls.LoadX509KeyPair(tlsCertFile, tlsKeyFile)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
+	}
+	tlsConfig := &tls.Config{
+		ServerName:   serverName,
+		Certificates: []tls.Certificate{tlsCert},
 	}
 
 	// Trusted server certificate.
-	cert, err := os.ReadFile(caCertFile)
+	caCert, err := os.ReadFile(caCertFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	certPool := x509.NewCertPool()
-	if ok := certPool.AppendCertsFromPEM(cert); !ok {
-		log.Fatalf("unable to parse cert from %s", caCertFile)
-	}
 
+	tlsConfig.RootCAs = x509.NewCertPool()
+	tlsConfig.RootCAs.AppendCertsFromPEM(caCert)
 	return &http.Client{
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				ServerName:   "drone",
-				RootCAs:      certPool,
-				Certificates: []tls.Certificate{clientCert},
-			},
+			TLSClientConfig: tlsConfig,
 		},
-	}
+	}, nil
 }
 
 // Register the server commands.

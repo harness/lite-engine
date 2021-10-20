@@ -3,6 +3,7 @@ module github.com/drone/lite-engine
 go 1.17
 
 require (
+	github.com/docker/go-connections v0.4.0
 	github.com/go-chi/chi v1.5.4
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/joho/godotenv v1.4.0

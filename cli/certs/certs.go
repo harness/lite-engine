@@ -1,104 +1,141 @@
 package certs
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
+	"bytes"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"fmt"
-	"log"
 	"math/big"
-	"os"
-	"path/filepath"
 	"time"
-
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
-type certCommand struct {
-	certPath string
+const (
+	// default key size.
+	size = 2048
+
+	// default organization name for certificates.
+	organization = "drone.awsvm.generated"
+)
+
+// Certificate stores a certificate and private key.
+type Certificate struct {
+	Cert []byte
+	Key  []byte
 }
 
-func generateCert(relPath string) {
-	err := os.MkdirAll(relPath, os.ModePerm)
+// GenerateCert generates a certificate for the host address.
+func GenerateCert(host string, ca *Certificate) (*Certificate, error) {
+	template, err := newCertificate(organization)
 	if err != nil {
-		log.Fatalf("Failed to create directory %s: %v", relPath, err)
+		return nil, err
+	}
+	template.DNSNames = append(template.DNSNames, host)
+
+	tlsCert, err := tls.X509KeyPair(ca.Cert, ca.Key)
+	if err != nil {
+		return nil, err
 	}
 
-	certFilePath := filepath.Join(relPath, "cert.pem")
-	keyFilePath := filepath.Join(relPath, "key.pem")
-
-	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	priv, err := rsa.GenerateKey(rand.Reader, size)
 	if err != nil {
-		log.Fatalf("Failed to generate private key: %v", err)
+		return nil, err
 	}
+
+	x509Cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	if err != nil {
+		return nil, err
+	}
+
+	derBytes, err := x509.CreateCertificate(
+		rand.Reader, template, x509Cert, &priv.PublicKey, tlsCert.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	certOut := new(bytes.Buffer)
+	pem.Encode(certOut, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: derBytes,
+	})
+
+	keyOut := new(bytes.Buffer)
+	pem.Encode(keyOut, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(priv),
+	})
+
+	return &Certificate{
+		Cert: certOut.Bytes(),
+		Key:  keyOut.Bytes(),
+	}, nil
+}
+
+// GenerateCA generates a CA certificate.
+func GenerateCA() (*Certificate, error) {
+	template, err := newCertificate(organization)
+	if err != nil {
+		return nil, err
+	}
+
+	template.IsCA = true
+	template.KeyUsage |= x509.KeyUsageCertSign
+	template.KeyUsage |= x509.KeyUsageKeyEncipherment
+	template.KeyUsage |= x509.KeyUsageKeyAgreement
+
+	priv, err := rsa.GenerateKey(rand.Reader, size)
+	if err != nil {
+		return nil, err
+	}
+
+	derBytes, err := x509.CreateCertificate(
+		rand.Reader, template, template, &priv.PublicKey, priv)
+	if err != nil {
+		return nil, err
+	}
+
+	certOut := new(bytes.Buffer)
+	pem.Encode(certOut, &pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: derBytes,
+	})
+
+	keyOut := new(bytes.Buffer)
+	pem.Encode(keyOut, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(priv),
+	})
+
+	return &Certificate{
+		Cert: certOut.Bytes(),
+		Key:  keyOut.Bytes(),
+	}, nil
+}
+
+func newCertificate(org string) (*x509.Certificate, error) {
+	now := time.Now()
+	// need to set notBefore slightly in the past to account for time
+	// skew in the VMs otherwise the certs sometimes are not yet valid
+	notBefore := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute()-5, 0, 0, time.Local)
+	notAfter := notBefore.Add(time.Hour * 24 * 1080)
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		log.Fatalf("Failed to generate serial number: %v", err)
+		return nil, err
 	}
 
-	template := x509.Certificate{
+	return &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"Drone.io"},
+			Organization: []string{org},
 		},
-		// DNSNames:  []string{"localhost"},
-		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(time.Hour * 24 * 30),
+		NotBefore: notBefore,
+		NotAfter:  notAfter,
 
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyAgreement,
 		BasicConstraintsValid: true,
-	}
-
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
-	if err != nil {
-		log.Fatalf("Failed to create certificate: %v", err)
-	}
-
-	pemCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-	if pemCert == nil {
-		log.Fatal("Failed to encode certificate to PEM")
-	}
-	if err := os.WriteFile(certFilePath, pemCert, 0644); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("wrote cert.pem at path %s\n", certFilePath)
-
-	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
-	if err != nil {
-		log.Fatalf("Unable to marshal private key: %v", err)
-	}
-	pemKey := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privBytes})
-	if pemKey == nil {
-		log.Fatal("Failed to encode key to PEM")
-	}
-	if err := os.WriteFile(keyFilePath, pemKey, 0600); err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("wrote key.pem at path: %s\n", keyFilePath)
-}
-
-func (c *certCommand) run(*kingpin.ParseContext) error {
-	serverCert := filepath.Join(c.certPath, "server")
-	clientCert := filepath.Join(c.certPath, "client")
-	generateCert(serverCert)
-	generateCert(clientCert)
-	return nil
-}
-
-// Register the server commands.
-func Register(app *kingpin.Application) {
-	c := new(certCommand)
-
-	cmd := app.Command("certs", "generates the TLS certificates for local testing").
-		Action(c.run)
-
-	cmd.Flag("certPath", "Directory to generate the TLS certificates").
-		Default("/tmp/certs").
-		StringVar(&c.certPath)
+	}, nil
 }

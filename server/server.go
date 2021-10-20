@@ -5,12 +5,9 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"fmt"
 	"net/http"
-	"os"
 
-	"github.com/pkg/errors"
+	"github.com/docker/go-connections/tlsconfig"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -18,6 +15,7 @@ import (
 type Server struct {
 	Addr           string // TCP address to listen on
 	Handler        http.Handler
+	CAFile         string // CA certificate file
 	CertFile       string // Server certificate PEM file
 	KeyFile        string // Server key PEM file
 	ClientCertFile string // Trusted client certificate PEM file for client authentication
@@ -25,23 +23,24 @@ type Server struct {
 
 // Start initializes a server to respond to HTTPS/TLS network requests.
 func (s Server) Start(ctx context.Context) error {
-	// Trusted client certificate.
-	clientCert, err := os.ReadFile(s.ClientCertFile)
-	if err != nil {
-		return errors.Wrapf(err, fmt.Sprintf("failed to read client certificate file at path: %s", s.ClientCertFile))
+	tlsOptions := tlsconfig.Options{
+		CAFile:             s.CAFile,
+		CertFile:           s.CertFile,
+		KeyFile:            s.KeyFile,
+		ExclusiveRootPools: true,
 	}
-	clientCertPool := x509.NewCertPool()
-	clientCertPool.AppendCertsFromPEM(clientCert)
+
+	tlsOptions.ClientAuth = tls.RequireAndVerifyClientCert
+	tlsConfig, err := tlsconfig.Server(tlsOptions)
+	if err != nil {
+		return err
+	}
+	tlsConfig.MinVersion = tls.VersionTLS13
 
 	srv := &http.Server{
-		Addr:    s.Addr,
-		Handler: s.Handler,
-		TLSConfig: &tls.Config{
-			MinVersion:               tls.VersionTLS13,
-			PreferServerCipherSuites: true,
-			ClientCAs:                clientCertPool,
-			ClientAuth:               tls.RequireAndVerifyClientCert,
-		},
+		Addr:      s.Addr,
+		Handler:   s.Handler,
+		TLSConfig: tlsConfig,
 	}
 
 	var g errgroup.Group
@@ -49,11 +48,9 @@ func (s Server) Start(ctx context.Context) error {
 		return srv.ListenAndServeTLS(s.CertFile, s.KeyFile)
 	})
 	g.Go(func() error {
-		select {
-		case <-ctx.Done():
-			srv.Shutdown(ctx)
-			return nil
-		}
+		<-ctx.Done()
+		srv.Shutdown(ctx)
+		return nil
 	})
 	return g.Wait()
 }

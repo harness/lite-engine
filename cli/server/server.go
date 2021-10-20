@@ -37,11 +37,12 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 
 	// create the http server.
 	server := server.Server{
-		Addr:           config.Server.Bind,
-		Handler:        handler.Handler(config),
-		CertFile:       config.Server.CertFile,
-		KeyFile:        config.Server.KeyFile,
-		ClientCertFile: config.Server.ClientCertFile,
+		Addr:     config.Server.Bind,
+		Handler:  handler.Handler(config),
+		CAFile:   config.Server.CACertFile, // CA certificate file
+		CertFile: config.Server.CertFile,   // Server certificate PEM file
+		KeyFile:  config.Server.KeyFile,    // Server key file
+
 	}
 
 	// trap the os signal to gracefully shutdown the

@@ -10,7 +10,6 @@ import (
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
 func HandleExecuteStep() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// ctx := r.Context()
 		st := time.Now()
 
 		logger.FromRequest(r).
