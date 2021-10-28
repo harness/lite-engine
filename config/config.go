@@ -12,16 +12,16 @@ type Config struct {
 
 	Server struct {
 		Bind       string `envconfig:"HTTPS_BIND" default:":9079"`
-		CertFile   string `envconfig:"SERVER_CERT_FILE" default:"/tmp/certs/tls/cert.pem"` // Certificate PEM file
-		KeyFile    string `envconfig:"SERVER_KEY_FILE" default:"/tmp/certs/tls/key.pem"`   // key PEM file
-		CACertFile string `envconfig:"CLIENT_CERT_FILE" default:"/tmp/certs/ca/cert.pem"`  // CA certificate file
+		CertFile   string `envconfig:"SERVER_CERT_FILE" default:"/tmp/certs/server-cert.pem"` // Server certificate PEM file
+		KeyFile    string `envconfig:"SERVER_KEY_FILE" default:"/tmp/certs/server-key.pem"`   // Server key PEM file
+		CACertFile string `envconfig:"CLIENT_CERT_FILE" default:"/tmp/certs/ca-cert.pem"`     // CA certificate file
 	}
 
 	Client struct {
 		Bind       string `envconfig:"HTTPS_BIND" default:":9079"`
-		CertFile   string `envconfig:"CLIENT_CERT_FILE" default:"/tmp/certs/tls/cert.pem"` // Certificate PEM file
-		KeyFile    string `envconfig:"CLIENT_KEY_FILE" default:"/tmp/certs/tls/key.pem"`   // Key PEM file
-		CaCertFile string `envconfig:"CA_CERT_FILE" default:"/tmp/certs/ca/cert.pem"`      // CA certificate file
+		CertFile   string `envconfig:"CLIENT_CERT_FILE" default:"/tmp/certs/server-cert.pem"` // Server certificate PEM file
+		KeyFile    string `envconfig:"CLIENT_KEY_FILE" default:"/tmp/certs/server-key.pem"`   // Server Key PEM file
+		CaCertFile string `envconfig:"CA_CERT_FILE" default:"/tmp/certs/ca-cert.pem"`         // CA certificate file
 	}
 }
 

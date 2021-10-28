@@ -28,14 +28,13 @@ func generateCert(serverName, relPath string) error {
 		return errors.Wrap(err, "failed to generate certificate")
 	}
 
-	relCaPath := filepath.Join(relPath, "ca")
-	caCertFilePath := filepath.Join(relCaPath, "cert.pem")
-	caKeyFilePath := filepath.Join(relCaPath, "key.pem")
-	err = os.MkdirAll(relCaPath, os.ModePerm)
+	err = os.MkdirAll(relPath, os.ModePerm)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to create directory at path: %s", relCaPath))
+		return errors.Wrap(err, fmt.Sprintf("failed to create directory at path: %s", relPath))
 	}
 
+	caCertFilePath := filepath.Join(relPath, "ca-cert.pem")
+	caKeyFilePath := filepath.Join(relPath, "ca-key.pem")
 	if err := os.WriteFile(caCertFilePath, ca.Cert, 0600); err != nil {
 		return errors.Wrap(err, "failed to write CA cert file")
 	}
@@ -43,19 +42,13 @@ func generateCert(serverName, relPath string) error {
 		return errors.Wrap(err, "failed to write CA key file")
 	}
 
-	relTlsPath := filepath.Join(relPath, "tls")
-	certFilePath := filepath.Join(relTlsPath, "cert.pem")
-	keyFilePath := filepath.Join(relTlsPath, "key.pem")
-	err = os.MkdirAll(relTlsPath, os.ModePerm)
-	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to create directory at path: %s", relTlsPath))
-	}
-
+	certFilePath := filepath.Join(relPath, "server-cert.pem")
+	keyFilePath := filepath.Join(relPath, "server-key.pem")
 	if err := os.WriteFile(certFilePath, tlsCert.Cert, 0600); err != nil {
-		return errors.Wrap(err, "failed to write cert file")
+		return errors.Wrap(err, "failed to write server cert file")
 	}
 	if err := os.WriteFile(keyFilePath, tlsCert.Key, 0600); err != nil {
-		return errors.Wrap(err, "failed to write key file")
+		return errors.Wrap(err, "failed to write server key file")
 	}
 	return nil
 }
