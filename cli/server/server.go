@@ -22,10 +22,14 @@ type serverCommand struct {
 }
 
 func (c *serverCommand) run(*kingpin.ParseContext) error {
-	godotenv.Load(c.envfile)
-
+	loadEnvErr := godotenv.Load(c.envfile)
+	if loadEnvErr != nil {
+		logrus.
+			WithError(loadEnvErr).
+			Errorln("cannot load env file")
+	}
 	// load the system configuration from the environment.
-	config, err := config.Load()
+	loadedConfig, err := config.Load()
 	if err != nil {
 		logrus.WithError(err).
 			Errorln("cannot load the service configuration")
@@ -33,20 +37,19 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 	}
 
 	// init the system logging.
-	initLogging(config)
+	initLogging(&loadedConfig)
 
-	// create the http server.
-	server := server.Server{
-		Addr:     config.Server.Bind,
-		Handler:  handler.Handler(config),
-		CAFile:   config.Server.CACertFile, // CA certificate file
-		CertFile: config.Server.CertFile,   // Server certificate PEM file
-		KeyFile:  config.Server.KeyFile,    // Server key file
+	// create the http serverInstance.
+	serverInstance := server.Server{
+		Addr:     loadedConfig.Server.Bind,
+		Handler:  handler.Handler(&loadedConfig),
+		CAFile:   loadedConfig.Server.CACertFile, // CA certificate file
+		CertFile: loadedConfig.Server.CertFile,   // Server certificate PEM file
+		KeyFile:  loadedConfig.Server.KeyFile,    // Server key file
 
 	}
 
-	// trap the os signal to gracefully shutdown the
-	// http server.
+	// trap the os signal to gracefully shutdown the http server.
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	s := make(chan os.Signal, 1)
@@ -65,10 +68,10 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 		}
 	}()
 
-	logrus.Infof(fmt.Sprintf("server listening at port %s", config.Server.Bind))
+	logrus.Infof(fmt.Sprintf("server listening at port %s", loadedConfig.Server.Bind))
 
 	// starts the http server.
-	err = server.Start(ctx)
+	err = serverInstance.Start(ctx)
 	if err == context.Canceled {
 		logrus.Infoln("program gracefully terminated")
 		return nil
@@ -93,8 +96,7 @@ func Register(app *kingpin.Application) {
 		StringVar(&c.envfile)
 }
 
-// Get stackdriver to display logs correctly
-// https://github.com/sirupsen/logrus/issues/403
+// Get stackdriver to display logs correctly https://github.com/sirupsen/logrus/issues/403
 type OutputSplitter struct{}
 
 func (splitter *OutputSplitter) Write(p []byte) (n int, err error) {
@@ -104,9 +106,8 @@ func (splitter *OutputSplitter) Write(p []byte) (n int, err error) {
 	return os.Stdout.Write(p)
 }
 
-// helper function configures the global logger from
-// the loaded configuration.
-func initLogging(c config.Config) {
+// helper function configures the global logger from the loaded configuration.
+func initLogging(c *config.Config) {
 	logrus.SetOutput(&OutputSplitter{})
 	l := logrus.StandardLogger()
 	logger.L = logrus.NewEntry(l)

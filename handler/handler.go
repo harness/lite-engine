@@ -10,9 +10,8 @@ import (
 	"github.com/go-chi/chi"
 )
 
-// Handler returns an http.Handler that exposes the
-// service resources.
-func Handler(config config.Config) http.Handler {
+// Handler returns an http.Handler that exposes the service resources.
+func Handler(conf *config.Config) http.Handler {
 	r := chi.NewRouter()
 	r.Use(logger.Middleware)
 
@@ -28,7 +27,12 @@ func Handler(config config.Config) http.Handler {
 
 	// Liveness check
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, "OK")
+		_, writeErr := io.WriteString(w, "OK")
+		if writeErr != nil {
+			logger.FromRequest(r).
+				WithError(writeErr).
+				Errorln("cannot write healthz response")
+		}
 	})
 
 	return r

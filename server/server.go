@@ -22,7 +22,7 @@ type Server struct {
 }
 
 // Start initializes a server to respond to HTTPS/TLS network requests.
-func (s Server) Start(ctx context.Context) error {
+func (s *Server) Start(ctx context.Context) error {
 	tlsOptions := tlsconfig.Options{
 		CAFile:             s.CAFile,
 		CertFile:           s.CertFile,
@@ -49,7 +49,7 @@ func (s Server) Start(ctx context.Context) error {
 	})
 	g.Go(func() error {
 		<-ctx.Done()
-		srv.Shutdown(ctx)
+		srv.Shutdown(ctx) // nolint: errcheck
 		return nil
 	})
 	return g.Wait()

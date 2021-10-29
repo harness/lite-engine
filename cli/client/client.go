@@ -21,18 +21,22 @@ type clientCommand struct {
 }
 
 func (c *clientCommand) run(*kingpin.ParseContext) error {
-	godotenv.Load(c.envfile)
-
+	loadEnvErr := godotenv.Load(c.envfile)
+	if loadEnvErr != nil {
+		logrus.
+			WithError(loadEnvErr).
+			Errorln("cannot load env file")
+	}
 	// load the system configuration from the environment.
-	config, err := config.Load()
+	loadedConfig, err := config.Load()
 	if err != nil {
 		logrus.WithError(err).
 			Errorln("cannot load the service configuration")
 		return err
 	}
 
-	return checkServerHealth(config.Client.Bind, config.ServerName, config.Client.CaCertFile,
-		config.Client.CertFile, config.Client.KeyFile)
+	return checkServerHealth(loadedConfig.Client.Bind, loadedConfig.ServerName, loadedConfig.Client.CaCertFile,
+		loadedConfig.Client.CertFile, loadedConfig.Client.KeyFile)
 }
 
 func checkServerHealth(addr, serverName, caCertFile, certFile, keyFile string) error {
@@ -40,7 +44,7 @@ func checkServerHealth(addr, serverName, caCertFile, certFile, keyFile string) e
 	if err != nil {
 		return errors.Wrap(err, "failed to get client")
 	}
-	r, err := c.Get(fmt.Sprintf("https://%s/healthz", addr))
+	r, err := c.Get(fmt.Sprintf("https://%s/healthz", addr)) // nolint: noctx // this is only for testing
 	if err != nil {
 		return errors.Wrap(err, "health check call failed")
 	}
@@ -62,6 +66,7 @@ func getClient(serverName, caCertFile, tlsCertFile, tlsKeyFile string) (*http.Cl
 	tlsConfig := &tls.Config{
 		ServerName:   serverName,
 		Certificates: []tls.Certificate{tlsCert},
+		MinVersion:   tls.VersionTLS12,
 	}
 
 	// Trusted server certificate.

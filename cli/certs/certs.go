@@ -10,11 +10,15 @@ import (
 	"encoding/pem"
 	"math/big"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
 	// default key size.
-	size = 2048
+	size        = 2048
+	days        = 1080
+	serialLimit = 128
 
 	// default organization name for certificates.
 	organization = "drone.awsvm.generated"
@@ -56,16 +60,26 @@ func GenerateCert(host string, ca *Certificate) (*Certificate, error) {
 	}
 
 	certOut := new(bytes.Buffer)
-	pem.Encode(certOut, &pem.Block{
+	certOutErr := pem.Encode(certOut, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: derBytes,
 	})
+	if certOutErr != nil {
+		logrus.
+			WithError(certOutErr).
+			Errorln("cannot pem encode certOut")
+	}
 
 	keyOut := new(bytes.Buffer)
-	pem.Encode(keyOut, &pem.Block{
+	keyOutErr := pem.Encode(keyOut, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(priv),
 	})
+	if keyOutErr != nil {
+		logrus.
+			WithError(keyOutErr).
+			Errorln("cannot pem encode keyout")
+	}
 
 	return &Certificate{
 		Cert: certOut.Bytes(),
@@ -97,17 +111,25 @@ func GenerateCA() (*Certificate, error) {
 	}
 
 	certOut := new(bytes.Buffer)
-	pem.Encode(certOut, &pem.Block{
+	certOutErr := pem.Encode(certOut, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: derBytes,
 	})
-
+	if certOutErr != nil {
+		logrus.
+			WithError(certOutErr).
+			Errorln("cannot pem encode certOut")
+	}
 	keyOut := new(bytes.Buffer)
-	pem.Encode(keyOut, &pem.Block{
+	keyOutErr := pem.Encode(keyOut, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(priv),
 	})
-
+	if keyOutErr != nil {
+		logrus.
+			WithError(keyOutErr).
+			Errorln("cannot pem encode keyout")
+	}
 	return &Certificate{
 		Cert: certOut.Bytes(),
 		Key:  keyOut.Bytes(),
@@ -119,9 +141,10 @@ func newCertificate(org string) (*x509.Certificate, error) {
 	// need to set notBefore slightly in the past to account for time
 	// skew in the VMs otherwise the certs sometimes are not yet valid
 	notBefore := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute()-5, 0, 0, time.Local)
-	notAfter := notBefore.Add(time.Hour * 24 * 1080)
+	notAfter := notBefore.Add(time.Hour * 24 * days)
 
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), serialLimit)
+
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
 		return nil, err

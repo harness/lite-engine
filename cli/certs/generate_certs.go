@@ -12,6 +12,8 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
+const certPermissions = os.FileMode(0600)
+
 type certCommand struct {
 	certPath string
 	envfile  string
@@ -35,36 +37,40 @@ func generateCert(serverName, relPath string) error {
 
 	caCertFilePath := filepath.Join(relPath, "ca-cert.pem")
 	caKeyFilePath := filepath.Join(relPath, "ca-key.pem")
-	if err := os.WriteFile(caCertFilePath, ca.Cert, 0600); err != nil {
+	if err := os.WriteFile(caCertFilePath, ca.Cert, certPermissions); err != nil {
 		return errors.Wrap(err, "failed to write CA cert file")
 	}
-	if err := os.WriteFile(caKeyFilePath, ca.Key, 0600); err != nil {
+	if err := os.WriteFile(caKeyFilePath, ca.Key, certPermissions); err != nil {
 		return errors.Wrap(err, "failed to write CA key file")
 	}
 
 	certFilePath := filepath.Join(relPath, "server-cert.pem")
 	keyFilePath := filepath.Join(relPath, "server-key.pem")
-	if err := os.WriteFile(certFilePath, tlsCert.Cert, 0600); err != nil {
+	if err := os.WriteFile(certFilePath, tlsCert.Cert, certPermissions); err != nil {
 		return errors.Wrap(err, "failed to write server cert file")
 	}
-	if err := os.WriteFile(keyFilePath, tlsCert.Key, 0600); err != nil {
+	if err := os.WriteFile(keyFilePath, tlsCert.Key, certPermissions); err != nil {
 		return errors.Wrap(err, "failed to write server key file")
 	}
 	return nil
 }
 
 func (c *certCommand) run(*kingpin.ParseContext) error {
-	godotenv.Load(c.envfile)
-
+	loadEnvErr := godotenv.Load(c.envfile)
+	if loadEnvErr != nil {
+		logrus.
+			WithError(loadEnvErr).
+			Errorln("cannot load env file")
+	}
 	// load the system configuration from the environment.
-	config, err := config.Load()
+	loadedConfig, err := config.Load()
 	if err != nil {
 		logrus.WithError(err).
 			Errorln("cannot load the service configuration")
 		return err
 	}
 
-	return generateCert(config.ServerName, c.certPath)
+	return generateCert(loadedConfig.ServerName, c.certPath)
 }
 
 // Register the server commands.
