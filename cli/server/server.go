@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/drone-runners/drone-runner-docker/engine"
 	"github.com/drone/lite-engine/config"
 	"github.com/drone/lite-engine/handler"
 	"github.com/drone/lite-engine/logger"
@@ -35,10 +36,17 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 	// init the system logging.
 	initLogging(config)
 
+	docker, err := engine.NewEnv(engine.Opts{})
+	if err != nil {
+		logrus.WithError(err).
+			Errorln("failed to initialize docker client")
+		return err
+	}
+
 	// create the http server.
 	server := server.Server{
 		Addr:     config.Server.Bind,
-		Handler:  handler.Handler(config),
+		Handler:  handler.Handler(config, docker),
 		CAFile:   config.Server.CACertFile, // CA certificate file
 		CertFile: config.Server.CertFile,   // Server certificate PEM file
 		KeyFile:  config.Server.KeyFile,    // Server key file

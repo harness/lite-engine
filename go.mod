@@ -2,8 +2,11 @@ module github.com/drone/lite-engine
 
 go 1.17
 
+replace github.com/docker/docker => github.com/docker/engine v17.12.0-ce-rc1.0.20200309214505-aa6a9891b09c+incompatible
+
 require (
 	github.com/docker/go-connections v0.4.0
+	github.com/drone-runners/drone-runner-docker v1.7.0
 	github.com/go-chi/chi v1.5.4
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/joho/godotenv v1.4.0
@@ -15,7 +18,29 @@ require (
 )
 
 require (
+	github.com/99designs/httpsignatures-go v0.0.0-20170731043157-88528bf4ca7e // indirect
+	github.com/Microsoft/go-winio v0.4.11 // indirect
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20210927113745-59d0afb8317a // indirect
+	github.com/bmatcuk/doublestar v1.1.1 // indirect
+	github.com/buildkite/yaml v2.1.0+incompatible // indirect
+	github.com/containerd/containerd v1.3.4 // indirect
+	github.com/coreos/go-semver v0.3.0 // indirect
+	github.com/docker/distribution v2.7.1+incompatible // indirect
+	github.com/docker/docker v0.0.0-00010101000000-000000000000 // indirect
+	github.com/docker/go-units v0.4.0 // indirect
+	github.com/drone/drone-go v1.6.0 // indirect
+	github.com/drone/envsubst v1.0.3 // indirect
+	github.com/drone/runner-go v1.9.0 // indirect
+	github.com/gogo/protobuf v0.0.0-20170307180453-100ba4e88506 // indirect
+	github.com/golang/protobuf v1.3.3 // indirect
+	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/go-multierror v1.0.0 // indirect
+	github.com/natessilva/dag v0.0.0-20180124060714-7194b8dcc5c4 // indirect
+	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
+	github.com/opencontainers/image-spec v1.0.1 // indirect
+	golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3 // indirect
 	golang.org/x/sys v0.0.0-20191026070338-33540a1f6037 // indirect
+	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55 // indirect
+	google.golang.org/grpc v1.29.1 // indirect
 )
