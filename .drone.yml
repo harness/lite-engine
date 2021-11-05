@@ -1,0 +1,48 @@
+kind: pipeline
+type: docker
+name: unit tests
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+  - name: go vet and unit tests
+    image: golang:1.17
+    commands:
+      - go vet ./...
+      - go test -cover ./...
+    volumes:
+      - name: cache
+        path: /go
+    depends_on:
+      - clone
+  - name: golangci-lint
+    image: golangci/golangci-lint
+    commands:
+      - golangci-lint run --timeout 300s
+    volumes:
+      - name: cache
+        path: /go
+    depends_on:
+      - clone
+  - name: build
+    image: golang:1.17
+    commands:
+      - go build
+      - echo "SERVER_HTTPS_BIND=0.0.0.0:9079" > .env
+      - echo "CLIENT_HTTPS_BIND=0.0.0.0:9079" >> .env
+      - cat .env
+      - ./lite-engine certs
+      - ./lite-engine server &
+      # - ./lite-engine client
+    volumes:
+      - name: cache
+        path: /go
+    depends_on:
+      - golangci-lint
+      - go vet and unit tests
+
+volumes:
+  - name: cache
+    temp: {}

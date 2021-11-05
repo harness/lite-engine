@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"os"
 
 	"github.com/drone/lite-engine/cli/certs"
@@ -13,9 +12,6 @@ import (
 
 // program version
 var version = "0.0.0"
-
-// empty context
-var nocontext = context.Background()
 
 // Command parses the command line arguments and then executes a
 // subcommand program.

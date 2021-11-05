@@ -12,8 +12,8 @@ func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Request-ID")
 		if id == "" {
-			uuid, _ := uuid.NewV4()
-			id = uuid.String()
+			newUUID, _ := uuid.NewV4()
+			id = newUUID.String()
 		}
 		ctx := r.Context()
 		log := FromContext(ctx).WithField("request-id", id)
