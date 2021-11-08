@@ -4,8 +4,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/drone/lite-engine/config"
-	"github.com/drone/lite-engine/logger"
+	"github.com/harness/lite-engine/config"
+	"github.com/harness/lite-engine/logger"
 
 	"github.com/go-chi/chi"
 )

@@ -3,9 +3,9 @@ package cli
 import (
 	"os"
 
-	"github.com/drone/lite-engine/cli/certs"
-	"github.com/drone/lite-engine/cli/client"
-	"github.com/drone/lite-engine/cli/server"
+	"github.com/harness/lite-engine/cli/certs"
+	"github.com/harness/lite-engine/cli/client"
+	"github.com/harness/lite-engine/cli/server"
 
 	"gopkg.in/alecthomas/kingpin.v2"
 )

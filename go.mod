@@ -1,4 +1,4 @@
-module github.com/drone/lite-engine
+module github.com/harness/lite-engine
 
 go 1.17
 
