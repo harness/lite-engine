@@ -7,10 +7,10 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/drone/lite-engine/config"
-	"github.com/drone/lite-engine/handler"
-	"github.com/drone/lite-engine/logger"
-	"github.com/drone/lite-engine/server"
+	"github.com/harness/lite-engine/config"
+	"github.com/harness/lite-engine/handler"
+	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/server"
 
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"

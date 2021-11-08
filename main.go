@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/drone/lite-engine/cli"
+	"github.com/harness/lite-engine/cli"
 
 	_ "github.com/joho/godotenv/autoload"
 )
