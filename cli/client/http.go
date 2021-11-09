@@ -8,11 +8,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/sirupsen/logrus"
 )
 
 // Error represents a json-encoded API error.
@@ -33,6 +33,7 @@ func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile str
 	tlsConfig := &tls.Config{
 		ServerName:   serverName,
 		Certificates: []tls.Certificate{tlsCert},
+		MinVersion:   tls.VersionTLS13,
 	}
 
 	// Trusted server certificate.
@@ -63,7 +64,7 @@ type HTTPClient struct {
 func (c *HTTPClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.SetupResponse, error) {
 	path := "setup"
 	out := new(api.SetupResponse)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out)
+	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out) // nolint:bodyclose
 	return out, err
 }
 
@@ -71,38 +72,41 @@ func (c *HTTPClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.Setu
 func (c *HTTPClient) Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error) {
 	path := "destroy"
 	out := new(api.DestroyResponse)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out)
+	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out) // nolint:bodyclose
 	return out, err
 }
 
 func (c *HTTPClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
 	path := "start_step"
 	out := new(api.StartStepResponse)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out)
+	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out) // nolint:bodyclose
 	return out, err
 }
 
 func (c *HTTPClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error) {
 	path := "poll_step"
 	out := new(api.PollStepResponse)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out)
+	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out) // nolint:bodyclose
 	return out, err
 }
 
 func (c *HTTPClient) Health(ctx context.Context) error {
 	path := "healthz"
-	_, err := c.do(ctx, c.Endpoint+path, "POST", nil, nil)
+	_, err := c.do(ctx, c.Endpoint+path, "POST", nil, nil) // nolint:bodyclose
 	return err
 }
 
 // do is a helper function that posts a http request with
 // the input encoded and response decoded from json.
-func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interface{}) (*http.Response, error) {
+func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interface{}) (*http.Response, error) { // nolint:unparam
 	var r io.Reader
 
 	if in != nil {
 		buf := new(bytes.Buffer)
-		json.NewEncoder(buf).Encode(in)
+		if err := json.NewEncoder(buf).Encode(in); err != nil {
+			logrus.WithError(err).Errorln("failed to encode input")
+			return nil, err
+		}
 		r = buf
 	}
 
@@ -116,7 +120,9 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		defer func() {
 			// drain the response body so we can reuse
 			// this connection.
-			io.Copy(ioutil.Discard, io.LimitReader(res.Body, 4096))
+			if _, cerr := io.Copy(io.Discard, io.LimitReader(res.Body, 4096)); cerr != nil { // nolint:gomnd
+				logrus.WithError(cerr).Errorln("failed to drain response body")
+			}
 			res.Body.Close()
 		}()
 	}
@@ -127,17 +133,17 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 	// if the response body return no content we exit
 	// immediately. We do not read or unmarshal the response
 	// and we do not return an error.
-	if res.StatusCode == 204 {
+	if res.StatusCode == http.StatusNoContent {
 		return res, nil
 	}
 
 	// else read the response body into a byte slice.
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return res, err
 	}
 
-	if res.StatusCode > 299 {
+	if res.StatusCode > 299 { // nolint:gomnd
 		// if the response body includes an error message
 		// we should return the error string.
 		if len(body) != 0 {

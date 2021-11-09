@@ -42,7 +42,7 @@ func NewStepExecutor(engine *engine.Engine) *StepExecutor {
 	}
 }
 
-func (e *StepExecutor) StartStep(ctx context.Context, r api.StartStepRequest) error {
+func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) error {
 	if r.ExecutionID == "" {
 		return &errors.BadRequestError{Msg: "Execution ID needs to be set"}
 	}
@@ -78,22 +78,22 @@ func (e *StepExecutor) StartStep(ctx context.Context, r api.StartStepRequest) er
 	return nil
 }
 
-func (e *StepExecutor) PollStep(ctx context.Context, r api.PollStepRequest) (api.PollStepResponse, error) {
+func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*api.PollStepResponse, error) {
 	id := r.ExecutionID
 	if id == "" {
-		return api.PollStepResponse{}, &errors.BadRequestError{Msg: "Execution ID needs to be set"}
+		return &api.PollStepResponse{}, &errors.BadRequestError{Msg: "Execution ID needs to be set"}
 	}
 
 	e.mu.Lock()
 	s, ok := e.stepStatus[id]
 	if !ok {
 		e.mu.Unlock()
-		return api.PollStepResponse{}, &errors.BadRequestError{Msg: "Step has not started"}
+		return &api.PollStepResponse{}, &errors.BadRequestError{Msg: "Step has not started"}
 	}
 
 	if s.Status == Complete {
 		e.mu.Unlock()
-		return api.PollStepResponse{
+		return &api.PollStepResponse{
 			Exited:    s.State.Exited,
 			ExitCode:  s.State.ExitCode,
 			OOMKilled: s.State.OOMKilled,
@@ -111,9 +111,9 @@ func (e *StepExecutor) PollStep(ctx context.Context, r api.PollStepRequest) (api
 	status := <-ch
 	if status.StepErr != nil {
 		errMsg := fmt.Sprintf("failed to execute step with err: %s", status.StepErr.Error())
-		return api.PollStepResponse{}, &errors.InternalServerError{Msg: errMsg}
+		return &api.PollStepResponse{}, &errors.InternalServerError{Msg: errMsg}
 	}
-	return api.PollStepResponse{
+	return &api.PollStepResponse{
 		Exited:    status.State.Exited,
 		ExitCode:  status.State.ExitCode,
 		OOMKilled: status.State.OOMKilled,

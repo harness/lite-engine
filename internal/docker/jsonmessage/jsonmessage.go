@@ -42,7 +42,7 @@ func Copy(in io.Reader, out io.Writer) error {
 		}
 
 		if jm.Error != nil {
-			if jm.Error.Code == 401 {
+			if jm.Error.Code == 401 { // nolint:gomnd
 				return fmt.Errorf("authentication is required")
 			}
 			return jm.Error

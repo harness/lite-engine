@@ -7,7 +7,6 @@ package docker
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"sync"
 
 	"github.com/harness/lite-engine/engine/spec"
@@ -15,6 +14,7 @@ import (
 	"github.com/harness/lite-engine/internal/docker/image"
 	"github.com/harness/lite-engine/internal/docker/jsonmessage"
 	"github.com/harness/lite-engine/internal/docker/stdcopy"
+	"github.com/sirupsen/logrus"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -65,7 +65,7 @@ func (e *Docker) Ping(ctx context.Context) error {
 }
 
 // Setup the pipeline environment.
-func (e *Docker) Setup(ctx context.Context, pipelineConfig spec.PipelineConfig) error {
+func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
 	for _, vol := range pipelineConfig.Volumes {
@@ -127,7 +127,7 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig spec.PipelineConfig) 
 }
 
 // Destroy the pipeline environment.
-func (e *Docker) Destroy(ctx context.Context, pipelineConfig spec.PipelineConfig) error {
+func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	removeOpts := types.ContainerRemoveOptions{
 		Force:         true,
 		RemoveLinks:   false,
@@ -139,12 +139,16 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig spec.PipelineConfig
 
 	// stop all containers
 	for _, ctrName := range containers {
-		e.client.ContainerKill(ctx, ctrName, "9")
+		if err := e.client.ContainerKill(ctx, ctrName, "9"); err != nil {
+			logrus.WithField("container", ctrName).WithField("error", err).Warnln("failed to kill container")
+		}
 	}
 
 	// cleanup all containers
 	for _, ctrName := range containers {
-		e.client.ContainerRemove(ctx, ctrName, removeOpts)
+		if err := e.client.ContainerRemove(ctx, ctrName, removeOpts); err != nil {
+			logrus.WithField("container", ctrName).WithField("error", err).Warnln("failed to remove container")
+		}
 	}
 
 	// cleanup all volumes
@@ -157,11 +161,15 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig spec.PipelineConfig
 		if vol.EmptyDir.Medium == "memory" {
 			continue
 		}
-		e.client.VolumeRemove(ctx, vol.EmptyDir.ID, true)
+		if err := e.client.VolumeRemove(ctx, vol.EmptyDir.ID, true); err != nil {
+			logrus.WithField("volume", vol.EmptyDir.ID).WithField("error", err).Warnln("failed to remove volume")
+		}
 	}
 
 	// cleanup the network
-	e.client.NetworkRemove(ctx, pipelineConfig.Network.ID)
+	if err := e.client.NetworkRemove(ctx, pipelineConfig.Network.ID); err != nil {
+		logrus.WithField("network", pipelineConfig.Network.ID).WithField("error", err).Warnln("failed to remove network")
+	}
 
 	// notice that we never collect or return any errors.
 	// this is because we silently ignore cleanup failures
@@ -171,7 +179,7 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig spec.PipelineConfig
 }
 
 // Run runs the pipeline step.
-func (e *Docker) Run(ctx context.Context, pipelineConfig spec.PipelineConfig, step spec.Step,
+func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step,
 	output io.Writer) (*runtime.State, error) {
 	// create the container
 	err := e.create(ctx, pipelineConfig, step, output)
@@ -196,8 +204,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig spec.PipelineConfig, st
 // emulate docker commands
 //
 
-func (e *Docker) create(ctx context.Context, pipelineConfig spec.PipelineConfig, step spec.Step,
-	output io.Writer) error {
+func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer) error { // nolint:gocyclo
 	// create pull options with encoded authorization credentials.
 	pullopts := types.ImagePullOptions{}
 	if step.Auth != nil {
@@ -214,9 +221,13 @@ func (e *Docker) create(ctx context.Context, pipelineConfig spec.PipelineConfig,
 		rc, pullerr := e.client.ImagePull(ctx, step.Image, pullopts)
 		if pullerr == nil {
 			if e.hidePull {
-				io.Copy(ioutil.Discard, rc)
+				if _, err := io.Copy(io.Discard, rc); err != nil {
+					logrus.WithField("error", err).Warnln("failed to discard image pull logs")
+				}
 			} else {
-				jsonmessage.Copy(rc, output)
+				if err := jsonmessage.Copy(rc, output); err != nil {
+					logrus.WithField("error", err).Warnln("failed to output image pull logs")
+				}
 			}
 			rc.Close()
 		}
@@ -241,9 +252,13 @@ func (e *Docker) create(ctx context.Context, pipelineConfig spec.PipelineConfig,
 		}
 
 		if e.hidePull {
-			io.Copy(ioutil.Discard, rc)
+			if _, cerr := io.Copy(io.Discard, rc); cerr != nil {
+				logrus.WithField("error", cerr).Warnln("failed to discard image pull logs")
+			}
 		} else {
-			jsonmessage.Copy(rc, output)
+			if cerr := jsonmessage.Copy(rc, output); cerr != nil {
+				logrus.WithField("error", cerr).Warnln("failed to copy image pull logs to output")
+			}
 		}
 		rc.Close()
 
@@ -346,7 +361,9 @@ func (e *Docker) tail(ctx context.Context, id string, output io.Writer) error {
 	}
 
 	go func() {
-		stdcopy.StdCopy(output, output, logs)
+		if _, err := stdcopy.StdCopy(output, output, logs); err != nil {
+			logrus.WithField("error", err).Warnln("failed to copy logs while tailing")
+		}
 		logs.Close()
 	}()
 	return nil

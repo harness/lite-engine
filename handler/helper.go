@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // unix epoch time
@@ -61,7 +62,9 @@ func WriteJSON(w http.ResponseWriter, v interface{}, status int) {
 	w.WriteHeader(status)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	enc.Encode(v)
+	if err := enc.Encode(v); err != nil {
+		logrus.WithError(err).WithField("v", v).Errorln("failed to encode response")
+	}
 }
 
 // writeError writes the json-encoded error message to the

@@ -45,9 +45,8 @@ func (c *clientCommand) run(*kingpin.ParseContext) error {
 
 	if c.runStage {
 		return runStage(client)
-	} else {
-		return checkServerHealth(client)
 	}
+	return checkServerHealth(client)
 }
 
 func checkServerHealth(client *HTTPClient) error {
@@ -109,12 +108,13 @@ func runStage(client *HTTPClient) error {
 		return err
 	}
 	logrus.Infof("Polling step1")
-	if res, err := client.PollStep(ctx, &api.PollStepRequest{ExecutionID: sid1}); err != nil {
+	res, err := client.PollStep(ctx, &api.PollStepRequest{ExecutionID: sid1})
+	if err != nil {
 		logrus.WithError(err).Errorln("poll step1 call failed")
 		return err
-	} else {
-		logrus.WithField("response", res).Info("step 1 poll completed successfully")
 	}
+
+	logrus.WithField("response", res).Info("step 1 poll completed successfully")
 
 	// Execute Step2
 	sid2 := "step2"
@@ -135,18 +135,17 @@ func runStage(client *HTTPClient) error {
 	s2.Run.Entrypoint = []string{"sh", "-c"}
 
 	logrus.Infof("Starting step2")
-	if _, err := client.StartStep(ctx, s2); err != nil {
+	if _, err = client.StartStep(ctx, s2); err != nil {
 		logrus.WithError(err).Errorln("start step2 call failed")
 		return err
 	}
 	logrus.Infof("Polling step2")
-	if res, err := client.PollStep(ctx, &api.PollStepRequest{ExecutionID: sid2}); err != nil {
+	res, err = client.PollStep(ctx, &api.PollStepRequest{ExecutionID: sid2})
+	if err != nil {
 		logrus.WithError(err).Errorln("poll step2 call failed")
 		return err
-	} else {
-		logrus.WithField("response", res).Info("step 2 poll completed successfully")
 	}
-
+	logrus.WithField("response", res).Info("step 2 poll completed successfully")
 	return nil
 }
 

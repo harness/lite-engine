@@ -26,23 +26,23 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 	}, nil
 }
 
-func (e *Engine) Setup(ctx context.Context, pipelineConfig spec.PipelineConfig) error {
-	e.pipelineConfig = &pipelineConfig
+func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+	e.pipelineConfig = pipelineConfig
 
-	return e.docker.Setup(ctx, pipelineConfig)
+	return e.docker.Setup(ctx, e.pipelineConfig)
 }
 
 func (e *Engine) Destroy(ctx context.Context) error {
-	return e.docker.Destroy(ctx, *e.pipelineConfig)
+	return e.docker.Destroy(ctx, e.pipelineConfig)
 }
 
-func (e *Engine) Run(ctx context.Context, step spec.Step, output io.Writer) (*runtime.State, error) {
+func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State, error) {
 	for k, v := range e.pipelineConfig.Envs {
 		step.Envs[k] = v
 	}
 
 	if step.Image != "" {
-		return e.docker.Run(ctx, *e.pipelineConfig, step, output)
+		return e.docker.Run(ctx, e.pipelineConfig, step, output)
 	}
 
 	return exec.Run(ctx, step, output)

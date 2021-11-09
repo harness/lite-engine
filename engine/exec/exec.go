@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os/exec"
 
@@ -9,10 +10,15 @@ import (
 	"github.com/harness/lite-engine/engine/spec"
 )
 
-func Run(ctx context.Context, step spec.Step, output io.Writer) (*runtime.State, error) {
-	cmdArgs := append(step.Entrypoint[1:], step.Command...)
+func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State, error) {
+	if len(step.Entrypoint) == 0 {
+		return nil, errors.New("step entrypoint cannot be empty")
+	}
 
-	cmd := exec.Command(step.Entrypoint[0], cmdArgs...)
+	cmdArgs := step.Entrypoint[1:]
+	cmdArgs = append(cmdArgs, step.Command...)
+
+	cmd := exec.Command(step.Entrypoint[0], cmdArgs...) //nolint:gosec
 	cmd.Dir = step.WorkingDir
 	cmd.Env = toEnv(step.Envs)
 	cmd.Stderr = output

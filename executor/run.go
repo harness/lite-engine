@@ -10,7 +10,7 @@ import (
 	"github.com/harness/lite-engine/engine"
 )
 
-func executeRunStep(ctx context.Context, engine *engine.Engine, r api.StartStepRequest) (
+func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest) (
 	*runtime.State, error) {
 	step := toStep(r)
 	step.Command = r.Run.Command

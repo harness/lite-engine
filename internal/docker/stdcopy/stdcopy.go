@@ -56,7 +56,7 @@ type stdWriter struct {
 // It makes stdWriter to implement io.Writer.
 func (w *stdWriter) Write(p []byte) (n int, err error) {
 	if w == nil || w.Writer == nil {
-		return 0, errors.New("Writer not instantiated")
+		return 0, errors.New("writer not instantiated")
 	}
 	if p == nil {
 		return 0, nil
@@ -102,7 +102,7 @@ func NewStdWriter(w io.Writer, t StdType) io.Writer {
 // In other words: if `err` is non nil, it indicates a real underlying error.
 //
 // `written` will hold the total number of bytes written to `dstout` and `dsterr`.
-func StdCopy(dstout, dsterr io.Writer, src io.Reader) (written int64, err error) {
+func StdCopy(dstout, dsterr io.Writer, src io.Reader) (written int64, err error) { // nolint:gocyclo
 	var (
 		buf       = make([]byte, startingBufLen)
 		bufLen    = len(buf)
@@ -132,7 +132,7 @@ func StdCopy(dstout, dsterr io.Writer, src io.Reader) (written int64, err error)
 		// Check the first byte to know where to write
 		switch StdType(buf[stdWriterFdIndex]) {
 		case Stdin:
-			fallthrough
+			fallthrough // nolint:gocritic
 		case Stdout:
 			// Write on stdout
 			out = dstout
@@ -140,7 +140,7 @@ func StdCopy(dstout, dsterr io.Writer, src io.Reader) (written int64, err error)
 			// Write on stderr
 			out = dsterr
 		default:
-			return 0, fmt.Errorf("Unrecognized input header: %d", buf[stdWriterFdIndex])
+			return 0, fmt.Errorf("unrecognized input header: %d", buf[stdWriterFdIndex])
 		}
 
 		// Retrieve the size of the frame

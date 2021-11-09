@@ -22,7 +22,7 @@ func HandleStartStep(e *executor.StepExecutor) http.HandlerFunc {
 			return
 		}
 
-		if err := e.StartStep(r.Context(), s); err != nil {
+		if err := e.StartStep(r.Context(), &s); err != nil {
 			WriteError(w, err)
 		} else {
 			WriteJSON(w, api.StartStepResponse{}, http.StatusOK)
@@ -46,7 +46,7 @@ func HandlePollStep(e *executor.StepExecutor) http.HandlerFunc {
 			return
 		}
 
-		if response, err := e.PollStep(r.Context(), s); err != nil {
+		if response, err := e.PollStep(r.Context(), &s); err != nil {
 			WriteError(w, err)
 		} else {
 			WriteJSON(w, response, http.StatusOK)

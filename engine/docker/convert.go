@@ -15,7 +15,7 @@ import (
 )
 
 // returns a container configuration.
-func toConfig(pipelineConfig spec.PipelineConfig, step spec.Step) *container.Config {
+func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *container.Config {
 	config := &container.Config{
 		Image:        step.Image,
 		Labels:       step.Labels,
@@ -50,7 +50,7 @@ func toConfig(pipelineConfig spec.PipelineConfig, step spec.Step) *container.Con
 }
 
 // returns a container host configuration.
-func toHostConfig(pipelineConfig spec.PipelineConfig, step spec.Step) *container.HostConfig {
+func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *container.HostConfig {
 	config := &container.HostConfig{
 		LogConfig: container.LogConfig{
 			Type: "json-file",
@@ -75,7 +75,7 @@ func toHostConfig(pipelineConfig spec.PipelineConfig, step spec.Step) *container
 	if len(step.ExtraHosts) > 0 {
 		config.ExtraHosts = step.ExtraHosts
 	}
-	if isUnlimited(step) == false {
+	if !isUnlimited(step) {
 		config.Resources = container.Resources{
 			CPUPeriod:  step.CPUPeriod,
 			CPUQuota:   step.CPUQuota,
@@ -95,7 +95,7 @@ func toHostConfig(pipelineConfig spec.PipelineConfig, step spec.Step) *container
 }
 
 // helper function returns the container network configuration.
-func toNetConfig(pipelineConfig spec.PipelineConfig, proc spec.Step) *network.NetworkingConfig {
+func toNetConfig(pipelineConfig *spec.PipelineConfig, proc *spec.Step) *network.NetworkingConfig {
 	// if the user overrides the default network we do not
 	// attach to the user-defined network.
 	if proc.Network != "" {
@@ -113,14 +113,14 @@ func toNetConfig(pipelineConfig spec.PipelineConfig, proc spec.Step) *network.Ne
 
 // helper function that converts a slice of device paths to a slice of
 // container.DeviceMapping.
-func toDeviceSlice(pipelineConfig spec.PipelineConfig, step spec.Step) []container.DeviceMapping {
+func toDeviceSlice(pipelineConfig *spec.PipelineConfig, step *spec.Step) []container.DeviceMapping {
 	var to []container.DeviceMapping
 	for _, mount := range step.Devices {
 		device, ok := lookupVolume(pipelineConfig, mount.Name)
 		if !ok {
 			continue
 		}
-		if isDevice(device) == false {
+		if !isDevice(device) {
 			continue
 		}
 		to = append(to, container.DeviceMapping{
@@ -137,7 +137,7 @@ func toDeviceSlice(pipelineConfig spec.PipelineConfig, step spec.Step) []contain
 
 // helper function that converts a slice of volume paths to a set
 // of unique volume names.
-func toVolumeSet(pipelineConfig spec.PipelineConfig, step spec.Step) map[string]struct{} {
+func toVolumeSet(pipelineConfig *spec.PipelineConfig, step *spec.Step) map[string]struct{} {
 	set := map[string]struct{}{}
 	for _, mount := range step.Volumes {
 		volume, ok := lookupVolume(pipelineConfig, mount.Name)
@@ -150,7 +150,7 @@ func toVolumeSet(pipelineConfig spec.PipelineConfig, step spec.Step) map[string]
 		if isNamedPipe(volume) {
 			continue
 		}
-		if isBindMount(volume) == false {
+		if !isBindMount(volume) {
 			continue
 		}
 		set[mount.Path] = struct{}{}
@@ -159,7 +159,7 @@ func toVolumeSet(pipelineConfig spec.PipelineConfig, step spec.Step) map[string]
 }
 
 // helper function returns a slice of volume mounts.
-func toVolumeSlice(pipelineConfig spec.PipelineConfig, step spec.Step) []string {
+func toVolumeSlice(pipelineConfig *spec.PipelineConfig, step *spec.Step) []string {
 	// this entire function should be deprecated in
 	// favor of toVolumeMounts, however, I am unable
 	// to get it working with data volumes.
@@ -186,7 +186,7 @@ func toVolumeSlice(pipelineConfig spec.PipelineConfig, step spec.Step) []string 
 
 // helper function returns a slice of docker mount
 // configurations.
-func toVolumeMounts(pipelineConfig spec.PipelineConfig, step spec.Step) []mount.Mount {
+func toVolumeMounts(pipelineConfig *spec.PipelineConfig, step *spec.Step) []mount.Mount {
 	var mounts []mount.Mount
 	for _, target := range step.Volumes {
 		source, ok := lookupVolume(pipelineConfig, target.Name)
@@ -262,7 +262,7 @@ func toEnv(env map[string]string) []string {
 }
 
 // returns true if the container has no resource limits.
-func isUnlimited(res spec.Step) bool {
+func isUnlimited(res *spec.Step) bool {
 	return len(res.CPUSet) == 0 &&
 		res.CPUPeriod == 0 &&
 		res.CPUQuota == 0 &&
@@ -278,7 +278,7 @@ func isBindMount(volume *spec.Volume) bool {
 
 // returns true if the volume is in-memory.
 func isTempfs(volume *spec.Volume) bool {
-	return volume.EmptyDir != nil && volume.EmptyDir.Medium == "memory"
+	return volume.EmptyDir != nil && volume.EmptyDir.Medium == "memory" // nolint:goconst
 }
 
 // returns true if the volume is a data-volume.
@@ -298,7 +298,7 @@ func isNamedPipe(volume *spec.Volume) bool {
 }
 
 // helper function returns the named volume.
-func lookupVolume(pipelineConfig spec.PipelineConfig, name string) (*spec.Volume, bool) {
+func lookupVolume(pipelineConfig *spec.PipelineConfig, name string) (*spec.Volume, bool) {
 	for _, v := range pipelineConfig.Volumes {
 		if v.HostPath != nil && v.HostPath.Name == name {
 			return v, true

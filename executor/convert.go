@@ -6,8 +6,8 @@ import (
 )
 
 // Converts api params to engine.Step
-func toStep(r api.StartStepRequest) spec.Step {
-	return spec.Step{
+func toStep(r *api.StartStepRequest) *spec.Step {
+	return &spec.Step{
 		ID:           r.ID,
 		Auth:         r.Auth,
 		CPUPeriod:    r.CPUPeriod,

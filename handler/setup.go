@@ -23,7 +23,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
-		cfg := spec.PipelineConfig{
+		cfg := &spec.PipelineConfig{
 			Envs:     s.Envs,
 			Network:  s.Network,
 			Platform: s.Platform,
