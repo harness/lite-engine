@@ -19,16 +19,15 @@ type DestroyRequest struct{}
 type DestroyResponse struct{}
 
 type StartStepRequest struct {
-	ExecutionID string            `json:"execution_id,omitempty"`
-	ID          string            `json:"id,omitempty"`
-	Detach      bool              `json:"detach,omitempty"`
-	Envs        map[string]string `json:"environment,omitempty"`
-	Name        string            `json:"name,omitempty"`
-	Secrets     []string          `json:"secrets,omitempty"`
-	WorkingDir  string            `json:"working_dir,omitempty"`
-	Kind        StepType          `json:"kind,omitempty"`
-	Run         RunConfig         `json:"run,omitempty"`
-	RunTest     RunTestConfig     `json:"run_test,omitempty"`
+	ID         string            `json:"id,omitempty"` // Unique identifier of step
+	Detach     bool              `json:"detach,omitempty"`
+	Envs       map[string]string `json:"environment,omitempty"`
+	Name       string            `json:"name,omitempty"`
+	Secrets    []string          `json:"secrets,omitempty"`
+	WorkingDir string            `json:"working_dir,omitempty"`
+	Kind       StepType          `json:"kind,omitempty"`
+	Run        RunConfig         `json:"run,omitempty"`
+	RunTest    RunTestConfig     `json:"run_test,omitempty"`
 
 	// Valid only for steps running on docker container
 	Auth         *spec.Auth           `json:"auth,omitempty"`
@@ -58,7 +57,7 @@ type StartStepRequest struct {
 type StartStepResponse struct{}
 
 type PollStepRequest struct {
-	ExecutionID string `json:"execution_id,omitempty"`
+	ID string `json:"id,omitempty"`
 }
 
 type PollStepResponse struct {

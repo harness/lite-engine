@@ -43,17 +43,17 @@ func NewStepExecutor(engine *engine.Engine) *StepExecutor {
 }
 
 func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) error {
-	if r.ExecutionID == "" {
-		return &errors.BadRequestError{Msg: "Execution ID needs to be set"}
+	if r.ID == "" {
+		return &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 
 	e.mu.Lock()
-	_, ok := e.stepStatus[r.ExecutionID]
+	_, ok := e.stepStatus[r.ID]
 	if ok {
 		return nil
 	}
 
-	e.stepStatus[r.ExecutionID] = StepStatus{Status: Running}
+	e.stepStatus[r.ID] = StepStatus{Status: Running}
 	e.mu.Unlock()
 
 	go func() {
@@ -67,8 +67,8 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr}
 		e.mu.Lock()
-		e.stepStatus[r.ExecutionID] = status
-		channels := e.stepWaitCh[r.ExecutionID]
+		e.stepStatus[r.ID] = status
+		channels := e.stepWaitCh[r.ID]
 		e.mu.Unlock()
 
 		for _, ch := range channels {
@@ -79,9 +79,9 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 }
 
 func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*api.PollStepResponse, error) {
-	id := r.ExecutionID
-	if id == "" {
-		return &api.PollStepResponse{}, &errors.BadRequestError{Msg: "Execution ID needs to be set"}
+	id := r.ID
+	if r.ID == "" {
+		return &api.PollStepResponse{}, &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 
 	e.mu.Lock()

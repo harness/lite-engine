@@ -87,10 +87,9 @@ func runStage(client *HTTPClient) error {
 	// Execute step1
 	sid1 := "step1"
 	s1 := &api.StartStepRequest{
-		ExecutionID: sid1,
-		ID:          sid1,
-		Kind:        api.Run,
-		Image:       "alpine:3.12",
+		ID:    sid1,
+		Kind:  api.Run,
+		Image: "alpine:3.12",
 		Volumes: []*spec.VolumeMount{
 			{
 				Name: "_workspace",
@@ -108,7 +107,7 @@ func runStage(client *HTTPClient) error {
 		return err
 	}
 	logrus.Infof("Polling step1")
-	res, err := client.PollStep(ctx, &api.PollStepRequest{ExecutionID: sid1})
+	res, err := client.PollStep(ctx, &api.PollStepRequest{ID: sid1})
 	if err != nil {
 		logrus.WithError(err).Errorln("poll step1 call failed")
 		return err
@@ -119,10 +118,9 @@ func runStage(client *HTTPClient) error {
 	// Execute Step2
 	sid2 := "step2"
 	s2 := &api.StartStepRequest{
-		ExecutionID: sid2,
-		ID:          sid2,
-		Kind:        api.Run,
-		Image:       "alpine:3.12",
+		ID:    sid2,
+		Kind:  api.Run,
+		Image: "alpine:3.12",
 		Volumes: []*spec.VolumeMount{
 			{
 				Name: "_workspace",
@@ -140,7 +138,7 @@ func runStage(client *HTTPClient) error {
 		return err
 	}
 	logrus.Infof("Polling step2")
-	res, err = client.PollStep(ctx, &api.PollStepRequest{ExecutionID: sid2})
+	res, err = client.PollStep(ctx, &api.PollStepRequest{ID: sid2})
 	if err != nil {
 		logrus.WithError(err).Errorln("poll step2 call failed")
 		return err
