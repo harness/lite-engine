@@ -13,7 +13,7 @@ import (
 )
 
 // Handler returns an http.Handler that exposes the service resources.
-func Handler(config config.Config, engine *engine.Engine, stepExecutor *executor.StepExecutor) http.Handler { // nolint:gocritic
+func Handler(config *config.Config, engine *engine.Engine, stepExecutor *executor.StepExecutor) http.Handler {
 	r := chi.NewRouter()
 	r.Use(logger.Middleware)
 

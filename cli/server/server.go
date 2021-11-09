@@ -54,7 +54,7 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 	// create the http serverInstance.
 	serverInstance := server.Server{
 		Addr:     loadedConfig.Server.Bind,
-		Handler:  handler.Handler(loadedConfig, engine, stepExecutor),
+		Handler:  handler.Handler(&loadedConfig, engine, stepExecutor),
 		CAFile:   loadedConfig.Server.CACertFile, // CA certificate file
 		CertFile: loadedConfig.Server.CertFile,   // Server certificate PEM file
 		KeyFile:  loadedConfig.Server.KeyFile,    // Server key file
