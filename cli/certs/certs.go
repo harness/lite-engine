@@ -21,7 +21,7 @@ const (
 	serialLimit = 128
 
 	// default organization name for certificates.
-	organization = "drone.awsvm.generated"
+	organization = "drone.vm.generated"
 )
 
 // Certificate stores a certificate and private key.
