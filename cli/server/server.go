@@ -8,6 +8,9 @@ import (
 	"os/signal"
 
 	"github.com/harness/lite-engine/config"
+	"github.com/harness/lite-engine/engine"
+	"github.com/harness/lite-engine/engine/docker"
+	"github.com/harness/lite-engine/executor"
 	"github.com/harness/lite-engine/handler"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/server"
@@ -39,14 +42,22 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 	// init the system logging.
 	initLogging(&loadedConfig)
 
+	engine, err := engine.NewEnv(docker.Opts{})
+	if err != nil {
+		logrus.WithError(err).
+			Errorln("failed to initialize engine")
+		return err
+	}
+
+	stepExecutor := executor.NewStepExecutor(engine)
+
 	// create the http serverInstance.
 	serverInstance := server.Server{
 		Addr:     loadedConfig.Server.Bind,
-		Handler:  handler.Handler(&loadedConfig),
+		Handler:  handler.Handler(&loadedConfig, engine, stepExecutor),
 		CAFile:   loadedConfig.Server.CACertFile, // CA certificate file
 		CertFile: loadedConfig.Server.CertFile,   // Server certificate PEM file
 		KeyFile:  loadedConfig.Server.KeyFile,    // Server key file
-
 	}
 
 	// trap the os signal to gracefully shutdown the http server.
