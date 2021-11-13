@@ -2,12 +2,17 @@ package executor
 
 import (
 	"context"
-	"fmt"
 	"sync"
+	"time"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/errors"
+	"github.com/harness/lite-engine/livelog"
+	"github.com/harness/lite-engine/logstream"
+	"github.com/harness/lite-engine/pipeline"
+	"github.com/hashicorp/go-multierror"
+	"github.com/sirupsen/logrus"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 )
@@ -50,6 +55,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.mu.Lock()
 	_, ok := e.stepStatus[r.ID]
 	if ok {
+		e.mu.Unlock()
 		return nil
 	}
 
@@ -57,14 +63,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.mu.Unlock()
 
 	go func() {
-		var state *runtime.State
-		var stepErr error
-		if r.Kind == api.Run {
-			state, stepErr = executeRunStep(context.Background(), e.engine, r)
-		} else {
-			executeRunTestStep()
-		}
-
+		state, stepErr := e.executeStep(r)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr}
 		e.mu.Lock()
 		e.stepStatus[r.ID] = status
@@ -93,6 +92,10 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 
 	if s.Status == Complete {
 		e.mu.Unlock()
+		if s.StepErr != nil {
+			return &api.PollStepResponse{}, &errors.InternalServerError{Msg: s.StepErr.Error()}
+		}
+
 		return &api.PollStepResponse{
 			Exited:    s.State.Exited,
 			ExitCode:  s.State.ExitCode,
@@ -110,12 +113,75 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 
 	status := <-ch
 	if status.StepErr != nil {
-		errMsg := fmt.Sprintf("failed to execute step with err: %s", status.StepErr.Error())
-		return &api.PollStepResponse{}, &errors.InternalServerError{Msg: errMsg}
+		return &api.PollStepResponse{}, &errors.InternalServerError{Msg: status.StepErr.Error()}
 	}
 	return &api.PollStepResponse{
 		Exited:    status.State.Exited,
 		ExitCode:  status.State.ExitCode,
 		OOMKilled: status.State.OOMKilled,
 	}, nil
+}
+
+func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, error) {
+	state := pipeline.GetState()
+	secrets := append(state.GetSecrets(), r.Secrets...)
+
+	// Create a log stream for step logs
+	client := state.GetLogStreamClient()
+	wc := livelog.New(client, r.LogKey, getNudges())
+	wr := logstream.NewReplacer(wc, secrets)
+	go wr.Open()
+
+	// if the step is configured as a daemon, it is detached
+	// from the main process and executed separately.
+	if r.Detach {
+		go func() {
+			ctx := context.Background()
+			var cancel context.CancelFunc
+			if r.Timeout > 0 {
+				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
+				defer cancel()
+			}
+			executeRunStep(ctx, e.engine, r, wr)
+			wc.Close()
+		}()
+		return &runtime.State{Exited: false}, nil
+	}
+
+	var result error
+
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if r.Timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
+		defer cancel()
+	}
+
+	exited, stepErr := executeRunStep(ctx, e.engine, r, wr)
+	if stepErr != nil {
+		result = multierror.Append(result, stepErr)
+	}
+
+	// close the stream. If the session is a remote session, the
+	// full log buffer is uploaded to the remote server.
+	if err := wc.Close(); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	// if the context was cancelled and returns a Canceled or
+	// DeadlineExceeded error this indicates the pipeline was
+	// cancelled.
+	switch ctx.Err() {
+	case context.Canceled, context.DeadlineExceeded:
+		return nil, ctx.Err()
+	}
+
+	if exited != nil {
+		if exited.OOMKilled {
+			logrus.WithField("id", r.ID).Infoln("received oom kill.")
+		} else {
+			logrus.WithField("id", r.ID).Infof("received exit code %d\n", exited.ExitCode)
+		}
+	}
+	return exited, result
 }

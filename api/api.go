@@ -5,11 +5,13 @@ import (
 )
 
 type SetupRequest struct {
-	Envs     map[string]string `json:"envs,omitempty"`
-	Network  spec.Network      `json:"network"`
-	Platform spec.Platform     `json:"platform,omitempty"`
-	Volumes  []*spec.Volume    `json:"volumes,omitempty"`
-	Secrets  []string          `json:"secrets,omitempty"`
+	Envs      map[string]string `json:"envs,omitempty"`
+	Network   spec.Network      `json:"network"`
+	Platform  spec.Platform     `json:"platform,omitempty"`
+	Volumes   []*spec.Volume    `json:"volumes,omitempty"`
+	Secrets   []string          `json:"secrets,omitempty"`
+	LogConfig LogConfig         `json:"log_config,omitempty"`
+	TIConfig  TIConfig          `json:"ti_config,omitempty"`
 }
 
 type SetupResponse struct{}
@@ -28,6 +30,10 @@ type StartStepRequest struct {
 	Kind       StepType          `json:"kind,omitempty"`
 	Run        RunConfig         `json:"run,omitempty"`
 	RunTest    RunTestConfig     `json:"run_test,omitempty"`
+
+	LogKey     string   `json:"log_key,omitempty"`
+	OutputVars []string `json:"output_var,omitempty"`
+	Timeout    int      `json:"timeout,omitempty"` // step timeout in seconds
 
 	// Valid only for steps running on docker container
 	Auth         *spec.Auth           `json:"auth,omitempty"`
@@ -81,4 +87,16 @@ type RunTestConfig struct {
 	Packages             string   `json:"packages,omitempty"`
 	RunOnlySelectedTests bool     `json:"run_only_selected_tests,omitempty"`
 	TestAnnotations      string   `json:"test_annotations,omitempty"`
+}
+
+type LogConfig struct {
+	AccountID      string `json:"account_id,omitempty"`
+	IndirectUpload bool   `json:"indirect_upload,omitempty"` // Whether to directly upload via signed link or using log service
+	URL            string `json:"url,omitempty"`
+	Token          string `json:"token,omitempty"`
+}
+
+type TIConfig struct {
+	URL   string `json:"url,omitempty"`
+	Token string `json:"token,omitempty"`
 }

@@ -68,6 +68,7 @@ func GenerateCert(host string, ca *Certificate) (*Certificate, error) {
 		logrus.
 			WithError(certOutErr).
 			Errorln("cannot pem encode certOut")
+		return nil, certOutErr
 	}
 
 	keyOut := new(bytes.Buffer)
@@ -79,6 +80,7 @@ func GenerateCert(host string, ca *Certificate) (*Certificate, error) {
 		logrus.
 			WithError(keyOutErr).
 			Errorln("cannot pem encode keyout")
+		return nil, keyOutErr
 	}
 
 	return &Certificate{
@@ -119,6 +121,7 @@ func GenerateCA() (*Certificate, error) {
 		logrus.
 			WithError(certOutErr).
 			Errorln("cannot pem encode certOut")
+		return nil, certOutErr
 	}
 	keyOut := new(bytes.Buffer)
 	keyOutErr := pem.Encode(keyOut, &pem.Block{
@@ -129,6 +132,7 @@ func GenerateCA() (*Certificate, error) {
 		logrus.
 			WithError(keyOutErr).
 			Errorln("cannot pem encode keyout")
+		return nil, keyOutErr
 	}
 	return &Certificate{
 		Cert: certOut.Bytes(),
