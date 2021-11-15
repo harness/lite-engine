@@ -6,7 +6,7 @@ replace github.com/docker/docker => github.com/docker/engine v17.12.0-ce-rc1.0.2
 
 require (
 	github.com/docker/distribution v2.7.1+incompatible
-	github.com/docker/docker v0.0.0-00010101000000-000000000000
+	github.com/docker/docker v0.0.1
 	github.com/docker/go-connections v0.4.0
 	github.com/drone/runner-go v1.9.0
 	github.com/go-chi/chi v1.5.4
