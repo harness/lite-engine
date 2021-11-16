@@ -130,7 +130,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, err
 	client := state.GetLogStreamClient()
 	wc := livelog.New(client, r.LogKey, getNudges())
 	wr := logstream.NewReplacer(wc, secrets)
-	go wr.Open()
+	go wr.Open() // nolint:errcheck
 
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
