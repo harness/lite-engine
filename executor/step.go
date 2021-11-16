@@ -142,7 +142,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, err
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
 				defer cancel()
 			}
-			executeRunStep(ctx, e.engine, r, wr)
+			executeRunStep(ctx, e.engine, r, wr) // nolint:errcheck
 			wc.Close()
 		}()
 		return &runtime.State{Exited: false}, nil
@@ -168,9 +168,9 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, err
 		result = multierror.Append(result, err)
 	}
 
-	// if the context was cancelled and returns a Canceled or
+	// if the context was canceled and returns a canceled or
 	// DeadlineExceeded error this indicates the pipeline was
-	// cancelled.
+	// canceled.
 	switch ctx.Err() {
 	case context.Canceled, context.DeadlineExceeded:
 		return nil, ctx.Err()

@@ -8,7 +8,7 @@ import (
 type Writer interface {
 	io.WriteCloser
 	Open() error
-	Start() error
+	Start()
 	Error() error // Track if any error was recorded
 }
 
@@ -16,7 +16,7 @@ type nopWriter struct {
 	data []string
 }
 
-func (*nopWriter) Start() error { return nil }
+func (*nopWriter) Start()       {}
 func (*nopWriter) Open() error  { return nil }
 func (*nopWriter) Close() error { return nil }
 func (*nopWriter) Error() error { return nil }

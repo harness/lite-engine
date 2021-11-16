@@ -9,9 +9,11 @@ require (
 	github.com/docker/distribution v2.7.1+incompatible
 	github.com/docker/docker v0.0.0-00010101000000-000000000000
 	github.com/docker/go-connections v0.4.0
+	github.com/drone/drone-go v1.6.0
 	github.com/drone/runner-go v1.9.0
 	github.com/go-chi/chi v1.5.4
 	github.com/gofrs/uuid v4.0.0+incompatible
+	github.com/google/go-cmp v0.3.0
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
@@ -32,7 +34,6 @@ require (
 	github.com/containerd/containerd v1.3.4 // indirect
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/drone/drone-go v1.6.0 // indirect
 	github.com/drone/envsubst v1.0.3 // indirect
 	github.com/gogo/protobuf v0.0.0-20170307180453-100ba4e88506 // indirect
 	github.com/golang/protobuf v1.3.3 // indirect

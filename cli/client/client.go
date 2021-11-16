@@ -54,7 +54,7 @@ func checkServerHealth(client *HTTPClient) error {
 	return client.Health(context.Background())
 }
 
-func runStage(client *HTTPClient, remoteLog bool) error {
+func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 	ctx := context.Background()
 	defer func() {
 		logrus.Infof("Starting destroy")

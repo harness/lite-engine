@@ -23,7 +23,7 @@ const (
 
 // Writer is an io.Writer that sends logs to the server.
 type Writer struct {
-	sync.Mutex
+	mu sync.Mutex
 
 	client logstream.Client // client
 
@@ -91,11 +91,12 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 	//     Write(BC\nDEF\nGH) ---> res becomes ABC\nDEF\n and prev becomes GH
 	first, second := splitLast(p)
 
-	res = append(b.prev, first...)
+	res = b.prev
+	res = append(res, first...)
 	b.prev = second
 
 	for _, part := range split(res) {
-		if len(part) == 0 {
+		if part == "" {
 			continue
 		}
 		line := &logstream.Line{
@@ -121,18 +122,18 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			b.history = b.history[1:]
 		}
 
-		b.size = b.size + len(part)
+		b.size += len(part)
 		b.num++
 
 		if !b.stopped() {
-			b.Lock()
+			b.mu.Lock()
 			b.pending = append(b.pending, line)
-			b.Unlock()
+			b.mu.Unlock()
 		}
 
-		b.Lock()
+		b.mu.Lock()
 		b.history = append(b.history, line)
-		b.Unlock()
+		b.mu.Unlock()
 	}
 
 	select {
@@ -162,7 +163,7 @@ func (b *Writer) Close() error {
 	if b.stop() {
 		// Flush anything waiting on a new line
 		if len(b.prev) > 0 {
-			b.Write([]byte("\n"))
+			b.Write([]byte("\n")) // nolint:errcheck
 		}
 		b.flush()
 	}
@@ -189,10 +190,10 @@ func (b *Writer) flush() error {
 	if !b.opened {
 		return nil
 	}
-	b.Lock()
+	b.mu.Lock()
 	lines := b.copy()
 	b.clear()
-	b.Unlock()
+	b.mu.Unlock()
 	if len(lines) == 0 {
 		return nil
 	}
@@ -223,36 +224,36 @@ func (b *Writer) clear() {
 }
 
 func (b *Writer) stop() bool {
-	b.Lock()
+	b.mu.Lock()
 	var closed bool
 	if !b.closed {
 		close(b.close)
 		closed = true
 		b.closed = true
 	}
-	b.Unlock()
+	b.mu.Unlock()
 	return closed
 }
 
 func (b *Writer) stopped() bool {
-	b.Lock()
+	b.mu.Lock()
 	closed := b.closed
-	b.Unlock()
+	b.mu.Unlock()
 	return closed
 }
 
 // Start starts a periodic loop to flush logs to the live stream
-func (b *Writer) Start() error {
+func (b *Writer) Start() {
 	intervalTimer := time.NewTimer(b.interval)
 	for {
 		select {
 		case <-b.close:
-			return nil
+			return
 		case <-b.ready:
 			intervalTimer.Reset(b.interval)
 			select {
 			case <-b.close:
-				return nil
+				return
 			case <-intervalTimer.C:
 				// we intentionally ignore errors. log streams
 				// are ephemeral and are considered low priority
@@ -270,7 +271,7 @@ func (b *Writer) Start() error {
 func (b *Writer) checkErrInLogs() {
 	size := len(b.history)
 	// Check last 10 log lines for errors. TODO(Shubham): see if this can be made better
-	for idx := max(0, size-10); idx < size; idx++ {
+	for idx := max(0, size-10); idx < size; idx++ { // nolint:gomnd
 		line := b.history[idx]
 		// Iterate over the nudges and see if we get a match
 		for _, n := range b.nudges {
@@ -279,7 +280,7 @@ func (b *Writer) checkErrInLogs() {
 				logrus.WithError(err).WithField("key", b.key).Errorln("error while compiling regex")
 				continue
 			}
-			if r.Match([]byte(line.Message)) {
+			if r.MatchString(line.Message) {
 				b.errs = append(b.errs, formatNudge(line, n))
 			}
 		}
@@ -288,7 +289,7 @@ func (b *Writer) checkErrInLogs() {
 
 // return back two byte arrays after splitting on last \n.
 // Eg: ABC\nDEF\nGH will return ABC\nDEF\n and GH
-func splitLast(p []byte) ([]byte, []byte) {
+func splitLast(p []byte) ([]byte, []byte) { // nolint:gocritic
 	if !bytes.Contains(p, []byte("\n")) {
 		return p, []byte{} // If no \n is present, return the string itself
 	}
@@ -316,7 +317,7 @@ func split(p []byte) []string {
 }
 
 func formatNudge(line *logstream.Line, nudge Nudge) error {
-	return fmt.Errorf("Found possible error on line %d.\n Log: %s.\n Possible error: %s.\n Possible resolution: %s.",
+	return fmt.Errorf("found possible error on line %d.\n Log: %s.\n Possible error: %s.\n Possible resolution: %s",
 		line.Number+1, line.Message, nudge.GetError(), nudge.GetResolution())
 }
 

@@ -18,7 +18,7 @@ type replacer struct {
 func NewReplacer(w Writer, secrets []string) Writer {
 	var oldnew []string
 	for _, secret := range secrets {
-		if len(secret) == 0 {
+		if secret == "" {
 			continue
 		}
 
@@ -27,12 +27,11 @@ func NewReplacer(w Writer, secrets []string) Writer {
 
 			// avoid masking empty or single character
 			// strings.
-			if len(part) < 2 {
+			if len(part) < 2 { // nolint:gomnd
 				continue
 			}
 
-			oldnew = append(oldnew, part)
-			oldnew = append(oldnew, maskedStr)
+			oldnew = append(oldnew, part, maskedStr)
 		}
 	}
 	if len(oldnew) == 0 {
@@ -56,8 +55,8 @@ func (r *replacer) Open() error {
 	return r.w.Open()
 }
 
-func (r *replacer) Start() error {
-	return r.w.Start()
+func (r *replacer) Start() {
+	r.w.Start()
 }
 
 // Close closes the base writer.

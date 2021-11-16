@@ -93,11 +93,12 @@ func (f *FileStore) Write(ctx context.Context, key string, lines []*logstream.Li
 func (f *FileStore) getFileRef(key string) (*os.File, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if s, ok := f.state[key]; ok {
-		return s.file, nil
-	} else {
+	s, ok := f.state[key]
+	if !ok {
 		return nil, errors.New("file is not opened")
 	}
+
+	return s.file, nil
 }
 
 func convertLines(lines []*logstream.Line) []*drone.Line {

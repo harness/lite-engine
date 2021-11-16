@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -50,7 +49,7 @@ func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify
 			Transport: &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
 				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
+					InsecureSkipVerify: true, // nolint:gosec
 				},
 			},
 		}
@@ -126,31 +125,31 @@ func (c *HTTPClient) uploadToRemoteStorage(ctx context.Context, key string, r io
 func (c *HTTPClient) uploadLink(ctx context.Context, key string) (*Link, error) {
 	path := fmt.Sprintf(uploadLinkEndpoint, c.AccountID, key)
 	out := new(Link)
-	backoff := createBackoff(60 * time.Second)
-	_, err := c.retry(ctx, c.Endpoint+path, "POST", nil, out, false, backoff)
+	backoff := createBackoff(60 * time.Second)                                // nolint:gomnd
+	_, err := c.retry(ctx, c.Endpoint+path, "POST", nil, out, false, backoff) // nolint:bodyclose
 	return out, err
 }
 
 // uploadUsingLink takes in a reader and a link object and uploads directly to
 // remote storage.
 func (c *HTTPClient) uploadUsingLink(ctx context.Context, link string, r io.Reader) error {
-	backoff := createBackoff(60 * time.Second)
-	_, err := c.retry(ctx, link, "PUT", r, nil, true, backoff)
+	backoff := createBackoff(60 * time.Second)                 // nolint:gomnd
+	_, err := c.retry(ctx, link, "PUT", r, nil, true, backoff) // nolint:bodyclose
 	return err
 }
 
 // Open opens the data stream.
 func (c *HTTPClient) Open(ctx context.Context, key string) error {
 	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
-	backoff := createBackoff(10 * time.Second)
-	_, err := c.retry(ctx, c.Endpoint+path, "POST", nil, nil, false, backoff)
+	backoff := createBackoff(10 * time.Second)                                // nolint:gomnd
+	_, err := c.retry(ctx, c.Endpoint+path, "POST", nil, nil, false, backoff) // nolint:bodyclose
 	return err
 }
 
 // Close closes the data stream.
 func (c *HTTPClient) Close(ctx context.Context, key string) error {
 	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
-	_, err := c.do(ctx, c.Endpoint+path, "DELETE", nil, nil)
+	_, err := c.do(ctx, c.Endpoint+path, "DELETE", nil, nil) // nolint:bodyclose
 	return err
 }
 
@@ -158,7 +157,7 @@ func (c *HTTPClient) Close(ctx context.Context, key string) error {
 func (c *HTTPClient) Write(ctx context.Context, key string, lines []*logstream.Line) error {
 	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
 	l := convertLines(lines)
-	_, err := c.do(ctx, c.Endpoint+path, "PUT", &l, nil)
+	_, err := c.do(ctx, c.Endpoint+path, "PUT", &l, nil) // nolint:bodyclose
 	return err
 }
 
@@ -173,9 +172,9 @@ func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out int
 		}
 
 		// do not retry on Canceled or DeadlineExceeded
-		if err := ctx.Err(); err != nil {
-			logrus.WithError(err).WithField("path", path).Errorln("http: context canceled")
-			return res, err
+		if cerr := ctx.Err(); cerr != nil {
+			logrus.WithError(cerr).WithField("path", path).Errorln("http: context canceled")
+			return res, cerr
 		}
 
 		duration := b.NextBackOff()
@@ -186,7 +185,7 @@ func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out int
 			// 5xx's are typically not permanent errors and may
 			// relate to outages on the server side.
 
-			if res.StatusCode >= 500 {
+			if res.StatusCode >= 500 { // nolint:gomnd
 				logrus.WithError(err).WithField("path", path).Warnln("http: log-service server error: reconnect and retry")
 				if duration == backoff.Stop {
 					return nil, err
@@ -213,7 +212,10 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 
 	if in != nil {
 		buf := new(bytes.Buffer)
-		json.NewEncoder(buf).Encode(in)
+		if err := json.NewEncoder(buf).Encode(in); err != nil {
+			logrus.WithError(err).WithField("in", in).Errorln("failed to encode input")
+			return nil, err
+		}
 		r = buf
 	}
 
@@ -230,7 +232,9 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		defer func() {
 			// drain the response body so we can reuse
 			// this connection.
-			io.Copy(ioutil.Discard, io.LimitReader(res.Body, 4096))
+			if _, cerr := io.Copy(io.Discard, io.LimitReader(res.Body, 4096)); cerr != nil { // nolint:gomnd
+				logrus.WithError(cerr).Errorln("failed to drain response body")
+			}
 			res.Body.Close()
 		}()
 	}
@@ -241,17 +245,17 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 	// if the response body return no content we exit
 	// immediately. We do not read or unmarshal the response
 	// and we do not return an error.
-	if res.StatusCode == 204 {
+	if res.StatusCode == 204 { // nolint:gomnd
 		return res, nil
 	}
 
 	// else read the response body into a byte slice.
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return res, err
 	}
 
-	if res.StatusCode > 299 {
+	if res.StatusCode > 299 { // nolint:gomnd
 		// if the response body includes an error message
 		// we should return the error string.
 		if len(body) != 0 {
