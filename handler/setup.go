@@ -9,6 +9,7 @@ import (
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/pipeline"
 )
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
@@ -22,6 +23,9 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			WriteBadRequest(w, err)
 			return
 		}
+
+		state := pipeline.GetState()
+		state.Set(s.Secrets, s.LogConfig, s.TIConfig)
 
 		cfg := &spec.PipelineConfig{
 			Envs:     s.Envs,

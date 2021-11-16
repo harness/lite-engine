@@ -15,8 +15,9 @@ import (
 )
 
 type clientCommand struct {
-	envfile  string
-	runStage bool
+	envfile   string
+	runStage  bool
+	remoteLog bool
 }
 
 func (c *clientCommand) run(*kingpin.ParseContext) error {
@@ -44,7 +45,7 @@ func (c *clientCommand) run(*kingpin.ParseContext) error {
 	}
 
 	if c.runStage {
-		return runStage(client)
+		return runStage(client, c.remoteLog)
 	}
 	return checkServerHealth(client)
 }
@@ -53,7 +54,7 @@ func checkServerHealth(client *HTTPClient) error {
 	return client.Health(context.Background())
 }
 
-func runStage(client *HTTPClient) error {
+func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 	ctx := context.Background()
 	defer func() {
 		logrus.Infof("Starting destroy")
@@ -77,6 +78,14 @@ func runStage(client *HTTPClient) error {
 			ID: "drone",
 		},
 	}
+	if remoteLog {
+		setupParams.LogConfig = api.LogConfig{
+			URL:            "http://localhost:8079",
+			AccountID:      "kmpy",
+			Token:          "token",
+			IndirectUpload: true,
+		}
+	}
 	logrus.Infof("Starting setup")
 	if _, err := client.Setup(ctx, setupParams); err != nil {
 		logrus.WithError(err).Errorln("setup call failed")
@@ -97,6 +106,7 @@ func runStage(client *HTTPClient) error {
 			},
 		},
 		WorkingDir: "/drone/src",
+		LogKey:     sid1,
 	}
 	s1.Run.Command = []string{"set -xe; pwd; echo drone; echo hello world > foo; cat foo"}
 	s1.Run.Entrypoint = []string{"sh", "-c"}
@@ -128,6 +138,7 @@ func runStage(client *HTTPClient) error {
 			},
 		},
 		WorkingDir: "/drone/src",
+		LogKey:     sid2,
 	}
 	s2.Run.Command = []string{"set -xe; pwd; cat foo"}
 	s2.Run.Entrypoint = []string{"sh", "-c"}
@@ -159,4 +170,6 @@ func Register(app *kingpin.Application) {
 		StringVar(&c.envfile)
 	cmd.Flag("stage", "Run a stage").
 		BoolVar(&c.runStage)
+	cmd.Flag("remotelog", "Enable remote logging if client runs in stage mode").
+		BoolVar(&c.remoteLog)
 }

@@ -28,10 +28,6 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 		return nil, err
 	}
 
-	if step.Detach {
-		return &runtime.State{Exited: false}, nil
-	}
-
 	err := cmd.Wait()
 	if err == nil {
 		return &runtime.State{ExitCode: 0, Exited: true}, nil
