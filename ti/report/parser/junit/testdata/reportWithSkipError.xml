@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<testsuites>
+    <testsuite errors="1" skipped="1" name="report2" tests="2">
+        <testcase classname="report2test1class" name="report2test1" time="123">
+            <skipped message="report2test1message">report2test1description</skipped>
+            <system-out>report2test1stdout</system-out>
+            <system-err>report2test1stderr</system-err>
+        </testcase>
+        <testcase classname="report2test2class" name="report2test2" time="11">
+            <error message="report2test2message" type="report2test2type">report2test2description</error>
+            <system-out>report2test2stdout</system-out>
+            <system-err>report2test2stderr</system-err>
+        </testcase>
+    </testsuite>
+</testsuites>

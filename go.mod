@@ -13,14 +13,20 @@ require (
 	github.com/drone/runner-go v1.9.0
 	github.com/go-chi/chi v1.5.4
 	github.com/gofrs/uuid v4.0.0+incompatible
-	github.com/google/go-cmp v0.3.0
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.8.1
+	github.com/stretchr/testify v1.4.0
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
+)
+
+require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	gopkg.in/yaml.v2 v2.2.2 // indirect
 )
 
 require (
@@ -40,6 +46,7 @@ require (
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/kr/pretty v0.1.0 // indirect
+	github.com/mattn/go-zglob v0.0.3
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/natessilva/dag v0.0.0-20180124060714-7194b8dcc5c4 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect

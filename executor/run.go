@@ -8,6 +8,7 @@ import (
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
+	"github.com/harness/lite-engine/ti/report"
 )
 
 func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) (
@@ -16,5 +17,11 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	step.Command = r.Run.Command
 	step.Entrypoint = r.Run.Entrypoint
 
-	return engine.Run(ctx, step, out)
+	exited, err := engine.Run(ctx, step, out)
+	if err != nil {
+		return exited, err
+	}
+
+	_ = report.ParseAndUploadTests(ctx, r.TestReport, step.Name)
+	return exited, nil
 }

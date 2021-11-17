@@ -30,7 +30,7 @@ var stepTypeName = map[string]StepType{
 }
 
 // MarshalJSON marshals the string representation of the
-// pull type to JSON.
+// step type to JSON.
 func (s *StepType) MarshalJSON() ([]byte, error) {
 	buffer := bytes.NewBufferString(`"`)
 	buffer.WriteString(stepTypeID[*s])
@@ -39,7 +39,7 @@ func (s *StepType) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON unmarshals the json representation of the
-// pull type from a string value.
+// step type from a string value.
 func (s *StepType) UnmarshalJSON(b []byte) error {
 	// unmarshal as string
 	var a string
