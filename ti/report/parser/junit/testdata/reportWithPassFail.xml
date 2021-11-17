@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<testsuites>
+    <testsuite errors="0" failures="1" name="report1" tests="2">
+        <testcase classname="report1test1class" name="report1test1" time="123">
+            <system-out>report1test1stdout</system-out>
+            <system-err>report1test1stderr</system-err>
+        </testcase>
+        <testcase classname="report1test2class" name="report1test2" time="11">
+            <failure message="report1test2message" type="report1test2type">report1test2description</failure>
+            <system-out>report1test2stdout</system-out>
+            <system-err>report1test2stderr</system-err>
+        </testcase>
+    </testsuite>
+</testsuites>

@@ -20,10 +20,10 @@ type State struct {
 	logConfig api.LogConfig
 	tiConfig  api.TIConfig
 	secrets   []string
-	client    logstream.Client
+	logClient logstream.Client
 }
 
-func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig api.TIConfig) {
+func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig api.TIConfig) { // nolint:gocritic
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.secrets = secrets
@@ -32,20 +32,33 @@ func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig api.TICo
 }
 
 func (s *State) GetSecrets() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	return s.secrets
 }
 
 func (s *State) GetLogStreamClient() logstream.Client {
-	if s.client == nil {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.logClient == nil {
 		if s.logConfig.URL != "" {
-			s.client = remote.NewHTTPClient(s.logConfig.URL, s.logConfig.AccountID,
+			s.logClient = remote.NewHTTPClient(s.logConfig.URL, s.logConfig.AccountID,
 				s.logConfig.Token, s.logConfig.IndirectUpload, false)
 		} else {
 			// TODO (shubham): Fix the relative path
-			s.client = filestore.New("/tmp")
+			s.logClient = filestore.New("/tmp")
 		}
 	}
-	return s.client
+	return s.logClient
+}
+
+func (s *State) GetTIConfig() *api.TIConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return &s.tiConfig
 }
 
 func GetState() *State {
@@ -55,7 +68,7 @@ func GetState() *State {
 			logConfig: api.LogConfig{},
 			tiConfig:  api.TIConfig{},
 			secrets:   make([]string, 0),
-			client:    nil,
+			logClient: nil,
 		}
 	})
 	return state
