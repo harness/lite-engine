@@ -25,7 +25,7 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, stepID stri
 	}
 
 	config := pipeline.GetState().GetTIConfig()
-	if config == nil || config.URL != "" {
+	if config == nil || config.URL == "" {
 		return fmt.Errorf("TI config is not provided in setup")
 	}
 

@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/drone/runner-go/pipeline/runtime"
+	"github.com/sirupsen/logrus"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
@@ -18,10 +19,9 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	step.Entrypoint = r.Run.Entrypoint
 
 	exited, err := engine.Run(ctx, step, out)
-	if err != nil {
-		return exited, err
+	if rerr := report.ParseAndUploadTests(ctx, r.TestReport, step.Name); rerr != nil {
+		logrus.WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
 	}
 
-	_ = report.ParseAndUploadTests(ctx, r.TestReport, step.Name)
-	return exited, nil
+	return exited, err
 }
