@@ -3,6 +3,7 @@ package report
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/pipeline"
@@ -31,5 +32,5 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, stepID stri
 
 	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
 		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, false)
-	return c.Write(ctx, stepID, report.Kind.String(), tests)
+	return c.Write(ctx, stepID, strings.ToLower(report.Kind.String()), tests)
 }
