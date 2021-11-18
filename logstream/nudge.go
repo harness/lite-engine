@@ -1,4 +1,4 @@
-package livelog
+package logstream
 
 // Nudge is an interface which provides a resolution (nudge)
 // if a specific term is found.

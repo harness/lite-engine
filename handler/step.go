@@ -6,12 +6,12 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/executor"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/pipeline/runtime"
 )
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
-func HandleStartStep(e *executor.StepExecutor) http.HandlerFunc {
+func HandleStartStep(e *runtime.StepExecutor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
@@ -35,7 +35,7 @@ func HandleStartStep(e *executor.StepExecutor) http.HandlerFunc {
 	}
 }
 
-func HandlePollStep(e *executor.StepExecutor) http.HandlerFunc {
+func HandlePollStep(e *runtime.StepExecutor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 

@@ -1,4 +1,4 @@
-package executor
+package runtime
 
 import (
 	"github.com/harness/lite-engine/api"

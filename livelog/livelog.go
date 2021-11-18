@@ -34,7 +34,7 @@ type Writer struct {
 	size   int
 	limit  int
 	opened bool // whether the stream has been successfully opened
-	nudges []Nudge
+	nudges []logstream.Nudge
 	errs   []error
 
 	interval time.Duration
@@ -48,7 +48,7 @@ type Writer struct {
 }
 
 // New returns a new writer
-func New(client logstream.Client, key string, nudges []Nudge) *Writer {
+func New(client logstream.Client, key string, nudges []logstream.Nudge) *Writer {
 	b := &Writer{
 		client:   client,
 		key:      key,
@@ -316,7 +316,7 @@ func split(p []byte) []string {
 	return v
 }
 
-func formatNudge(line *logstream.Line, nudge Nudge) error {
+func formatNudge(line *logstream.Line, nudge logstream.Nudge) error {
 	return fmt.Errorf("found possible error on line %d.\n Log: %s.\n Possible error: %s.\n Possible resolution: %s",
 		line.Number+1, line.Message, nudge.GetError(), nudge.GetResolution())
 }
