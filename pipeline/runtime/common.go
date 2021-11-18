@@ -1,9 +1,14 @@
 package runtime
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
+	"os"
+	"strings"
 
 	"github.com/harness/lite-engine/logstream"
+	"github.com/sirupsen/logrus"
 )
 
 func getNudges() []logstream.Nudge {
@@ -16,4 +21,42 @@ func getNudges() []logstream.Nudge {
 			"Setup dind if it's not running. If dind is running, privileged should be set to true",
 			errors.New("could not connect to the docker daemon")),
 	}
+}
+
+func getOutputVarCmd(outputVars []string, outputFile string) string {
+	cmd := ""
+	for _, o := range outputVars {
+		cmd += fmt.Sprintf(";echo \"%s $%s\" >> %s", o, o, outputFile)
+	}
+
+	return cmd
+}
+
+// Fetches map of env variable and value from OutputFile.
+// OutputFile stores all env variable and value
+func fetchOutputVariables(outputFile string) (map[string]string, error) {
+	outputs := make(map[string]string)
+	f, err := os.Open(outputFile)
+	if err != nil {
+		logrus.WithError(err).WithField("outputFile", outputFile).Errorln("Failed to open output file")
+		return nil, err
+	}
+	defer f.Close()
+
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		line := s.Text()
+		sa := strings.Split(line, " ")
+		if len(sa) < 2 { // nolint:gomnd
+			logrus.WithField("variable", sa[0]).Warnln(
+				"output variable does not exist")
+		} else {
+			outputs[sa[0]] = line[len(sa[0])+1:]
+		}
+	}
+	if err := s.Err(); err != nil {
+		logrus.WithError(err).Errorln("failed to create scanner from output file")
+		return nil, err
+	}
+	return outputs, nil
 }

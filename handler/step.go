@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/pipeline/runtime"
 )
 
@@ -21,6 +23,8 @@ func HandleStartStep(e *runtime.StepExecutor) http.HandlerFunc {
 			WriteBadRequest(w, err)
 			return
 		}
+
+		s.Volumes = append(s.Volumes, getSharedVolumeMount())
 
 		if err := e.StartStep(r.Context(), &s); err != nil {
 			WriteError(w, err)
@@ -56,5 +60,12 @@ func HandlePollStep(e *runtime.StepExecutor) http.HandlerFunc {
 			WithField("latency", time.Since(st)).
 			WithField("time", time.Now().Format(time.RFC3339)).
 			Infoln("api: successfully polled the step response")
+	}
+}
+
+func getSharedVolumeMount() *spec.VolumeMount {
+	return &spec.VolumeMount{
+		Name: pipeline.SharedVolName,
+		Path: pipeline.SharedVolPath,
 	}
 }
