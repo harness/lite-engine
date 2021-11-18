@@ -2,12 +2,15 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"os"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/engine/docker"
 	"github.com/harness/lite-engine/engine/exec"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/pkg/errors"
 )
 
 type Engine struct {
@@ -28,6 +31,14 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 
 func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	e.pipelineConfig = pipelineConfig
+	for _, vol := range e.pipelineConfig.Volumes {
+		if vol != nil && vol.HostPath != nil {
+			if err := os.MkdirAll(vol.HostPath.Path, 0777); err != nil {
+				return errors.Wrap(err,
+					fmt.Sprintf("failed to create directory for host volume path: %s", vol.HostPath.Path))
+			}
+		}
+	}
 
 	return e.docker.Setup(ctx, e.pipelineConfig)
 }

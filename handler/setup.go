@@ -27,6 +27,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, s.TIConfig)
 
+		s.Volumes = append(s.Volumes, getSharedVolume())
 		cfg := &spec.PipelineConfig{
 			Envs:     s.Envs,
 			Network:  s.Network,
@@ -43,5 +44,15 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			WithField("latency", time.Since(st)).
 			WithField("time", time.Now().Format(time.RFC3339)).
 			Infoln("api: successfully completed the stage setup")
+	}
+}
+
+func getSharedVolume() *spec.Volume {
+	return &spec.Volume{
+		HostPath: &spec.VolumeHostPath{
+			Name: pipeline.SharedVolName,
+			Path: pipeline.SharedVolPath,
+			ID:   "engine",
+		},
 	}
 }

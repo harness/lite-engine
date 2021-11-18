@@ -138,9 +138,10 @@ func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 			},
 		},
 		WorkingDir: "/drone/src",
+		OutputVars: []string{"hello"},
 		LogKey:     sid2,
 	}
-	s2.Run.Command = []string{"set -xe; pwd; cat foo"}
+	s2.Run.Command = []string{"set -xe; pwd; cat foo; export hello=world"}
 	s2.Run.Entrypoint = []string{"sh", "-c"}
 
 	logrus.Infof("Starting step2")

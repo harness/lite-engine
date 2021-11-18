@@ -69,9 +69,11 @@ type (
 	}
 
 	PollStepResponse struct {
-		Exited    bool `json:"exited,omitempty"`
-		ExitCode  int  `json:"exit_code,omitempty"`
-		OOMKilled bool `json:"oom_killed,omitempty"`
+		Exited    bool              `json:"exited,omitempty"`
+		ExitCode  int               `json:"exit_code,omitempty"`
+		Error     string            `json:"error,omitempty"`
+		OOMKilled bool              `json:"oom_killed,omitempty"`
+		Outputs   map[string]string `json:"outputs,omitempty"`
 	}
 
 	RunConfig struct {

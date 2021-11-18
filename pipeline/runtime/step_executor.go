@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ type StepStatus struct {
 	Status  ExecutionStatus
 	State   *runtime.State
 	StepErr error
+	Outputs map[string]string
 }
 
 const (
@@ -63,8 +65,8 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.mu.Unlock()
 
 	go func() {
-		state, stepErr := e.executeStep(r)
-		status := StepStatus{Status: Complete, State: state, StepErr: stepErr}
+		state, outputs, stepErr := e.executeStep(r)
+		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs}
 		e.mu.Lock()
 		e.stepStatus[r.ID] = status
 		channels := e.stepWaitCh[r.ID]
@@ -92,15 +94,7 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 
 	if s.Status == Complete {
 		e.mu.Unlock()
-		if s.StepErr != nil {
-			return &api.PollStepResponse{}, &errors.InternalServerError{Msg: s.StepErr.Error()}
-		}
-
-		return &api.PollStepResponse{
-			Exited:    s.State.Exited,
-			ExitCode:  s.State.ExitCode,
-			OOMKilled: s.State.OOMKilled,
-		}, nil
+		return convertStatus(s), nil
 	}
 
 	ch := make(chan StepStatus, 1)
@@ -112,17 +106,10 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 	e.mu.Unlock()
 
 	status := <-ch
-	if status.StepErr != nil {
-		return &api.PollStepResponse{}, &errors.InternalServerError{Msg: status.StepErr.Error()}
-	}
-	return &api.PollStepResponse{
-		Exited:    status.State.Exited,
-		ExitCode:  status.State.ExitCode,
-		OOMKilled: status.State.OOMKilled,
-	}, nil
+	return convertStatus(status), nil
 }
 
-func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, error) {
+func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map[string]string, error) {
 	state := pipeline.GetState()
 	secrets := append(state.GetSecrets(), r.Secrets...)
 
@@ -145,7 +132,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, err
 			executeRunStep(ctx, e.engine, r, wr) // nolint:errcheck
 			wc.Close()
 		}()
-		return &runtime.State{Exited: false}, nil
+		return &runtime.State{Exited: false}, nil, nil
 	}
 
 	var result error
@@ -157,9 +144,9 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, err
 		defer cancel()
 	}
 
-	exited, stepErr := executeRunStep(ctx, e.engine, r, wr)
-	if stepErr != nil {
-		result = multierror.Append(result, stepErr)
+	exited, outputs, err := executeRunStep(ctx, e.engine, r, wr)
+	if err != nil {
+		result = multierror.Append(result, err)
 	}
 
 	// close the stream. If the session is a remote session, the
@@ -169,19 +156,53 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, err
 	}
 
 	// if the context was canceled and returns a canceled or
-	// DeadlineExceeded error this indicates the pipeline was
-	// canceled.
+	// DeadlineExceeded error this indicates the step was timed out.
 	switch ctx.Err() {
 	case context.Canceled, context.DeadlineExceeded:
-		return nil, ctx.Err()
+		return nil, nil, ctx.Err()
 	}
 
 	if exited != nil {
+		if exited.ExitCode != 0 {
+			if wc.Error() != nil {
+				result = multierror.Append(result, err)
+			}
+		}
+
 		if exited.OOMKilled {
 			logrus.WithField("id", r.ID).Infoln("received oom kill.")
 		} else {
 			logrus.WithField("id", r.ID).Infof("received exit code %d\n", exited.ExitCode)
 		}
 	}
-	return exited, result
+	return exited, outputs, result
+}
+
+func convertStatus(status StepStatus) *api.PollStepResponse {
+	r := &api.PollStepResponse{
+		Exited:  true,
+		Outputs: status.Outputs,
+	}
+
+	stepErr := status.StepErr
+
+	if status.State != nil {
+		r.Exited = status.State.Exited
+		r.OOMKilled = status.State.OOMKilled
+		r.ExitCode = status.State.ExitCode
+		if status.State.OOMKilled {
+			stepErr = multierror.Append(stepErr, fmt.Errorf("oom killed"))
+		} else if status.State.ExitCode != 0 {
+			stepErr = multierror.Append(stepErr, fmt.Errorf("exit status %d", status.State.ExitCode))
+		}
+	}
+
+	if status.StepErr != nil {
+		r.ExitCode = 255
+	}
+
+	if stepErr != nil {
+		r.Error = stepErr.Error()
+	}
+	return r
 }

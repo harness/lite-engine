@@ -14,6 +14,11 @@ var (
 	once  sync.Once
 )
 
+const (
+	SharedVolPath = "/tmp/engine"
+	SharedVolName = "_engine"
+)
+
 // State stores the pipeline state.
 type State struct {
 	mu        sync.Mutex
@@ -47,8 +52,7 @@ func (s *State) GetLogStreamClient() logstream.Client {
 			s.logClient = remote.NewHTTPClient(s.logConfig.URL, s.logConfig.AccountID,
 				s.logConfig.Token, s.logConfig.IndirectUpload, false)
 		} else {
-			// TODO (shubham): Fix the relative path
-			s.logClient = filestore.New("/tmp")
+			s.logClient = filestore.New(SharedVolPath)
 		}
 	}
 	return s.logClient
