@@ -47,7 +47,7 @@ func fetchOutputVariables(outputFile string) (map[string]string, error) {
 	for s.Scan() {
 		line := s.Text()
 		sa := strings.Split(line, " ")
-		if len(sa) < 2 {
+		if len(sa) < 2 { // nolint:gomnd
 			logrus.WithField("variable", sa[0]).Warnln(
 				"output variable does not exist")
 		} else {

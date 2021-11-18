@@ -151,7 +151,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 
 	// close the stream. If the session is a remote session, the
 	// full log buffer is uploaded to the remote server.
-	if err := wc.Close(); err != nil {
+	if err = wc.Close(); err != nil {
 		result = multierror.Append(result, err)
 	}
 
