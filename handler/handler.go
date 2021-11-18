@@ -6,14 +6,14 @@ import (
 
 	"github.com/harness/lite-engine/config"
 	"github.com/harness/lite-engine/engine"
-	"github.com/harness/lite-engine/executor"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/pipeline/runtime"
 
 	"github.com/go-chi/chi"
 )
 
 // Handler returns an http.Handler that exposes the service resources.
-func Handler(config *config.Config, engine *engine.Engine, stepExecutor *executor.StepExecutor) http.Handler {
+func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime.StepExecutor) http.Handler {
 	r := chi.NewRouter()
 	r.Use(logger.Middleware)
 

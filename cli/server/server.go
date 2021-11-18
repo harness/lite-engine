@@ -10,9 +10,9 @@ import (
 	"github.com/harness/lite-engine/config"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/docker"
-	"github.com/harness/lite-engine/executor"
 	"github.com/harness/lite-engine/handler"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/pipeline/runtime"
 	"github.com/harness/lite-engine/server"
 
 	"github.com/joho/godotenv"
@@ -49,7 +49,7 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 		return err
 	}
 
-	stepExecutor := executor.NewStepExecutor(engine)
+	stepExecutor := runtime.NewStepExecutor(engine)
 
 	// create the http serverInstance.
 	serverInstance := server.Server{
