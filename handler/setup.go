@@ -35,11 +35,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			Volumes:  s.Volumes,
 		}
 		if err := engine.Setup(r.Context(), cfg); err != nil {
+			logger.FromRequest(r).
+				WithField("latency", time.Since(st)).
+				WithField("time", time.Now().Format(time.RFC3339)).
+				Infoln("api: failed stage setup")
 			WriteError(w, err)
-		} else {
-			WriteJSON(w, api.SetupResponse{}, http.StatusOK)
+			return
 		}
-
+		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
 		logger.FromRequest(r).
 			WithField("latency", time.Since(st)).
 			WithField("time", time.Now().Format(time.RFC3339)).

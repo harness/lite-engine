@@ -51,7 +51,14 @@ func (c *clientCommand) run(*kingpin.ParseContext) error {
 }
 
 func checkServerHealth(client *HTTPClient) error {
-	return client.Health(context.Background())
+	response, healthErr := client.Health(context.Background())
+	if healthErr != nil {
+		logrus.WithError(healthErr).
+			Errorln("cannot check the health of the server")
+		return errors.Wrap(healthErr, "cannot check the health of the server")
+	}
+	logrus.WithField("response", response).Info("health check")
+	return nil
 }
 
 func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen

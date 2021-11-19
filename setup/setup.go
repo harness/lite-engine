@@ -99,6 +99,8 @@ func installGit(instanceInfo InstanceInfo) {
 	case windowsString:
 		ensureChocolatey()
 		cmd := exec.Command("choco", "install", "git.install", "-y")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		gitErr := cmd.Run()
 		if gitErr != nil {
 			logrus.Errorf("failed to install choco: %s", gitErr)
@@ -120,6 +122,8 @@ func installDocker(instanceInfo InstanceInfo) {
 	case windowsString:
 		ensureChocolatey()
 		cmd := exec.Command("choco", "install", "docker", "-y")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		gitErr := cmd.Run()
 		if gitErr != nil {
 			logrus.Errorf("failed to install docker: %s", gitErr)
@@ -131,13 +135,17 @@ func installDocker(instanceInfo InstanceInfo) {
 		cmd.Stderr = os.Stderr
 		getScriptErr := cmd.Run()
 		if getScriptErr != nil {
-			logrus.Errorf("get docker install script failed: %s", getScriptErr)
+			logrus.
+				WithField("error", getScriptErr).
+				Error("get docker install script failed")
 			return
 		}
 		cmd = exec.Command("sudo", "sh", "get-docker.sh")
 		dockerInstallErr := cmd.Run()
 		if dockerInstallErr != nil {
-			logrus.Errorf("docker install failed: %s", dockerInstallErr)
+			logrus.
+				WithField("error", dockerInstallErr).
+				Error("get docker install script failed")
 			return
 		}
 	}
