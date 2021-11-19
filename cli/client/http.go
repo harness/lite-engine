@@ -64,7 +64,7 @@ type HTTPClient struct {
 func (c *HTTPClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.SetupResponse, error) {
 	path := "setup"
 	out := new(api.SetupResponse)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) // nolint:bodyclose
 	return out, err
 }
 
@@ -72,27 +72,27 @@ func (c *HTTPClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.Setu
 func (c *HTTPClient) Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error) {
 	path := "destroy"
 	out := new(api.DestroyResponse)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) // nolint:bodyclose
 	return out, err
 }
 
 func (c *HTTPClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
 	path := "start_step"
 	out := new(api.StartStepResponse)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) // nolint:bodyclose
 	return out, err
 }
 
 func (c *HTTPClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error) {
 	path := "poll_step"
 	out := new(api.PollStepResponse)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", in, out) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) // nolint:bodyclose
 	return out, err
 }
 
 func (c *HTTPClient) Health(ctx context.Context) error {
 	path := "healthz"
-	_, err := c.do(ctx, c.Endpoint+path, "POST", nil, nil) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodGet, nil, nil) // nolint:bodyclose
 	return err
 }
 

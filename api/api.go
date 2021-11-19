@@ -5,6 +5,13 @@ import (
 )
 
 type (
+	HealthResponse struct {
+		DockerInstalled bool   `json:"docker-installed"`
+		GitInstalled    bool   `json:"git-installed"`
+		LiteEngineLog   string `json:"lite-engine-log"`
+		OK              bool   `json:"ok"`
+	}
+
 	SetupRequest struct {
 		Envs      map[string]string `json:"envs,omitempty"`
 		Network   spec.Network      `json:"network"`

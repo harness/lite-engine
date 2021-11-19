@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"io"
 	"net/http"
 
 	"github.com/harness/lite-engine/config"
@@ -45,15 +44,12 @@ func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime
 		return sr
 	}())
 
-	// Liveness check
-	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		_, writeErr := io.WriteString(w, "OK")
-		if writeErr != nil {
-			logger.FromRequest(r).
-				WithError(writeErr).
-				Errorln("cannot write healthz response")
-		}
-	})
+	// Health check
+	r.Mount("/healthz", func() http.Handler {
+		sr := chi.NewRouter()
+		sr.Get("/", HandleHealth())
+		return sr
+	}())
 
 	return r
 }

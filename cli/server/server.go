@@ -14,6 +14,7 @@ import (
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/pipeline/runtime"
 	"github.com/harness/lite-engine/server"
+	"github.com/harness/lite-engine/setup"
 
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
@@ -80,7 +81,8 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 	}()
 
 	logrus.Infof(fmt.Sprintf("server listening at port %s", loadedConfig.Server.Bind))
-
+	// run the setup checks / installation
+	setup.PrepareSystem()
 	// starts the http server.
 	err = serverInstance.Start(ctx)
 	if err == context.Canceled {
