@@ -13,6 +13,7 @@ require (
 	github.com/drone/runner-go v1.9.0
 	github.com/go-chi/chi v1.5.4
 	github.com/gofrs/uuid v4.0.0+incompatible
+	github.com/golang/mock v1.4.4
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0

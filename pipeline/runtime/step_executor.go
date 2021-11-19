@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -129,7 +130,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
 				defer cancel()
 			}
-			executeRunStep(ctx, e.engine, r, wr) // nolint:errcheck
+			e.run(ctx, e.engine, r, wr) // nolint:errcheck
 			wc.Close()
 		}()
 		return &runtime.State{Exited: false}, nil, nil
@@ -144,7 +145,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 		defer cancel()
 	}
 
-	exited, outputs, err := executeRunStep(ctx, e.engine, r, wr)
+	exited, outputs, err := e.run(ctx, e.engine, r, wr)
 	if err != nil {
 		result = multierror.Append(result, err)
 	}
@@ -176,6 +177,14 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 		}
 	}
 	return exited, outputs, result
+}
+
+func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) (
+	*runtime.State, map[string]string, error) {
+	if r.Kind == api.Run {
+		return executeRunStep(ctx, engine, r, out)
+	}
+	return executeRunTestStep(ctx, engine, r, out)
 }
 
 func convertStatus(status StepStatus) *api.PollStepResponse {
