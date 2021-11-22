@@ -90,10 +90,11 @@ func (c *HTTPClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*ap
 	return out, err
 }
 
-func (c *HTTPClient) Health(ctx context.Context) error {
+func (c *HTTPClient) Health(ctx context.Context) (*api.HealthResponse, error) {
 	path := "healthz"
-	_, err := c.do(ctx, c.Endpoint+path, http.MethodGet, nil, nil) // nolint:bodyclose
-	return err
+	out := new(api.HealthResponse)
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodGet, nil, out) // nolint:bodyclose
+	return out, err
 }
 
 // do is a helper function that posts a http request with

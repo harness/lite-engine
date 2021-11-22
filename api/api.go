@@ -6,9 +6,9 @@ import (
 
 type (
 	HealthResponse struct {
-		DockerInstalled bool   `json:"docker-installed"`
-		GitInstalled    bool   `json:"git-installed"`
-		LiteEngineLog   string `json:"lite-engine-log"`
+		DockerInstalled bool   `json:"docker_installed"`
+		GitInstalled    bool   `json:"git_installed"`
+		LiteEngineLog   string `json:"lite_engine_log"`
 		OK              bool   `json:"ok"`
 	}
 
