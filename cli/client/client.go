@@ -64,6 +64,8 @@ func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 		}
 	}()
 
+	workDir := "/drone/src"
+
 	setupParams := &api.SetupRequest{
 		Volumes: []*spec.Volume{
 			{
@@ -102,28 +104,18 @@ func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 		Volumes: []*spec.VolumeMount{
 			{
 				Name: "_workspace",
-				Path: "/drone/src",
+				Path: workDir,
 			},
 		},
-		WorkingDir: "/drone/src",
+		WorkingDir: workDir,
 		LogKey:     sid1,
 	}
 	s1.Run.Command = []string{"set -xe; pwd; echo drone; echo hello world > foo; cat foo"}
 	s1.Run.Entrypoint = []string{"sh", "-c"}
 
-	logrus.Infof("Starting step1")
-	if _, err := client.StartStep(ctx, s1); err != nil {
-		logrus.WithError(err).Errorln("start step1 call failed")
+	if err := executeStep(ctx, s1, client); err != nil {
 		return err
 	}
-	logrus.Infof("Polling step1")
-	res, err := client.PollStep(ctx, &api.PollStepRequest{ID: sid1})
-	if err != nil {
-		logrus.WithError(err).Errorln("poll step1 call failed")
-		return err
-	}
-
-	logrus.WithField("response", res).Info("step 1 poll completed successfully")
 
 	// Execute Step2
 	sid2 := "step2"
@@ -134,28 +126,36 @@ func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 		Volumes: []*spec.VolumeMount{
 			{
 				Name: "_workspace",
-				Path: "/drone/src",
+				Path: workDir,
 			},
 		},
-		WorkingDir: "/drone/src",
+		WorkingDir: workDir,
 		OutputVars: []string{"hello"},
 		LogKey:     sid2,
 	}
 	s2.Run.Command = []string{"set -xe; pwd; cat foo; export hello=world"}
 	s2.Run.Entrypoint = []string{"sh", "-c"}
 
-	logrus.Infof("Starting step2")
-	if _, err = client.StartStep(ctx, s2); err != nil {
-		logrus.WithError(err).Errorln("start step2 call failed")
+	if err := executeStep(ctx, s2, client); err != nil {
 		return err
 	}
-	logrus.Infof("Polling step2")
-	res, err = client.PollStep(ctx, &api.PollStepRequest{ID: sid2})
+
+	return nil
+}
+
+func executeStep(ctx context.Context, step *api.StartStepRequest, client *HTTPClient) error {
+	logrus.Infof("Starting step %s", step.ID)
+	if _, err := client.StartStep(ctx, step); err != nil {
+		logrus.WithError(err).Errorf("start %s call failed", step.ID)
+		return err
+	}
+	logrus.Infof("Polling %s", step.ID)
+	res, err := client.PollStep(ctx, &api.PollStepRequest{ID: step.ID})
 	if err != nil {
-		logrus.WithError(err).Errorln("poll step2 call failed")
+		logrus.WithError(err).Errorf("poll %s call failed", step.ID)
 		return err
 	}
-	logrus.WithField("response", res).Info("step 2 poll completed successfully")
+	logrus.WithField("response", res).Infof("%s poll completed successfully", step.ID)
 	return nil
 }
 

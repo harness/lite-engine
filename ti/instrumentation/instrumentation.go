@@ -16,7 +16,7 @@ import (
 
 const (
 	tmpFilePath  = pipeline.SharedVolPath
-	javaAgentArg = "-javaagent:/addon/bin/java-agent.jar=%s"
+	javaAgentArg = "-javaagent:/tmp/engine/bin/java-agent.jar=%s"
 )
 
 func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) {
