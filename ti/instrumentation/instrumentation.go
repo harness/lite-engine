@@ -50,7 +50,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	} else if !valid(selection.Tests) { // This shouldn't happen
 		log.Warnln("test intelligence did not return suitable tests")
 		runOnlySelectedTests = false // TI did not return suitable tests
-	} else if selection.SelectAll == true {
+	} else if selection.SelectAll {
 		log.Infoln("intelligently determined to run all the tests")
 		runOnlySelectedTests = false // TI selected all the tests to be run
 	} else {
