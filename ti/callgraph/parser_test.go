@@ -58,10 +58,10 @@ func TestCallGraphParser_Parse(t *testing.T) {
 	testCnt := 0
 	for _, node := range dto.Nodes {
 		if node == sourceNode {
-			srcCnt += 1
+			srcCnt++
 		}
 		if node == testNode {
-			testCnt += 1
+			testCnt++
 		}
 	}
 	assert.Equal(t, srcCnt, 1)

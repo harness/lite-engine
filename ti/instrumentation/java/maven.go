@@ -20,15 +20,15 @@ type mavenRunner struct {
 	log *logrus.Logger
 }
 
-func NewMavenRunner(log *logrus.Logger, fs filesystem.FileSystem) *mavenRunner {
+func NewMavenRunner(log *logrus.Logger, fs filesystem.FileSystem) *mavenRunner { // nolint:revive
 	return &mavenRunner{
 		fs:  fs,
 		log: log,
 	}
 }
 
-func (b *mavenRunner) AutoDetectPackages(workspace string) ([]string, error) {
-	return DetectPkgs(workspace, b.log, b.fs)
+func (m *mavenRunner) AutoDetectPackages(workspace string) ([]string, error) {
+	return DetectPkgs(workspace, m.log, m.fs)
 }
 
 func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs,
@@ -52,7 +52,7 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		return strings.TrimSpace(fmt.Sprintf("%s -am -DargLine=%s %s", mavenCmd, instrArg, userArgs)), nil
 	}
 	if len(tests) == 0 {
-		return fmt.Sprintf("echo \"Skipping test run, received no tests to execute\""), nil
+		return "echo \"Skipping test run, received no tests to execute\"", nil
 	}
 	// Use only unique <package, class> tuples
 	set := make(map[ti.RunnableTest]interface{})

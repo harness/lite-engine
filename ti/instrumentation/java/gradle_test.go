@@ -62,7 +62,7 @@ func TestGetGradleCmd(t *testing.T) {
 			name:                 "run selected tests with repeating test list and -Duser parameters",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: true,
-			want:                 "./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=-javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"",
+			want:                 "./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=-javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"", // nolint:lll
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2, t1, t2},
 		},
@@ -78,7 +78,7 @@ func TestGetGradleCmd(t *testing.T) {
 			name:                 "run selected tests with single test and -Duser parameters and multiple or conditions",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US || true || false || other",
 			runOnlySelectedTests: true,
-			want:                 "./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=-javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini --tests \"pkg2.cls2\" || true || false || other",
+			want:                 "./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=-javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini --tests \"pkg2.cls2\" || true || false || other", // nolint:lll
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t2},
 		},

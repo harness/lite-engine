@@ -60,7 +60,7 @@ func TestCallgraph_ToStringMap(t *testing.T) {
 	assert.Equal(t, reflect.DeepEqual(finalCg, cg), true)
 }
 
-func getCgObject(mp map[string]interface{}) ([]Node, []Relation, []Relation) {
+func getCgObject(mp map[string]interface{}) ([]Node, []Relation, []Relation) { // nolint:funlen,gocritic,gocyclo
 	var fNodes []Node
 	var fRelations, vRelations []Relation
 	for k, v := range mp {
@@ -102,9 +102,7 @@ func getCgObject(mp map[string]interface{}) ([]Node, []Relation, []Relation) {
 							relation.Source = v.(int)
 						case "tests":
 							var testsN []int
-							for _, v := range v.([]int) {
-								testsN = append(testsN, v)
-							}
+							testsN = append(testsN, v.([]int)...)
 							relation.Tests = testsN
 						}
 					}
@@ -122,9 +120,7 @@ func getCgObject(mp map[string]interface{}) ([]Node, []Relation, []Relation) {
 							relation.Source = v.(int)
 						case "destinations":
 							var testsN []int
-							for _, v := range v.([]int) {
-								testsN = append(testsN, v)
-							}
+							testsN = append(testsN, v.([]int)...)
 							relation.Tests = testsN
 						}
 					}

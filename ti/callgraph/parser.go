@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-//Parser reads callgraph file, processes it to extract
+// Parser reads callgraph file, processes it to extract
 // nodes and relations
 type Parser interface {
 	// Parse and read the file from
@@ -22,7 +22,7 @@ type Parser interface {
 }
 
 // CallGraphParser struct definition
-type CallGraphParser struct {
+type CallGraphParser struct { // nolint:revive
 	log *logrus.Logger        // logger
 	fs  filesystem.FileSystem // filesystem handler
 }
@@ -139,8 +139,8 @@ func removeDup(s []int) []int {
 
 // parses one line of visGraph file
 // format - [-841968839,1459543895]
-func getNodes(s []string) (int, int, error) {
-	if len(s) != 2 {
+func getNodes(s []string) (int, int, error) { // nolint:gocritic
+	if len(s) != 2 { // nolint:gomnd
 		return 0, 0, fmt.Errorf("parsing failed: string format is not correct %v", s)
 	}
 	key, err1 := strconv.Atoi(s[0])
@@ -192,11 +192,11 @@ func process(inps []Input) *Callgraph {
 	}
 }
 
-func convCgph(inps []Input) (map[int][]int, map[int]Node) {
+func convCgph(inps []Input) (map[int][]int, map[int]Node) { // nolint:gocritic
 	relMap := make(map[int][]int)
 	nodeMap := make(map[int]Node)
 
-	for _, inp := range inps {
+	for _, inp := range inps { // nolint:gocritic
 		// processing nodeMap
 		test := inp.Test
 		test.Type = "test"
@@ -209,7 +209,7 @@ func convCgph(inps []Input) (map[int][]int, map[int]Node) {
 			source.Type = "resource"
 		} else {
 			source = inp.Source
-			source.Type = "source"
+			source.Type = "source" // nolint:goconst
 		}
 		sourceID := source.ID
 		nodeMap[sourceID] = source
@@ -223,8 +223,8 @@ func convCgph(inps []Input) (map[int][]int, map[int]Node) {
 // over the number of bytes it can read and was not working on callgraph file.
 func rLine(r *bufio.Reader) (string, error) {
 	var (
-		isPrefix bool  = true
-		err      error = nil
+		isPrefix = true
+		err      error
 		line, ln []byte
 	)
 	for isPrefix && err == nil {
@@ -235,7 +235,7 @@ func rLine(r *bufio.Reader) (string, error) {
 }
 
 // rFile reads callgraph file
-func rFile(r *bufio.Reader) ([]string, error) {
+func rFile(r *bufio.Reader) ([]string, error) { // nolint:unparam
 	var ret []string
 	s, e := rLine(r)
 	for e == nil {

@@ -23,7 +23,7 @@ type gradleRunner struct {
 	log *logrus.Logger
 }
 
-func NewGradleRunner(log *logrus.Logger, fs filesystem.FileSystem) *gradleRunner {
+func NewGradleRunner(log *logrus.Logger, fs filesystem.FileSystem) *gradleRunner { // nolint:revive
 	return &gradleRunner{
 		fs:  fs,
 		log: log,
@@ -74,7 +74,7 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	if strings.Contains(userArgs, "||") {
 		// args = "test || orCond1 || orCond2" gets split as:
 		// [test, orCond1 || orCond2]
-		s := strings.SplitN(userArgs, "||", 2)
+		s := strings.SplitN(userArgs, "||", 2) // nolint:gomnd
 		orCmd = s[1]
 		userArgs = s[0]
 	}
@@ -89,7 +89,7 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		return strings.TrimSpace(fmt.Sprintf("%s %s -DHARNESS_JAVA_AGENT=%s %s", gc, userArgs, agentArg, orCmd)), nil
 	}
 	if len(tests) == 0 {
-		return fmt.Sprintf("echo \"Skipping test run, received no tests to execute\""), nil
+		return "echo \"Skipping test run, received no tests to execute\"", nil
 	}
 	// Use only unique <package, class> tuples
 	set := make(map[ti.RunnableTest]interface{})

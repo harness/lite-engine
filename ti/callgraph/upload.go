@@ -49,7 +49,7 @@ func Upload(ctx context.Context, stepID, cgDir string, timeMs int64, out io.Writ
 		}
 	}
 
-	encCg, err := encodeCg(stepID, cfg.Repo, cfg.Sha, source, target, cgDir, timeMs, log)
+	encCg, err := encodeCg(cgDir, log)
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
 	}
@@ -60,7 +60,7 @@ func Upload(ctx context.Context, stepID, cgDir string, timeMs int64, out io.Writ
 }
 
 // encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
-func encodeCg(stepID, repo, sha, source, target, dataDir string, timeMs int64, log *logrus.Logger) (
+func encodeCg(dataDir string, log *logrus.Logger) (
 	[]byte, error) {
 	var parser Parser
 	fs := filesystem.New()
@@ -92,9 +92,9 @@ func encodeCg(stepID, repo, sha, source, target, dataDir string, timeMs int64, l
 }
 
 // getCgFiles return list of cg files in given directory
-func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string, error) {
+func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string, error) { // nolint:gocritic,unparam
 	if !strings.HasSuffix(dir, "/") {
-		dir = dir + "/"
+		dir += "/"
 	}
 	cgFiles, err1 := filepath.Glob(dir + "*." + ext1)
 	visFiles, err2 := filepath.Glob(dir + "*." + ext2)

@@ -28,7 +28,7 @@ func getFiles(path string) ([]string, error) {
 }
 
 // detect java packages by reading all the files and parsing their package names
-func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) ([]string, error) {
+func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) ([]string, error) { // nolint:gocyclo
 	plist := []string{}
 	excludeList := []string{"com.google"} // exclude any instances of these packages from the package list
 
@@ -105,7 +105,7 @@ func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) 
 					return nil
 				}
 			}
-			if err := scanner.Err(); err != nil {
+			if err = scanner.Err(); err != nil {
 				logrus.WithError(err).Errorln("could not scan all the files")
 				return err
 			}

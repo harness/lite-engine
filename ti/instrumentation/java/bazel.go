@@ -20,7 +20,7 @@ type bazelRunner struct {
 	log *logrus.Logger
 }
 
-func NewBazelRunner(log *logrus.Logger, fs filesystem.FileSystem) *bazelRunner {
+func NewBazelRunner(log *logrus.Logger, fs filesystem.FileSystem) *bazelRunner { // nolint:revive
 	return &bazelRunner{
 		fs:  fs,
 		log: log,
@@ -31,7 +31,7 @@ func (b *bazelRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return DetectPkgs(workspace, b.log, b.fs)
 }
 
-func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, agentConfigPath string,
+func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, agentConfigPath string, // nolint:funlen,gocyclo
 	ignoreInstr, runAll bool) (string, error) {
 	if ignoreInstr {
 		return fmt.Sprintf("%s %s //...", bazelCmd, userArgs), nil
@@ -46,7 +46,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		return defaultCmd, nil
 	}
 	if len(tests) == 0 {
-		return fmt.Sprintf("echo \"Skipping test run, received no tests to execute\""), nil
+		return "echo \"Skipping test run, received no tests to execute\"", nil // nolint:goconst
 	}
 	// Use only unique classes
 	pkgs := []string{}
@@ -59,7 +59,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			continue
 		}
 		set[t.Class] = struct{}{}
-		ut = append(ut, t.Class)
+		ut = append(ut, t.Class) // nolint:staticcheck
 		pkgs = append(pkgs, t.Pkg)
 		clss = append(clss, t.Class)
 	}
@@ -90,7 +90,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			// Iterate over the paths and try to find the relevant rules
 			for _, p := range strings.Split(string(pathResp), "\n") {
 				p = strings.TrimSpace(p)
-				if len(p) == 0 || !strings.Contains(p, "src/test") {
+				if p == "" || !strings.Contains(p, "src/test") {
 					continue
 				}
 				c = fmt.Sprintf("export fullname=$(%s query %s)\n"+
@@ -117,10 +117,9 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 				rulesM[r] = struct{}{}
 			}
 		}
-
 	}
 	if len(rules) == 0 {
-		return fmt.Sprintf("echo \"Could not find any relevant test rules. Skipping the run\""), nil
+		return "echo \"Could not find any relevant test rules. Skipping the run\"", nil
 	}
 	testList := strings.Join(rules, " ")
 	return fmt.Sprintf("%s %s %s %s", bazelCmd, userArgs, instrArg, testList), nil

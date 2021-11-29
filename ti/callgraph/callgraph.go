@@ -25,15 +25,15 @@ type Callgraph struct {
 	VisRelations  []Relation
 }
 
-//ToStringMap converts Callgraph to map[string]interface{} for encoding
+// ToStringMap converts Callgraph to map[string]interface{} for encoding
 func (cg *Callgraph) ToStringMap() map[string]interface{} {
 	var nodes, tRelations, vRelations []interface{}
-	for _, v := range (*cg).Nodes {
+	for _, v := range cg.Nodes {
 		data := map[string]interface{}{
 			"package":         v.Package,
 			"method":          v.Method,
 			"id":              v.ID,
-			"classId":         v.ClassId,
+			"classId":         v.ClassID,
 			"params":          v.Params,
 			"class":           v.Class,
 			"type":            v.Type,
@@ -42,14 +42,14 @@ func (cg *Callgraph) ToStringMap() map[string]interface{} {
 		}
 		nodes = append(nodes, data)
 	}
-	for _, v := range (*cg).TestRelations {
+	for _, v := range cg.TestRelations {
 		data := map[string]interface{}{
 			"source": v.Source,
 			"tests":  v.Tests,
 		}
 		tRelations = append(tRelations, data)
 	}
-	for _, v := range (*cg).VisRelations {
+	for _, v := range cg.VisRelations {
 		data := map[string]interface{}{
 			"source":       v.Source,
 			"destinations": v.Tests,
@@ -64,8 +64,8 @@ func (cg *Callgraph) ToStringMap() map[string]interface{} {
 	return data
 }
 
-//FromStringMap creates Callgraph object from map[string]interface{}
-func FromStringMap(data map[string]interface{}) (*Callgraph, error) {
+// FromStringMap creates Callgraph object from map[string]interface{}
+func FromStringMap(data map[string]interface{}) (*Callgraph, error) { // nolint:gocyclo
 	var fNodes []Node
 	var fRel, vRel []Relation
 	for k, v := range data {
@@ -84,7 +84,7 @@ func FromStringMap(data map[string]interface{}) (*Callgraph, error) {
 						case "id":
 							node.ID = int(v.(int32))
 						case "classId":
-							node.ClassId = int(v.(int32))
+							node.ClassID = int(v.(int32))
 						case "params":
 							node.Params = v.(string)
 						case "class":
@@ -96,7 +96,7 @@ func FromStringMap(data map[string]interface{}) (*Callgraph, error) {
 						case "file":
 							node.File = v.(string)
 						default:
-							return nil, errors.New(fmt.Sprintf("unknown field received: %s", f))
+							return nil, fmt.Errorf("unknown field received: %s", f)
 						}
 					}
 					fNodes = append(fNodes, node)
@@ -109,9 +109,8 @@ func FromStringMap(data map[string]interface{}) (*Callgraph, error) {
 				rel, err := convertStringMap("source", "tests", relns)
 				if err != nil {
 					return nil, err
-				} else {
-					fRel = *rel
 				}
+				fRel = *rel
 			} else {
 				return nil, errors.New("failed to parse test relns in callgraph")
 			}
@@ -120,9 +119,8 @@ func FromStringMap(data map[string]interface{}) (*Callgraph, error) {
 				rel, err := convertStringMap("source", "destinations", relns)
 				if err != nil {
 					return nil, err
-				} else {
-					vRel = *rel
 				}
+				vRel = *rel
 			} else {
 				return nil, errors.New("failed to parse vis relns in callgraph")
 			}
@@ -151,7 +149,7 @@ func convertStringMap(key, val string, relns []interface{}) (*[]Relation, error)
 				}
 				relation.Tests = testsN
 			default:
-				return nil, errors.New(fmt.Sprintf("unknown field received: %s", k))
+				return nil, fmt.Errorf("unknown field received: %s", k)
 			}
 		}
 		vRel = append(vRel, relation)
@@ -159,12 +157,12 @@ func convertStringMap(key, val string, relns []interface{}) (*[]Relation, error)
 	return &vRel, nil
 }
 
-//Node type represents detail of node in callgraph
+// Node type represents detail of node in callgraph
 type Node struct {
 	Package         string
 	Method          string
 	ID              int
-	ClassId         int
+	ClassID         int
 	Params          string
 	Class           string
 	Type            string
@@ -179,7 +177,7 @@ type Input struct {
 	Resource Node
 }
 
-//Relation b/w source and test
+// Relation b/w source and test
 type Relation struct {
 	Source int
 	Tests  []int

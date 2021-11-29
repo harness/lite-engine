@@ -9,7 +9,7 @@ import (
 	cg "github.com/harness/lite-engine/ti/avro/schema/callgraph"
 )
 
-//Serialzer is the interface for encoding and decoding structs
+// Serialzer is the interface for encoding and decoding structs
 type Serialzer interface {
 	// Serialize given struct and return the binary value
 	Serialize(datum interface{}) ([]byte, error)
@@ -24,9 +24,9 @@ type CgphSerialzer struct {
 
 const (
 	cgType    = "callgraph"
-	vgType    = "visgraph"
 	cgSrcFile = "callgraph.avsc"
-	vgSrcFile = "visgraph.avsc"
+	// vgType    = "visgraph"
+	// vgSrcFile = "visgraph.avsc"
 )
 
 // NewCgphSerialzer returns new CgphSerialzer object with the codec
@@ -54,7 +54,7 @@ func NewCgphSerialzer(typ string) (*CgphSerialzer, error) {
 	}, nil
 }
 
-//Serialize a given struct interface and return byte array and error
+// Serialize a given struct interface and return byte array and error
 func (c *CgphSerialzer) Serialize(datum interface{}) ([]byte, error) {
 	bin, err := c.codec.BinaryFromNative(nil, datum)
 	if err != nil {
@@ -63,7 +63,7 @@ func (c *CgphSerialzer) Serialize(datum interface{}) ([]byte, error) {
 	return bin, nil
 }
 
-//Deserialize a interface and return a Byte array which can be converted into corresponding struct
+// Deserialize a interface and return a Byte array which can be converted into corresponding struct
 func (c *CgphSerialzer) Deserialize(buf []byte) (interface{}, error) {
 	native, _, err := c.codec.NativeFromBinary(buf)
 	if err != nil {
