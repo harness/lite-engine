@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
 	"github.com/sirupsen/logrus"
 )
@@ -37,7 +38,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		return fmt.Sprintf("%s %s //...", bazelCmd, userArgs), nil
 	}
 
-	agentArg := fmt.Sprintf(javaAgentArg, agentConfigPath)
+	agentArg := fmt.Sprintf(AgentArg, pipeline.SharedVolPath, agentConfigPath)
 	instrArg := fmt.Sprintf("--define=HARNESS_ARGS=%s", agentArg)
 	defaultCmd := fmt.Sprintf("%s %s %s //...", bazelCmd, userArgs, instrArg) // run all the tests
 

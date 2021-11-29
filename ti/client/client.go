@@ -2,17 +2,19 @@ package client
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/harness/lite-engine/ti"
 )
 
-// Error represents a json-encoded API error.
+// Custom error
 type Error struct {
-	Message string `json:"error_msg"`
+	Code    int
+	Message string
 }
 
 func (e *Error) Error() string {
-	return e.Message
+	return fmt.Sprintf("%d: %s", e.Code, e.Message)
 }
 
 // Client defines a TI service client.

@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
 )
 
@@ -83,7 +84,7 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		orCmd = "|| " + strings.TrimSpace(orCmd)
 	}
 
-	agentArg := fmt.Sprintf(javaAgentArg, agentConfigPath)
+	agentArg := fmt.Sprintf(AgentArg, pipeline.SharedVolPath, agentConfigPath)
 	if runAll {
 		// Run all the tests
 		return strings.TrimSpace(fmt.Sprintf("%s %s -DHARNESS_JAVA_AGENT=%s %s", gc, userArgs, agentArg, orCmd)), nil

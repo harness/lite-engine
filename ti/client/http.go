@@ -157,13 +157,13 @@ func (c *HTTPClient) do(ctx context.Context, path, method, sha string, in, out i
 		// if the response body includes an error message
 		// we should return the error string.
 		if len(body) != 0 {
-			out := new(Error)
-			if err := json.Unmarshal(body, out); err != nil {
-				return res, out
+			out := new(struct {
+				Message string `json:"error_msg"`
+			})
+			if err := json.Unmarshal(body, out); err == nil {
+				return res, &Error{Code: res.StatusCode, Message: out.Message}
 			}
-			return res, errors.New(
-				string(body),
-			)
+			return res, &Error{Code: res.StatusCode, Message: string(body)}
 		}
 		// if the response body is empty we should return
 		// the default status code text.

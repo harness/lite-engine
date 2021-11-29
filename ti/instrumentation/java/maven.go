@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
 	"github.com/sirupsen/logrus"
 )
@@ -38,7 +39,7 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		return strings.TrimSpace(fmt.Sprintf("%s %s", mavenCmd, userArgs)), nil
 	}
 
-	agentArg := fmt.Sprintf(javaAgentArg, agentConfigPath)
+	agentArg := fmt.Sprintf(AgentArg, pipeline.SharedVolPath, agentConfigPath)
 	instrArg := agentArg
 	re := regexp.MustCompile(`(-Duser\.\S*)`)
 	s := re.FindAllString(userArgs, -1)

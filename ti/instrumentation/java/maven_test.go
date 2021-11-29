@@ -2,12 +2,14 @@ package java
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
 	"github.com/sirupsen/logrus"
 )
@@ -20,6 +22,7 @@ func TestMaven_GetCmd(t *testing.T) {
 	fs := filesystem.NewMockFileSystem(ctrl)
 
 	runner := NewMavenRunner(log, fs)
+	agent := fmt.Sprintf(AgentArg, pipeline.SharedVolPath, "/test/tmp/config.ini")
 
 	t1 := ti.RunnableTest{Pkg: "pkg1", Class: "cls1", Method: "m1"}
 	t2 := ti.RunnableTest{Pkg: "pkg2", Class: "cls2", Method: "m2"}
@@ -36,7 +39,7 @@ func TestMaven_GetCmd(t *testing.T) {
 			name:                 "run all tests with non-empty test list and -Duser parameters",
 			args:                 "clean test -Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: false,
-			want:                 "mvn -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US -javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini\" clean test",
+			want:                 fmt.Sprintf("mvn -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US %s\" clean test", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2},
 		},
@@ -44,7 +47,7 @@ func TestMaven_GetCmd(t *testing.T) {
 			name:                 "run all tests with empty test list and no -Duser parameters",
 			args:                 "clean test",
 			runOnlySelectedTests: false,
-			want:                 "mvn -am -DargLine=-javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini clean test",
+			want:                 fmt.Sprintf("mvn -am -DargLine=%s clean test", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{},
 		},
@@ -52,7 +55,7 @@ func TestMaven_GetCmd(t *testing.T) {
 			name:                 "run selected tests with given test list and -Duser parameters",
 			args:                 "clean test -Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: true,
-			want:                 "mvn -Dtest=pkg1.cls1,pkg2.cls2 -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US -javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini\" clean test",
+			want:                 fmt.Sprintf("mvn -Dtest=pkg1.cls1,pkg2.cls2 -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US %s\" clean test", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2},
 		},
@@ -68,7 +71,7 @@ func TestMaven_GetCmd(t *testing.T) {
 			name:                 "run selected tests with repeating test list and -Duser parameters",
 			args:                 "clean test -B -2C-Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: true,
-			want:                 "mvn -Dtest=pkg1.cls1,pkg2.cls2 -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US -javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini\" clean test -B -2C",
+			want:                 fmt.Sprintf("mvn -Dtest=pkg1.cls1,pkg2.cls2 -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US %s\" clean test -B -2C", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2, t1, t2},
 		},
@@ -76,7 +79,7 @@ func TestMaven_GetCmd(t *testing.T) {
 			name:                 "run selected tests with single test and -Duser parameters and or condition",
 			args:                 "clean test -B -2C -Duser.timezone=US/Mountain -Duser.locale=en/US || true",
 			runOnlySelectedTests: true,
-			want:                 "mvn -Dtest=pkg2.cls2 -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US -javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini\" clean test -B -2C   || true",
+			want:                 fmt.Sprintf("mvn -Dtest=pkg2.cls2 -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US %s\" clean test -B -2C   || true", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t2},
 		},

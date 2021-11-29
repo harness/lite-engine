@@ -13,8 +13,8 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 )
 
-var (
-	javaAgentArg = "-javaagent:/addon/bin/java-agent.jar=%s"
+const (
+	AgentArg = "-javaagent:%s/bin/java-agent.jar=%s"
 )
 
 // get list of all file paths matching a provided regex

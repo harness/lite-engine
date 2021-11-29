@@ -2,11 +2,13 @@ package java
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -22,6 +24,7 @@ func TestGetGradleCmd(t *testing.T) {
 	fs.EXPECT().Stat("gradlew").Return(nil, nil).AnyTimes()
 
 	runner := NewGradleRunner(log, fs)
+	agent := fmt.Sprintf(AgentArg, pipeline.SharedVolPath, "/test/tmp/config.ini")
 
 	t1 := ti.RunnableTest{Pkg: "pkg1", Class: "cls1", Method: "m1"}
 	t2 := ti.RunnableTest{Pkg: "pkg2", Class: "cls2", Method: "m2"}
@@ -38,7 +41,7 @@ func TestGetGradleCmd(t *testing.T) {
 			name:                 "run all tests with run only selected tests as false",
 			args:                 "test",
 			runOnlySelectedTests: false,
-			want:                 "./gradlew test -DHARNESS_JAVA_AGENT=-javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini",
+			want:                 fmt.Sprintf("./gradlew test -DHARNESS_JAVA_AGENT=%s", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2},
 		},
@@ -46,7 +49,7 @@ func TestGetGradleCmd(t *testing.T) {
 			name:                 "run selected tests with given test list and extra args",
 			args:                 "test -Duser.timezone=US/Mountain",
 			runOnlySelectedTests: true,
-			want:                 "./gradlew test -Duser.timezone=US/Mountain -DHARNESS_JAVA_AGENT=-javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"",
+			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -DHARNESS_JAVA_AGENT=%s --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2},
 		},
@@ -62,7 +65,7 @@ func TestGetGradleCmd(t *testing.T) {
 			name:                 "run selected tests with repeating test list and -Duser parameters",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: true,
-			want:                 "./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=-javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"", // nolint:lll
+			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=%s --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"", agent), // nolint:lll
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2, t1, t2},
 		},
@@ -70,7 +73,7 @@ func TestGetGradleCmd(t *testing.T) {
 			name:                 "run selected tests with single test and -Duser parameters and or condition",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US || true",
 			runOnlySelectedTests: true,
-			want:                 "./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=-javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini --tests \"pkg2.cls2\" || true",
+			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=%s --tests \"pkg2.cls2\" || true", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t2},
 		},
@@ -78,7 +81,7 @@ func TestGetGradleCmd(t *testing.T) {
 			name:                 "run selected tests with single test and -Duser parameters and multiple or conditions",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US || true || false || other",
 			runOnlySelectedTests: true,
-			want:                 "./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=-javaagent:/addon/bin/java-agent.jar=/test/tmp/config.ini --tests \"pkg2.cls2\" || true || false || other", // nolint:lll
+			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=%s --tests \"pkg2.cls2\" || true || false || other", agent), // nolint:lll
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t2},
 		},

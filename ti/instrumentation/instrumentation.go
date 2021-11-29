@@ -14,13 +14,9 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 )
 
-const (
-	tmpFilePath  = pipeline.SharedVolPath
-	javaAgentArg = "-javaagent:/tmp/engine/bin/java-agent.jar=%s"
-)
-
 func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) {
 	fs := filesystem.New()
+	tmpFilePath := pipeline.SharedVolPath
 	log := logrus.New()
 	log.Out = out
 
@@ -79,7 +75,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	if err != nil {
 		return "", err
 	}
-	agentArg := fmt.Sprintf(javaAgentArg, iniFilePath)
+	agentArg := fmt.Sprintf(java.AgentArg, tmpFilePath, iniFilePath)
 
 	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, iniFilePath, isManual, !runOnlySelectedTests)
 	if err != nil {
