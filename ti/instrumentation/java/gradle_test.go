@@ -65,7 +65,7 @@ func TestGetGradleCmd(t *testing.T) {
 			name:                 "run selected tests with repeating test list and -Duser parameters",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: true,
-			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=%s --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"", agent), // nolint:lll
+			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=%s --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2, t1, t2},
 		},
@@ -81,7 +81,7 @@ func TestGetGradleCmd(t *testing.T) {
 			name:                 "run selected tests with single test and -Duser parameters and multiple or conditions",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US || true || false || other",
 			runOnlySelectedTests: true,
-			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=%s --tests \"pkg2.cls2\" || true || false || other", agent), // nolint:lll
+			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=%s --tests \"pkg2.cls2\" || true || false || other", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t2},
 		},
