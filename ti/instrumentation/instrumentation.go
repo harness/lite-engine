@@ -14,11 +14,6 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 )
 
-var (
-	gitBin       = "git"
-	diffFilesCmd = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
-)
-
 const (
 	tmpFilePath  = pipeline.SharedVolPath
 	javaAgentArg = "-javaagent:/addon/bin/java-agent.jar=%s"

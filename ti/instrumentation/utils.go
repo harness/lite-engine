@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -18,7 +17,12 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+var (
+	diffFilesCmd = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
+)
+
 const (
+	gitBin       = "git"
 	outDir       = "%s/ti/callgraph/" // path passed as outDir in the config.ini file
 	tiConfigPath = ".ticonfig.yaml"
 )
@@ -50,7 +54,7 @@ func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger) 
 		} else if t[0][0] == 'D' {
 			res = append(res, ti.File{Status: ti.FileDeleted, Name: t[1]})
 		} else if t[0][0] == 'R' {
-			res = append(res, ti.File{Status: ti.FileDeleted, Name: t[1]})
+			res = append(res, ti.File{Status: ti.FileDeleted, Name: t[1]}) // nolint:gocritic
 			res = append(res, ti.File{Status: ti.FileAdded, Name: t[2]})
 		} else {
 			// Log the error, don't error out for now
@@ -110,7 +114,7 @@ func createJavaAgentConfigFile(runner TestRunner, packages, annotations, workspa
 	}
 
 	if packages == "" {
-		pkgs, err := runner.AutoDetectPackages(workspace)
+		pkgs, err := runner.AutoDetectPackages(workspace) // nolint:govet
 		if err != nil {
 			log.WithError(err).Errorln("could not auto detect packages")
 		}
@@ -134,7 +138,7 @@ instrPackages: %s`, dir, packages)
 		log.WithError(err).Errorln(fmt.Sprintf("could not create file %s", iniFile))
 		return "", err
 	}
-	_, err = f.Write([]byte(data))
+	_, err = f.WriteString(data)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, iniFile))
 		return "", err
@@ -153,7 +157,7 @@ func getTiConfig(workspace string, fs filesystem.FileSystem) (ti.Config, error) 
 	}
 	var data []byte
 	err = fs.ReadFile(path, func(r io.Reader) error {
-		data, err = ioutil.ReadAll(r)
+		data, err = io.ReadAll(r)
 		return err
 	})
 	if err != nil {
