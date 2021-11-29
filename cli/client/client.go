@@ -54,7 +54,7 @@ func checkServerHealth(client *HTTPClient) error {
 	return client.Health(context.Background())
 }
 
-func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
+func runStage(client *HTTPClient, remoteLog bool) error {
 	ctx := context.Background()
 	defer func() {
 		logrus.Infof("Starting destroy")
@@ -117,6 +117,7 @@ func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 func getRunStep(id, cmd, workdir string) *api.StartStepRequest {
 	s := &api.StartStepRequest{
 		ID:    id,
+		Name:  id,
 		Kind:  api.Run,
 		Image: "alpine:3.12",
 		Volumes: []*spec.VolumeMount{
