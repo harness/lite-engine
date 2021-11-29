@@ -78,23 +78,23 @@ type HTTPClient struct {
 }
 
 // Write writes test results to the TI server
-func (c *HTTPClient) Write(ctx context.Context, step, report string, tests []*ti.TestCase) error {
-	path := fmt.Sprintf(dbEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, step, report, c.Repo, c.Sha)
+func (c *HTTPClient) Write(ctx context.Context, stepID, report string, tests []*ti.TestCase) error {
+	path := fmt.Sprintf(dbEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, report, c.Repo, c.Sha)
 	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &tests, nil) // nolint:bodyclose
 	return err
 }
 
 // SelectTests returns a list of tests which should be run intelligently
-func (c *HTTPClient) SelectTests(ctx context.Context, step, source, target string, in *ti.SelectTestsReq) (ti.SelectTestsResp, error) {
-	path := fmt.Sprintf(testEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, step, c.Repo, c.Sha, source, target)
+func (c *HTTPClient) SelectTests(ctx context.Context, stepID, source, target string, in *ti.SelectTestsReq) (ti.SelectTestsResp, error) {
+	path := fmt.Sprintf(testEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target)
 	var resp ti.SelectTestsResp
 	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, in, &resp) // nolint:bodyclose
 	return resp, err
 }
 
 // UploadCg uploads avro encoded callgraph to server
-func (c *HTTPClient) UploadCg(ctx context.Context, step, source, target string, timeMs int64, cg []byte) error {
-	path := fmt.Sprintf(cgEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, step, c.Repo, c.Sha, source, target, timeMs)
+func (c *HTTPClient) UploadCg(ctx context.Context, stepID, source, target string, timeMs int64, cg []byte) error {
+	path := fmt.Sprintf(cgEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target, timeMs)
 	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &cg, nil) // nolint:bodyclose
 	return err
 }

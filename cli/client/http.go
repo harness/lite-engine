@@ -17,8 +17,7 @@ import (
 
 // Error represents a json-encoded API error.
 type Error struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Message string `json:"error_msg"`
 }
 
 func (e *Error) Error() string {
