@@ -113,6 +113,7 @@ type (
 		Sha          string `json:"sha,omitempty"`
 		SourceBranch string `json:"source_branch,omitempty"`
 		TargetBranch string `json:"target_branch,omitempty"`
+		CommitBranch string `json:"commit_branch,omitempty"`
 	}
 
 	TestReport struct {

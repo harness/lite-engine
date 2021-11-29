@@ -22,8 +22,8 @@ type Client interface {
 	Write(ctx context.Context, step, report string, tests []*ti.TestCase) error
 
 	// SelectTests returns list of tests which should be run intelligently
-	SelectTests(step, source, target, req string) (ti.SelectTestsResp, error)
+	SelectTests(ctx context.Context, step, source, target string, in *ti.SelectTestsReq) (ti.SelectTestsResp, error)
 
 	// UploadCg uploads avro encoded callgraph to ti server
-	UploadCg(step, source, target string, timeMs int64, cg []byte) error
+	UploadCg(ctx context.Context, step, source, target string, timeMs int64, cg []byte) error
 }

@@ -85,22 +85,17 @@ func (c *HTTPClient) Write(ctx context.Context, step, report string, tests []*ti
 }
 
 // SelectTests returns a list of tests which should be run intelligently
-func (c *HTTPClient) SelectTests(step, source, target, body string) (ti.SelectTestsResp, error) {
+func (c *HTTPClient) SelectTests(ctx context.Context, step, source, target string, in *ti.SelectTestsReq) (ti.SelectTestsResp, error) {
 	path := fmt.Sprintf(testEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, step, c.Repo, c.Sha, source, target)
 	var resp ti.SelectTestsResp
-	var e ti.SelectTestsReq
-	err := json.Unmarshal([]byte(body), &e)
-	if err != nil {
-		return ti.SelectTestsResp{}, err
-	}
-	_, err = c.do(context.Background(), c.Endpoint+path, "POST", c.Sha, &e, &resp) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, in, &resp) // nolint:bodyclose
 	return resp, err
 }
 
 // UploadCg uploads avro encoded callgraph to server
-func (c *HTTPClient) UploadCg(step, source, target string, timeMs int64, cg []byte) error {
+func (c *HTTPClient) UploadCg(ctx context.Context, step, source, target string, timeMs int64, cg []byte) error {
 	path := fmt.Sprintf(cgEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, step, c.Repo, c.Sha, source, target, timeMs)
-	_, err := c.do(context.Background(), c.Endpoint+path, "POST", c.Sha, &cg, nil) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &cg, nil) // nolint:bodyclose
 	return err
 }
 

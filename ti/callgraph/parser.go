@@ -1,0 +1,246 @@
+// This file implements a parser for callgraph file. It reads all the files
+// in the callgraph directory, dedupes the data, and then returns Callgraph object
+package callgraph
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+
+	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+)
+
+//Parser reads callgraph file, processes it to extract
+// nodes and relations
+type Parser interface {
+	// Parse and read the file from
+	Parse(cgFile, visFile []string) (*Callgraph, error)
+}
+
+// CallGraphParser struct definition
+type CallGraphParser struct {
+	log *logrus.Logger        // logger
+	fs  filesystem.FileSystem // filesystem handler
+}
+
+// NewCallGraphParser creates a new CallGraphParser client and returns it
+func NewCallGraphParser(log *logrus.Logger, fs filesystem.FileSystem) *CallGraphParser {
+	return &CallGraphParser{
+		log: log,
+		fs:  fs,
+	}
+}
+
+// Iterate through all the cg files in the directory, parse each of them and return Callgraph object
+func (cg *CallGraphParser) Parse(cgFiles, visFiles []string) (*Callgraph, error) {
+	cg.log.Infof("parsing files := cg - [%s], vis - [%s]", cgFiles, visFiles)
+	cgraph, err := cg.parseCg(cgFiles)
+	if err != nil {
+		return nil, err
+	}
+	visRelation, err := cg.parseVis(visFiles)
+	if err != nil {
+		return nil, err
+	}
+	return &Callgraph{
+		Nodes:         cgraph.Nodes,
+		TestRelations: cgraph.TestRelations,
+		VisRelations:  *visRelation,
+	}, nil
+}
+
+// parseCg parses callgraph data from list of strings
+func (cg *CallGraphParser) parseCg(files []string) (*Callgraph, error) {
+	cgList, err := cg.readFiles(files)
+	if err != nil {
+		return nil, err
+	}
+	cgraph, err := parseCg(cgList)
+	if err != nil {
+		return nil, err
+	}
+	return cgraph, nil
+}
+
+// read list of files, merge all of them and returns array of strings where each string is one line of file
+func (cg *CallGraphParser) readFiles(files []string) ([]string, error) {
+	var finalData []string
+	for _, file := range files {
+		f, err := cg.fs.Open(file)
+		if err != nil {
+			return []string{}, errors.Wrap(err, fmt.Sprintf("failed to open file %s", file))
+		}
+		r := bufio.NewReader(f)
+		cgStr, err := rFile(r)
+		if err != nil {
+			return []string{}, errors.Wrap(err, fmt.Sprintf("failed to parse file %s", file))
+		}
+		cg.log.Infoln(fmt.Sprintf("successfully parsed file %s", file))
+		finalData = append(finalData, cgStr...)
+	}
+	return finalData, nil
+}
+
+// reads visualization callgraph files and converts it into relation object
+func (cg *CallGraphParser) parseVis(visFiles []string) (*[]Relation, error) {
+	vgList, err := cg.readFiles(visFiles)
+	if err != nil {
+		return nil, err
+	}
+	return formatVG(vgList)
+}
+
+// convert line of visgrph file to relation object
+// dedupe data - string format - `{1, 2}`
+func formatVG(vg []string) (*[]Relation, error) {
+	var keys, values []int
+	var relnList []Relation
+	for _, row := range vg {
+		s := strings.Split(row, ",")
+		key, value, err := getNodes(s)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+		values = append(values, value)
+	}
+
+	// deduping records
+	m := make(map[int][]int)
+	for i, key := range keys {
+		m[key] = append(m[key], values[i])
+	}
+
+	for k, v := range m {
+		relnList = append(relnList, Relation{
+			Source: k,
+			Tests:  removeDup(v),
+		})
+	}
+	return &relnList, nil
+}
+
+// removed duplicate elements from slice
+func removeDup(s []int) []int {
+	tmp := make(map[int]bool)
+	var c []int
+	for i := range s {
+		tmp[s[i]] = true
+	}
+	for k := range tmp {
+		c = append(c, k)
+	}
+	return c
+}
+
+// parses one line of visGraph file
+// format - [-841968839,1459543895]
+func getNodes(s []string) (int, int, error) {
+	if len(s) != 2 {
+		return 0, 0, fmt.Errorf("parsing failed: string format is not correct %v", s)
+	}
+	key, err1 := strconv.Atoi(s[0])
+	val, err2 := strconv.Atoi(s[1])
+	if err1 != nil || err2 != nil {
+		return 0, 0, fmt.Errorf("parsing failed: Id format is not correct %s %s", s[0], s[1])
+	}
+	return key, val, nil
+}
+
+// parseCg reads the input callgraph file and converts it into callgraph object
+func parseCg(cgStr []string) (*Callgraph, error) {
+	var (
+		err error
+		inp []Input
+	)
+	for _, line := range cgStr {
+		tinp := &Input{}
+		err = json.Unmarshal([]byte(line), tinp)
+		if err != nil {
+			return nil, errors.Wrap(err, fmt.Sprintf("data unmarshalling to json failed for line [%s]", line))
+		}
+		inp = append(inp, *tinp)
+	}
+	return process(inp), nil
+}
+
+func process(inps []Input) *Callgraph {
+	var relns []Relation
+	var nodes []Node
+
+	relMap, nodeMap := convCgph(inps)
+	// Updating the Relations map
+	for k, v := range relMap {
+		tRel := Relation{
+			Source: k,
+			Tests:  v,
+		}
+		relns = append(relns, tRel)
+	}
+
+	// Updating the nodes map
+	for _, v := range nodeMap {
+		nodes = append(nodes, v)
+	}
+	return &Callgraph{
+		Nodes:         nodes,
+		TestRelations: relns,
+	}
+}
+
+func convCgph(inps []Input) (map[int][]int, map[int]Node) {
+	relMap := make(map[int][]int)
+	nodeMap := make(map[int]Node)
+
+	for _, inp := range inps {
+		// processing nodeMap
+		test := inp.Test
+		test.Type = "test"
+		testID := test.ID
+		nodeMap[testID] = test
+		// processing relmap
+		var source Node
+		if inp.Source == (Node{}) {
+			source = inp.Resource
+			source.Type = "resource"
+		} else {
+			source = inp.Source
+			source.Type = "source"
+		}
+		sourceID := source.ID
+		nodeMap[sourceID] = source
+		relMap[sourceID] = append(relMap[sourceID], testID)
+	}
+	return relMap, nodeMap
+}
+
+// rLine reads line in callgraph file which corresponds to one entry of callgraph
+// had to use bufio reader as the scanner.Scan() fn has limitation
+// over the number of bytes it can read and was not working on callgraph file.
+func rLine(r *bufio.Reader) (string, error) {
+	var (
+		isPrefix bool  = true
+		err      error = nil
+		line, ln []byte
+	)
+	for isPrefix && err == nil {
+		line, isPrefix, err = r.ReadLine()
+		ln = append(ln, line...)
+	}
+	return string(ln), err
+}
+
+// rFile reads callgraph file
+func rFile(r *bufio.Reader) ([]string, error) {
+	var ret []string
+	s, e := rLine(r)
+	for e == nil {
+		ret = append(ret, s)
+		s, e = rLine(r)
+	}
+	return ret, nil
+}

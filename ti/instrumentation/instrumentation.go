@@ -2,11 +2,16 @@ package instrumentation
 
 import (
 	"context"
-	"os/exec"
-	"strings"
+	"fmt"
+	"io"
 
-	"github.com/harness/lite-engine/ti"
 	"github.com/sirupsen/logrus"
+
+	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/pipeline"
+	"github.com/harness/lite-engine/ti"
+	"github.com/harness/lite-engine/ti/instrumentation/java"
 )
 
 var (
@@ -14,40 +19,81 @@ var (
 	diffFilesCmd = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
 )
 
-// GetChangedFiles returns a list of files changed in the PR along with their corresponding status
-func GetChangedFiles(ctx context.Context, workspace string) ([]ti.File, error) {
-	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmd...)
-	cmd.Dir = workspace
-	out, err := cmd.Output()
+const (
+	tmpFilePath  = pipeline.SharedVolPath
+	javaAgentArg = "-javaagent:/addon/bin/java-agent.jar=%s"
+)
+
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) {
+	fs := filesystem.New()
+	log := logrus.New()
+	log.Out = out
+
+	// Get the tests that need to be run if we are running selected tests
+	var selection ti.SelectTestsResp
+
+	files, err := getChangedFiles(ctx, workspace, log)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	res := []ti.File{}
+	runOnlySelectedTests := config.RunOnlySelectedTests
 
-	for _, l := range strings.Split(string(out), "\n") {
-		t := strings.Fields(l)
-		// t looks like:
-		// <M/A/D file_name> for modified/added/deleted files
-		// <RXYZ old_file new_file> for renamed files where XYZ denotes %age similarity
-		if len(t) == 0 {
-			break
-		}
-
-		if t[0][0] == 'M' {
-			res = append(res, ti.File{Status: ti.FileModified, Name: t[1]})
-		} else if t[0][0] == 'A' {
-			res = append(res, ti.File{Status: ti.FileAdded, Name: t[1]})
-		} else if t[0][0] == 'D' {
-			res = append(res, ti.File{Status: ti.FileDeleted, Name: t[1]})
-		} else if t[0][0] == 'R' {
-			res = append(res, ti.File{Status: ti.FileDeleted, Name: t[1]})
-			res = append(res, ti.File{Status: ti.FileAdded, Name: t[2]})
-		} else {
-			// Log the error, don't error out for now
-			logrus.WithError(err).WithField("status", t[0]).WithField("file", t[1]).Errorln("unsupported file status")
-			return res, nil
-		}
+	isManual := isManualExecution()
+	if len(files) == 0 {
+		log.Errorln("unable to get changed files list")
+		runOnlySelectedTests = false // run all the tests if we could not find changed files list correctly
 	}
-	return res, nil
+	if isManual {
+		log.Infoln("detected manual execution - for intelligence to be configured, a PR must be raised. Running all the tests.")
+		runOnlySelectedTests = false // run all the tests if it is a manual execution
+	}
+	selection, err = selectTests(ctx, workspace, files, runOnlySelectedTests, stepID, fs)
+	if err != nil {
+		log.WithError(err).Errorln("there was some issue in trying to intelligently figure out tests to run. Running all the tests")
+		runOnlySelectedTests = false // run all the tests if an error was encountered
+	} else if !valid(selection.Tests) { // This shouldn't happen
+		log.Warnln("test intelligence did not return suitable tests")
+		runOnlySelectedTests = false // TI did not return suitable tests
+	} else if selection.SelectAll == true {
+		log.Infoln("intelligently determined to run all the tests")
+		runOnlySelectedTests = false // TI selected all the tests to be run
+	} else {
+		log.Infoln(fmt.Sprintf("intelligently running tests: %s", selection.Tests))
+	}
+
+	var runner TestRunner
+	switch config.Language {
+	case "java":
+		switch config.BuildTool {
+		case "maven":
+			runner = java.NewMavenRunner(log, fs)
+		case "gradle":
+			runner = java.NewGradleRunner(log, fs)
+		case "bazel":
+			runner = java.NewBazelRunner(log, fs)
+		default:
+			return "", fmt.Errorf("build tool: %s is not supported for Java", config.BuildTool)
+		}
+	default:
+		return "", fmt.Errorf("language %s is not suported", config.Language)
+	}
+
+	// Create the java agent config file
+	iniFilePath, err := createJavaAgentConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log)
+	if err != nil {
+		return "", err
+	}
+	agentArg := fmt.Sprintf(javaAgentArg, iniFilePath)
+
+	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, iniFilePath, isManual, !runOnlySelectedTests)
+	if err != nil {
+		return "", err
+	}
+
+	// TMPDIR needs to be set for some build tools like bazel
+	command := fmt.Sprintf("set -xe\nexport TMPDIR=%s\nexport HARNESS_JAVA_AGENT=%s\n%s\n%s\n%s",
+		tmpFilePath, agentArg, config.PreCommand, testCmd, config.PostCommand)
+
+	return command, nil
 }
