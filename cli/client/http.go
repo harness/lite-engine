@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/logger"
 	"github.com/sirupsen/logrus"
 )
 
@@ -84,6 +86,28 @@ func (c *HTTPClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*ap
 	return out, err
 }
 
+const pollStepTimeout = time.Minute * 10
+
+func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest) (step *api.PollStepResponse, pollError error) {
+	startTime := time.Now()
+	retryCtx, cancel := context.WithTimeout(ctx, pollStepTimeout)
+	defer cancel()
+	for i := 0; ; i++ {
+		select {
+		case <-retryCtx.Done():
+			return step, retryCtx.Err()
+		default:
+		}
+		step, pollError = c.PollStep(retryCtx, in)
+		if pollError == nil {
+			logger.FromContext(retryCtx).
+				WithField("duration", time.Since(startTime)).
+				Trace("RetryPollStep: step completed")
+			return step, pollError
+		}
+	}
+}
+
 func (c *HTTPClient) Health(ctx context.Context) (*api.HealthResponse, error) {
 	path := "healthz"
 	out := new(api.HealthResponse)
@@ -91,8 +115,29 @@ func (c *HTTPClient) Health(ctx context.Context) (*api.HealthResponse, error) {
 	return out, err
 }
 
-// do is a helper function that posts a http request with
-// the input encoded and response decoded from json.
+const healthTimeout = time.Minute * 1
+
+func (c *HTTPClient) RetryHealth(ctx context.Context) (healthResponse *api.HealthResponse, pollError error) {
+	startTime := time.Now()
+	retryCtx, cancel := context.WithTimeout(ctx, healthTimeout)
+	defer cancel()
+	for i := 0; ; i++ {
+		select {
+		case <-retryCtx.Done():
+			return healthResponse, retryCtx.Err()
+		default:
+		}
+		healthResponse, pollError = c.Health(retryCtx)
+		if pollError == nil {
+			logger.FromContext(retryCtx).
+				WithField("duration", time.Since(startTime)).
+				Trace("RetryHealth: step completed")
+			return healthResponse, pollError
+		}
+	}
+}
+
+// do is a helper function that posts a http request with the input encoded and response decoded from json.
 func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interface{}) (*http.Response, error) { // nolint:unparam
 	var r io.Reader
 

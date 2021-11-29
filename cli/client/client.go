@@ -8,6 +8,7 @@ import (
 	"github.com/harness/lite-engine/cli/certs"
 	"github.com/harness/lite-engine/config"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/logger"
 
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
@@ -35,11 +36,21 @@ func (c *clientCommand) run(*kingpin.ParseContext) error {
 			Errorln("cannot load the service configuration")
 		return err
 	}
-
+	// setup logging
+	l := logrus.StandardLogger()
+	logger.L = logrus.NewEntry(l)
+	if loadedConfig.Debug {
+		l.SetLevel(logrus.DebugLevel)
+	}
+	if loadedConfig.Trace {
+		l.SetLevel(logrus.TraceLevel)
+	}
+	// read the certificates
 	ce, err := certs.ReadCerts(loadedConfig.Client.CaCertFile, loadedConfig.Client.CertFile, loadedConfig.Client.KeyFile)
 	if err != nil {
 		return err
 	}
+
 	client, err := NewHTTPClient(
 		fmt.Sprintf("https://%s/", loadedConfig.Client.Bind),
 		loadedConfig.ServerName, ce.CaCertFile, ce.CertFile, ce.KeyFile)
@@ -69,14 +80,19 @@ func checkServerHealth(client *HTTPClient) error {
 func runStage(client *HTTPClient, remoteLog bool) error {
 	ctx := context.Background()
 	defer func() {
-		logrus.Infof("Starting destroy")
+		logrus.Infof("starting destroy")
 		if _, err := client.Destroy(ctx, &api.DestroyRequest{}); err != nil {
 			logrus.WithError(err).Errorln("destroy call failed")
 			panic(err)
 		}
 	}()
 
-	workDir := "/drone/src"
+	logrus.Infof("check health")
+	if _, err := client.RetryHealth(ctx); err != nil {
+		logrus.WithError(err).Errorln("not healthy")
+		return err
+	}
+	logrus.Infof("healthy")
 
 	setupParams := &api.SetupRequest{
 		Volumes: []*spec.Volume{
@@ -100,29 +116,25 @@ func runStage(client *HTTPClient, remoteLog bool) error {
 			IndirectUpload: true,
 		}
 	}
-	logrus.Infof("Starting setup")
+	logrus.Infof("starting setup")
 	if _, err := client.Setup(ctx, setupParams); err != nil {
 		logrus.WithError(err).Errorln("setup call failed")
 		return err
 	}
 	logrus.Infof("completed setup")
 
-	// Execute step1
-	sid1 := "step1"
-	s1 := getRunStep(sid1, "set -xe; pwd; echo drone; echo hello world > foo; cat foo", workDir)
-
+	// run steps
+	workDir := "/drone/src"
+	s1 := getRunStep("step1", "set -xe; pwd; sleep 2; echo drone; echo hello world > foo; cat foo", workDir)
 	if err := executeStep(ctx, s1, client); err != nil {
 		return err
 	}
-
-	// Execute Step2
-	sid2 := "step2"
-	s2 := getRunStep(sid2, "set -xe; pwd; cat foo; export hello=world", workDir)
+	// execute step2
+	s2 := getRunStep("step2", "set -xe; pwd; cat foo; sleep 5; export hello=world", workDir)
 	s2.OutputVars = append(s2.OutputVars, "hello")
 	if err := executeStep(ctx, s2, client); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -147,13 +159,13 @@ func getRunStep(id, cmd, workdir string) *api.StartStepRequest {
 }
 
 func executeStep(ctx context.Context, step *api.StartStepRequest, client *HTTPClient) error {
-	logrus.Infof("Starting step %s", step.ID)
+	logrus.Infof("calling starting step %s", step.ID)
 	if _, err := client.StartStep(ctx, step); err != nil {
 		logrus.WithError(err).Errorf("start %s call failed", step.ID)
 		return err
 	}
-	logrus.Infof("Polling %s", step.ID)
-	res, err := client.PollStep(ctx, &api.PollStepRequest{ID: step.ID})
+	logrus.Infof("polling %s", step.ID)
+	res, err := client.RetryPollStep(ctx, &api.PollStepRequest{ID: step.ID})
 	if err != nil {
 		logrus.WithError(err).Errorf("poll %s call failed", step.ID)
 		return err
