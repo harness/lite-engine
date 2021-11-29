@@ -97,21 +97,7 @@ func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 
 	// Execute step1
 	sid1 := "step1"
-	s1 := &api.StartStepRequest{
-		ID:    sid1,
-		Kind:  api.Run,
-		Image: "alpine:3.12",
-		Volumes: []*spec.VolumeMount{
-			{
-				Name: "_workspace",
-				Path: workDir,
-			},
-		},
-		WorkingDir: workDir,
-		LogKey:     sid1,
-	}
-	s1.Run.Command = []string{"set -xe; pwd; echo drone; echo hello world > foo; cat foo"}
-	s1.Run.Entrypoint = []string{"sh", "-c"}
+	s1 := getRunStep(sid1, "set -xe; pwd; echo drone; echo hello world > foo; cat foo", workDir)
 
 	if err := executeStep(ctx, s1, client); err != nil {
 		return err
@@ -119,28 +105,32 @@ func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 
 	// Execute Step2
 	sid2 := "step2"
-	s2 := &api.StartStepRequest{
-		ID:    sid2,
-		Kind:  api.Run,
-		Image: "alpine:3.12",
-		Volumes: []*spec.VolumeMount{
-			{
-				Name: "_workspace",
-				Path: workDir,
-			},
-		},
-		WorkingDir: workDir,
-		OutputVars: []string{"hello"},
-		LogKey:     sid2,
-	}
-	s2.Run.Command = []string{"set -xe; pwd; cat foo; export hello=world"}
-	s2.Run.Entrypoint = []string{"sh", "-c"}
-
+	s2 := getRunStep(sid2, "set -xe; pwd; cat foo; export hello=world", workDir)
+	s2.OutputVars = append(s2.OutputVars, "hello")
 	if err := executeStep(ctx, s2, client); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func getRunStep(id, cmd, workdir string) *api.StartStepRequest {
+	s := &api.StartStepRequest{
+		ID:    id,
+		Kind:  api.Run,
+		Image: "alpine:3.12",
+		Volumes: []*spec.VolumeMount{
+			{
+				Name: "_workspace",
+				Path: workdir,
+			},
+		},
+		WorkingDir: workdir,
+		LogKey:     id,
+	}
+	s.Run.Command = []string{cmd}
+	s.Run.Entrypoint = []string{"sh", "-c"}
+	return s
 }
 
 func executeStep(ctx context.Context, step *api.StartStepRequest, client *HTTPClient) error {
