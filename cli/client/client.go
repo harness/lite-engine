@@ -61,7 +61,7 @@ func checkServerHealth(client *HTTPClient) error {
 	return nil
 }
 
-func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
+func runStage(client *HTTPClient, remoteLog bool) error {
 	ctx := context.Background()
 	defer func() {
 		logrus.Infof("Starting destroy")
@@ -70,6 +70,8 @@ func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 			panic(err)
 		}
 	}()
+
+	workDir := "/drone/src"
 
 	setupParams := &api.SetupRequest{
 		Volumes: []*spec.Volume{
@@ -102,67 +104,56 @@ func runStage(client *HTTPClient, remoteLog bool) error { // nolint:funlen
 
 	// Execute step1
 	sid1 := "step1"
-	s1 := &api.StartStepRequest{
-		ID:    sid1,
-		Kind:  api.Run,
-		Image: "alpine:3.12",
-		Volumes: []*spec.VolumeMount{
-			{
-				Name: "_workspace",
-				Path: "/drone/src",
-			},
-		},
-		WorkingDir: "/drone/src",
-		LogKey:     sid1,
-	}
-	s1.Run.Command = []string{"set -xe; pwd; echo drone; echo hello world > foo; cat foo"}
-	s1.Run.Entrypoint = []string{"sh", "-c"}
+	s1 := getRunStep(sid1, "set -xe; pwd; echo drone; echo hello world > foo; cat foo", workDir)
 
-	logrus.Infof("Starting step1")
-	if _, err := client.StartStep(ctx, s1); err != nil {
-		logrus.WithError(err).Errorln("start step1 call failed")
+	if err := executeStep(ctx, s1, client); err != nil {
 		return err
 	}
-	logrus.Infof("Polling step1")
-	res, err := client.PollStep(ctx, &api.PollStepRequest{ID: sid1})
-	if err != nil {
-		logrus.WithError(err).Errorln("poll step1 call failed")
-		return err
-	}
-
-	logrus.WithField("response", res).Info("step 1 poll completed successfully")
 
 	// Execute Step2
 	sid2 := "step2"
-	s2 := &api.StartStepRequest{
-		ID:    sid2,
+	s2 := getRunStep(sid2, "set -xe; pwd; cat foo; export hello=world", workDir)
+	s2.OutputVars = append(s2.OutputVars, "hello")
+	if err := executeStep(ctx, s2, client); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getRunStep(id, cmd, workdir string) *api.StartStepRequest {
+	s := &api.StartStepRequest{
+		ID:    id,
+		Name:  id,
 		Kind:  api.Run,
 		Image: "alpine:3.12",
 		Volumes: []*spec.VolumeMount{
 			{
 				Name: "_workspace",
-				Path: "/drone/src",
+				Path: workdir,
 			},
 		},
-		WorkingDir: "/drone/src",
-		OutputVars: []string{"hello"},
-		LogKey:     sid2,
+		WorkingDir: workdir,
+		LogKey:     id,
 	}
-	s2.Run.Command = []string{"set -xe; pwd; cat foo; export hello=world"}
-	s2.Run.Entrypoint = []string{"sh", "-c"}
+	s.Run.Command = []string{cmd}
+	s.Run.Entrypoint = []string{"sh", "-c"}
+	return s
+}
 
-	logrus.Infof("Starting step2")
-	if _, err = client.StartStep(ctx, s2); err != nil {
-		logrus.WithError(err).Errorln("start step2 call failed")
+func executeStep(ctx context.Context, step *api.StartStepRequest, client *HTTPClient) error {
+	logrus.Infof("Starting step %s", step.ID)
+	if _, err := client.StartStep(ctx, step); err != nil {
+		logrus.WithError(err).Errorf("start %s call failed", step.ID)
 		return err
 	}
-	logrus.Infof("Polling step2")
-	res, err = client.PollStep(ctx, &api.PollStepRequest{ID: sid2})
+	logrus.Infof("Polling %s", step.ID)
+	res, err := client.PollStep(ctx, &api.PollStepRequest{ID: step.ID})
 	if err != nil {
-		logrus.WithError(err).Errorln("poll step2 call failed")
+		logrus.WithError(err).Errorf("poll %s call failed", step.ID)
 		return err
 	}
-	logrus.WithField("response", res).Info("step 2 poll completed successfully")
+	logrus.WithField("response", res).Infof("%s poll completed successfully", step.ID)
 	return nil
 }
 

@@ -1,15 +1,18 @@
 package remote
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
-// Error represents a json-encoded API error.
+// Custom error.
 type Error struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Message string
+	Code    int
 }
 
 func (e *Error) Error() string {
-	return e.Message
+	return fmt.Sprintf("%d: %s", e.Code, e.Message)
 }
 
 // Link represents a signed link.

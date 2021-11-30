@@ -1,0 +1,56 @@
+{
+    "name": "Parent",
+    "type":"record",
+    "namespace" : "ti.harness.io",
+    "fields":[
+        {
+            "name":"nodes",
+            "type":{
+                "type": "array",  
+                "items":{
+                    "name":"Child",
+                    "type":"record",
+                    "fields":[
+                        {"name" : "method", "type" : "string"},
+                        {"name" : "package", "type" : "string"},
+                        {"name" : "id", "type" : "int"},
+                        {"name" : "classId", "type" : "int"},
+                        {"name" : "params", "type" : "string"},
+                        {"name" : "class", "type" : "string"},
+                        {"name" : "type", "type" : "string"},
+                        {"name": "callsReflection", "type" : "boolean"},
+                        {"name": "file", "type" : "string"}
+                    ]
+                }
+            }
+        },
+        {
+            "name":"testRelations",
+            "type":{
+                "type": "array",  
+                "items":{
+                    "name":"Child",
+                    "type":"record",
+                    "fields":[
+                        {"name" : "source", "type" : "int"},
+                        {"name" : "tests", "type" : {"type":"array", "items":"int"}}
+                    ]
+                }
+            }
+        },
+        {
+            "name":"visgraphRelations",
+            "type":{
+                "type": "array",
+                "items":{
+                    "name":"Child",
+                    "type":"record",
+                    "fields":[
+                        {"name" : "source", "type" : "int"},
+                        {"name" : "destinations", "type" : {"type":"array", "items":"int"}}
+                    ]
+                }
+            }
+        }
+    ] 
+}

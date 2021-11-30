@@ -78,29 +78,24 @@ type HTTPClient struct {
 }
 
 // Write writes test results to the TI server
-func (c *HTTPClient) Write(ctx context.Context, step, report string, tests []*ti.TestCase) error {
-	path := fmt.Sprintf(dbEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, step, report, c.Repo, c.Sha)
+func (c *HTTPClient) Write(ctx context.Context, stepID, report string, tests []*ti.TestCase) error {
+	path := fmt.Sprintf(dbEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, report, c.Repo, c.Sha)
 	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &tests, nil) // nolint:bodyclose
 	return err
 }
 
 // SelectTests returns a list of tests which should be run intelligently
-func (c *HTTPClient) SelectTests(step, source, target, body string) (ti.SelectTestsResp, error) {
-	path := fmt.Sprintf(testEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, step, c.Repo, c.Sha, source, target)
+func (c *HTTPClient) SelectTests(ctx context.Context, stepID, source, target string, in *ti.SelectTestsReq) (ti.SelectTestsResp, error) {
+	path := fmt.Sprintf(testEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target)
 	var resp ti.SelectTestsResp
-	var e ti.SelectTestsReq
-	err := json.Unmarshal([]byte(body), &e)
-	if err != nil {
-		return ti.SelectTestsResp{}, err
-	}
-	_, err = c.do(context.Background(), c.Endpoint+path, "POST", c.Sha, &e, &resp) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, in, &resp) // nolint:bodyclose
 	return resp, err
 }
 
 // UploadCg uploads avro encoded callgraph to server
-func (c *HTTPClient) UploadCg(step, source, target string, timeMs int64, cg []byte) error {
-	path := fmt.Sprintf(cgEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, step, c.Repo, c.Sha, source, target, timeMs)
-	_, err := c.do(context.Background(), c.Endpoint+path, "POST", c.Sha, &cg, nil) // nolint:bodyclose
+func (c *HTTPClient) UploadCg(ctx context.Context, stepID, source, target string, timeMs int64, cg []byte) error {
+	path := fmt.Sprintf(cgEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target, timeMs)
+	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &cg, nil) // nolint:bodyclose
 	return err
 }
 
@@ -162,13 +157,13 @@ func (c *HTTPClient) do(ctx context.Context, path, method, sha string, in, out i
 		// if the response body includes an error message
 		// we should return the error string.
 		if len(body) != 0 {
-			out := new(Error)
-			if err := json.Unmarshal(body, out); err != nil {
-				return res, out
+			out := new(struct {
+				Message string `json:"error_msg"`
+			})
+			if err := json.Unmarshal(body, out); err == nil {
+				return res, &Error{Code: res.StatusCode, Message: out.Message}
 			}
-			return res, errors.New(
-				string(body),
-			)
+			return res, &Error{Code: res.StatusCode, Message: string(body)}
 		}
 		// if the response body is empty we should return
 		// the default status code text.

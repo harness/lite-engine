@@ -108,16 +108,19 @@ type (
 	}
 
 	TIConfig struct {
-		URL        string `json:"url,omitempty"`
-		Token      string `json:"token,omitempty"`
-		AccountID  string `json:"account_id,omitempty"`
-		OrgID      string `json:"org_id,omitempty"`
-		ProjectID  string `json:"project_id,omitempty"`
-		PipelineID string `json:"pipeline_id,omitempty"`
-		StageID    string `json:"stage_id,omitempty"`
-		BuildID    string `json:"build_id,omitempty"`
-		Repo       string `json:"repo,omitempty"`
-		Sha        string `json:"sha,omitempty"`
+		URL          string `json:"url,omitempty"`
+		Token        string `json:"token,omitempty"`
+		AccountID    string `json:"account_id,omitempty"`
+		OrgID        string `json:"org_id,omitempty"`
+		ProjectID    string `json:"project_id,omitempty"`
+		PipelineID   string `json:"pipeline_id,omitempty"`
+		StageID      string `json:"stage_id,omitempty"`
+		BuildID      string `json:"build_id,omitempty"`
+		Repo         string `json:"repo,omitempty"`
+		Sha          string `json:"sha,omitempty"`
+		SourceBranch string `json:"source_branch,omitempty"`
+		TargetBranch string `json:"target_branch,omitempty"`
+		CommitBranch string `json:"commit_branch,omitempty"`
 	}
 
 	TestReport struct {

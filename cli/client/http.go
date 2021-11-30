@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -17,12 +18,12 @@ import (
 
 // Error represents a json-encoded API error.
 type Error struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Message string
+	Code    int
 }
 
 func (e *Error) Error() string {
-	return e.Message
+	return fmt.Sprintf("%d:%s", e.Code, e.Message)
 }
 
 func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile string) (*HTTPClient, error) {
@@ -148,13 +149,13 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		// if the response body includes an error message
 		// we should return the error string.
 		if len(body) != 0 {
-			out := new(Error)
-			if err := json.Unmarshal(body, out); err != nil {
-				return res, out
+			out := new(struct {
+				Message string `json:"error_msg"`
+			})
+			if err := json.Unmarshal(body, out); err == nil {
+				return res, &Error{Code: res.StatusCode, Message: out.Message}
 			}
-			return res, errors.New(
-				string(body),
-			)
+			return res, &Error{Code: res.StatusCode, Message: string(body)}
 		}
 		// if the response body is empty we should return
 		// the default status code text.

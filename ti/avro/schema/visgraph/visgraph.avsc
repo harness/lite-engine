@@ -1,0 +1,43 @@
+{
+  "name": "Parent",
+  "type":"record",
+  "namespace" : "ti.harness.io",
+  "fields":[
+    {
+      "name":"keys",
+      "type":{
+        "type": "array",
+        "items":{
+          "name":"Child",
+          "type":"record",
+          "fields":[
+            {"name" : "method", "type" : "string"},
+            {"name" : "package", "type" : "string"},
+            {"name" : "id", "type" : "int"},
+            {"name" : "params", "type" : "string"},
+            {"name" : "class", "type" : "string"},
+            {"name" : "type", "type" : "string"}
+          ]
+        }
+      }
+    },
+    {
+      "name":"values",
+      "type":{
+        "type": "array",
+        "items":{
+          "name":"Child",
+          "type":"record",
+          "fields":[
+            {"name" : "method", "type" : "string"},
+            {"name" : "package", "type" : "string"},
+            {"name" : "id", "type" : "int"},
+            {"name" : "params", "type" : "string"},
+            {"name" : "class", "type" : "string"},
+            {"name" : "type", "type" : "string"}
+          ]
+        }
+      }
+    }
+  ]
+}
