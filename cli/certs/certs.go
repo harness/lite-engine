@@ -31,7 +31,7 @@ type Certificate struct {
 	Key  []byte
 }
 
-type certList struct {
+type CertList struct {
 	CaCertFile string
 	CertFile   string
 	KeyFile    string
@@ -174,7 +174,7 @@ func newCertificate(org string) (*x509.Certificate, error) {
 	}, nil
 }
 
-func ReadCerts(caCertFileLocation, certFileLocation, certKeyLocation string) (*certList, error) {
+func ReadCerts(caCertFileLocation, certFileLocation, certKeyLocation string) (*CertList, error) {
 	caCertFile, err := os.ReadFile(caCertFileLocation)
 	if err != nil {
 		return nil, err
@@ -187,5 +187,5 @@ func ReadCerts(caCertFileLocation, certFileLocation, certKeyLocation string) (*c
 	if err != nil {
 		return nil, err
 	}
-	return &certList{CaCertFile: string(caCertFile), CertFile: string(certFile), KeyFile: string(keyFile)}, nil
+	return &CertList{CaCertFile: string(caCertFile), CertFile: string(certFile), KeyFile: string(keyFile)}, nil
 }
