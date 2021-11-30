@@ -16,10 +16,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	cgDir = "%s/ti/callgraph/cg/" // path where callgraph files will be generated
-)
-
 func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) (
 	*runtime.State, map[string]string, error) {
 	start := time.Now()
@@ -49,7 +45,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 		log.WithError(rerr).Errorln("failed to upload report")
 	}
 
-	if uerr := callgraph.Upload(ctx, step.Name, cgDir, time.Since(start).Milliseconds(), out); uerr != nil {
+	if uerr := callgraph.Upload(ctx, step.Name, time.Since(start).Milliseconds(), out); uerr != nil {
 		log.WithError(uerr).Errorln("unable to collect callgraph")
 	}
 

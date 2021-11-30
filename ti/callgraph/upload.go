@@ -17,10 +17,11 @@ import (
 
 const (
 	cgSchemaType = "callgraph"
+	cgDir        = "%s/ti/callgraph/cg/" // path where callgraph files will be generated
 )
 
 // Upload method uploads the callgraph.
-func Upload(ctx context.Context, stepID, cgDir string, timeMs int64, out io.Writer) error {
+func Upload(ctx context.Context, stepID string, timeMs int64, out io.Writer) error {
 	log := logrus.New()
 	log.Out = out
 
@@ -49,7 +50,7 @@ func Upload(ctx context.Context, stepID, cgDir string, timeMs int64, out io.Writ
 		}
 	}
 
-	encCg, err := encodeCg(cgDir, log)
+	encCg, err := encodeCg(fmt.Sprintf(cgDir, pipeline.SharedVolPath), log)
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
 	}
