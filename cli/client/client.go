@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/cli/certs"
 	"github.com/harness/lite-engine/config"
 	"github.com/harness/lite-engine/engine/spec"
 
@@ -35,9 +36,13 @@ func (c *clientCommand) run(*kingpin.ParseContext) error {
 		return err
 	}
 
+	ce, err := certs.ReadCerts(loadedConfig.Client.CaCertFile, loadedConfig.Client.CertFile, loadedConfig.Client.KeyFile)
+	if err != nil {
+		return err
+	}
 	client, err := NewHTTPClient(
 		fmt.Sprintf("https://%s/", loadedConfig.Client.Bind),
-		loadedConfig.ServerName, loadedConfig.Client.CaCertFile, loadedConfig.Client.CertFile, loadedConfig.Client.KeyFile)
+		loadedConfig.ServerName, ce.CaCertFile, ce.CertFile, ce.KeyFile)
 	if err != nil {
 		logrus.WithError(err).
 			Errorln("failed to create client")
