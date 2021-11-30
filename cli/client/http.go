@@ -9,7 +9,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"os"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/sirupsen/logrus"
@@ -26,7 +25,7 @@ func (e *Error) Error() string {
 }
 
 func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile string) (*HTTPClient, error) {
-	tlsCert, err := tls.LoadX509KeyPair(tlsCertFile, tlsKeyFile)
+	tlsCert, err := tls.X509KeyPair([]byte(tlsCertFile), []byte(tlsKeyFile))
 	if err != nil {
 		return nil, err
 	}
@@ -36,14 +35,8 @@ func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile str
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	// Trusted server certificate.
-	caCert, err := os.ReadFile(caCertFile)
-	if err != nil {
-		return nil, err
-	}
-
 	tlsConfig.RootCAs = x509.NewCertPool()
-	tlsConfig.RootCAs.AppendCertsFromPEM(caCert)
+	tlsConfig.RootCAs.AppendCertsFromPEM([]byte(caCertFile))
 	return &HTTPClient{
 		Client: &http.Client{
 			Transport: &http.Transport{
