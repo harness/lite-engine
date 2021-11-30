@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"os"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -28,6 +29,12 @@ const (
 type Certificate struct {
 	Cert []byte
 	Key  []byte
+}
+
+type CertList struct {
+	CaCertFile string
+	CertFile   string
+	KeyFile    string
 }
 
 // GenerateCert generates a certificate for the host address.
@@ -165,4 +172,20 @@ func newCertificate(org string) (*x509.Certificate, error) {
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageKeyAgreement,
 		BasicConstraintsValid: true,
 	}, nil
+}
+
+func ReadCerts(caCertFileLocation, certFileLocation, certKeyLocation string) (*CertList, error) {
+	caCertFile, err := os.ReadFile(caCertFileLocation)
+	if err != nil {
+		return nil, err
+	}
+	certFile, err := os.ReadFile(certFileLocation)
+	if err != nil {
+		return nil, err
+	}
+	keyFile, err := os.ReadFile(certKeyLocation)
+	if err != nil {
+		return nil, err
+	}
+	return &CertList{CaCertFile: string(caCertFile), CertFile: string(certFile), KeyFile: string(keyFile)}, nil
 }
