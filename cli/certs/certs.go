@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"os"
 	"time"
@@ -180,7 +179,7 @@ func ReadCerts(caCertFileLocation, certFileLocation, certKeyLocation string) (*c
 	if err != nil {
 		return nil, err
 	}
-	certFile, err := os.ReadFile(fmt.Sprintf(certFileLocation))
+	certFile, err := os.ReadFile(certFileLocation)
 	if err != nil {
 		return nil, err
 	}
