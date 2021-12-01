@@ -11,10 +11,11 @@ type Config struct {
 	ServerName string `envconfig:"SERVER_NAME" default:"drone"`
 
 	Server struct {
-		Bind       string `envconfig:"HTTPS_BIND" default:":9079"`
-		CertFile   string `envconfig:"SERVER_CERT_FILE" default:"/tmp/certs/server-cert.pem"` // Server certificate PEM file
-		KeyFile    string `envconfig:"SERVER_KEY_FILE" default:"/tmp/certs/server-key.pem"`   // Server key PEM file
-		CACertFile string `envconfig:"CLIENT_CERT_FILE" default:"/tmp/certs/ca-cert.pem"`     // CA certificate file
+		Bind              string `envconfig:"HTTPS_BIND" default:":9079"`
+		CertFile          string `envconfig:"SERVER_CERT_FILE" default:"/tmp/certs/server-cert.pem"` // Server certificate PEM file
+		KeyFile           string `envconfig:"SERVER_KEY_FILE" default:"/tmp/certs/server-key.pem"`   // Server key PEM file
+		CACertFile        string `envconfig:"CLIENT_CERT_FILE" default:"/tmp/certs/ca-cert.pem"`     // CA certificate file
+		SkipPrepareServer bool   `envconfig:"SKIP_PREPARE_SERVER" default:"false"`                   // skip prepare server, install docker / git
 	}
 
 	Client struct {

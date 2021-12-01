@@ -82,7 +82,11 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 
 	logrus.Infof(fmt.Sprintf("server listening at port %s", loadedConfig.Server.Bind))
 	// run the setup checks / installation
-	setup.PrepareSystem()
+	if loadedConfig.Server.SkipPrepareServer {
+		logrus.Infoln("skipping prepare server eg install docker / git")
+	} else {
+		setup.PrepareSystem()
+	}
 	// starts the http server.
 	err = serverInstance.Start(ctx)
 	if err == context.Canceled {

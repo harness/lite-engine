@@ -3,7 +3,7 @@ package avro
 import (
 	"fmt"
 
-	"github.com/linkedin/goavro/v2"
+	goavro "github.com/linkedin/goavro/v2"
 	"github.com/pkg/errors"
 
 	cg "github.com/harness/lite-engine/ti/avro/schema/callgraph"
