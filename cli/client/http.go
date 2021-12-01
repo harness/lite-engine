@@ -131,7 +131,7 @@ func (c *HTTPClient) RetryHealth(ctx context.Context) (healthResponse *api.Healt
 		if pollError == nil {
 			logger.FromContext(retryCtx).
 				WithField("duration", time.Since(startTime)).
-				Trace("RetryHealth: step completed")
+				Trace("RetryHealth: health check completed")
 			return healthResponse, pollError
 		}
 	}
