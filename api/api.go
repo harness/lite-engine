@@ -34,7 +34,10 @@ type (
 		IsDir bool   `json:"is_dir,omitempty"`
 	}
 
-	SetupResponse struct{}
+	SetupResponse struct {
+		InstanceID string `json:"instance_id,omitempty"`
+		IPAddress  string `json:"ip_address,omitempty"`
+	}
 
 	DestroyRequest struct{}
 
