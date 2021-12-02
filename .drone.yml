@@ -22,23 +22,39 @@ steps:
         path: /go
     depends_on:
       - clone
-  - name: build
-    image: golang:1.17
-    commands:
-      - go build
-      - echo "SERVER_HTTPS_BIND=0.0.0.0:9079" > .env
-      - echo "CLIENT_HTTPS_BIND=0.0.0.0:9079" >> .env
-      - cat .env
-      - ./lite-engine certs
-      - ./lite-engine server &
-      # - ./lite-engine client
-    volumes:
-      - name: cache
-        path: /go
-    depends_on:
-      - golangci-lint
-      - go vet and unit tests
 
 volumes:
   - name: cache
     temp: {}
+
+---
+kind: pipeline
+type: aws
+name: ubuntu acceptance tests
+
+pool:
+  use: ubuntu
+
+steps:
+  - name: build
+    image: golang:1.17
+    commands:
+      - go build
+      - ls -al
+  - name: server
+    detach: true
+    commands:
+      - ls -al
+      - touch .env
+      - ./lite-engine certs
+      - ls -al /tmp/certs
+      - ./lite-engine server 
+    depends_on:
+      - build
+  - name: run certs client
+    commands:
+      - sleep 5
+      - ls -al
+      - ./lite-engine client
+    depends_on:
+      - server
