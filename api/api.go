@@ -35,8 +35,8 @@ type (
 	}
 
 	SetupResponse struct {
-		InstanceId string `json:"instance_id,omitempty"`
-		IpAddress  string `json:"ip_address,omitempty"`
+		InstanceID string `json:"instance_id,omitempty"`
+		IPAddress  string `json:"ip_address,omitempty"`
 	}
 
 	DestroyRequest struct{}
