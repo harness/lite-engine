@@ -39,22 +39,30 @@ steps:
   - name: build
     image: golang:1.17
     commands:
-      - go build
-      - ls -al
+      - GOOS=linux   GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/linux/amd64/lite-engine
+      - GOOS=windows GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/windows/amd64/lite-engine.exe
   - name: server
     detach: true
     commands:
-      - ls -al
       - touch .env
-      - ./lite-engine certs
-      - ls -al /tmp/certs
-      - ./lite-engine server 
+      - ./release/linux/amd64/lite-engine certs
+      - ./release/linux/amd64/lite-engine server
     depends_on:
       - build
   - name: run certs client
     commands:
       - sleep 5
-      - ls -al
-      - ./lite-engine client
+      - ./release/linux/amd64/lite-engine client
     depends_on:
       - server
+
+  - name: release
+    image: plugins/github-release
+    settings:
+      files:
+        - release/*
+      api_key:
+        from_secret:
+
+    when:
+      event: tag
