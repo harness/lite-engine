@@ -52,7 +52,7 @@ steps:
   - name: run certs client
     commands:
       - sleep 5
-      - ./lite-engine client
+      - ./release/linux/amd64/lite-engine client
     depends_on:
       - server
 
