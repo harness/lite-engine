@@ -1,11 +1,20 @@
 # Changelog
 
+## [v0.0.1](https://github.com/harness/lite-engine/tree/v0.0.1) (2021-12-03)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.0.0...v0.0.1)
+
+**Fixed bugs:**
+
+- add depends on to release step [\#22](https://github.com/harness/lite-engine/pull/22) ([eoinmcafee00](https://github.com/eoinmcafee00))
+
 ## [v0.0.0](https://github.com/harness/lite-engine/tree/v0.0.0) (2021-12-03)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/5f26deba117780467848b2cecf738e7428e41d4a...v0.0.0)
 
 **Implemented enhancements:**
 
+- add steps for building windows & linux - push binaries to github [\#21](https://github.com/harness/lite-engine/pull/21) ([eoinmcafee00](https://github.com/eoinmcafee00))
 - update setup to match api documentation: [\#17](https://github.com/harness/lite-engine/pull/17) ([eoinmcafee00](https://github.com/eoinmcafee00))
 - certs are now passed in already read, not file location [\#15](https://github.com/harness/lite-engine/pull/15) ([eoinmcafee00](https://github.com/eoinmcafee00))
 - \(feat\) add RetryPollStep and RetryHealth [\#14](https://github.com/harness/lite-engine/pull/14) ([tphoney](https://github.com/tphoney))
@@ -23,6 +32,7 @@
 
 **Merged pull requests:**
 
+- release prep v0.0.0 [\#20](https://github.com/harness/lite-engine/pull/20) ([eoinmcafee00](https://github.com/eoinmcafee00))
 - Add testing on ubuntu [\#18](https://github.com/harness/lite-engine/pull/18) ([tphoney](https://github.com/tphoney))
 - Move from cloud.drone.io to harness.drone.io [\#16](https://github.com/harness/lite-engine/pull/16) ([tphoney](https://github.com/tphoney))
 - \(maint\) cleanup of setup code [\#12](https://github.com/harness/lite-engine/pull/12) ([tphoney](https://github.com/tphoney))
