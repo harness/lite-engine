@@ -45,8 +45,8 @@ steps:
     detach: true
     commands:
       - touch .env
-      - ./lite-engine certs
-      - ./lite-engine server
+      - ./release/linux/amd64/lite-engine certs
+      - ./release/linux/amd64/lite-engine server
     depends_on:
       - build
   - name: run certs client
