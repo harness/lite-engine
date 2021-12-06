@@ -86,7 +86,7 @@ func (c *HTTPClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*ap
 	return out, err
 }
 
-const pollStepTimeout = time.Minute * 10
+const pollStepTimeout = time.Hour * 4
 
 func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest) (step *api.PollStepResponse, pollError error) {
 	startTime := time.Now()
