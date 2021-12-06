@@ -23,6 +23,9 @@ type Error struct {
 	Code    int
 }
 
+const pollStepTimeout = time.Hour * 4
+const healthTimeout = time.Minute * 10
+
 func (e *Error) Error() string {
 	return fmt.Sprintf("%d:%s", e.Code, e.Message)
 }
@@ -86,8 +89,6 @@ func (c *HTTPClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*ap
 	return out, err
 }
 
-const pollStepTimeout = time.Minute * 10
-
 func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest) (step *api.PollStepResponse, pollError error) {
 	startTime := time.Now()
 	retryCtx, cancel := context.WithTimeout(ctx, pollStepTimeout)
@@ -114,8 +115,6 @@ func (c *HTTPClient) Health(ctx context.Context) (*api.HealthResponse, error) {
 	_, err := c.do(ctx, c.Endpoint+path, http.MethodGet, nil, out) // nolint:bodyclose
 	return out, err
 }
-
-const healthTimeout = time.Minute * 1
 
 func (c *HTTPClient) RetryHealth(ctx context.Context) (healthResponse *api.HealthResponse, pollError error) {
 	startTime := time.Now()
