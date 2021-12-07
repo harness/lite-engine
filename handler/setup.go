@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -29,10 +30,13 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 
 		s.Volumes = append(s.Volumes, getSharedVolume())
 		cfg := &spec.PipelineConfig{
-			Envs:     s.Envs,
-			Network:  s.Network,
-			Platform: s.Platform,
-			Volumes:  s.Volumes,
+			Envs:    s.Envs,
+			Network: s.Network,
+			Platform: spec.Platform{
+				OS:   runtime.GOOS,
+				Arch: runtime.GOARCH,
+			},
+			Volumes: s.Volumes,
 		}
 		if err := engine.Setup(r.Context(), cfg); err != nil {
 			logger.FromRequest(r).
