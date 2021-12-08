@@ -23,9 +23,6 @@ type Error struct {
 	Code    int
 }
 
-const pollStepTimeout = time.Hour * 4
-const healthTimeout = time.Minute * 10
-
 func (e *Error) Error() string {
 	return fmt.Sprintf("%d:%s", e.Code, e.Message)
 }
@@ -89,9 +86,9 @@ func (c *HTTPClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*ap
 	return out, err
 }
 
-func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest) (step *api.PollStepResponse, pollError error) {
+func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest, timeout time.Duration) (step *api.PollStepResponse, pollError error) {
 	startTime := time.Now()
-	retryCtx, cancel := context.WithTimeout(ctx, pollStepTimeout)
+	retryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	for i := 0; ; i++ {
 		select {
@@ -116,9 +113,9 @@ func (c *HTTPClient) Health(ctx context.Context) (*api.HealthResponse, error) {
 	return out, err
 }
 
-func (c *HTTPClient) RetryHealth(ctx context.Context) (healthResponse *api.HealthResponse, pollError error) {
+func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (healthResponse *api.HealthResponse, pollError error) {
 	startTime := time.Now()
-	retryCtx, cancel := context.WithTimeout(ctx, healthTimeout)
+	retryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	for i := 0; ; i++ {
 		select {
