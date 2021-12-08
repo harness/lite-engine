@@ -40,7 +40,6 @@ steps:
     image: golang:1.17
     commands:
       - GOOS=linux   GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/linux/amd64/lite-engine
-      - GOOS=windows GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/windows/amd64/lite-engine.exe
   - name: server
     detach: true
     commands:
@@ -56,6 +55,19 @@ steps:
     depends_on:
       - server
 
+---
+kind: pipeline
+type: docker
+name: release artifacts
+
+steps:
+   - name: build
+    image: golang:1.17
+    commands:
+      - GOOS=linux   GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/linux/amd64/lite-engine
+      - GOOS=windows GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/windows/amd64/lite-engine.exe
+    when:
+      event: tag
   - name: release
     image: plugins/github-release
     settings:
@@ -63,5 +75,5 @@ steps:
         - release/*
       api_key:
         from_secret: github_token
-    when:
-      event: tag
+    depends_on:
+      - build
