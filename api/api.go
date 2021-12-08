@@ -15,7 +15,6 @@ type (
 	SetupRequest struct {
 		Envs      map[string]string `json:"envs,omitempty"`
 		Network   spec.Network      `json:"network"`
-		Platform  spec.Platform     `json:"platform,omitempty"`
 		Volumes   []*spec.Volume    `json:"volumes,omitempty"`
 		Secrets   []string          `json:"secrets,omitempty"`
 		LogConfig LogConfig         `json:"log_config,omitempty"`
@@ -52,7 +51,7 @@ type (
 		Run        RunConfig         `json:"run,omitempty"`
 		RunTest    RunTestConfig     `json:"run_test,omitempty"`
 
-		OutputVars []string   `json:"output_var,omitempty"`
+		OutputVars []string   `json:"output_vars,omitempty"`
 		TestReport TestReport `json:"test_report,omitempty"`
 		Timeout    int        `json:"timeout,omitempty"` // step timeout in seconds
 
@@ -133,6 +132,7 @@ type (
 		SourceBranch string `json:"source_branch,omitempty"`
 		TargetBranch string `json:"target_branch,omitempty"`
 		CommitBranch string `json:"commit_branch,omitempty"`
+		CommitLink   string `json:"commit_link,omitempty"`
 	}
 
 	TestReport struct {
