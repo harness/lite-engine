@@ -66,14 +66,14 @@ steps:
     commands:
       - GOOS=linux   GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/linux/amd64/lite-engine
       - GOOS=windows GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/windows/amd64/lite-engine.exe
-    when:
-      event: tag
   - name: release
     image: plugins/github-release
     settings:
       files:
-        - release/*
+        - release/linux/amd64/lite-engine
+        - release/windows/amd64/lite-engine.exe
       api_key:
         from_secret: github_token
-    depends_on:
-      - build
+trigger:
+  event:
+    - tag
