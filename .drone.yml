@@ -62,7 +62,7 @@ steps:
       files:
         - release/*
       api_key:
-        from_secret:
+      from_secret: github_token
     depends_on:
       - run certs client
 
