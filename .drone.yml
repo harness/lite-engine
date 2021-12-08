@@ -61,7 +61,7 @@ type: docker
 name: release artifacts
 
 steps:
-   - name: build
+  - name: build
     image: golang:1.17
     commands:
       - GOOS=linux   GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/linux/amd64/lite-engine
