@@ -63,8 +63,5 @@ steps:
         - release/*
       api_key:
         from_secret: github_token
-    depends_on:
-      - run certs client
-
     when:
       event: tag
