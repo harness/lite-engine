@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/cli/certs"
@@ -87,8 +88,10 @@ func runStage(client *HTTPClient, remoteLog bool) error {
 		}
 	}()
 
+	const healthTimeout = time.Minute * 20
+
 	logrus.Infof("check health")
-	if _, err := client.RetryHealth(ctx); err != nil {
+	if _, err := client.RetryHealth(ctx, healthTimeout); err != nil {
 		logrus.WithError(err).Errorln("not healthy")
 		return err
 	}
@@ -165,7 +168,10 @@ func executeStep(ctx context.Context, step *api.StartStepRequest, client *HTTPCl
 		return err
 	}
 	logrus.Infof("polling %s", step.ID)
-	res, err := client.RetryPollStep(ctx, &api.PollStepRequest{ID: step.ID})
+
+	const pollStepTimeout = time.Hour * 4
+
+	res, err := client.RetryPollStep(ctx, &api.PollStepRequest{ID: step.ID}, pollStepTimeout)
 	if err != nil {
 		logrus.WithError(err).Errorf("poll %s call failed", step.ID)
 		return err
