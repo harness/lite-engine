@@ -140,7 +140,10 @@ func installDocker(instanceInfo InstanceInfo) {
 				Error("get docker install script failed")
 			return
 		}
+
 		cmd = exec.Command("sudo", "sh", "get-docker.sh")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		dockerInstallErr := cmd.Run()
 		if dockerInstallErr != nil {
 			logrus.

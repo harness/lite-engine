@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/engine/docker"
@@ -16,6 +17,7 @@ import (
 type Engine struct {
 	pipelineConfig *spec.PipelineConfig
 	docker         *docker.Docker
+	mu             sync.Mutex
 }
 
 func NewEnv(opts docker.Opts) (*Engine, error) {
@@ -30,8 +32,11 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 }
 
 func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+	e.mu.Lock()
 	e.pipelineConfig = pipelineConfig
-	for _, vol := range e.pipelineConfig.Volumes {
+	e.mu.Unlock()
+
+	for _, vol := range pipelineConfig.Volumes {
 		if vol != nil && vol.HostPath != nil {
 			if err := os.MkdirAll(vol.HostPath.Path, 0777); err != nil { // nolint:gomnd
 				return errors.Wrap(err,
@@ -44,16 +49,27 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 }
 
 func (e *Engine) Destroy(ctx context.Context) error {
-	return e.docker.Destroy(ctx, e.pipelineConfig)
+	e.mu.Lock()
+	cfg := e.pipelineConfig
+	e.mu.Unlock()
+
+	return e.docker.Destroy(ctx, cfg)
 }
 
 func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State, error) {
-	for k, v := range e.pipelineConfig.Envs {
+	e.mu.Lock()
+	cfg := e.pipelineConfig
+	e.mu.Unlock()
+
+	if step.Envs == nil {
+		step.Envs = make(map[string]string)
+	}
+	for k, v := range cfg.Envs {
 		step.Envs[k] = v
 	}
 
 	if step.Image != "" {
-		return e.docker.Run(ctx, e.pipelineConfig, step, output)
+		return e.docker.Run(ctx, cfg, step, output)
 	}
 
 	return exec.Run(ctx, step, output)

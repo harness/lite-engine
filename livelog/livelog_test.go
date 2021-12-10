@@ -12,7 +12,7 @@ import (
 
 func TestLineWriterSingle(t *testing.T) {
 	client := new(mockClient)
-	w := New(client, "1", nil)
+	w := New(client, "1", "1", nil)
 	w.SetInterval(time.Duration(0))
 	w.num = 4
 	w.Write([]byte("foo\nbar\n")) // nolint:errcheck
