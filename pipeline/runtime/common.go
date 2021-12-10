@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -34,11 +35,14 @@ func getOutputVarCmd(outputVars []string, outputFile string) string {
 
 // Fetches map of env variable and value from OutputFile.
 // OutputFile stores all env variable and value
-func fetchOutputVariables(outputFile string) (map[string]string, error) {
+func fetchOutputVariables(outputFile string, out io.Writer) (map[string]string, error) {
+	log := logrus.New()
+	log.Out = out
+
 	outputs := make(map[string]string)
 	f, err := os.Open(outputFile)
 	if err != nil {
-		logrus.WithError(err).WithField("outputFile", outputFile).Errorln("Failed to open output file")
+		log.WithError(err).WithField("outputFile", outputFile).Errorln("failed to open output file")
 		return nil, err
 	}
 	defer f.Close()
@@ -48,14 +52,13 @@ func fetchOutputVariables(outputFile string) (map[string]string, error) {
 		line := s.Text()
 		sa := strings.Split(line, " ")
 		if len(sa) < 2 { // nolint:gomnd
-			logrus.WithField("variable", sa[0]).Warnln(
-				"output variable does not exist")
+			log.WithField("variable", sa[0]).Warnln("output variable does not exist")
 		} else {
 			outputs[sa[0]] = line[len(sa[0])+1:]
 		}
 	}
 	if err := s.Err(); err != nil {
-		logrus.WithError(err).Errorln("failed to create scanner from output file")
+		log.WithError(err).Errorln("failed to create scanner from output file")
 		return nil, err
 	}
 	return outputs, nil

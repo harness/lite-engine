@@ -103,7 +103,7 @@ func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest,
 				Trace("RetryPollStep: step completed")
 			return step, pollError
 		}
-		time.Sleep(time.Millisecond * 10)
+		time.Sleep(time.Millisecond * 10) // nolint:gomnd
 	}
 }
 
@@ -131,7 +131,7 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (he
 				Trace("RetryHealth: health check completed")
 			return healthResponse, pollError
 		}
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Millisecond * 100) // nolint:gomnd
 	}
 }
 
