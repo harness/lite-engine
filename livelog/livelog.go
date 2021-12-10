@@ -27,7 +27,8 @@ type Writer struct {
 
 	client logstream.Client // client
 
-	key string // Unique key to identify in storage
+	key  string // Unique key to identify in storage
+	name string // Human readable name of the key
 
 	num    int
 	now    time.Time
@@ -48,10 +49,11 @@ type Writer struct {
 }
 
 // New returns a new writer
-func New(client logstream.Client, key string, nudges []logstream.Nudge) *Writer {
+func New(client logstream.Client, key, name string, nudges []logstream.Nudge) *Writer {
 	b := &Writer{
 		client:   client,
 		key:      key,
+		name:     name,
 		now:      time.Now(),
 		limit:    defaultLimit,
 		interval: defaultInterval,
@@ -106,7 +108,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			Timestamp:   time.Now(),
 			ElaspedTime: int64(time.Since(b.now).Seconds()),
 		}
-		logrus.WithField("key", b.key).Infoln(line.Message)
+		logrus.WithField("name", b.name).Infoln(line.Message)
 
 		for b.size+len(part) > b.limit {
 			// Keep streaming even after the limit, but only upload last `b.limit` data to the store
@@ -116,7 +118,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 
 			hline, err := json.Marshal(b.history[0])
 			if err != nil {
-				logrus.WithError(err).WithField("key", b.key).Errorln("could not marshal log")
+				logrus.WithError(err).WithField("name", b.name).Errorln("could not marshal log")
 			}
 			b.size -= len(hline)
 			b.history = b.history[1:]
@@ -152,7 +154,7 @@ func (b *Writer) Open() error {
 		b.stop() // stop trying to stream if we could not open the stream
 		return err
 	}
-	logrus.WithField("key", b.key).Infoln("successfully opened log stream")
+	logrus.WithField("name", b.name).Infoln("successfully opened log stream")
 	b.opened = true
 	return nil
 }
