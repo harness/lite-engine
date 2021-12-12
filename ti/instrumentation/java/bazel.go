@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
 	"github.com/sirupsen/logrus"
 )
@@ -32,13 +31,15 @@ func (b *bazelRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return DetectPkgs(workspace, b.log, b.fs)
 }
 
-func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, agentConfigPath string, // nolint:funlen,gocyclo
-	ignoreInstr, runAll bool) (string, error) {
+func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs,
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) { // nolint:funlen,gocyclo
+
 	if ignoreInstr {
 		return fmt.Sprintf("%s %s //...", bazelCmd, userArgs), nil
 	}
 
-	agentArg := fmt.Sprintf(AgentArg, pipeline.SharedVolPath, agentConfigPath)
+	javaAgentPath := fmt.Sprintf("%s/java-agent.jar", agentInstallDir)
+	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
 	instrArg := fmt.Sprintf("--define=HARNESS_ARGS=%s", agentArg)
 	defaultCmd := fmt.Sprintf("%s %s %s //...", bazelCmd, userArgs, instrArg) // run all the tests
 

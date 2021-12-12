@@ -10,7 +10,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
 )
 
@@ -56,8 +55,8 @@ gradle.projectsEvaluated {
         }
 }
 */
-func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, agentConfigPath string,
-	ignoreInstr, runAll bool) (string, error) {
+func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, agentConfigPath,
+	agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// Check if gradlew exists. If not, fallback to gradle
 	gc := gradleWrapperCmd
 	_, err := g.fs.Stat("gradlew")
@@ -84,7 +83,8 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		orCmd = "|| " + strings.TrimSpace(orCmd)
 	}
 
-	agentArg := fmt.Sprintf(AgentArg, pipeline.SharedVolPath, agentConfigPath)
+	javaAgentPath := fmt.Sprintf("%s/java-agent.jar", agentInstallDir)
+	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
 	if runAll {
 		// Run all the tests
 		return strings.TrimSpace(fmt.Sprintf("%s %s -DHARNESS_JAVA_AGENT=%s %s", gc, userArgs, agentArg, orCmd)), nil

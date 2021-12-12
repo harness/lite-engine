@@ -12,11 +12,12 @@ import (
 type TestRunner interface {
 	// Get the command which needs to be executed to run only the specified tests.
 	// tests: list of selected tests which need to be executed
-	// agentConfigPath: path to the java agent config. This needs to be added to the
+	// agentConfigPath: path to the agent config. This needs to be added to the
 	// command if instrumentation is required.
+	// agentInstallDir: directory where all the agent artifacts are downloaded
 	// ignoreInstr: instrumentation might not be required in some cases like manual executions
 	// runAll: if there was any issue in figuring out which tests to run, this parameter is set as true
-	GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, agentConfigPath string, ignoreInstr, runAll bool) (string, error)
+	GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error)
 
 	// Auto detect the list of packages to be instrumented.
 	// Return an error if we could not detect or if it's unimplemented.

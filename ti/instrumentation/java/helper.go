@@ -19,7 +19,6 @@ const (
 
 // get list of all file paths matching a provided regex
 func getFiles(path string) ([]string, error) {
-	fmt.Println("path: ", path)
 	matches, err := zglob.Glob(path)
 	if err != nil {
 		return []string{}, err
