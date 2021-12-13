@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,9 @@ func TestGetGradleCmd(t *testing.T) {
 	fs.EXPECT().Stat("gradlew").Return(nil, nil).AnyTimes()
 
 	runner := NewGradleRunner(log, fs)
-	agent := fmt.Sprintf(AgentArg, pipeline.SharedVolPath, "/test/tmp/config.ini")
+	installDir := "/install/dir/java/"
+	jarPath := filepath.Join(installDir, JavaAgentJar)
+	agent := fmt.Sprintf(AgentArg, jarPath, "/test/tmp/config.ini")
 
 	t1 := ti.RunnableTest{Pkg: "pkg1", Class: "cls1", Method: "m1"}
 	t2 := ti.RunnableTest{Pkg: "pkg2", Class: "cls2", Method: "m2"}
@@ -88,7 +90,7 @@ func TestGetGradleCmd(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/test/tmp/config.ini", false, !tc.runOnlySelectedTests)
+		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/test/tmp/config.ini", "/install/dir/java/", false, !tc.runOnlySelectedTests)
 		if tc.expectedErr == (err == nil) {
 			t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
 		}
@@ -134,7 +136,7 @@ func TestGetGradleCmd_Manual(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/test/tmp/config.ini", true, !tc.runOnlySelectedTests)
+		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/test/tmp/config.ini", "/install/dir/java/", true, !tc.runOnlySelectedTests)
 		if tc.expectedErr == (err == nil) {
 			t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
 		}

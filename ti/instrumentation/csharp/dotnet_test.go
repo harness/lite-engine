@@ -82,7 +82,7 @@ func TestDotNet_GetCmd(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/test/tmp/config.ini", false, !tc.runOnlySelectedTests)
+		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/test/tmp/config.ini", "/install/dir/csharp/", false, !tc.runOnlySelectedTests)
 		if tc.expectedErr == (err == nil) {
 			t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
 		}
@@ -129,7 +129,7 @@ func TestGetDotnetCmd_Manual(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/test/tmp/config.ini", true, !tc.runOnlySelectedTests)
+		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/test/tmp/config.ini", "/install/dir/csharp/", true, !tc.runOnlySelectedTests)
 		if tc.expectedErr == (err == nil) {
 			t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
 		}

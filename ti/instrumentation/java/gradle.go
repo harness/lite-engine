@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -83,7 +84,7 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		orCmd = "|| " + strings.TrimSpace(orCmd)
 	}
 
-	javaAgentPath := fmt.Sprintf("%s/java-agent.jar", agentInstallDir)
+	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
 	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
 	if runAll {
 		// Run all the tests

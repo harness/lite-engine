@@ -165,7 +165,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 		// once we have a proper release process for agent artifacts.
 		err := downloadFile(absPath, l.URL, fs)
 		if err != nil {
-			log.WithError(err).Printf("could not download %s to path %s. Error: %s\n", l.URL, installDir)
+			log.WithError(err).Printf("could not download %s to path %s\n", l.URL, installDir)
 			return "", err
 		}
 	}
@@ -173,7 +173,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 	return installDir, nil
 }
 
-// createConfigFile creates the ini file which is required as input to the java agent
+// createConfigFile creates the ini file which is required as input to the instrumentation agent
 // and returns back the path to the file.
 func createConfigFile(runner TestRunner, packages, annotations, language, workspace, tmpDir string,
 	fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
@@ -215,7 +215,7 @@ instrPackages: %s`, dir, packages)
 		log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, iniFile))
 		return "", err
 	}
-	// Return path to the java agent file
+	// Return path to the config.ini file
 	return iniFile, nil
 }
 

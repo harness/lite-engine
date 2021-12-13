@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	AgentArg = "-javaagent:%s=%s"
+	AgentArg     = "-javaagent:%s=%s"
+	JavaAgentJar = "java-agent.jar"
 )
 
 // get list of all file paths matching a provided regex
