@@ -82,9 +82,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	}
 
 	// Install agent artifacts if not present
-	// This should also return the absolute path to the agent artifacts. This value will get passed in GetCmd()
-	// and the implementation can handle that.
-	artifactDir, err := installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs)
+	artifactDir, err := installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log)
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +99,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		return "", err
 	}
 
-	// TMPDIR needs to be set for some build tools like bazel
+	// TODO: (Vistaar) If using this code for non-Windows, we might need to set TMPDIR for bazel
 	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
 
 	return command, nil

@@ -103,31 +103,11 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, source, target, req)
 }
 
-// Response :
-// {URL: "app.harness.io/......./java/5xy/java-agent.jar", relPath: "java/5xy/java-agent.jar"}
-// install <>/dotnet.dll to csharp/dotnet-agent.dll
-// java-agent.jar
-// dotnet-agent.dll
-// injector.exe
-
-// pathExists checks whether the path exists or not in the filesystem
-func pathExists(path string, fs filesystem.FileSystem, log *logrus.Logger) bool {
-	var err error
-	if _, err := fs.Stat(path); errors.Is(err, os.ErrNotExist) {
-		return false
-	}
-	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not check whether artifacts exist for path %s", path))
-		return false
-	}
-	return true
-}
-
 func downloadFile(path string, url string, fs filesystem.FileSystem) (err error) {
 	// Create the nested directory if it doesn't exist
 	dir := filepath.Dir(path)
 	if err := fs.MkdirAll(dir, os.ModePerm); err != nil {
-		return fmt.Errorf("could not create nested directory", err)
+		return fmt.Errorf("could not create nested directory: %s", err)
 	}
 	// Create the file
 	out, err := fs.Create(path)
@@ -158,15 +138,16 @@ func downloadFile(path string, url string, fs filesystem.FileSystem) (err error)
 }
 
 // installAgents checks if the required artifacts are installed for the language
-// and if not, installs them.
-func installAgents(ctx context.Context, baseDir, language, os, arch, framework string, fs filesystem.FileSystem) (string, error) {
+// and if not, installs them. It returns back the directory where all the agents are installed.
+func installAgents(ctx context.Context, baseDir, language, os, arch, framework string,
+	fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
 	config := pipeline.GetState().GetTIConfig()
 
 	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
 		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, false)
 	links, err := c.DownloadLink(ctx, language, os, arch, framework)
 	if err != nil {
-		fmt.Println("could not fetch download links for artifact download", err)
+		log.WithError(err).Println("could not fetch download links for artifact download")
 		return "", err
 	}
 
@@ -184,7 +165,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 		// once we have a proper release process for agent artifacts.
 		err := downloadFile(absPath, l.URL, fs)
 		if err != nil {
-			fmt.Println("could not download %s to path %s. Error: %s", l.URL, installDir, err)
+			log.WithError(err).Printf("could not download %s to path %s. Error: %s\n", l.URL, installDir)
 			return "", err
 		}
 	}
