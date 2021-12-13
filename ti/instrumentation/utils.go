@@ -25,7 +25,7 @@ var (
 
 const (
 	gitBin       = "git"
-	outDir       = "%s/ti/callgraph\\" // path passed as outDir in the config.ini file
+	outDir       = "%s/ti/callgraph/" // path passed as outDir in the config.ini file
 	tiConfigPath = ".ticonfig.yaml"
 )
 
