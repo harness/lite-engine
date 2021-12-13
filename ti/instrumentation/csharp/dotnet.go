@@ -48,7 +48,7 @@ func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 
 	// Need to handle this for Windows as well
 	if len(tests) == 0 {
-		return fmt.Sprintf("echo \"Skipping test run, received no tests to execute\""), nil
+		return "echo \"Skipping test run, received no tests to execute\"", nil
 	}
 
 	// Use only unique <pkg, class> tuples (pkg is same as namespace for .Net)
@@ -75,5 +75,5 @@ func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		testStr += "FullyQualifiedName~" + t
 	}
 
-	return fmt.Sprintf("%s %s --filter \"%s\"", dotnetCmd, userArgs, testStr), nil // Add instrumentation here
+	return fmt.Sprintf("%s %s --filter %q", dotnetCmd, userArgs, testStr), nil // Add instrumentation here
 }

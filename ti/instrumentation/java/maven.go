@@ -52,7 +52,7 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		instrArg = fmt.Sprintf("\"%s %s\"", strings.Join(s, " "), agentArg) // Add to instrumentation
 	}
 	if !strings.HasPrefix(instrArg, "") {
-		instrArg = fmt.Sprintf("\"%s\"", instrArg) // add double quotes to the instrumentation arg (needed for Windows OS)
+		instrArg = fmt.Sprintf("%q", instrArg) // add double quotes to the instrumentation arg (needed for Windows OS)
 	}
 	if runAll {
 		// Run all the tests
@@ -78,5 +78,5 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		}
 	}
 	testStr := strings.Join(ut, ",")
-	return strings.TrimSpace(fmt.Sprintf("%s -Dtest=\"%s\" -am -DargLine=%s %s", mavenCmd, testStr, instrArg, userArgs)), nil
+	return strings.TrimSpace(fmt.Sprintf("%s -Dtest=%q -am -DargLine=%s %s", mavenCmd, testStr, instrArg, userArgs)), nil
 }

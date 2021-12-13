@@ -16,7 +16,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 )
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) {
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) { // nolint:funlen, gocyclo
 	fs := filesystem.New()
 	tmpFilePath := pipeline.SharedVolPath
 	log := logrus.New()
@@ -69,13 +69,11 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 			return "", fmt.Errorf("build tool: %s is not supported for Java", config.BuildTool)
 		}
 	case "csharp":
-		{
-			switch config.BuildTool {
-			case "dotnet":
-				runner = csharp.NewDotnetRunner(log, fs)
-			default:
-				return "", fmt.Errorf("build tool: %s is not supported for Csharp", config.BuildTool)
-			}
+		switch config.BuildTool {
+		case "dotnet":
+			runner = csharp.NewDotnetRunner(log, fs)
+		default:
+			return "", fmt.Errorf("build tool: %s is not supported for Csharp", config.BuildTool)
 		}
 	default:
 		return "", fmt.Errorf("language %s is not suported", config.Language)
@@ -88,11 +86,10 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	}
 
 	// Create the config file required for instrumentation
-	iniFilePath, err := createConfigFile(runner, config.Packages, config.TestAnnotations, config.Language, workspace, tmpFilePath, fs, log)
+	iniFilePath, err := createConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log)
 	if err != nil {
 		return "", err
 	}
-	// agentArg := fmt.Sprintf(java.AgentArg, tmpFilePath, iniFilePath)
 
 	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, iniFilePath, artifactDir, isManual, !runOnlySelectedTests)
 	if err != nil {

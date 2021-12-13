@@ -103,7 +103,7 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, source, target, req)
 }
 
-func downloadFile(path string, url string, fs filesystem.FileSystem) (err error) {
+func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSystem) error {
 	// Create the nested directory if it doesn't exist
 	dir := filepath.Dir(path)
 	if err := fs.MkdirAll(dir, os.ModePerm); err != nil {
@@ -117,7 +117,11 @@ func downloadFile(path string, url string, fs filesystem.FileSystem) (err error)
 	defer out.Close()
 
 	// Get the data
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}
@@ -163,7 +167,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 		}
 		// TODO: (Vistaar) Add check for whether the path exists here. This can be implemented
 		// once we have a proper release process for agent artifacts.
-		err := downloadFile(absPath, l.URL, fs)
+		err := downloadFile(ctx, absPath, l.URL, fs)
 		if err != nil {
 			log.WithError(err).Printf("could not download %s to path %s\n", l.URL, installDir)
 			return "", err
@@ -175,7 +179,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 
 // createConfigFile creates the ini file which is required as input to the instrumentation agent
 // and returns back the path to the file.
-func createConfigFile(runner TestRunner, packages, annotations, language, workspace, tmpDir string,
+func createConfigFile(runner TestRunner, packages, annotations, workspace, tmpDir string,
 	fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
 	// Create config file
 	dir := fmt.Sprintf(outDir, tmpDir)
