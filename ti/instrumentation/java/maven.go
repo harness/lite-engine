@@ -3,11 +3,11 @@ package java
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
 	"github.com/sirupsen/logrus"
 )
@@ -33,20 +33,26 @@ func (m *mavenRunner) AutoDetectPackages(workspace string) ([]string, error) {
 }
 
 func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs,
-	agentConfigPath string, ignoreInstr, runAll bool) (string, error) {
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// If instrumentation needs to be ignored, we run all the tests without adding the agent config
 	if ignoreInstr {
 		return strings.TrimSpace(fmt.Sprintf("%s %s", mavenCmd, userArgs)), nil
 	}
 
-	agentArg := fmt.Sprintf(AgentArg, pipeline.SharedVolPath, agentConfigPath)
+	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
+
+	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
 	instrArg := agentArg
 	re := regexp.MustCompile(`(-Duser\.\S*)`)
 	s := re.FindAllString(userArgs, -1)
+	fmt.Println("s: ", s)
 	if s != nil {
 		// If user args are present, move them to instrumentation
 		userArgs = re.ReplaceAllString(userArgs, "")                        // Remove from arg
 		instrArg = fmt.Sprintf("\"%s %s\"", strings.Join(s, " "), agentArg) // Add to instrumentation
+	}
+	if !strings.HasPrefix(instrArg, "") {
+		instrArg = fmt.Sprintf("%q", instrArg) // add double quotes to the instrumentation arg (needed for Windows OS)
 	}
 	if runAll {
 		// Run all the tests
@@ -72,5 +78,5 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		}
 	}
 	testStr := strings.Join(ut, ",")
-	return strings.TrimSpace(fmt.Sprintf("%s -Dtest=%s -am -DargLine=%s %s", mavenCmd, testStr, instrArg, userArgs)), nil
+	return strings.TrimSpace(fmt.Sprintf("%s -Dtest=%q -am -DargLine=%s %s", mavenCmd, testStr, instrArg, userArgs)), nil
 }

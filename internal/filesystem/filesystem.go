@@ -9,6 +9,7 @@ import (
 type FileSystem interface {
 	Open(name string) (File, error)
 	Stat(name string) (os.FileInfo, error)
+	Remove(name string) error
 	ReadFile(filename string, op func(io.Reader) error) error
 	MkdirAll(path string, perm os.FileMode) error
 	Create(name string) (*os.File, error)
@@ -29,6 +30,7 @@ func (*osFS) Open(name string) (File, error)               { return os.Open(name
 func (*osFS) Stat(name string) (os.FileInfo, error)        { return os.Stat(name) }
 func (*osFS) MkdirAll(path string, perm os.FileMode) error { return os.MkdirAll(path, perm) }
 func (*osFS) Create(name string) (*os.File, error)         { return os.Create(name) }
+func (*osFS) Remove(name string) error                     { return os.Remove(name) }
 
 func (*osFS) ReadFile(filename string, op func(io.Reader) error) error {
 	f, err := os.Open(filename)

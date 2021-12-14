@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 
 	"github.com/sirupsen/logrus"
 
@@ -11,10 +12,11 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
+	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 )
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) {
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) { // nolint:funlen, gocyclo
 	fs := filesystem.New()
 	tmpFilePath := pipeline.SharedVolPath
 	log := logrus.New()
@@ -66,25 +68,36 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		default:
 			return "", fmt.Errorf("build tool: %s is not supported for Java", config.BuildTool)
 		}
+	case "csharp":
+		switch config.BuildTool {
+		case "dotnet":
+			runner = csharp.NewDotnetRunner(log, fs)
+		default:
+			return "", fmt.Errorf("build tool: %s is not supported for Csharp", config.BuildTool)
+		}
 	default:
 		return "", fmt.Errorf("language %s is not suported", config.Language)
 	}
 
-	// Create the java agent config file
-	iniFilePath, err := createJavaAgentConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log)
-	if err != nil {
-		return "", err
-	}
-	agentArg := fmt.Sprintf(java.AgentArg, tmpFilePath, iniFilePath)
-
-	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, iniFilePath, isManual, !runOnlySelectedTests)
+	// Install agent artifacts if not present
+	artifactDir, err := installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log)
 	if err != nil {
 		return "", err
 	}
 
-	// TMPDIR needs to be set for some build tools like bazel
-	command := fmt.Sprintf("set -xe\nexport TMPDIR=%s\nexport HARNESS_JAVA_AGENT=%s\n%s\n%s\n%s",
-		tmpFilePath, agentArg, config.PreCommand, testCmd, config.PostCommand)
+	// Create the config file required for instrumentation
+	iniFilePath, err := createConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log)
+	if err != nil {
+		return "", err
+	}
+
+	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, iniFilePath, artifactDir, isManual, !runOnlySelectedTests)
+	if err != nil {
+		return "", err
+	}
+
+	// TODO: (Vistaar) If using this code for non-Windows, we might need to set TMPDIR for bazel
+	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
 
 	return command, nil
 }

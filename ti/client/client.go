@@ -27,4 +27,7 @@ type Client interface {
 
 	// UploadCg uploads avro encoded callgraph to ti server
 	UploadCg(ctx context.Context, step, source, target string, timeMs int64, cg []byte) error
+
+	// DownloadLink returns a list of links where the relevant agent artifacts can be downloaded
+	DownloadLink(ctx context.Context, language, os, arch, framework string) ([]ti.DownloadLink, error)
 }

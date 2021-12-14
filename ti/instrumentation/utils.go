@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
@@ -101,9 +103,83 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, source, target, req)
 }
 
-// createJavaAgentArg creates the ini file which is required as input to the java agent
+func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSystem) error {
+	// Create the nested directory if it doesn't exist
+	dir := filepath.Dir(path)
+	if err := fs.MkdirAll(dir, os.ModePerm); err != nil {
+		return fmt.Errorf("could not create nested directory: %s", err)
+	}
+	// Create the file
+	out, err := fs.Create(path)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Get the data
+	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Check server response
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	// Writer the body to file
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// installAgents checks if the required artifacts are installed for the language
+// and if not, installs them. It returns back the directory where all the agents are installed.
+func installAgents(ctx context.Context, baseDir, language, os, arch, framework string,
+	fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+	config := pipeline.GetState().GetTIConfig()
+
+	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
+		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, false)
+	links, err := c.DownloadLink(ctx, language, os, arch, framework)
+	if err != nil {
+		log.WithError(err).Println("could not fetch download links for artifact download")
+		return "", err
+	}
+
+	var installDir string // directory where all the agents are installed
+
+	// Install the Artifacts
+	for idx, l := range links {
+		absPath := filepath.Join(baseDir, l.RelPath)
+		if idx == 0 {
+			installDir = filepath.Dir(absPath)
+		} else if filepath.Dir(absPath) != installDir {
+			return "", fmt.Errorf("artifacts don't have the same relative path: link %s and installDir %s", l, installDir)
+		}
+		// TODO: (Vistaar) Add check for whether the path exists here. This can be implemented
+		// once we have a proper release process for agent artifacts.
+		err := downloadFile(ctx, absPath, l.URL, fs)
+		if err != nil {
+			log.WithError(err).Printf("could not download %s to path %s\n", l.URL, installDir)
+			return "", err
+		}
+	}
+
+	return installDir, nil
+}
+
+// createConfigFile creates the ini file which is required as input to the instrumentation agent
 // and returns back the path to the file.
-func createJavaAgentConfigFile(runner TestRunner, packages, annotations, workspace, tmpDir string,
+func createConfigFile(runner TestRunner, packages, annotations, workspace, tmpDir string,
 	fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
 	// Create config file
 	dir := fmt.Sprintf(outDir, tmpDir)
@@ -143,7 +219,7 @@ instrPackages: %s`, dir, packages)
 		log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, iniFile))
 		return "", err
 	}
-	// Return path to the java agent file
+	// Return path to the config.ini file
 	return iniFile, nil
 }
 
