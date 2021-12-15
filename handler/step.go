@@ -3,17 +3,18 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/pipeline"
-	"github.com/harness/lite-engine/pipeline/runtime"
+	pruntime "github.com/harness/lite-engine/pipeline/runtime"
 )
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
-func HandleStartStep(e *runtime.StepExecutor) http.HandlerFunc {
+func HandleStartStep(e *pruntime.StepExecutor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
@@ -24,7 +25,7 @@ func HandleStartStep(e *runtime.StepExecutor) http.HandlerFunc {
 			return
 		}
 
-		s.Volumes = append(s.Volumes, getSharedVolumeMount())
+		s.Volumes = append(s.Volumes, getSharedVolumeMount(), getDockerSockVolumeMount())
 
 		if err := e.StartStep(r.Context(), &s); err != nil {
 			WriteError(w, err)
@@ -39,7 +40,7 @@ func HandleStartStep(e *runtime.StepExecutor) http.HandlerFunc {
 	}
 }
 
-func HandlePollStep(e *runtime.StepExecutor) http.HandlerFunc {
+func HandlePollStep(e *pruntime.StepExecutor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
@@ -67,5 +68,16 @@ func getSharedVolumeMount() *spec.VolumeMount {
 	return &spec.VolumeMount{
 		Name: pipeline.SharedVolName,
 		Path: pipeline.SharedVolPath,
+	}
+}
+
+func getDockerSockVolumeMount() *spec.VolumeMount {
+	path := pipeline.DockerSockUnixPath
+	if runtime.GOOS == "windows" {
+		path = pipeline.DockerSockWinPath
+	}
+	return &spec.VolumeMount{
+		Name: pipeline.DockerSockVolName,
+		Path: path,
 	}
 }

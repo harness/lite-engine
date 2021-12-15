@@ -38,6 +38,10 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 
 	for _, vol := range pipelineConfig.Volumes {
 		if vol != nil && vol.HostPath != nil {
+			if _, err := os.Stat(vol.HostPath.Path); err == nil {
+				continue
+			}
+
 			if err := os.MkdirAll(vol.HostPath.Path, 0777); err != nil { // nolint:gomnd
 				return errors.Wrap(err,
 					fmt.Sprintf("failed to create directory for host volume path: %s", vol.HostPath.Path))
@@ -61,12 +65,14 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
 
-	if step.Envs == nil {
-		step.Envs = make(map[string]string)
-	}
+	envs := make(map[string]string)
 	for k, v := range cfg.Envs {
-		step.Envs[k] = v
+		envs[k] = v
 	}
+	for k, v := range step.Envs {
+		envs[k] = v
+	}
+	step.Envs = envs
 
 	if step.Image != "" {
 		return e.docker.Run(ctx, cfg, step, output)

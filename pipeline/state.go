@@ -15,8 +15,11 @@ var (
 )
 
 const (
-	SharedVolPath = "/tmp/engine"
-	SharedVolName = "_engine"
+	SharedVolPath      = "/tmp/engine"
+	SharedVolName      = "_engine"
+	DockerSockVolName  = "_docker"
+	DockerSockUnixPath = "/var/lib/docker.sock"
+	DockerSockWinPath  = "//./pipe/docker_engine"
 )
 
 // State stores the pipeline state.
