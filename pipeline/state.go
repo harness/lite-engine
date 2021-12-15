@@ -18,7 +18,7 @@ const (
 	SharedVolPath      = "/tmp/engine"
 	SharedVolName      = "_engine"
 	DockerSockVolName  = "_docker"
-	DockerSockUnixPath = "/var/lib/docker.sock"
+	DockerSockUnixPath = "/var/run/docker.sock"
 	DockerSockWinPath  = "//./pipe/docker_engine"
 )
 
