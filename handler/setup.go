@@ -28,7 +28,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, s.TIConfig)
 
-		s.Volumes = append(s.Volumes, getSharedVolume())
+		s.Volumes = append(s.Volumes, getSharedVolume(), getDockerSockVolume())
 		cfg := &spec.PipelineConfig{
 			Envs:    s.Envs,
 			Network: s.Network,
@@ -60,6 +60,20 @@ func getSharedVolume() *spec.Volume {
 			Name: pipeline.SharedVolName,
 			Path: pipeline.SharedVolPath,
 			ID:   "engine",
+		},
+	}
+}
+
+func getDockerSockVolume() *spec.Volume {
+	path := engine.DockerSockUnixPath
+	if runtime.GOOS == "windows" {
+		path = engine.DockerSockWinPath
+	}
+	return &spec.Volume{
+		HostPath: &spec.VolumeHostPath{
+			Name: engine.DockerSockVolName,
+			Path: path,
+			ID:   "docker",
 		},
 	}
 }
