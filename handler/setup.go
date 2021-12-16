@@ -65,13 +65,13 @@ func getSharedVolume() *spec.Volume {
 }
 
 func getDockerSockVolume() *spec.Volume {
-	path := pipeline.DockerSockUnixPath
+	path := engine.DockerSockUnixPath
 	if runtime.GOOS == "windows" {
-		path = pipeline.DockerSockWinPath
+		path = engine.DockerSockWinPath
 	}
 	return &spec.Volume{
 		HostPath: &spec.VolumeHostPath{
-			Name: pipeline.DockerSockVolName,
+			Name: engine.DockerSockVolName,
 			Path: path,
 			ID:   "docker",
 		},

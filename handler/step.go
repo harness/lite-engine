@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/pipeline"
@@ -72,12 +73,12 @@ func getSharedVolumeMount() *spec.VolumeMount {
 }
 
 func getDockerSockVolumeMount() *spec.VolumeMount {
-	path := pipeline.DockerSockUnixPath
+	path := engine.DockerSockUnixPath
 	if runtime.GOOS == "windows" {
-		path = pipeline.DockerSockWinPath
+		path = engine.DockerSockWinPath
 	}
 	return &spec.VolumeMount{
-		Name: pipeline.DockerSockVolName,
+		Name: engine.DockerSockVolName,
 		Path: path,
 	}
 }

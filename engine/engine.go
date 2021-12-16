@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	osruntime "runtime"
+	"strings"
 	"sync"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -12,6 +14,12 @@ import (
 	"github.com/harness/lite-engine/engine/exec"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/pkg/errors"
+)
+
+const (
+	DockerSockVolName  = "_docker"
+	DockerSockUnixPath = "/var/run/docker.sock"
+	DockerSockWinPath  = `\\.\pipe\docker_engine`
 )
 
 type Engine struct {
@@ -32,13 +40,12 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 }
 
 func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
-	e.mu.Lock()
-	e.pipelineConfig = pipelineConfig
-	e.mu.Unlock()
-
 	for _, vol := range pipelineConfig.Volumes {
 		if vol != nil && vol.HostPath != nil {
-			if _, err := os.Stat(vol.HostPath.Path); err == nil {
+			path := vol.HostPath.Path
+			vol.HostPath.Path = pathConverter(path)
+
+			if _, err := os.Stat(path); err == nil {
 				continue
 			}
 
@@ -46,10 +53,15 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 				return errors.Wrap(err,
 					fmt.Sprintf("failed to create directory for host volume path: %s", vol.HostPath.Path))
 			}
+
 		}
 	}
 
-	return e.docker.Setup(ctx, e.pipelineConfig)
+	e.mu.Lock()
+	e.pipelineConfig = pipelineConfig
+	e.mu.Unlock()
+
+	return e.docker.Setup(ctx, pipelineConfig)
 }
 
 func (e *Engine) Destroy(ctx context.Context) error {
@@ -73,10 +85,44 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 		envs[k] = v
 	}
 	step.Envs = envs
+	step.WorkingDir = pathConverter(step.WorkingDir)
+
+	for _, vol := range step.Volumes {
+		vol.Path = pathConverter(vol.Path)
+	}
 
 	if step.Image != "" {
 		return e.docker.Run(ctx, cfg, step, output)
 	}
 
 	return exec.Run(ctx, step, output)
+}
+
+func pathConverter(path string) string {
+	if osruntime.GOOS == "windows" {
+		return toWindowsDrive(path)
+	}
+	return path
+}
+
+// helper function converts the path to a valid windows
+// path, including the default C drive.
+func toWindowsDrive(s string) string {
+	if matchDockerSockPath(s) {
+		return s
+	}
+	return "c:" + toWindowsPath(s)
+}
+
+// helper function converts the path to a valid windows
+// path, replacing backslashes with forward slashes.
+func toWindowsPath(s string) string {
+	return strings.Replace(s, "/", "\\", -1)
+}
+
+func matchDockerSockPath(s string) bool {
+	if s == DockerSockWinPath || s == DockerSockUnixPath {
+		return true
+	}
+	return false
 }
