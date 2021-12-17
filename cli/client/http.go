@@ -131,12 +131,10 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (*a
 				WithField("duration", time.Since(startTime)).
 				Trace("RetryHealth: health check completed")
 			return ret, err
-		} else {
-			if lastErr == nil || (lastErr.Error() != err.Error()) {
-				logger.FromContext(retryCtx).
-					WithField("retry_num", i).WithError(err).Debugln("health check failed")
-				lastErr = err
-			}
+		} else if lastErr == nil || (lastErr.Error() != err.Error()) {
+			logger.FromContext(retryCtx).
+				WithField("retry_num", i).WithError(err).Debugln("health check failed")
+			lastErr = err
 		}
 		time.Sleep(time.Millisecond * 100) // nolint:gomnd
 	}
