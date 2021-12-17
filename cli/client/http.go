@@ -114,22 +114,27 @@ func (c *HTTPClient) Health(ctx context.Context) (*api.HealthResponse, error) {
 	return out, err
 }
 
-func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (healthResponse *api.HealthResponse, pollError error) {
+func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (*api.HealthResponse, error) {
 	startTime := time.Now()
 	retryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	var lastErr error
 	for i := 0; ; i++ {
 		select {
 		case <-retryCtx.Done():
-			return healthResponse, retryCtx.Err()
+			return &api.HealthResponse{}, retryCtx.Err()
 		default:
 		}
-		healthResponse, pollError = c.Health(retryCtx)
-		if pollError == nil {
+		if ret, err := c.Health(retryCtx); err == nil {
 			logger.FromContext(retryCtx).
 				WithField("duration", time.Since(startTime)).
 				Trace("RetryHealth: health check completed")
-			return healthResponse, pollError
+			return ret, err
+		} else if lastErr == nil || (lastErr.Error() != err.Error()) {
+			logger.FromContext(retryCtx).
+				WithField("retry_num", i).WithError(err).Traceln("health check failed. Retrying")
+			lastErr = err
 		}
 		time.Sleep(time.Millisecond * 100) // nolint:gomnd
 	}
