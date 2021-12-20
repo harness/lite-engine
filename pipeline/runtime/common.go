@@ -24,13 +24,24 @@ func getNudges() []logstream.Nudge {
 	}
 }
 
-func getOutputVarCmd(outputVars []string, outputFile string) string {
+func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string {
 	cmd := ""
 	for _, o := range outputVars {
-		cmd += fmt.Sprintf(";echo \"%s $%s\" >> %s", o, o, outputFile)
+		env := fmt.Sprintf("$%s", o)
+		if isPowershell(entrypoint) {
+			env = fmt.Sprintf("$Env:%s", o)
+		}
+		cmd += fmt.Sprintf(";echo \"%s %s\" >> %s", o, env, outputFile)
 	}
 
 	return cmd
+}
+
+func isPowershell(entrypoint []string) bool {
+	if len(entrypoint) > 0 && entrypoint[0] == "powershell" {
+		return true
+	}
+	return false
 }
 
 // Fetches map of env variable and value from OutputFile.

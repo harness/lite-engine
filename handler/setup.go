@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"runtime"
 	"time"
 
@@ -25,6 +26,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
+		setProxyEnvs(s.Envs)
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, s.TIConfig)
 
@@ -75,5 +77,12 @@ func getDockerSockVolume() *spec.Volume {
 			Path: path,
 			ID:   "docker",
 		},
+	}
+}
+
+func setProxyEnvs(environment map[string]string) {
+	proxyEnvs := []string{"http_proxy", "https_proxy", "no_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"}
+	for _, v := range proxyEnvs {
+		os.Setenv(v, environment[v])
 	}
 }
