@@ -110,6 +110,13 @@ func runStage(client *HTTPClient, remoteLog bool) error {
 		Network: spec.Network{
 			ID: "drone",
 		},
+		Files: []*spec.File{
+			{
+				Path:  "/tmp/globalfolder",
+				IsDir: true,
+				Mode:  666,
+			},
+		},
 	}
 	if remoteLog {
 		setupParams.LogConfig = api.LogConfig{

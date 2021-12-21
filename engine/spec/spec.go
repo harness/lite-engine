@@ -13,6 +13,14 @@ type (
 		Volumes  []*Volume         `json:"volumes,omitempty"`
 		Network  Network           `json:"network"`
 		Envs     map[string]string `json:"envs,omitempty"`
+		Files    []*File           `json:"files,omitempty"`
+	}
+
+	File struct {
+		Path  string `json:"path,omitempty"`
+		Mode  uint32 `json:"mode,omitempty"`
+		Data  string `json:"data,omitempty"`
+		IsDir bool   `json:"is_dir,omitempty"`
 	}
 
 	// Step defines a pipeline step.

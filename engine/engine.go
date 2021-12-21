@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	osruntime "runtime"
 	"strings"
@@ -40,6 +41,41 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 }
 
 func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+	for _, f := range pipelineConfig.Files {
+		if f.Path != "" {
+			path := f.Path
+			if _, err := os.Stat(path); err == nil {
+				continue
+			}
+			if f.IsDir {
+				// create a folder
+				if err := os.MkdirAll(path, fs.FileMode(f.Mode)); err != nil {
+					return errors.Wrap(err,
+						fmt.Sprintf("failed to create directory for host path: %s", path))
+				}
+			} else {
+				// create a file
+				newFile, newErr := os.Create(path)
+				if newErr != nil {
+					return errors.Wrap(newErr,
+						fmt.Sprintf("failed to create file for host path: %s", path))
+				}
+				permErr := os.Chmod(path, fs.FileMode(f.Mode))
+				if permErr != nil {
+					return errors.Wrap(newErr,
+						fmt.Sprintf("failed to change permissions for file on host path: %s", path))
+				}
+				_, writeErr := newFile.WriteString(f.Data)
+				if writeErr != nil {
+					newFile.Close()
+					return errors.Wrap(writeErr,
+						fmt.Sprintf("failed to write file for host path: %s", path))
+				}
+				newFile.Close()
+			}
+		}
+	}
+
 	for _, vol := range pipelineConfig.Volumes {
 		if vol != nil && vol.HostPath != nil {
 			path := vol.HostPath.Path

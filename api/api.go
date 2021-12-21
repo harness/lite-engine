@@ -19,18 +19,7 @@ type (
 		Secrets   []string          `json:"secrets,omitempty"`
 		LogConfig LogConfig         `json:"log_config,omitempty"`
 		TIConfig  TIConfig          `json:"ti_config,omitempty"`
-		Files     []FileInfo        `json:"files,omitempty"`
-	}
-
-	FileInfo struct {
-		File File `json:"file,omitempty"`
-	}
-
-	File struct {
-		Path  string `json:"path,omitempty"`
-		Mode  uint32 `json:"mode,omitempty"`
-		Data  string `json:"data,omitempty"`
-		IsDir bool   `json:"is_dir,omitempty"`
+		Files     []*spec.File      `json:"files,omitempty"`
 	}
 
 	SetupResponse struct{}
