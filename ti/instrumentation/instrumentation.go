@@ -27,6 +27,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	files, err := getChangedFiles(ctx, workspace, log)
 	if err != nil {
+		log.WithError(err).Println("could not get changed files")
 		return "", err
 	}
 
@@ -56,8 +57,10 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	}
 
 	var runner TestRunner
+	useYaml := false
 	switch config.Language {
 	case "java":
+		useYaml = false
 		switch config.BuildTool {
 		case "maven":
 			runner = java.NewMavenRunner(log, fs)
@@ -69,11 +72,16 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 			return "", fmt.Errorf("build tool: %s is not supported for Java", config.BuildTool)
 		}
 	case "csharp":
-		switch config.BuildTool {
+		useYaml = true
+		// Plan is to remove build tool altogether and detect it from the test command.
+		tool := csharp.GetBuildTool(config.Args)
+		switch tool {
 		case "dotnet":
 			runner = csharp.NewDotnetRunner(log, fs)
+		case "nunitconsole":
+			runner = csharp.NewNunitConsoleRunner(log, fs)
 		default:
-			return "", fmt.Errorf("build tool: %s is not supported for Csharp", config.BuildTool)
+			return "", fmt.Errorf("could not figure out the build tool: %s", err)
 		}
 	default:
 		return "", fmt.Errorf("language %s is not suported", config.Language)
@@ -86,12 +94,12 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	}
 
 	// Create the config file required for instrumentation
-	iniFilePath, err := createConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log)
+	iniFilePath, err := createConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log, useYaml)
 	if err != nil {
 		return "", err
 	}
 
-	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, iniFilePath, artifactDir, isManual, !runOnlySelectedTests)
+	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, isManual, !runOnlySelectedTests)
 	if err != nil {
 		return "", err
 	}

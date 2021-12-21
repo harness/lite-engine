@@ -33,7 +33,7 @@ func (b *bazelRunner) AutoDetectPackages(workspace string) ([]string, error) {
 }
 
 func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, // nolint:funlen,gocyclo
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	if ignoreInstr {
 		return fmt.Sprintf("%s %s //...", bazelCmd, userArgs), nil
 	}

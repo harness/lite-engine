@@ -5,19 +5,19 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti/avro"
 	"github.com/harness/lite-engine/ti/client"
+	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
 const (
 	cgSchemaType = "callgraph"
-	cgDir        = "%s/ti/callgraph/cg/" // path where callgraph files will be generated
+	cgDir        = "%s/ti/callgraph/" // path where callgraph files will be generated
 )
 
 // Upload method uploads the callgraph.
@@ -92,13 +92,21 @@ func encodeCg(dataDir string, log *logrus.Logger) (
 	return encCg, nil
 }
 
+// get list of all file paths matching a provided regex
+func getFiles(path string) ([]string, error) {
+	matches, err := zglob.Glob(path)
+	if err != nil {
+		return []string{}, err
+	}
+	return matches, err
+}
+
 // getCgFiles return list of cg files in given directory
 func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string, error) { // nolint:gocritic,unparam
-	if !strings.HasSuffix(dir, "/") {
-		dir += "/"
-	}
-	cgFiles, err1 := filepath.Glob(dir + "*." + ext1)
-	visFiles, err2 := filepath.Glob(dir + "*." + ext2)
+	cgFiles, err1 := getFiles(filepath.Join(dir, "**/*."+ext1))
+	visFiles, err2 := getFiles(filepath.Join(dir, "**/*."+ext2))
+	log.Infoln("cg files: ", cgFiles)
+	log.Infoln("vis files: ", visFiles)
 
 	if err1 != nil || err2 != nil {
 		log.Errorln(fmt.Sprintf("error in getting files list in dir %s", dir), err1, err2)
