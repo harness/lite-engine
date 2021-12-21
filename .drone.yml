@@ -8,6 +8,7 @@ steps:
     commands:
       - go vet ./...
       - go test -cover ./...
+      - go build -o release/linux/amd64/lite-engine
     volumes:
       - name: cache
         path: /go
@@ -27,33 +28,33 @@ volumes:
   - name: cache
     temp: {}
 
----
-kind: pipeline
-type: aws
-name: ubuntu acceptance tests
+# ---
+# kind: pipeline
+# type: aws
+# name: ubuntu acceptance tests
 
-pool:
-  use: ubuntu
+# pool:
+#   use: ubuntu
 
-steps:
-  - name: build
-    image: golang:1.17
-    commands:
-      - GOOS=linux   GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/linux/amd64/lite-engine
-  - name: server
-    detach: true
-    commands:
-      - touch .env
-      - ./release/linux/amd64/lite-engine certs
-      - ./release/linux/amd64/lite-engine server
-    depends_on:
-      - build
-  - name: run certs client
-    commands:
-      - sleep 5
-      - ./release/linux/amd64/lite-engine client
-    depends_on:
-      - server
+# steps:
+#   - name: build
+#     image: golang:1.17
+#     commands:
+#       - GOOS=linux   GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/linux/amd64/lite-engine
+#   - name: server
+#     detach: true
+#     commands:
+#       - touch .env
+#       - ./release/linux/amd64/lite-engine certs
+#       - ./release/linux/amd64/lite-engine server
+#     depends_on:
+#       - build
+#   - name: run certs client
+#     commands:
+#       - sleep 5
+#       - ./release/linux/amd64/lite-engine client
+#     depends_on:
+#       - server
 
 ---
 kind: pipeline

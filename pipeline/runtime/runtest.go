@@ -34,7 +34,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 
 	outputFile := fmt.Sprintf("%s/%s.out", pipeline.SharedVolPath, step.ID)
 	if len(r.OutputVars) > 0 {
-		step.Command[0] += getOutputVarCmd(r.OutputVars, outputFile)
+		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
 	}
 
 	log := logrus.New()
