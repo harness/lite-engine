@@ -35,5 +35,6 @@ func toStep(r *api.StartStepRequest) *spec.Step {
 		User:         r.User,
 		Volumes:      r.Volumes,
 		WorkingDir:   r.WorkingDir,
+		Files:        r.Files,
 	}
 }

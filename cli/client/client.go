@@ -114,7 +114,7 @@ func runStage(client *HTTPClient, remoteLog bool) error {
 			{
 				Path:  "/tmp/globalfolder",
 				IsDir: true,
-				Mode:  666,
+				Mode:  0777,
 			},
 		},
 	}
@@ -162,6 +162,14 @@ func getRunStep(id, cmd, workdir string) *api.StartStepRequest {
 		},
 		WorkingDir: workdir,
 		LogKey:     id,
+		Files: []*spec.File{
+			{
+				Path:  fmt.Sprintf("/tmp/globalfolder/%s", id),
+				IsDir: false,
+				Mode:  0777,
+				Data:  cmd,
+			},
+		},
 	}
 	s.Run.Command = []string{cmd}
 	s.Run.Entrypoint = []string{"sh", "-c"}

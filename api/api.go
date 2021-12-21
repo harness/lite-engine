@@ -67,6 +67,7 @@ type (
 		ShmSize      int64                `json:"shm_size,omitempty"`
 		User         string               `json:"user,omitempty"`
 		Volumes      []*spec.VolumeMount  `json:"volumes,omitempty"`
+		Files        []*spec.File         `json:"files,omitempty"`
 	}
 
 	StartStepResponse struct{}

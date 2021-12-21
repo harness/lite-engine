@@ -16,13 +16,6 @@ type (
 		Files    []*File           `json:"files,omitempty"`
 	}
 
-	File struct {
-		Path  string `json:"path,omitempty"`
-		Mode  uint32 `json:"mode,omitempty"`
-		Data  string `json:"data,omitempty"`
-		IsDir bool   `json:"is_dir,omitempty"`
-	}
-
 	// Step defines a pipeline step.
 	Step struct {
 		ID           string            `json:"id,omitempty"`
@@ -54,6 +47,7 @@ type (
 		ShmSize      int64             `json:"shm_size,omitempty"`
 		User         string            `json:"user,omitempty"`
 		Volumes      []*VolumeMount    `json:"volumes,omitempty"`
+		Files        []*File           `json:"files,omitempty"`
 		WorkingDir   string            `json:"working_dir,omitempty"`
 	}
 
@@ -77,6 +71,14 @@ type (
 	Volume struct {
 		EmptyDir *VolumeEmptyDir `json:"temp,omitempty"`
 		HostPath *VolumeHostPath `json:"host,omitempty"`
+	}
+
+	// files or folder created on the host as part of setup or a step.
+	File struct {
+		Path  string `json:"path,omitempty"`
+		Mode  uint32 `json:"mode,omitempty"`
+		Data  string `json:"data,omitempty"`
+		IsDir bool   `json:"is_dir,omitempty"`
 	}
 
 	// VolumeMount describes a mounting of a Volume

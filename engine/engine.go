@@ -41,41 +41,12 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 }
 
 func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
-	for _, f := range pipelineConfig.Files {
-		if f.Path != "" {
-			path := f.Path
-			if _, err := os.Stat(path); err == nil {
-				continue
-			}
-			if f.IsDir {
-				// create a folder
-				if err := os.MkdirAll(path, fs.FileMode(f.Mode)); err != nil {
-					return errors.Wrap(err,
-						fmt.Sprintf("failed to create directory for host path: %s", path))
-				}
-			} else {
-				// create a file
-				newFile, newErr := os.Create(path)
-				if newErr != nil {
-					return errors.Wrap(newErr,
-						fmt.Sprintf("failed to create file for host path: %s", path))
-				}
-				permErr := os.Chmod(path, fs.FileMode(f.Mode))
-				if permErr != nil {
-					return errors.Wrap(newErr,
-						fmt.Sprintf("failed to change permissions for file on host path: %s", path))
-				}
-				_, writeErr := newFile.WriteString(f.Data)
-				if writeErr != nil {
-					newFile.Close()
-					return errors.Wrap(writeErr,
-						fmt.Sprintf("failed to write file for host path: %s", path))
-				}
-				newFile.Close()
-			}
-		}
+	// create global files and folders
+	fileFolderCreationErr := fileFolderCreation(pipelineConfig.Files)
+	if fileFolderCreationErr != nil {
+		return fileFolderCreationErr
 	}
-
+	// create volumes
 	for _, vol := range pipelineConfig.Volumes {
 		if vol != nil && vol.HostPath != nil {
 			path := vol.HostPath.Path
@@ -121,6 +92,11 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 	}
 	step.Envs = envs
 	step.WorkingDir = pathConverter(step.WorkingDir)
+	// create files or folders specific to the step
+	fileFolderCreationErr := fileFolderCreation(step.Files)
+	if fileFolderCreationErr != nil {
+		return nil, fileFolderCreationErr
+	}
 
 	for _, vol := range step.Volumes {
 		vol.Path = pathConverter(vol.Path)
@@ -131,6 +107,44 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 	}
 
 	return exec.Run(ctx, step, output)
+}
+
+func fileFolderCreation(paths []*spec.File) error {
+	for _, f := range paths {
+		if f.Path != "" {
+			path := f.Path
+			if _, err := os.Stat(path); err == nil {
+				continue
+			}
+			if f.IsDir {
+				// create a folder
+				if err := os.MkdirAll(path, fs.FileMode(f.Mode)); err != nil {
+					return errors.Wrap(err,
+						fmt.Sprintf("failed to create directory for host path: %s", path))
+				}
+			} else {
+				// create a file
+				newFile, newErr := os.Create(path)
+				if newErr != nil {
+					return errors.Wrap(newErr,
+						fmt.Sprintf("failed to create file for host path: %s", path))
+				}
+				permErr := os.Chmod(path, fs.FileMode(f.Mode))
+				if permErr != nil {
+					return errors.Wrap(newErr,
+						fmt.Sprintf("failed to change permissions for file on host path: %s", path))
+				}
+				_, writeErr := newFile.WriteString(f.Data)
+				if writeErr != nil {
+					newFile.Close()
+					return errors.Wrap(writeErr,
+						fmt.Sprintf("failed to write file for host path: %s", path))
+				}
+				newFile.Close()
+			}
+		}
+	}
+	return nil
 }
 
 func pathConverter(path string) string {
