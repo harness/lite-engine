@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	osruntime "runtime"
 	"strings"
@@ -40,6 +41,12 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 }
 
 func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+	// create global files and folders
+	fileFolderCreationErr := createFiles(pipelineConfig.Files)
+	if fileFolderCreationErr != nil {
+		return fileFolderCreationErr
+	}
+	// create volumes
 	for _, vol := range pipelineConfig.Volumes {
 		if vol != nil && vol.HostPath != nil {
 			path := vol.HostPath.Path
@@ -85,6 +92,11 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 	}
 	step.Envs = envs
 	step.WorkingDir = pathConverter(step.WorkingDir)
+	// create files or folders specific to the step
+	fileFolderCreationErr := createFiles(step.Files)
+	if fileFolderCreationErr != nil {
+		return nil, fileFolderCreationErr
+	}
 
 	for _, vol := range step.Volumes {
 		vol.Path = pathConverter(vol.Path)
@@ -95,6 +107,50 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 	}
 
 	return exec.Run(ctx, step, output)
+}
+
+func createFiles(paths []*spec.File) error {
+	for _, f := range paths {
+		if f.Path == "" {
+			continue
+		}
+
+		path := f.Path
+		if _, err := os.Stat(path); err == nil {
+			continue
+		}
+
+		if f.IsDir {
+			// create a folder
+			if err := os.MkdirAll(path, fs.FileMode(f.Mode)); err != nil {
+				return errors.Wrap(err,
+					fmt.Sprintf("failed to create directory for host path: %s", path))
+			}
+
+			continue
+		}
+
+		// create a file
+		file, err := os.Create(path)
+		if err != nil {
+			return errors.Wrap(err,
+				fmt.Sprintf("failed to create file for host path: %s", path))
+		}
+
+		if _, err = file.WriteString(f.Data); err != nil {
+			_ = file.Close()
+			return errors.Wrap(err,
+				fmt.Sprintf("failed to write file for host path: %s", path))
+		}
+
+		_ = file.Close()
+
+		if err = os.Chmod(path, fs.FileMode(f.Mode)); err != nil {
+			return errors.Wrap(err,
+				fmt.Sprintf("failed to change permissions for file on host path: %s", path))
+		}
+	}
+	return nil
 }
 
 func pathConverter(path string) string {

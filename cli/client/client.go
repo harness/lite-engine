@@ -110,6 +110,13 @@ func runStage(client *HTTPClient, remoteLog bool) error {
 		Network: spec.Network{
 			ID: "drone",
 		},
+		Files: []*spec.File{
+			{
+				Path:  "/tmp/globalfolder",
+				IsDir: true,
+				Mode:  0777,
+			},
+		},
 	}
 	if remoteLog {
 		setupParams.LogConfig = api.LogConfig{
@@ -155,6 +162,14 @@ func getRunStep(id, cmd, workdir string) *api.StartStepRequest {
 		},
 		WorkingDir: workdir,
 		LogKey:     id,
+		Files: []*spec.File{
+			{
+				Path:  fmt.Sprintf("/tmp/globalfolder/%s", id),
+				IsDir: false,
+				Mode:  0777,
+				Data:  cmd,
+			},
+		},
 	}
 	s.Run.Command = []string{cmd}
 	s.Run.Entrypoint = []string{"sh", "-c"}

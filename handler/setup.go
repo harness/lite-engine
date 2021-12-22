@@ -39,6 +39,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 				Arch: runtime.GOARCH,
 			},
 			Volumes: s.Volumes,
+			Files:   s.Files,
 		}
 		if err := engine.Setup(r.Context(), cfg); err != nil {
 			logger.FromRequest(r).
