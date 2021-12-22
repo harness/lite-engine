@@ -111,37 +111,45 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 
 func fileFolderCreation(paths []*spec.File) error {
 	for _, f := range paths {
-		if f.Path != "" {
-			path := f.Path
-			if _, err := os.Stat(path); err == nil {
-				continue
+		if f.Path == "" {
+			continue
+		}
+
+		path := f.Path
+		if _, err := os.Stat(path); err == nil {
+			continue
+		}
+
+		if f.IsDir {
+			// create a folder
+			if err := os.MkdirAll(path, fs.FileMode(f.Mode)); err != nil {
+				return errors.Wrap(err,
+					fmt.Sprintf("failed to create directory for host path: %s", path))
 			}
-			if f.IsDir {
-				// create a folder
-				if err := os.MkdirAll(path, fs.FileMode(f.Mode)); err != nil {
-					return errors.Wrap(err,
-						fmt.Sprintf("failed to create directory for host path: %s", path))
-				}
-			} else {
-				// create a file
-				newFile, newErr := os.Create(path)
-				if newErr != nil {
-					return errors.Wrap(newErr,
-						fmt.Sprintf("failed to create file for host path: %s", path))
-				}
-				permErr := os.Chmod(path, fs.FileMode(f.Mode))
-				if permErr != nil {
-					return errors.Wrap(newErr,
-						fmt.Sprintf("failed to change permissions for file on host path: %s", path))
-				}
-				_, writeErr := newFile.WriteString(f.Data)
-				if writeErr != nil {
-					newFile.Close()
-					return errors.Wrap(writeErr,
-						fmt.Sprintf("failed to write file for host path: %s", path))
-				}
-				newFile.Close()
-			}
+
+			continue
+		}
+
+		// create a file
+		newFile, newErr := os.Create(path)
+		if newErr != nil {
+			return errors.Wrap(newErr,
+				fmt.Sprintf("failed to create file for host path: %s", path))
+		}
+
+		_, writeErr := newFile.WriteString(f.Data)
+		if writeErr != nil {
+			_ = newFile.Close()
+			return errors.Wrap(writeErr,
+				fmt.Sprintf("failed to write file for host path: %s", path))
+		}
+
+		_ = newFile.Close()
+
+		permErr := os.Chmod(path, fs.FileMode(f.Mode))
+		if permErr != nil {
+			return errors.Wrap(newErr,
+				fmt.Sprintf("failed to change permissions for file on host path: %s", path))
 		}
 	}
 	return nil
