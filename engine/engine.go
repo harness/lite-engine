@@ -42,7 +42,7 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 
 func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	// create global files and folders
-	fileFolderCreationErr := fileFolderCreation(pipelineConfig.Files)
+	fileFolderCreationErr := createFiles(pipelineConfig.Files)
 	if fileFolderCreationErr != nil {
 		return fileFolderCreationErr
 	}
@@ -93,7 +93,7 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 	step.Envs = envs
 	step.WorkingDir = pathConverter(step.WorkingDir)
 	// create files or folders specific to the step
-	fileFolderCreationErr := fileFolderCreation(step.Files)
+	fileFolderCreationErr := createFiles(step.Files)
 	if fileFolderCreationErr != nil {
 		return nil, fileFolderCreationErr
 	}
@@ -109,7 +109,7 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 	return exec.Run(ctx, step, output)
 }
 
-func fileFolderCreation(paths []*spec.File) error {
+func createFiles(paths []*spec.File) error {
 	for _, f := range paths {
 		if f.Path == "" {
 			continue
@@ -131,24 +131,22 @@ func fileFolderCreation(paths []*spec.File) error {
 		}
 
 		// create a file
-		newFile, newErr := os.Create(path)
-		if newErr != nil {
-			return errors.Wrap(newErr,
+		file, err := os.Create(path)
+		if err != nil {
+			return errors.Wrap(err,
 				fmt.Sprintf("failed to create file for host path: %s", path))
 		}
 
-		_, writeErr := newFile.WriteString(f.Data)
-		if writeErr != nil {
-			_ = newFile.Close()
-			return errors.Wrap(writeErr,
+		if _, err = file.WriteString(f.Data); err != nil {
+			_ = file.Close()
+			return errors.Wrap(err,
 				fmt.Sprintf("failed to write file for host path: %s", path))
 		}
 
-		_ = newFile.Close()
+		_ = file.Close()
 
-		permErr := os.Chmod(path, fs.FileMode(f.Mode))
-		if permErr != nil {
-			return errors.Wrap(newErr,
+		if err = os.Chmod(path, fs.FileMode(f.Mode)); err != nil {
+			return errors.Wrap(err,
 				fmt.Sprintf("failed to change permissions for file on host path: %s", path))
 		}
 	}
