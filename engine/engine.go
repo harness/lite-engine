@@ -42,9 +42,8 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 
 func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	// create global files and folders
-	fileFolderCreationErr := createFiles(pipelineConfig.Files)
-	if fileFolderCreationErr != nil {
-		return fileFolderCreationErr
+	if err := createFiles(pipelineConfig.Files); err != nil {
+		return err
 	}
 	// create volumes
 	for _, vol := range pipelineConfig.Volumes {
@@ -92,10 +91,10 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 	}
 	step.Envs = envs
 	step.WorkingDir = pathConverter(step.WorkingDir)
+
 	// create files or folders specific to the step
-	fileFolderCreationErr := createFiles(step.Files)
-	if fileFolderCreationErr != nil {
-		return nil, fileFolderCreationErr
+	if err := createFiles(step.Files); err != nil {
+		return nil, err
 	}
 
 	for _, vol := range step.Volumes {

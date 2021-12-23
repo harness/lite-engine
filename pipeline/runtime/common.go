@@ -25,13 +25,18 @@ func getNudges() []logstream.Nudge {
 }
 
 func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string {
+	isPsh := isPowershell(entrypoint)
+
 	cmd := ""
+	if isPsh {
+		cmd += fmt.Sprintf("\nNew-Item %s", outputFile)
+	}
 	for _, o := range outputVars {
-		env := fmt.Sprintf("$%s", o)
-		if isPowershell(entrypoint) {
-			env = fmt.Sprintf("$Env:%s", o)
+		if isPsh {
+			cmd += fmt.Sprintf("\n$val = \"%s $Env:%s\" \nAdd-Content -Path %s -Value $val", o, o, outputFile)
+		} else {
+			cmd += fmt.Sprintf(";echo \"%s $%s\" >> %s", o, o, outputFile)
 		}
-		cmd += fmt.Sprintf(";echo \"%s %s\" >> %s", o, env, outputFile)
 	}
 
 	return cmd
