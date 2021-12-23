@@ -84,6 +84,8 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 
 	envs := make(map[string]string)
 	if step.Image == "" {
+		// Set parent process envs in case step is executed directly on the VM.
+		// This sets the PATH environment variable (in case it is set on parent process) on sub-process executing the step.
 		for _, e := range os.Environ() {
 			if i := strings.Index(e, "="); i >= 0 {
 				envs[e[:i]] = e[i+1:]
