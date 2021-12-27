@@ -32,8 +32,15 @@ const (
 // getChangedFiles returns a list of files changed in the PR along with their corresponding status
 func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger) ([]ti.File, error) {
 	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmd...)
+	envs := make(map[string]string)
+	for _, e := range os.Environ() {
+		if i := strings.Index(e, "="); i >= 0 {
+			envs[e[:i]] = e[i+1:]
+		}
+	}
+	cmd.Env = toEnv(envs)
 	cmd.Dir = workspace
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, err
 	}
@@ -200,6 +207,7 @@ func createConfigFile(runner TestRunner, packages, annotations, workspace, tmpDi
 	var data string
 	var outputFile string
 
+	// TODO: Create a struct for this once all languages use YAML input
 	if !yaml {
 		outputFile = fmt.Sprintf("%s/config.ini", tmpDir)
 		data = fmt.Sprintf(`outDir: %s
@@ -208,7 +216,7 @@ logConsole: false
 writeTo: COVERAGE_JSON
 instrPackages: %s`, dir, packages)
 	} else {
-		outputFile = fmt.Sprintf("%s/Config.yaml", tmpDir)
+		outputFile = fmt.Sprintf("%s/config.yaml", tmpDir)
 		p := strings.Split(packages, ",")
 		for idx, s := range p {
 			p[idx] = fmt.Sprintf("'%s'", s)
@@ -278,4 +286,17 @@ func isManualExecution() bool {
 		return true // if any of them are not set, treat as a manual execution
 	}
 	return false
+}
+
+// helper function that converts a key value map of
+// environment variables to a string slice in key=value
+// format.
+func toEnv(env map[string]string) []string {
+	var envs []string
+	for k, v := range env {
+		if v != "" {
+			envs = append(envs, k+"="+v)
+		}
+	}
+	return envs
 }

@@ -34,7 +34,8 @@ func (b *nunitConsoleRunner) AutoDetectPackages(workspace string) ([]string, err
 	return []string{}, errors.New("not implemented")
 }
 
-func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, // nolint:gocyclo
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	/*
 		i) Get the DLL list from the command (assume it runs at the root of the repository)
 		ii) Run the injector through all the DLLs
@@ -64,7 +65,12 @@ func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest
 	args := strings.Split(userArgs, " ")
 	for _, s := range args {
 		if strings.HasSuffix(s, ".dll") {
-			absPath := filepath.Join(workspace, s)
+			absPath := s
+			if s[0] != '~' && s[0] != '/' && s[0] != '\\' {
+				if !strings.HasPrefix(s, workspace) {
+					absPath = filepath.Join(workspace, s)
+				}
+			}
 			cmd += fmt.Sprintf(". %s %s %s\n", pathToInjector, absPath, agentConfigPath)
 		}
 	}

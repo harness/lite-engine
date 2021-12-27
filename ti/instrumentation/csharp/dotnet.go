@@ -45,9 +45,8 @@ func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	/*
 		Steps:
 			 i)   dotnet build in the project (to be done by the customer)
-			 ii)  Run agentConfigPath/injector.exe with bin/Debug/net48/ProjectName.dll
-			 iii) cp agentConfigPath to bin/Debug/net48 and rename it Config.yaml
-			 iv)  Return dotnet test --no-build with args and test selection
+			 ii)  Run agentConfigPath/injector.exe with bin/Debug/net48/ProjectName.dll and config yaml
+			 iii)  Return dotnet test --no-build with args and test selection
 	*/
 	if ignoreInstr {
 		return fmt.Sprintf("%s %s", dotnetCmd, userArgs), nil

@@ -3,15 +3,17 @@ package report
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti/client"
 	"github.com/harness/lite-engine/ti/report/parser/junit"
+	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadTests(ctx context.Context, report api.TestReport, stepID string) error {
+func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger) error {
 	if report.Kind != api.Junit {
 		return fmt.Errorf("unknown report type: %s", report.Kind)
 	}
@@ -20,7 +22,17 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, stepID stri
 		return nil
 	}
 
-	tests := junit.ParseTests(report.Junit.Paths)
+	// Append working dir to the paths. In k8s, we specify the workDir in the YAML but this is
+	// needed in case of VMs.
+	for idx, p := range report.Junit.Paths {
+		if p[0] != '~' && p[0] != '/' && p[0] != '\\' {
+			if !strings.HasPrefix(p, workDir) {
+				report.Junit.Paths[idx] = filepath.Join(workDir, p)
+			}
+		}
+	}
+
+	tests := junit.ParseTests(report.Junit.Paths, log)
 	if len(tests) == 0 {
 		return nil
 	}

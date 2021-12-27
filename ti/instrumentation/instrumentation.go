@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -25,15 +26,14 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	// Get the tests that need to be run if we are running selected tests
 	var selection ti.SelectTestsResp
 
+	isManual := isManualExecution()
 	files, err := getChangedFiles(ctx, workspace, log)
 	if err != nil {
 		log.WithError(err).Println("could not get changed files")
-		return "", err
+		isManual = true // If we can't get the changed files, treat it as a manual execution
 	}
 
 	runOnlySelectedTests := config.RunOnlySelectedTests
-
-	isManual := isManualExecution()
 	if len(files) == 0 {
 		log.Errorln("unable to get changed files list")
 		runOnlySelectedTests = false // run all the tests if we could not find changed files list correctly
@@ -58,7 +58,9 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	var runner TestRunner
 	useYaml := false
-	switch config.Language {
+	config.Language = strings.ToLower(config.Language)
+	config.BuildTool = strings.ToLower(config.BuildTool)
+	switch strings.ToLower(config.Language) {
 	case "java":
 		useYaml = false
 		switch config.BuildTool {
@@ -73,9 +75,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		}
 	case "csharp":
 		useYaml = true
-		// Plan is to remove build tool altogether and detect it from the test command.
-		tool := csharp.GetBuildTool(config.Args)
-		switch tool {
+		switch config.BuildTool {
 		case "dotnet":
 			runner = csharp.NewDotnetRunner(log, fs)
 		case "nunitconsole":
@@ -106,6 +106,5 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	// TODO: (Vistaar) If using this code for non-Windows, we might need to set TMPDIR for bazel
 	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
-
 	return command, nil
 }
