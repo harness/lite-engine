@@ -32,7 +32,7 @@ func (m *mavenRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return DetectPkgs(workspace, m.log, m.fs)
 }
 
-func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs,
+func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// If instrumentation needs to be ignored, we run all the tests without adding the agent config
 	if ignoreInstr {

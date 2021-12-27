@@ -18,12 +18,12 @@ const (
 )
 
 // ParseTests parses XMLs and writes relevant data to the channel
-func ParseTests(paths []string) []*ti.TestCase {
-	files := getFiles(paths)
+func ParseTests(paths []string, log *logrus.Logger) []*ti.TestCase {
+	files := getFiles(paths, log)
 
-	logrus.Debugln(fmt.Sprintf("list of files to collect test reports from: %s", files))
+	log.Debugln(fmt.Sprintf("list of files to collect test reports from: %s", files))
 	if len(files) == 0 {
-		logrus.Errorln("could not find any files matching the provided report path")
+		log.Errorln("could not find any files matching the provided report path")
 	}
 
 	total := 0
@@ -31,7 +31,7 @@ func ParseTests(paths []string) []*ti.TestCase {
 	for _, file := range files {
 		suites, err := gojunit.IngestFile(file)
 		if err != nil {
-			logrus.WithError(err).WithField("file", file).
+			log.WithError(err).WithField("file", file).
 				Errorln(fmt.Sprintf("could not parse file %s", file))
 			continue
 		}
@@ -45,23 +45,23 @@ func ParseTests(paths []string) []*ti.TestCase {
 			}
 		}
 	}
-	logrus.WithField("num_cases", total).Infoln(fmt.Sprintf("parsed %d test cases", total))
+	log.WithField("num_cases", total).Infoln(fmt.Sprintf("parsed %d test cases", total))
 	return tests
 }
 
 // getFiles returns uniques file paths provided in the input after expanding the input paths
-func getFiles(paths []string) []string {
+func getFiles(paths []string, log *logrus.Logger) []string {
 	var files []string
 	for _, p := range paths {
 		path, err := expandTilde(p)
 		if err != nil {
-			logrus.WithError(err).WithField("path", p).
+			log.WithError(err).WithField("path", p).
 				Errorln("errored while trying to expand paths")
 			continue
 		}
 		matches, err := zglob.Glob(path)
 		if err != nil {
-			logrus.WithError(err).WithField("path", path).
+			log.WithError(err).WithField("path", path).
 				Errorln("errored while trying to resolve path regex")
 			continue
 		}

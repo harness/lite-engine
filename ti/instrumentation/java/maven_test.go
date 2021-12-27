@@ -89,7 +89,7 @@ func TestMaven_GetCmd(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/test/tmp/config.ini", "/install/dir/java/", false, !tc.runOnlySelectedTests)
+		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/java/", false, !tc.runOnlySelectedTests)
 		if tc.expectedErr == (err == nil) {
 			t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
 		}
@@ -133,7 +133,7 @@ func TestGetMavenCmd_Manual(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/test/tmp/config.ini", "/install/dir/java/", true, !tc.runOnlySelectedTests)
+		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/java/", true, !tc.runOnlySelectedTests)
 		if tc.expectedErr == (err == nil) {
 			t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
 		}

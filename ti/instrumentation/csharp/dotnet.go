@@ -9,9 +9,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti"
+	"github.com/mholt/archiver/v3"
 
 	"github.com/sirupsen/logrus"
 )
@@ -36,17 +39,44 @@ func (b *dotnetRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return []string{}, errors.New("not implemented")
 }
 
-func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	// Move config.ini to Config.yaml manually for now. Later, we will use the same format for both
+	// agentInstallDir should have the zip file
+	/*
+		Steps:
+			 i)   dotnet build in the project (to be done by the customer)
+			 ii)  Run agentConfigPath/injector.exe with bin/Debug/net48/ProjectName.dll and config yaml
+			 iii)  Return dotnet test --no-build with args and test selection
+	*/
 	if ignoreInstr {
 		return fmt.Sprintf("%s %s", dotnetCmd, userArgs), nil
 	}
 
-	// Create instrumented command here (TODO: Need to figure out how to instrument)
-	if runAll {
-		return fmt.Sprintf("%s %s", dotnetCmd, userArgs), nil // Add instrumentation here
+	// This needs to be moved to the UI and made configurable: [CI-3167]
+	pathToDLL := os.Getenv("PATH_TO_DLL")
+	if pathToDLL == "" {
+		return "", errors.New("PATH_TO_DLL env variable needs to be set")
 	}
 
-	// Need to handle this for Windows as well
+	zip := archiver.Zip{
+		OverwriteExisting: true,
+	}
+	// Unzip everything at agentInstallDir/dotnet-agent.zip
+	err := zip.Unarchive(filepath.Join(agentInstallDir, "dotnet-agent.zip"), agentInstallDir)
+	if err != nil {
+		b.log.WithError(err).Println("could not unarchive the dotnet agent")
+		return "", err
+	}
+
+	absPath := filepath.Join(workspace, pathToDLL)
+	pathToInjector := filepath.Join(agentInstallDir, "dotnet-agent", "dotnet-agent.injector.exe")
+
+	cmd := fmt.Sprintf(". %s %s %s\n", pathToInjector, absPath, agentConfigPath)
+
+	if runAll {
+		return fmt.Sprintf("%s %s test %s --no-build", cmd, dotnetCmd, userArgs), nil
+	}
+
 	if len(tests) == 0 {
 		return "echo \"Skipping test run, received no tests to execute\"", nil
 	}
@@ -75,5 +105,5 @@ func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		testStr += "FullyQualifiedName~" + t
 	}
 
-	return fmt.Sprintf("%s %s --filter %q", dotnetCmd, userArgs, testStr), nil // Add instrumentation here
+	return fmt.Sprintf("%s %s test --filter %q %s --no-build", cmd, dotnetCmd, testStr, userArgs), nil // Add instrumentation here
 }

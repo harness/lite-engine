@@ -56,8 +56,8 @@ gradle.projectsEvaluated {
         }
 }
 */
-func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, agentConfigPath,
-	agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// Check if gradlew exists. If not, fallback to gradle
 	gc := gradleWrapperCmd
 	_, err := g.fs.Stat("gradlew")

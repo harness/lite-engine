@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -25,14 +26,14 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	// Get the tests that need to be run if we are running selected tests
 	var selection ti.SelectTestsResp
 
+	isManual := isManualExecution()
 	files, err := getChangedFiles(ctx, workspace, log)
 	if err != nil {
-		return "", err
+		log.WithError(err).Println("could not get changed files")
+		isManual = true // If we can't get the changed files, treat it as a manual execution
 	}
 
 	runOnlySelectedTests := config.RunOnlySelectedTests
-
-	isManual := isManualExecution()
 	if len(files) == 0 {
 		log.Errorln("unable to get changed files list")
 		runOnlySelectedTests = false // run all the tests if we could not find changed files list correctly
@@ -56,8 +57,12 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	}
 
 	var runner TestRunner
-	switch config.Language {
+	useYaml := false
+	config.Language = strings.ToLower(config.Language)
+	config.BuildTool = strings.ToLower(config.BuildTool)
+	switch strings.ToLower(config.Language) {
 	case "java":
+		useYaml = false
 		switch config.BuildTool {
 		case "maven":
 			runner = java.NewMavenRunner(log, fs)
@@ -69,11 +74,14 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 			return "", fmt.Errorf("build tool: %s is not supported for Java", config.BuildTool)
 		}
 	case "csharp":
+		useYaml = true
 		switch config.BuildTool {
 		case "dotnet":
 			runner = csharp.NewDotnetRunner(log, fs)
+		case "nunitconsole":
+			runner = csharp.NewNunitConsoleRunner(log, fs)
 		default:
-			return "", fmt.Errorf("build tool: %s is not supported for Csharp", config.BuildTool)
+			return "", fmt.Errorf("could not figure out the build tool: %s", err)
 		}
 	default:
 		return "", fmt.Errorf("language %s is not suported", config.Language)
@@ -86,18 +94,17 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	}
 
 	// Create the config file required for instrumentation
-	iniFilePath, err := createConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log)
+	iniFilePath, err := createConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log, useYaml)
 	if err != nil {
 		return "", err
 	}
 
-	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, iniFilePath, artifactDir, isManual, !runOnlySelectedTests)
+	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, isManual, !runOnlySelectedTests)
 	if err != nil {
 		return "", err
 	}
 
 	// TODO: (Vistaar) If using this code for non-Windows, we might need to set TMPDIR for bazel
 	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
-
 	return command, nil
 }

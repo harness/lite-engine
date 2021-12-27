@@ -32,8 +32,15 @@ const (
 // getChangedFiles returns a list of files changed in the PR along with their corresponding status
 func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger) ([]ti.File, error) {
 	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmd...)
+	envs := make(map[string]string)
+	for _, e := range os.Environ() {
+		if i := strings.Index(e, "="); i >= 0 {
+			envs[e[:i]] = e[i+1:]
+		}
+	}
+	cmd.Env = toEnv(envs)
 	cmd.Dir = workspace
-	out, err := cmd.Output()
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, err
 	}
@@ -149,6 +156,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 
 	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
 		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, false)
+	log.Infoln("getting TI agent artifact download links")
 	links, err := c.DownloadLink(ctx, language, os, arch, framework)
 	if err != nil {
 		log.WithError(err).Println("could not fetch download links for artifact download")
@@ -180,7 +188,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 // createConfigFile creates the ini file which is required as input to the instrumentation agent
 // and returns back the path to the file.
 func createConfigFile(runner TestRunner, packages, annotations, workspace, tmpDir string,
-	fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+	fs filesystem.FileSystem, log *logrus.Logger, yaml bool) (string, error) {
 	// Create config file
 	dir := fmt.Sprintf(outDir, tmpDir)
 	err := fs.MkdirAll(dir, os.ModePerm)
@@ -196,31 +204,48 @@ func createConfigFile(runner TestRunner, packages, annotations, workspace, tmpDi
 		}
 		packages = strings.Join(pkgs, ",")
 	}
+	var data string
+	var outputFile string
 
-	data := fmt.Sprintf(`outDir: %s
+	// TODO: Create a struct for this once all languages use YAML input
+	if !yaml {
+		outputFile = fmt.Sprintf("%s/config.ini", tmpDir)
+		data = fmt.Sprintf(`outDir: %s
 logLevel: 0
 logConsole: false
 writeTo: COVERAGE_JSON
 instrPackages: %s`, dir, packages)
+	} else {
+		outputFile = fmt.Sprintf("%s/config.yaml", tmpDir)
+		p := strings.Split(packages, ",")
+		for idx, s := range p {
+			p[idx] = fmt.Sprintf("'%s'", s)
+		}
+		data = fmt.Sprintf(`outDir: '%s'
+logLevel: 0
+writeTo: [COVERAGE_JSON]
+instrPackages: [%s]`, dir, strings.Join(p, ","))
+	}
+
 	// Add test annotations if they were provided
 	if annotations != "" {
 		data = data + "\n" + fmt.Sprintf("testAnnotations: %s", annotations)
 	}
 
-	iniFile := fmt.Sprintf("%s/config.ini", tmpDir)
-	log.Infoln(fmt.Sprintf("attempting to write %s to %s", data, iniFile))
-	f, err := fs.Create(iniFile)
+	log.Infoln(fmt.Sprintf("attempting to write %s to %s", data, outputFile))
+	f, err := fs.Create(outputFile)
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not create file %s", iniFile))
+		log.WithError(err).Errorln(fmt.Sprintf("could not create file %s", outputFile))
 		return "", err
 	}
 	_, err = f.WriteString(data)
+	defer f.Close()
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, iniFile))
+		log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, outputFile))
 		return "", err
 	}
 	// Return path to the config.ini file
-	return iniFile, nil
+	return outputFile, nil
 }
 
 func getTiConfig(workspace string, fs filesystem.FileSystem) (ti.Config, error) {
@@ -261,4 +286,17 @@ func isManualExecution() bool {
 		return true // if any of them are not set, treat as a manual execution
 	}
 	return false
+}
+
+// helper function that converts a key value map of
+// environment variables to a string slice in key=value
+// format.
+func toEnv(env map[string]string) []string {
+	var envs []string
+	for k, v := range env {
+		if v != "" {
+			envs = append(envs, k+"="+v)
+		}
+	}
+	return envs
 }
