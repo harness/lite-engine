@@ -18,7 +18,7 @@ const (
 	dbEndpoint    = "/reports/write?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&report=%s&repo=%s&sha=%s"
 	testEndpoint  = "/tests/select?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&repo=%s&sha=%s&source=%s&target=%s"
 	cgEndpoint    = "/tests/uploadcg?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&repo=%s&sha=%s&source=%s&target=%s&timeMs=%d"
-	agentEndpoint = "/agents/link?language=%s&os=%s&arch=%s&framework=%s"
+	agentEndpoint = "/agents/link?accountId=%s&language=%s&os=%s&arch=%s&framework=%s"
 )
 
 var _ Client = (*HTTPClient)(nil)
@@ -87,7 +87,7 @@ func (c *HTTPClient) Write(ctx context.Context, stepID, report string, tests []*
 
 // DownloadLink returns a list of links where the relevant agent artifacts can be downloaded
 func (c *HTTPClient) DownloadLink(ctx context.Context, language, os, arch, framework string) ([]ti.DownloadLink, error) {
-	path := fmt.Sprintf(agentEndpoint, language, os, arch, framework)
+	path := fmt.Sprintf(agentEndpoint, c.AccountID, language, os, arch, framework)
 	var resp []ti.DownloadLink
 	_, err := c.do(ctx, c.Endpoint+path, "GET", "", nil, &resp) // nolint:bodyclose
 	return resp, err
