@@ -65,6 +65,58 @@ func HandlePollStep(e *pruntime.StepExecutor) http.HandlerFunc {
 	}
 }
 
+func HandleStreamOutput(e *pruntime.StepExecutor) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		st := time.Now()
+
+		var s api.StreamOutputRequest
+		err := json.NewDecoder(r.Body).Decode(&s)
+		if err != nil {
+			WriteBadRequest(w, err)
+			return
+		}
+
+		var count int
+
+		oldData, newData, err := e.StreamOutput(r.Context(), &s)
+		if err != nil {
+			WriteError(w, err)
+			return
+		}
+
+		flusher, _ := w.(http.Flusher)
+
+		_, _ = w.Write(oldData)
+		count += len(oldData)
+		if flusher != nil {
+			flusher.Flush()
+		}
+
+	out:
+		for {
+			select {
+			case <-r.Context().Done():
+				break out
+			case data, ok := <-newData:
+				if !ok {
+					break out
+				}
+				_, _ = w.Write(data)
+				count += len(data)
+				if flusher != nil {
+					flusher.Flush()
+				}
+			}
+		}
+
+		logger.FromRequest(r).
+			WithField("latency", time.Since(st)).
+			WithField("time", time.Now().Format(time.RFC3339)).
+			WithField("count", count).
+			Infoln("api: successfully streamed the step log")
+	}
+}
+
 func getSharedVolumeMount() *spec.VolumeMount {
 	return &spec.VolumeMount{
 		Name: pipeline.SharedVolName,
