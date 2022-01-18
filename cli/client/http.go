@@ -107,6 +107,43 @@ func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest,
 	}
 }
 
+func (c *HTTPClient) GetStepLogOutput(ctx context.Context, in *api.StreamOutputRequest, w io.Writer) error {
+	var r io.Reader
+
+	if in != nil {
+		buf := new(bytes.Buffer)
+		if err := json.NewEncoder(buf).Encode(in); err != nil {
+			logrus.WithError(err).Errorln("failed to encode input")
+			return err
+		}
+		r = buf
+	}
+
+	const path = "stream_output"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.Endpoint+path, r)
+	if err != nil {
+		return err
+	}
+
+	res, err := c.Client.Do(req)
+	if res != nil {
+		defer func() {
+			res.Body.Close()
+		}()
+	}
+	if err != nil {
+		return err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return &Error{Code: res.StatusCode, Message: "failed to stream output"}
+	}
+
+	_, err = io.Copy(w, res.Body)
+
+	return err
+}
+
 func (c *HTTPClient) Health(ctx context.Context) (*api.HealthResponse, error) {
 	path := "healthz"
 	out := new(api.HealthResponse)

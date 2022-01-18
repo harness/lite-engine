@@ -34,6 +34,7 @@ type (
 		Envs       map[string]string `json:"environment,omitempty"`
 		Name       string            `json:"name,omitempty"`
 		LogKey     string            `json:"log_key,omitempty"`
+		LogDrone   bool              `json:"log_drone"`
 		Secrets    []string          `json:"secrets,omitempty"`
 		WorkingDir string            `json:"working_dir,omitempty"`
 		Kind       StepType          `json:"kind,omitempty"`
@@ -82,6 +83,11 @@ type (
 		Error     string            `json:"error,omitempty"`
 		OOMKilled bool              `json:"oom_killed,omitempty"`
 		Outputs   map[string]string `json:"outputs,omitempty"`
+	}
+
+	StreamOutputRequest struct {
+		ID     string `json:"id,omitempty"`
+		Offset int    `json:"offset,omitempty"`
 	}
 
 	RunConfig struct {
