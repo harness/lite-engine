@@ -39,7 +39,7 @@ type StepExecutor struct {
 	engine     *engine.Engine
 	mu         sync.Mutex
 	stepStatus map[string]StepStatus
-	stepOutput map[string]*StepOutput
+	stepLog    map[string]*StepLog
 	stepWaitCh map[string][]chan StepStatus
 }
 
@@ -48,7 +48,7 @@ func NewStepExecutor(engine *engine.Engine) *StepExecutor {
 		engine:     engine,
 		mu:         sync.Mutex{},
 		stepWaitCh: make(map[string][]chan StepStatus),
-		stepOutput: make(map[string]*StepOutput),
+		stepLog:    make(map[string]*StepLog),
 		stepStatus: make(map[string]StepStatus),
 	}
 }
@@ -120,15 +120,15 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 		return
 	}
 
-	var stepOutput *StepOutput
+	var stepLog *StepLog
 
 	// the runner will call this function just before the call to start step, so we wait a while for the step to start
 	for ts := time.Now(); ; {
 		e.mu.Lock()
-		stepOutput = e.stepOutput[id]
+		stepLog = e.stepLog[id]
 		e.mu.Unlock()
 
-		if stepOutput != nil {
+		if stepLog != nil {
 			break
 		}
 
@@ -149,7 +149,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 
 	// subscribe to new data messages, and unsubscribe when the request context finished or when the step is done
 	chData := make(chan []byte)
-	oldOut, err = stepOutput.Subscribe(chData, r.Offset)
+	oldOut, err = stepLog.Subscribe(chData, r.Offset)
 	if err != nil {
 		return
 	}
@@ -157,10 +157,12 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 	go func() {
 		select {
 		case <-ctx.Done():
-		case <-stepOutput.Done():
+			// the api request has finished/aborted
+		case <-stepLog.Done():
+			// the step has finished
 		}
 		close(chData)
-		stepOutput.Unsubscribe(chData)
+		stepLog.Unsubscribe(chData)
 	}()
 
 	newOut = chData
@@ -177,14 +179,14 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 		ctx, cancel = context.WithCancel(ctx)
 	}
 
-	stepOutput := NewStepOutput(ctx) // step output will terminate when the ctx is canceled
+	stepLog := NewStepLog(ctx) // step output will terminate when the ctx is canceled
 
 	logr := logrus.
 		WithField("id", r.ID).
 		WithField("step", r.Name)
 
 	e.mu.Lock()
-	e.stepOutput[r.ID] = stepOutput
+	e.stepLog[r.ID] = stepLog
 	e.mu.Unlock()
 
 	runStep := func() (*runtime.State, error) {
@@ -192,7 +194,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 
 		r.Kind = api.Run // only this kind is supported
 
-		exited, _, err := e.run(ctx, e.engine, r, stepOutput)
+		exited, _, err := e.run(ctx, e.engine, r, stepLog)
 		if ctx.Err() == context.Canceled || ctx.Err() == context.DeadlineExceeded {
 			logr.WithError(err).Warnln("step execution canceled")
 			return nil, ctx.Err()

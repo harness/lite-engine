@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-type StepOutput struct {
+type StepLog struct {
 	mx          sync.Mutex
 	fullOutput  *bytes.Buffer
 	data        chan []byte
@@ -15,8 +15,8 @@ type StepOutput struct {
 	subscribers map[chan []byte]struct{}
 }
 
-func NewStepOutput(ctx context.Context) *StepOutput {
-	l := &StepOutput{
+func NewStepLog(ctx context.Context) *StepLog {
+	l := &StepLog{
 		mx:          sync.Mutex{},
 		fullOutput:  &bytes.Buffer{},
 		data:        make(chan []byte, 10), // nolint:gomnd
@@ -51,11 +51,11 @@ func NewStepOutput(ctx context.Context) *StepOutput {
 	return l
 }
 
-func (l *StepOutput) Done() <-chan struct{} {
+func (l *StepLog) Done() <-chan struct{} {
 	return l.done
 }
 
-func (l *StepOutput) Write(data []byte) (int, error) {
+func (l *StepLog) Write(data []byte) (int, error) {
 	select {
 	case l.data <- data:
 		return len(data), nil
@@ -66,7 +66,7 @@ func (l *StepOutput) Write(data []byte) (int, error) {
 
 // Subscribe returns the output log that has been created so far (from the offset position) and
 // it registers the ch channel to receive further data output.
-func (l *StepOutput) Subscribe(ch chan []byte, offset int) (data []byte, err error) {
+func (l *StepLog) Subscribe(ch chan []byte, offset int) (data []byte, err error) {
 	l.mx.Lock()
 	data = l.fullOutput.Bytes()
 	l.subscribers[ch] = struct{}{}
@@ -82,7 +82,7 @@ func (l *StepOutput) Subscribe(ch chan []byte, offset int) (data []byte, err err
 	return
 }
 
-func (l *StepOutput) Unsubscribe(ch chan []byte) {
+func (l *StepLog) Unsubscribe(ch chan []byte) {
 	l.mx.Lock()
 	delete(l.subscribers, ch)
 	l.mx.Unlock()
