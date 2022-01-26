@@ -10,7 +10,6 @@ import (
 type StepLog struct {
 	mx          sync.Mutex
 	fullOutput  *bytes.Buffer
-	data        chan []byte
 	done        <-chan struct{}
 	subscribers map[chan []byte]struct{}
 }
@@ -19,34 +18,9 @@ func NewStepLog(ctx context.Context) *StepLog {
 	l := &StepLog{
 		mx:          sync.Mutex{},
 		fullOutput:  &bytes.Buffer{},
-		data:        make(chan []byte, 10), // nolint:gomnd
 		done:        ctx.Done(),
 		subscribers: make(map[chan []byte]struct{}),
 	}
-
-	go func() {
-		for {
-			select {
-			case <-l.done:
-				return
-			case data := <-l.data:
-				func() {
-					l.mx.Lock()
-					defer l.mx.Unlock()
-
-					l.fullOutput.Write(data)
-
-					for ch := range l.subscribers {
-						select {
-						case <-l.done:
-							return
-						case ch <- data:
-						}
-					}
-				}()
-			}
-		}
-	}()
 
 	return l
 }
@@ -56,12 +30,22 @@ func (l *StepLog) Done() <-chan struct{} {
 }
 
 func (l *StepLog) Write(data []byte) (int, error) {
-	select {
-	case l.data <- data:
-		return len(data), nil
-	case <-l.done:
-		return 0, nil
+	n := len(data)
+
+	l.mx.Lock()
+
+	l.fullOutput.Write(data)
+
+	// replace byte buffer from which the data came before we write it to the subscriber channels
+	data = l.fullOutput.Bytes()
+	data = data[len(data)-n:]
+	for ch := range l.subscribers {
+		ch <- data
 	}
+
+	l.mx.Unlock()
+
+	return n, nil
 }
 
 // Subscribe returns the output log that has been created so far (from the offset position) and

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"runtime"
 	"time"
@@ -76,7 +77,10 @@ func HandleStreamOutput(e *pruntime.StepExecutor) http.HandlerFunc {
 			return
 		}
 
-		var count int
+		var (
+			count  int
+			output io.Writer
+		)
 
 		oldData, newData, err := e.StreamOutput(r.Context(), &s)
 		if err != nil {
@@ -85,8 +89,9 @@ func HandleStreamOutput(e *pruntime.StepExecutor) http.HandlerFunc {
 		}
 
 		flusher, _ := w.(http.Flusher)
+		output = w
 
-		_, _ = w.Write(oldData)
+		_, _ = output.Write(oldData)
 		count += len(oldData)
 		if flusher != nil {
 			flusher.Flush()
@@ -101,7 +106,7 @@ func HandleStreamOutput(e *pruntime.StepExecutor) http.HandlerFunc {
 				if !ok {
 					break out
 				}
-				_, _ = w.Write(data)
+				_, _ = output.Write(data)
 				count += len(data)
 				if flusher != nil {
 					flusher.Flush()
