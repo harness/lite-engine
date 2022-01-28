@@ -174,6 +174,9 @@ func toWindowsDrive(s string) string {
 	if matchDockerSockPath(s) {
 		return s
 	}
+	if len(s) >= 2 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' {
+		return toWindowsPath(s)
+	}
 	return "c:" + toWindowsPath(s)
 }
 
