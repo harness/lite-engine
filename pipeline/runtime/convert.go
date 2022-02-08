@@ -29,6 +29,7 @@ func toStep(r *api.StartStepRequest) *spec.Step {
 		Name:         r.Name,
 		Network:      r.Network,
 		Networks:     r.Networks,
+		Ports:        r.Ports,
 		Privileged:   r.Privileged,
 		Pull:         r.Pull,
 		ShmSize:      r.ShmSize,
