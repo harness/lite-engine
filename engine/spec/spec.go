@@ -41,7 +41,7 @@ type (
 		Name         string            `json:"name,omitempty"`
 		Network      string            `json:"network,omitempty"`
 		Networks     []string          `json:"networks,omitempty"`
-		Ports        map[string]string `json:"ports,omitempty"` // Host port to container port mapping.
+		PortBindings map[string]string `json:"port_bindings,omitempty"` // Host port to container port mapping.
 		Privileged   bool              `json:"privileged,omitempty"`
 		Pull         PullPolicy        `json:"pull,omitempty"`
 		Secrets      []*Secret         `json:"secrets,omitempty"`

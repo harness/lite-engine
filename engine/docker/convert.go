@@ -5,7 +5,6 @@
 package docker
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/harness/lite-engine/engine/spec"
@@ -48,11 +47,10 @@ func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *container.C
 	if len(step.Volumes) != 0 {
 		config.Volumes = toVolumeSet(pipelineConfig, step)
 	}
-	if len(step.Ports) != 0 {
+	if len(step.PortBindings) != 0 {
 		exposedPorts := make(nat.PortSet)
-		for _, ctrPort := range step.Ports {
-			p := nat.Port(fmt.Sprintf("%s/tcp", ctrPort))
-			exposedPorts[p] = struct{}{}
+		for _, ctrPort := range step.PortBindings {
+			exposedPorts[nat.Port(ctrPort)] = struct{}{}
 		}
 		config.ExposedPorts = exposedPorts
 	}
@@ -102,10 +100,10 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.Mounts = toVolumeMounts(pipelineConfig, step)
 	}
 
-	if len(step.Ports) != 0 {
+	if len(step.PortBindings) != 0 {
 		portBinding := make(nat.PortMap)
-		for hostPort, ctrPort := range step.Ports {
-			p := nat.Port(fmt.Sprintf("%s/tcp", ctrPort))
+		for hostPort, ctrPort := range step.PortBindings {
+			p := nat.Port(ctrPort)
 			if _, ok := portBinding[p]; ok {
 				portBinding[p] = append(portBinding[p], nat.PortBinding{HostPort: hostPort})
 			} else {
