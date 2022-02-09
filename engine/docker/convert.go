@@ -12,6 +12,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/go-connections/nat"
 )
 
 // returns a container configuration.
@@ -45,6 +46,13 @@ func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *container.C
 	}
 	if len(step.Volumes) != 0 {
 		config.Volumes = toVolumeSet(pipelineConfig, step)
+	}
+	if len(step.PortBindings) != 0 {
+		exposedPorts := make(nat.PortSet)
+		for _, ctrPort := range step.PortBindings {
+			exposedPorts[nat.Port(ctrPort)] = struct{}{}
+		}
+		config.ExposedPorts = exposedPorts
 	}
 	return config
 }
@@ -90,6 +98,23 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.Devices = toDeviceSlice(pipelineConfig, step)
 		config.Binds = toVolumeSlice(pipelineConfig, step)
 		config.Mounts = toVolumeMounts(pipelineConfig, step)
+	}
+
+	if len(step.PortBindings) != 0 {
+		portBinding := make(nat.PortMap)
+		for hostPort, ctrPort := range step.PortBindings {
+			p := nat.Port(ctrPort)
+			if _, ok := portBinding[p]; ok {
+				portBinding[p] = append(portBinding[p], nat.PortBinding{HostPort: hostPort})
+			} else {
+				portBinding[p] = []nat.PortBinding{
+					{
+						HostPort: hostPort,
+					},
+				}
+			}
+		}
+		config.PortBindings = portBinding
 	}
 	return config
 }

@@ -63,6 +63,7 @@ type (
 		MemLimit     int64                `json:"mem_limit,omitempty"`
 		Network      string               `json:"network,omitempty"`
 		Networks     []string             `json:"networks,omitempty"`
+		PortBindings map[string]string    `json:"port_bindings,omitempty"` // Host port to container port mapping
 		Privileged   bool                 `json:"privileged,omitempty"`
 		Pull         spec.PullPolicy      `json:"pull,omitempty"`
 		ShmSize      int64                `json:"shm_size,omitempty"`
