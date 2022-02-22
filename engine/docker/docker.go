@@ -9,9 +9,9 @@ import (
 	"io"
 	"sync"
 
+	"github.com/harness/lite-engine/engine/docker/image"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/internal/docker/errors"
-	"github.com/harness/lite-engine/internal/docker/image"
 	"github.com/harness/lite-engine/internal/docker/jsonmessage"
 	"github.com/harness/lite-engine/internal/docker/stdcopy"
 	"github.com/sirupsen/logrus"
