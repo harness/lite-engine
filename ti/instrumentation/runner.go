@@ -1,3 +1,7 @@
+// Copyright 2022 Drone.IO Inc. All rights reserved.
+// Use of this source code is governed by the Polyform License
+// that can be found in the LICENSE file.
+
 // TestRunner provides the test command and java agent config
 // which is needed to run test intelligence.
 package instrumentation

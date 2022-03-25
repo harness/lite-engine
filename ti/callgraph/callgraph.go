@@ -1,3 +1,7 @@
+// Copyright 2022 Drone.IO Inc. All rights reserved.
+// Use of this source code is governed by the Polyform License
+// that can be found in the LICENSE file.
+
 // This file has a Callgraph object which is used to upload callgraph from
 // addon to ti server. It also contains helper functions, FromStringMap which
 // takes avro decoded output and returns a Callgraph function. ToStringMap fn
