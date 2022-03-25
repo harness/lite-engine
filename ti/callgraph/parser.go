@@ -1,3 +1,7 @@
+// Copyright 2022 Drone.IO Inc. All rights reserved.
+// Use of this source code is governed by the Polyform License
+// that can be found in the LICENSE file.
+
 // This file implements a parser for callgraph file. It reads all the files
 // in the callgraph directory, dedupes the data, and then returns Callgraph object
 package callgraph

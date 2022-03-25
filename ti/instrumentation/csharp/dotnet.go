@@ -1,3 +1,7 @@
+// Copyright 2022 Drone.IO Inc. All rights reserved.
+// Use of this source code is governed by the Polyform License
+// that can be found in the LICENSE file.
+
 // Package csharp allows any C# application that can run through the dotnet CLI
 // should be able to use this to perform test intelligence.
 //
