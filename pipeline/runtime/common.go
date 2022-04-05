@@ -47,7 +47,7 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 }
 
 func isPowershell(entrypoint []string) bool {
-	if len(entrypoint) > 0 && entrypoint[0] == "powershell" {
+	if len(entrypoint) > 0 && (entrypoint[0] == "powershell" || entrypoint[0] == "pwsh") {
 		return true
 	}
 	return false
