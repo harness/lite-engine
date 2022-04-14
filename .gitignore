@@ -3,3 +3,5 @@ lite-engine.exe
 .env
 get-docker.sh
 /release/
+/lite-engine-windows-amd64.exe
+/lite-engine-darwin-amd64
