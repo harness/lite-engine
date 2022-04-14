@@ -1,5 +1,5 @@
-lite-engine
-lite-engine.exe
+lite-engine*
 .env
 get-docker.sh
 /release/
+

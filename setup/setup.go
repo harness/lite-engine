@@ -32,6 +32,7 @@ func PrepareSystem() {
 }
 
 const windowsString = "windows"
+const osxString = "darwin"
 
 func GitInstalled(instanceInfo InstanceInfo) (installed bool) {
 	logrus.Infoln("checking git is installed")
@@ -54,6 +55,14 @@ func DockerInstalled(instanceInfo InstanceInfo) (installed bool) {
 	switch instanceInfo.osType {
 	case windowsString:
 		logrus.Infoln("windows: we should check docker installation here")
+	case osxString:
+		cmd := exec.Command("/usr/local/bin/docker", "ps")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		if err != nil {
+			return false
+		}
 	default:
 		cmd := exec.Command("docker", "ps")
 		cmd.Stdout = os.Stdout
