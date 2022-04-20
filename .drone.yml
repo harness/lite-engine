@@ -28,33 +28,109 @@ volumes:
   - name: cache
     temp: {}
 
-# ---
-# kind: pipeline
-# type: aws
-# name: ubuntu acceptance tests
+---
+kind: pipeline
+type: aws
+name: ubuntu acceptance tests
 
-# pool:
-#   use: ubuntu
+pool:
+  use: ubuntu
 
-# steps:
-#   - name: build
-#     image: golang:1.17
-#     commands:
-#       - GOOS=linux   GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/linux/amd64/lite-engine
-#   - name: server
-#     detach: true
-#     commands:
-#       - touch .env
-#       - ./release/linux/amd64/lite-engine certs
-#       - ./release/linux/amd64/lite-engine server
-#     depends_on:
-#       - build
-#   - name: run certs client
-#     commands:
-#       - sleep 5
-#       - ./release/linux/amd64/lite-engine client
-#     depends_on:
-#       - server
+steps:
+  - name: build
+    image: golang:1.17
+    commands:
+      - go build -o lite-engine
+  - name: server
+    detach: true
+    commands:
+      - touch .env
+      - echo "SERVER_HTTPS_BIND=localhost:9000" >> .env
+      - echo "CLIENT_HTTPS_BIND=localhost:9000" >> .env
+      - echo "SERVER_INSECURE=true" >> .env
+      - echo "CLIENT_INSECURE=true" >> .env
+      - echo "DEBUG=true" >> .env
+      - echo "TRACE=true" >> .env
+      - ./lite-engine server --env-file=".env"
+    depends_on:
+      - build
+  - name: client
+    commands:
+      - sleep 5
+      - cat .env
+      - while ! curl -sf http://localhost:9000/healthz; do sleep 1; done
+      - ./lite-engine client --env-file=".env"
+    depends_on:
+      - server
+
+---
+kind: pipeline
+type: aws
+name: arm64 ubuntu acceptance tests
+
+pool:
+  use: ubuntu_arm64
+
+steps:
+  - name: build
+    image: golang:1.17
+    commands:
+      - go build -o lite-engine
+  - name: server
+    detach: true
+    commands:
+      - touch .env
+      - echo "SERVER_HTTPS_BIND=localhost:9000" >> .env
+      - echo "CLIENT_HTTPS_BIND=localhost:9000" >> .env
+      - echo "SERVER_INSECURE=true" >> .env
+      - echo "CLIENT_INSECURE=true" >> .env
+      - echo "DEBUG=true" >> .env
+      - echo "TRACE=true" >> .env
+      - ./lite-engine server --env-file=".env"
+    depends_on:
+      - build
+  - name: client
+    commands:
+      - sleep 5
+      - cat .env
+      - while ! curl -sf http://localhost:9000/healthz; do sleep 1; done
+      - ./lite-engine client --env-file=".env"
+    depends_on:
+      - server
+
+---
+kind: pipeline
+type: aws
+name: windows acceptance tests
+
+pool:
+  use: windows
+
+steps:
+  - name: build
+    image: golang:1.17
+    commands:
+      - go build -o lite-engine.exe
+  - name: server
+    detach: true
+    commands:
+      - echo "SERVER_HTTPS_BIND=localhost:9000" >> .env
+      - echo "CLIENT_HTTPS_BIND=localhost:9000" >> .env
+      - echo "SERVER_INSECURE=true" >> .env
+      - echo "CLIENT_INSECURE=true" >> .env
+      - echo "DEBUG=true" >> .env
+      - echo "TRACE=true" >> .env
+      - (Get-Content ".env") | Set-Content ".env"
+      - .\lite-engine.exe server --env-file=".env"
+    depends_on:
+      - build
+  - name: client
+    commands:
+      - sleep 10
+      - cat .env
+      - .\lite-engine.exe client --env-file=".env"
+    depends_on:
+      - server
 
 ---
 kind: pipeline
