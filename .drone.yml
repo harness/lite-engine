@@ -66,6 +66,41 @@ steps:
 ---
 kind: pipeline
 type: aws
+name: ubuntu acceptance tests
+
+pool:
+  use: osx
+
+steps:
+  - name: build
+    image: golang:1.17
+    commands:
+      - go build -o lite-engine
+  - name: server
+    detach: true
+    commands:
+      - touch .env
+      - echo "SERVER_HTTPS_BIND=localhost:9000" >> .env
+      - echo "CLIENT_HTTPS_BIND=localhost:9000" >> .env
+      - echo "SERVER_INSECURE=true" >> .env
+      - echo "CLIENT_INSECURE=true" >> .env
+      - echo "DEBUG=true" >> .env
+      - echo "TRACE=true" >> .env
+      - ./lite-engine server --env-file=".env"
+    depends_on:
+      - build
+  - name: client
+    commands:
+      - sleep 5
+      - cat .env
+      - while ! curl -sf http://localhost:9000/healthz; do sleep 1; done
+      - ./lite-engine client --env-file=".env"
+    depends_on:
+      - server
+      
+---
+kind: pipeline
+type: aws
 name: arm64 ubuntu acceptance tests
 
 pool:
