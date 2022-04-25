@@ -75,7 +75,7 @@ pool:
   use: osx
 
 steps:
-  - name: install go
+  - name: install_go
     commands:
       - brew install golang
   - name: server
@@ -90,7 +90,7 @@ steps:
       - echo "TRACE=true" >> .env
       - ./lite-engine server --env-file=".env"
     depends_on:
-      - build
+      - install_go
   - name: client
     commands:
       - sleep 5
