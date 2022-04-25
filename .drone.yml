@@ -78,7 +78,7 @@ steps:
   - name: install_go
     commands:
       - brew install golang
-      - go build -o lite-engine.exe
+      - go build -o lite-engine
   - name: server
     detach: true
     commands:
