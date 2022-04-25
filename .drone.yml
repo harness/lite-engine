@@ -32,10 +32,7 @@ volumes:
 kind: pipeline
 type: aws
 name: ubuntu acceptance tests
-
-node:
-  cluster1: gcp 
-  
+ 
 pool:
   use: ubuntu
 
@@ -109,9 +106,6 @@ kind: pipeline
 type: aws
 name: arm64 ubuntu acceptance tests
 
-node:
-  cluster1: gcp 
-  
 pool:
   use: ubuntu_arm64
 
@@ -146,9 +140,6 @@ steps:
 kind: pipeline
 type: aws
 name: windows acceptance tests
-
-node:
-  cluster1: gcp 
   
 pool:
   use: windows
