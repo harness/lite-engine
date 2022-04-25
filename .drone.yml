@@ -75,10 +75,9 @@ pool:
   use: osx
 
 steps:
-  - name: build
-    image: golang:1.17
+  - name: install go
     commands:
-      - go build -o lite-engine
+      - brew install golang
   - name: server
     detach: true
     commands:
