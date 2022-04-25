@@ -68,6 +68,9 @@ kind: pipeline
 type: aws
 name: osx acceptance tests
 
+node:
+  cluster: mac 
+  
 pool:
   use: osx
 
