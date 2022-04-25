@@ -34,7 +34,7 @@ type: aws
 name: ubuntu acceptance tests
 
 node:
-  cluster: gcp 
+  cluster1: gcp 
   
 pool:
   use: ubuntu
@@ -110,7 +110,7 @@ type: aws
 name: arm64 ubuntu acceptance tests
 
 node:
-  cluster: gcp 
+  cluster1: gcp 
   
 pool:
   use: ubuntu_arm64
@@ -148,7 +148,7 @@ type: aws
 name: windows acceptance tests
 
 node:
-  cluster: gcp 
+  cluster1: gcp 
   
 pool:
   use: windows
