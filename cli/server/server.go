@@ -63,6 +63,7 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 		CAFile:   loadedConfig.Server.CACertFile, // CA certificate file
 		CertFile: loadedConfig.Server.CertFile,   // Server certificate PEM file
 		KeyFile:  loadedConfig.Server.KeyFile,    // Server key file
+		Insecure: loadedConfig.Server.Insecure,   // Skip server certificate verification
 	}
 
 	// trap the os signal to gracefully shutdown the http server.

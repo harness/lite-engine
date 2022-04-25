@@ -7,7 +7,8 @@ replace github.com/docker/docker => github.com/docker/engine v17.12.0-ce-rc1.0.2
 require (
 	github.com/cenkalti/backoff/v4 v4.1.1
 	github.com/docker/distribution v2.8.0+incompatible
-	github.com/docker/docker v0.0.1
+	github.com/docker/docker v1.3.3
+	// this is fake as we are using github.com/docker/engine, this makes the security warning go away
 	github.com/docker/go-connections v0.4.0
 	github.com/drone/drone-go v1.7.1
 	github.com/drone/runner-go v1.12.0

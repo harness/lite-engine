@@ -20,6 +20,7 @@ type Config struct {
 		KeyFile           string `envconfig:"SERVER_KEY_FILE" default:"/tmp/certs/server-key.pem"`   // Server key PEM file
 		CACertFile        string `envconfig:"CLIENT_CERT_FILE" default:"/tmp/certs/ca-cert.pem"`     // CA certificate file
 		SkipPrepareServer bool   `envconfig:"SKIP_PREPARE_SERVER" default:"false"`                   // skip prepare server, install docker / git
+		Insecure          bool   `envconfig:"SERVER_INSECURE" default:"false"`                       // run in insecure mode
 	}
 
 	Client struct {
@@ -27,6 +28,7 @@ type Config struct {
 		CertFile   string `envconfig:"CLIENT_CERT_FILE" default:"/tmp/certs/server-cert.pem"` // Server certificate PEM file
 		KeyFile    string `envconfig:"CLIENT_KEY_FILE" default:"/tmp/certs/server-key.pem"`   // Server Key PEM file
 		CaCertFile string `envconfig:"CA_CERT_FILE" default:"/tmp/certs/ca-cert.pem"`         // CA certificate file
+		Insecure   bool   `envconfig:"CLIENT_INSECURE" default:"false"`                       // dont check server certificate
 	}
 }
 

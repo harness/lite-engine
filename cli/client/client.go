@@ -7,6 +7,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -50,19 +51,28 @@ func (c *clientCommand) run(*kingpin.ParseContext) error {
 	if loadedConfig.Trace {
 		l.SetLevel(logrus.TraceLevel)
 	}
-	// read the certificates
-	ce, err := certs.ReadCerts(loadedConfig.Client.CaCertFile, loadedConfig.Client.CertFile, loadedConfig.Client.KeyFile)
-	if err != nil {
-		return err
-	}
 
-	client, err := NewHTTPClient(
-		fmt.Sprintf("https://%s/", loadedConfig.Client.Bind),
-		loadedConfig.ServerName, ce.CaCertFile, ce.CertFile, ce.KeyFile)
-	if err != nil {
-		logrus.WithError(err).
-			Errorln("failed to create client")
-		return errors.Wrap(err, "failed to create client")
+	var client *HTTPClient
+	if loadedConfig.Client.Insecure {
+		client = &HTTPClient{
+			Client:   &http.Client{},
+			Endpoint: fmt.Sprintf("http://%s/", loadedConfig.Client.Bind),
+		}
+	} else {
+		// read the certificates
+		ce, err := certs.ReadCerts(loadedConfig.Client.CaCertFile, loadedConfig.Client.CertFile, loadedConfig.Client.KeyFile)
+		if err != nil {
+			return err
+		}
+
+		client, err = NewHTTPClient(
+			fmt.Sprintf("https://%s/", loadedConfig.Client.Bind),
+			loadedConfig.ServerName, ce.CaCertFile, ce.CertFile, ce.KeyFile)
+		if err != nil {
+			logrus.WithError(err).
+				Errorln("failed to create client")
+			return errors.Wrap(err, "failed to create client")
+		}
 	}
 
 	if c.runStage {
