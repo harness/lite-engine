@@ -9,6 +9,7 @@ import (
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/setup"
+	"github.com/harness/lite-engine/version"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,7 +19,9 @@ func HandleHealth() http.HandlerFunc {
 		instanceInfo := setup.GetInstanceInfo()
 		dockerOK := setup.DockerInstalled(instanceInfo)
 		gitOK := setup.GitInstalled(instanceInfo)
+		version := version.Version
 		response := api.HealthResponse{
+			Version:         version,
 			DockerInstalled: dockerOK,
 			GitInstalled:    gitOK,
 			LiteEngineLog:   setup.GetLiteEngineLog(instanceInfo),
