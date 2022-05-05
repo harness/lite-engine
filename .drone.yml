@@ -65,7 +65,7 @@ steps:
 
 ---
 kind: pipeline
-type: aws
+type: vm
 name: osx acceptance tests
 
 node:
