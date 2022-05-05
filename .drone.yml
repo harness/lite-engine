@@ -30,7 +30,7 @@ volumes:
 
 ---
 kind: pipeline
-type: aws
+type: vm
 name: ubuntu acceptance tests
  
 pool:
@@ -103,7 +103,7 @@ steps:
       
 ---
 kind: pipeline
-type: aws
+type: vm
 name: arm64 ubuntu acceptance tests
 
 pool:
@@ -138,7 +138,7 @@ steps:
 
 ---
 kind: pipeline
-type: aws
+type: vm
 name: windows acceptance tests
   
 pool:
