@@ -20,12 +20,12 @@ You can generate a token by logging into your GitHub account and going to Settin
 
 Next we tag the PR's with the fixes or enhancements labels. If the PR does not fulfil the requirements, do not add a label.
 
-** Before moving on make sure to update the version file `version/version.go`. **
+**Before moving on make sure to update the version file `version/version.go`.**
 
 Run the changelog generator again with the future version according to semver.
 
 ```BASH
-docker run -it --rm -v "$(pwd)":/usr/local/src/your-app githubchangeloggenerator/github-changelog-generator -u harness -p lite-engine -t <secret token> --future-release v1.0.0
+docker run -it --rm -v "$(pwd)":/usr/local/src/your-app githubchangeloggenerator/github-changelog-generator -u harness -p lite-engine -t <secret token> --future-release v0.2.0
 ```
 
 Create your pull request for the release. Get it merged then tag the release.

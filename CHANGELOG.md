@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.1.0](https://github.com/harness/lite-engine/tree/v0.1.0) (2022-05-05)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.0.2...v0.1.0)
+
+**Implemented enhancements:**
+
+- \(feat\) add version to health check, and set it in cli [\#58](https://github.com/harness/lite-engine/pull/58) ([tphoney](https://github.com/tphoney))
+- \(feat\) re-add acceptance tests, lite-engine can run in HTTP mode [\#56](https://github.com/harness/lite-engine/pull/56) ([tphoney](https://github.com/tphoney))
+
+**Merged pull requests:**
+
+- update drone yml to use type of vm for osx [\#61](https://github.com/harness/lite-engine/pull/61) ([tphoney](https://github.com/tphoney))
+- \(maint\) change build type to vm in drone.yml [\#59](https://github.com/harness/lite-engine/pull/59) ([tphoney](https://github.com/tphoney))
+- Osx acceptance testing [\#57](https://github.com/harness/lite-engine/pull/57) ([tphoney](https://github.com/tphoney))
+
 ## [v0.0.2](https://github.com/harness/lite-engine/tree/v0.0.2) (2022-04-14)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.0.1.15...v0.0.2)
@@ -15,6 +30,7 @@
 
 **Merged pull requests:**
 
+- release prep v0.0.2 [\#55](https://github.com/harness/lite-engine/pull/55) ([eoinmcafee00](https://github.com/eoinmcafee00))
 - Add license to the repository [\#50](https://github.com/harness/lite-engine/pull/50) ([shubham149](https://github.com/shubham149))
 
 ## [v0.0.1.15](https://github.com/harness/lite-engine/tree/v0.0.1.15) (2022-02-24)
