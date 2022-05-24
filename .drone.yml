@@ -69,10 +69,10 @@ type: vm
 name: osx acceptance tests
 
 node:
-  cluster: mac 
-  
+  cluster: mac1
+
 pool:
-  use: osx
+  use: osx-anka
 
 steps:
   - name: install_go
