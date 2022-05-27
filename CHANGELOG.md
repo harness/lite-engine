@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.2.0](https://github.com/harness/lite-engine/tree/v0.2.0) (2022-05-27)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.1.0...v0.2.0)
+
+**Implemented enhancements:**
+
+- \(feat\) provides the ability to disable the auto mount of the docker socket [\#63](https://github.com/harness/lite-engine/pull/63) ([eoinmcafee00](https://github.com/eoinmcafee00))
+
+**Fixed bugs:**
+
+- \(fix\) update yaml.v3 [\#64](https://github.com/harness/lite-engine/pull/64) ([tphoney](https://github.com/tphoney))
+
+**Merged pull requests:**
+
+- use the anka runner [\#62](https://github.com/harness/lite-engine/pull/62) ([tphoney](https://github.com/tphoney))
+
 ## [v0.1.0](https://github.com/harness/lite-engine/tree/v0.1.0) (2022-05-05)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.0.2...v0.1.0)
@@ -12,6 +28,7 @@
 **Merged pull requests:**
 
 - update drone yml to use type of vm for osx [\#61](https://github.com/harness/lite-engine/pull/61) ([tphoney](https://github.com/tphoney))
+- \(maint\) release prep for v0.1.0 [\#60](https://github.com/harness/lite-engine/pull/60) ([tphoney](https://github.com/tphoney))
 - \(maint\) change build type to vm in drone.yml [\#59](https://github.com/harness/lite-engine/pull/59) ([tphoney](https://github.com/tphoney))
 - Osx acceptance testing [\#57](https://github.com/harness/lite-engine/pull/57) ([tphoney](https://github.com/tphoney))
 
