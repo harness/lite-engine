@@ -34,7 +34,10 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, s.TIConfig)
 
-		s.Volumes = append(s.Volumes, getSharedVolume(), getDockerSockVolume())
+		if s.MountDockerSocket { // required to support m1 where docker isn't installed.
+			s.Volumes = append(s.Volumes, getDockerSockVolume())
+		}
+		s.Volumes = append(s.Volumes, getSharedVolume())
 		cfg := &spec.PipelineConfig{
 			Envs:    s.Envs,
 			Network: s.Network,
