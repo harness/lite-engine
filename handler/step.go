@@ -31,7 +31,11 @@ func HandleStartStep(e *pruntime.StepExecutor) http.HandlerFunc {
 			return
 		}
 
-		s.Volumes = append(s.Volumes, getSharedVolumeMount(), getDockerSockVolumeMount())
+		if s.MountDockerSocket { // required to support m1 where docker isn't installed.
+			s.Volumes = append(s.Volumes, getDockerSockVolumeMount())
+		}
+
+		s.Volumes = append(s.Volumes, getSharedVolumeMount())
 
 		if err := e.StartStep(r.Context(), &s); err != nil {
 			WriteError(w, err)
