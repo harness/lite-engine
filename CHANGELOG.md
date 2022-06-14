@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.2.1](https://github.com/harness/lite-engine/tree/v0.2.1) (2022-06-14)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.2.0...v0.2.1)
+
+**Fixed bugs:**
+
+- fixes issue where default value of true would never get set on MountDockerVolume [\#67](https://github.com/harness/lite-engine/pull/67) ([eoinmcafee00](https://github.com/eoinmcafee00))
+- \(fix\) upgrade containerd dependency [\#66](https://github.com/harness/lite-engine/pull/66) ([tphoney](https://github.com/tphoney))
+
 ## [v0.2.0](https://github.com/harness/lite-engine/tree/v0.2.0) (2022-05-27)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.1.0...v0.2.0)
@@ -14,6 +23,7 @@
 
 **Merged pull requests:**
 
+- release prep for v0.2.0 [\#65](https://github.com/harness/lite-engine/pull/65) ([eoinmcafee00](https://github.com/eoinmcafee00))
 - use the anka runner [\#62](https://github.com/harness/lite-engine/pull/62) ([tphoney](https://github.com/tphoney))
 
 ## [v0.1.0](https://github.com/harness/lite-engine/tree/v0.1.0) (2022-05-05)
