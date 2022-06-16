@@ -45,8 +45,9 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 				OS:   runtime.GOOS,
 				Arch: runtime.GOARCH,
 			},
-			Volumes: s.Volumes,
-			Files:   s.Files,
+			Volumes:           s.Volumes,
+			Files:             s.Files,
+			EnableDockerSetup: s.MountDockerSocket,
 		}
 		if err := engine.Setup(r.Context(), cfg); err != nil {
 			logger.FromRequest(r).

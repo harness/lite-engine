@@ -47,9 +47,10 @@ type (
 		Run        RunConfig         `json:"run,omitempty"`
 		RunTest    RunTestConfig     `json:"run_test,omitempty"`
 
-		OutputVars []string   `json:"output_vars,omitempty"`
-		TestReport TestReport `json:"test_report,omitempty"`
-		Timeout    int        `json:"timeout,omitempty"` // step timeout in seconds
+		OutputVars        []string   `json:"output_vars,omitempty"`
+		TestReport        TestReport `json:"test_report,omitempty"`
+		Timeout           int        `json:"timeout,omitempty"` // step timeout in seconds
+		MountDockerSocket bool       `json:"mount_docker_socket" default:"true"`
 
 		// Valid only for steps running on docker container
 		Auth         *spec.Auth           `json:"auth,omitempty"`

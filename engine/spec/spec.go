@@ -13,11 +13,12 @@ type (
 	// PipelineConfig provides the pipeline level configuration valid for all
 	// the steps in the pipeline.
 	PipelineConfig struct {
-		Platform Platform          `json:"platform,omitempty"`
-		Volumes  []*Volume         `json:"volumes,omitempty"`
-		Network  Network           `json:"network"`
-		Envs     map[string]string `json:"envs,omitempty"`
-		Files    []*File           `json:"files,omitempty"`
+		Platform          Platform          `json:"platform,omitempty"`
+		Volumes           []*Volume         `json:"volumes,omitempty"`
+		Network           Network           `json:"network"`
+		Envs              map[string]string `json:"envs,omitempty"`
+		Files             []*File           `json:"files,omitempty"`
+		EnableDockerSetup *bool             `json:"mount_docker_socket"`
 	}
 
 	// Step defines a pipeline step.

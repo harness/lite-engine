@@ -69,8 +69,11 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	e.mu.Lock()
 	e.pipelineConfig = pipelineConfig
 	e.mu.Unlock()
-
-	return e.docker.Setup(ctx, pipelineConfig)
+	// required to support m1 where docker isn't installed.
+	if e.pipelineConfig.EnableDockerSetup == nil || *e.pipelineConfig.EnableDockerSetup {
+		return e.docker.Setup(ctx, pipelineConfig)
+	}
+	return nil
 }
 
 func (e *Engine) Destroy(ctx context.Context) error {
