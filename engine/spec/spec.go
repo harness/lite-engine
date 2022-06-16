@@ -18,7 +18,7 @@ type (
 		Network           Network           `json:"network"`
 		Envs              map[string]string `json:"envs,omitempty"`
 		Files             []*File           `json:"files,omitempty"`
-		EnableDockerSetup bool              `json:"mount_docker_socket" default:"true"`
+		EnableDockerSetup *bool             `json:"mount_docker_socket"`
 	}
 
 	// Step defines a pipeline step.
