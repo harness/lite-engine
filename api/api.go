@@ -25,7 +25,7 @@ type (
 		LogConfig         LogConfig         `json:"log_config,omitempty"`
 		TIConfig          TIConfig          `json:"ti_config,omitempty"`
 		Files             []*spec.File      `json:"files,omitempty"`
-		MountDockerSocket bool              `json:"mount_docker_socket" default:"true"`
+		MountDockerSocket *bool             `json:"mount_docker_socket,omitempty"`
 	}
 
 	SetupResponse struct{}
