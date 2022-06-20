@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.3.1](https://github.com/harness/lite-engine/tree/v0.3.1) (2022-06-20)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.3.0...v0.3.1)
+
+**Fixed bugs:**
+
+- make step nullable bool - default for true doesn't work on bool [\#71](https://github.com/harness/lite-engine/pull/71) ([eoinmcafee00](https://github.com/eoinmcafee00))
+
 ## [v0.3.0](https://github.com/harness/lite-engine/tree/v0.3.0) (2022-06-16)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.2.1...v0.3.0)
@@ -7,6 +15,10 @@
 **Implemented enhancements:**
 
 - \(feat\) m1 support, nested virtualisation - disable docker [\#69](https://github.com/harness/lite-engine/pull/69) ([eoinmcafee00](https://github.com/eoinmcafee00))
+
+**Merged pull requests:**
+
+- release prep for v0.3.0 [\#70](https://github.com/harness/lite-engine/pull/70) ([eoinmcafee00](https://github.com/eoinmcafee00))
 
 ## [v0.2.1](https://github.com/harness/lite-engine/tree/v0.2.1) (2022-06-14)
 
