@@ -17,7 +17,7 @@ type (
 		OK              bool   `json:"ok"`
 	}
 
-	SetupRequest struct {
+	SetupRequestConfig struct {
 		Envs              map[string]string `json:"envs,omitempty"`
 		Network           spec.Network      `json:"network"`
 		Volumes           []*spec.Volume    `json:"volumes,omitempty"`
@@ -26,6 +26,14 @@ type (
 		TIConfig          TIConfig          `json:"ti_config,omitempty"`
 		Files             []*spec.File      `json:"files,omitempty"`
 		MountDockerSocket *bool             `json:"mount_docker_socket,omitempty"`
+	}
+
+	SetupRequest struct {
+		ID                 string             `json:"id"` // stage runtime ID
+		CorrelationID      string             `json:"correlation_id"`
+		LogKey             string             `json:"log_key"`
+		StepNumber         int                `json:"step_number"`
+		SetupRequestConfig SetupRequestConfig `json:"setup_request_config"`
 	}
 
 	SetupResponse struct{}

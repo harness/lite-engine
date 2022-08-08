@@ -60,8 +60,9 @@ type HTTPClient struct {
 	Endpoint string
 }
 
+//TODO:xun change in to interface
 // Setup will setup the stage config
-func (c *HTTPClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.SetupResponse, error) {
+func (c *HTTPClient) Setup(ctx context.Context, in interface{}) (*api.SetupResponse, error) {
 	path := "setup"
 	out := new(api.SetupResponse)
 	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) // nolint:bodyclose
@@ -77,7 +78,7 @@ func (c *HTTPClient) Destroy(ctx context.Context, in *api.DestroyRequest) (*api.
 }
 
 func (c *HTTPClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
-	path := "start_step"
+	path := "step"
 	out := new(api.StartStepResponse)
 	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) // nolint:bodyclose
 	return out, err

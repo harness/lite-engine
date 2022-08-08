@@ -111,7 +111,7 @@ func runStage(client *HTTPClient, remoteLog bool) error {
 	}
 	logrus.Infof("healthy")
 
-	setupParams := &api.SetupRequest{
+	setupConfig := api.SetupRequestConfig{
 		Volumes: []*spec.Volume{
 			{
 				HostPath: &spec.VolumeHostPath{
@@ -133,15 +133,21 @@ func runStage(client *HTTPClient, remoteLog bool) error {
 		},
 	}
 	if remoteLog {
-		setupParams.LogConfig = api.LogConfig{
+		setupConfig.LogConfig = api.LogConfig{
 			URL:            "http://localhost:8079",
 			AccountID:      "kmpy",
 			Token:          "token",
 			IndirectUpload: true,
 		}
 	}
+	setup := &api.SetupRequest{
+		ID:                 "1",
+		StepNumber:         1,
+		SetupRequestConfig: setupConfig,
+	}
 	logrus.Infof("starting setup")
-	if _, err := client.Setup(ctx, setupParams); err != nil {
+	logrus.Infof("starting setup")
+	if _, err := client.Setup(ctx, &setup); err != nil {
 		logrus.WithError(err).Errorln("setup call failed")
 		return err
 	}

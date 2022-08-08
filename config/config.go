@@ -15,7 +15,7 @@ type Config struct {
 	ServerName string `envconfig:"SERVER_NAME" default:"drone"`
 
 	Server struct {
-		Bind              string `envconfig:"HTTPS_BIND" default:":9079"`
+		Bind              string `envconfig:"HTTPS_BIND" default:":3000"`
 		CertFile          string `envconfig:"SERVER_CERT_FILE" default:"/tmp/certs/server-cert.pem"` // Server certificate PEM file
 		KeyFile           string `envconfig:"SERVER_KEY_FILE" default:"/tmp/certs/server-key.pem"`   // Server key PEM file
 		CACertFile        string `envconfig:"CLIENT_CERT_FILE" default:"/tmp/certs/ca-cert.pem"`     // CA certificate file
@@ -24,7 +24,7 @@ type Config struct {
 	}
 
 	Client struct {
-		Bind       string `envconfig:"HTTPS_BIND" default:":9079"`
+		Bind       string `envconfig:"HTTPS_BIND" default:":3000"`
 		CertFile   string `envconfig:"CLIENT_CERT_FILE" default:"/tmp/certs/server-cert.pem"` // Server certificate PEM file
 		KeyFile    string `envconfig:"CLIENT_KEY_FILE" default:"/tmp/certs/server-key.pem"`   // Server Key PEM file
 		CaCertFile string `envconfig:"CA_CERT_FILE" default:"/tmp/certs/ca-cert.pem"`         // CA certificate file

@@ -32,6 +32,15 @@ type State struct {
 	logClient logstream.Client
 }
 
+func NewState() *State {
+	return &State{
+		logConfig: api.LogConfig{},
+		tiConfig:  api.TIConfig{},
+		secrets:   make([]string, 0),
+		logClient: nil,
+	}
+}
+
 func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig api.TIConfig) { // nolint:gocritic
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -9,11 +9,10 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"net/http"
-
 	"github.com/docker/go-connections/tlsconfig"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"net/http"
 )
 
 // A Server defines parameters for running an HTTPS/TLS server.

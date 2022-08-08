@@ -6,6 +6,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"runtime"
@@ -14,12 +15,15 @@ import (
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/executor"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/pipeline"
+	leruntime "github.com/harness/lite-engine/pipeline/runtime"
 )
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
 func HandleSetup(engine *engine.Engine) http.HandlerFunc {
+	fmt.Println("enter HandleSetup")
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
@@ -29,26 +33,31 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			WriteBadRequest(w, err)
 			return
 		}
+		id := s.ID
+		stepNumber := s.StepNumber
+		config := s.SetupRequestConfig
+		fmt.Println("Handle SetupRequest: %s", s)
 
-		setProxyEnvs(s.Envs)
+		setProxyEnvs(config.Envs)
 		state := pipeline.GetState()
-		state.Set(s.Secrets, s.LogConfig, s.TIConfig)
+		state.Set(config.Secrets, config.LogConfig, config.TIConfig)
 
-		if s.MountDockerSocket == nil || *s.MountDockerSocket { // required to support m1 where docker isn't installed.
-			s.Volumes = append(s.Volumes, getDockerSockVolume())
+		if config.MountDockerSocket == nil || *config.MountDockerSocket { // required to support m1 where docker isn't installed.
+			config.Volumes = append(config.Volumes, getDockerSockVolume())
 		}
-		s.Volumes = append(s.Volumes, getSharedVolume())
+		config.Volumes = append(config.Volumes, getSharedVolume())
 		cfg := &spec.PipelineConfig{
-			Envs:    s.Envs,
-			Network: s.Network,
+			Envs:    config.Envs,
+			Network: config.Network,
 			Platform: spec.Platform{
 				OS:   runtime.GOOS,
 				Arch: runtime.GOARCH,
 			},
-			Volumes:           s.Volumes,
-			Files:             s.Files,
-			EnableDockerSetup: s.MountDockerSocket,
+			Volumes:           config.Volumes,
+			Files:             config.Files,
+			EnableDockerSetup: config.MountDockerSocket,
 		}
+
 		if err := engine.Setup(r.Context(), cfg); err != nil {
 			logger.FromRequest(r).
 				WithField("latency", time.Since(st)).
@@ -57,6 +66,20 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			WriteError(w, err)
 			return
 		}
+
+		stepExecutors := []*leruntime.StepExecutor{}
+		for i := 0; i < stepNumber; i++ {
+			stepExecutors = append(stepExecutors, leruntime.NewStepExecutor(engine))
+		}
+		// Add the state of this execution to the executor
+		stageData := &executor.StageData{
+			Engine:        engine,
+			StepExecutors: stepExecutors,
+			State:         state,
+		}
+		ex := executor.GetExecutor()
+		ex.Add(id, stageData)
+
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
 		logger.FromRequest(r).
 			WithField("latency", time.Since(st)).

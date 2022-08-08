@@ -7,13 +7,12 @@ package handler
 import (
 	"net/http"
 
+	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/harness/lite-engine/config"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/pipeline/runtime"
-
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
 )
 
 // Handler returns an http.Handler that exposes the service resources.
@@ -37,7 +36,7 @@ func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime
 	}())
 
 	// Start step endpoint
-	r.Mount("/start_step", func() http.Handler {
+	r.Mount("/step", func() http.Handler {
 		sr := chi.NewRouter()
 		sr.Post("/", HandleStartStep(stepExecutor))
 		return sr
