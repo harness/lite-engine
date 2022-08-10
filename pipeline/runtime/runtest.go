@@ -31,6 +31,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	step := toStep(r)
 	step.Command = []string{cmd}
 	step.Entrypoint = r.RunTest.Entrypoint
+	setTiEnvVariables(step)
 
 	if len(r.OutputVars) > 0 && len(step.Entrypoint) == 0 || len(step.Command) == 0 {
 		return nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
