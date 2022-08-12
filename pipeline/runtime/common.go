@@ -6,13 +6,17 @@ package runtime
 
 import (
 	"bufio"
+	b64 "encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
+	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logstream"
+	"github.com/harness/lite-engine/pipeline"
+	"github.com/harness/lite-engine/ti"
 	"github.com/sirupsen/logrus"
 )
 
@@ -82,4 +86,25 @@ func fetchOutputVariables(outputFile string, out io.Writer) (map[string]string, 
 		return nil, err
 	}
 	return outputs, nil
+}
+
+// setTiEnvVariables sets the environment variables required for TI
+func setTiEnvVariables(step *spec.Step) {
+
+	config := pipeline.GetState().GetTIConfig()
+	if config == nil {
+		return
+	}
+	if step.Envs == nil {
+		step.Envs = map[string]string{}
+	}
+
+	envMap := step.Envs
+	envMap[ti.TiSvcEp] = config.URL
+	envMap[ti.TiSvcToken] = b64.StdEncoding.EncodeToString([]byte(config.Token))
+	envMap[ti.AccountIDEnv] = config.AccountID
+	envMap[ti.OrgIDEnv] = config.OrgID
+	envMap[ti.ProjectIDEnv] = config.ProjectID
+	envMap[ti.PipelineIDEnv] = config.PipelineID
+	envMap[ti.InfraEnv] = ti.HarnessInfra
 }
