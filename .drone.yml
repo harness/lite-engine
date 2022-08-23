@@ -69,7 +69,7 @@ type: vm
 name: osx acceptance tests
 
 node:
-  cluster: mac1
+  cluster: anka-intel
 
 pool:
   use: osx-anka
