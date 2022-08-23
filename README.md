@@ -29,3 +29,6 @@ docker run -it --rm -v "$(pwd)":/usr/local/src/your-app githubchangeloggenerator
 ```
 
 Create your pull request for the release. Get it merged then tag the release.
+
+
+
