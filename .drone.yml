@@ -68,11 +68,8 @@ kind: pipeline
 type: vm
 name: osx acceptance tests
 
-node:
-  cluster: anka-intel
-
 pool:
-  use: osx-anka
+  use: anka-intel
 
 steps:
   - name: install_go
