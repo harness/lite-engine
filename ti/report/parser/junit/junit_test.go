@@ -29,7 +29,7 @@ func getBaseDir() string {
 }
 
 // createNestedDir will create a nested directory relative to default temp directory
-func createNestedDir(path string) error { // nolint:unparam
+func createNestedDir(path string) error { //nolint:unparam
 	absPath := getBaseDir() + path
 	err := os.MkdirAll(absPath, 0777)
 	if err != nil {
@@ -48,7 +48,7 @@ func removeBaseDir() error {
 }
 
 // copy file from src to relative dst in temp directory. Any existing file will be overwritten.
-func copy(src, relDst string) error { // nolint:gocritic
+func copy(src, relDst string) error { //nolint:gocritic
 	dst := getBaseDir() + relDst
 	in, err := os.Open(src)
 	if err != nil {
@@ -146,7 +146,7 @@ func TestGetTests_All(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer removeBaseDir() // nolint:errcheck
+	defer removeBaseDir() //nolint:errcheck
 	var paths []string
 	paths = append(paths, getBaseDir()+"**/*.xml") // Regex to get both reports
 
@@ -168,7 +168,7 @@ func TestGetTests_All_MultiplePaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer removeBaseDir() // nolint:errcheck
+	defer removeBaseDir() //nolint:errcheck
 	basePath := getBaseDir()
 	var paths []string
 	// Add multiple paths to get repeated filenames. Tests should still be unique (per filename)
@@ -192,7 +192,7 @@ func TestGetTests_FirstRegex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer removeBaseDir() // nolint:errcheck
+	defer removeBaseDir() //nolint:errcheck
 	basePath := getBaseDir()
 	var paths []string
 	paths = append(paths, basePath+"a/b/*.xml") // Regex to get both reports
@@ -215,7 +215,7 @@ func TestGetTests_SecondRegex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer removeBaseDir() // nolint:errcheck
+	defer removeBaseDir() //nolint:errcheck
 	basePath := getBaseDir()
 	var paths []string
 	paths = append(paths, basePath+"a/b/**/*2.xml") // Regex to get both reports
@@ -238,7 +238,7 @@ func TestGetTests_NoMatchingRegex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer removeBaseDir() // nolint:errcheck
+	defer removeBaseDir() //nolint:errcheck
 	basePath := getBaseDir()
 	var paths []string
 	paths = append(paths, basePath+"a/b/**/*3.xml") // Regex to get both reports

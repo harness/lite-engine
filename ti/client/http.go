@@ -58,7 +58,7 @@ func NewHTTPClient(endpoint, token, accountID, orgID, projectID, pipelineID, bui
 			Transport: &http.Transport{
 				Proxy: http.ProxyFromEnvironment,
 				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true, // nolint:gosec
+					InsecureSkipVerify: true, //nolint:gosec
 				},
 			},
 		}
@@ -85,7 +85,7 @@ type HTTPClient struct {
 // Write writes test results to the TI server
 func (c *HTTPClient) Write(ctx context.Context, stepID, report string, tests []*ti.TestCase) error {
 	path := fmt.Sprintf(dbEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, report, c.Repo, c.Sha)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &tests, nil) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &tests, nil) //nolint:bodyclose
 	return err
 }
 
@@ -93,7 +93,7 @@ func (c *HTTPClient) Write(ctx context.Context, stepID, report string, tests []*
 func (c *HTTPClient) DownloadLink(ctx context.Context, language, os, arch, framework string) ([]ti.DownloadLink, error) {
 	path := fmt.Sprintf(agentEndpoint, c.AccountID, language, os, arch, framework)
 	var resp []ti.DownloadLink
-	_, err := c.do(ctx, c.Endpoint+path, "GET", "", nil, &resp) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "GET", "", nil, &resp) //nolint:bodyclose
 	return resp, err
 }
 
@@ -101,20 +101,20 @@ func (c *HTTPClient) DownloadLink(ctx context.Context, language, os, arch, frame
 func (c *HTTPClient) SelectTests(ctx context.Context, stepID, source, target string, in *ti.SelectTestsReq) (ti.SelectTestsResp, error) {
 	path := fmt.Sprintf(testEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target)
 	var resp ti.SelectTestsResp
-	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, in, &resp) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, in, &resp) //nolint:bodyclose
 	return resp, err
 }
 
 // UploadCg uploads avro encoded callgraph to server
 func (c *HTTPClient) UploadCg(ctx context.Context, stepID, source, target string, timeMs int64, cg []byte) error {
 	path := fmt.Sprintf(cgEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target, timeMs)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &cg, nil) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &cg, nil) //nolint:bodyclose
 	return err
 }
 
 // do is a helper function that posts a signed http request with
 // the input encoded and response decoded from json.
-func (c *HTTPClient) do(ctx context.Context, path, method, sha string, in, out interface{}) (*http.Response, error) { // nolint:unparam
+func (c *HTTPClient) do(ctx context.Context, path, method, sha string, in, out interface{}) (*http.Response, error) { //nolint:unparam
 	var r io.Reader
 
 	if in != nil {
@@ -143,7 +143,7 @@ func (c *HTTPClient) do(ctx context.Context, path, method, sha string, in, out i
 		defer func() {
 			// drain the response body so we can reuse
 			// this connection.
-			if _, cerr := io.Copy(io.Discard, io.LimitReader(res.Body, 4096)); cerr != nil { // nolint:gomnd
+			if _, cerr := io.Copy(io.Discard, io.LimitReader(res.Body, 4096)); cerr != nil { //nolint:gomnd
 				logrus.WithError(cerr).Errorln("failed to drain response body")
 			}
 			res.Body.Close()
@@ -156,7 +156,7 @@ func (c *HTTPClient) do(ctx context.Context, path, method, sha string, in, out i
 	// if the response body return no content we exit
 	// immediately. We do not read or unmarshal the response
 	// and we do not return an error.
-	if res.StatusCode == 204 { // nolint:gomnd
+	if res.StatusCode == http.StatusNoContent {
 		return res, nil
 	}
 
@@ -166,7 +166,7 @@ func (c *HTTPClient) do(ctx context.Context, path, method, sha string, in, out i
 		return res, err
 	}
 
-	if res.StatusCode > 299 { // nolint:gomnd
+	if res.StatusCode >= http.StatusMultipleChoices {
 		// if the response body includes an error message
 		// we should return the error string.
 		if len(body) != 0 {

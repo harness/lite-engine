@@ -17,7 +17,7 @@ import (
 // at the suite level.
 //
 // The following relation should hold true.
-//   Tests == (Passed + Skipped + Failed + Error)
+// Tests == (Passed + Skipped + Failed + Error)
 type Totals struct {
 	// Tests is the total number of tests run.
 	Tests int `json:"tests" yaml:"tests"`
@@ -72,7 +72,7 @@ type Suite struct {
 func (s *Suite) Aggregate() {
 	totals := Totals{Tests: len(s.Tests)}
 
-	for _, test := range s.Tests { // nolint:gocritic
+	for _, test := range s.Tests { //nolint:gocritic
 		totals.DurationMs += test.DurationMs
 		switch test.Result.Status {
 		case ti.StatusPassed:
@@ -87,7 +87,7 @@ func (s *Suite) Aggregate() {
 	}
 
 	// just summing totals from nested suites
-	for _, suite := range s.Suites { // nolint:gocritic
+	for _, suite := range s.Suites { //nolint:gocritic
 		suite.Aggregate()
 		totals.Tests += suite.Totals.Tests
 		totals.DurationMs += suite.Totals.DurationMs

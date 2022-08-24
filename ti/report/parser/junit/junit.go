@@ -39,8 +39,8 @@ func ParseTests(paths []string, log *logrus.Logger) []*ti.TestCase {
 				Errorln(fmt.Sprintf("could not parse file %s", file))
 			continue
 		}
-		for _, suite := range suites { // nolint:gocritic
-			for _, test := range suite.Tests { // nolint:gocritic
+		for _, suite := range suites { //nolint:gocritic
+			for _, test := range suite.Tests { //nolint:gocritic
 				ct := convert(test, suite)
 				if ct.Name != "" {
 					tests = append(tests, ct)
@@ -89,7 +89,7 @@ func uniqueItems(items []string) []string {
 }
 
 // convert combines relevant information in test cases and test suites and parses it to our custom format
-func convert(testCase gojunit.Test, testSuite gojunit.Suite) *ti.TestCase { // nolint:gocritic
+func convert(testCase gojunit.Test, testSuite gojunit.Suite) *ti.TestCase { //nolint:gocritic
 	testCase.Result.Desc = restrictLength(testCase.Result.Desc)
 	testCase.Result.Message = restrictLength(testCase.Result.Message)
 	return &ti.TestCase{

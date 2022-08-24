@@ -18,7 +18,7 @@ import (
 	"github.com/harness/lite-engine/ti"
 )
 
-func TestExamplesInTheWild(t *testing.T) { // nolint:funlen
+func TestExamplesInTheWild(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		title    string
 		filename string
@@ -70,7 +70,7 @@ func TestExamplesInTheWild(t *testing.T) { // nolint:funlen
 			check: func(t *testing.T, suites []Suite) {
 				assert.Len(t, suites, 1)
 				assert.Len(t, suites[0].Tests, 1)
-				assert.Equal(t, suites[0].Tests[0].Result.Desc, "\nWARNING: Use a program name that matches the source file name\nCategory: COBOL Code Review – Naming Conventions\nFile: /project/PROGRAM.cbl\nLine: 2\n      ") // nolint:lll
+				assert.Equal(t, suites[0].Tests[0].Result.Desc, "\nWARNING: Use a program name that matches the source file name\nCategory: COBOL Code Review – Naming Conventions\nFile: /project/PROGRAM.cbl\nLine: 2\n      ") //nolint:lll
 			},
 		},
 		{
@@ -91,7 +91,7 @@ func TestExamplesInTheWild(t *testing.T) { // nolint:funlen
 			check: func(t *testing.T, suites []Suite) {
 				assert.Len(t, suites, 1)
 				assert.Len(t, suites[0].Tests, 25)
-				assert.Equal(t, suites[0].Tests[22].Result.Desc, "Traceback (most recent call last):\n  File \"nose2/tests/functional/support/scenario/tests_in_package/pkg1/test/test_things.py\", line 13, in test_typeerr\n    raise TypeError(\"oops\")\nTypeError: oops\n") // nolint:lll
+				assert.Equal(t, suites[0].Tests[22].Result.Desc, "Traceback (most recent call last):\n  File \"nose2/tests/functional/support/scenario/tests_in_package/pkg1/test/test_things.py\", line 13, in test_typeerr\n    raise TypeError(\"oops\")\nTypeError: oops\n") //nolint:lll
 			},
 		},
 		{

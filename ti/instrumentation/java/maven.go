@@ -25,7 +25,7 @@ type mavenRunner struct {
 	log *logrus.Logger
 }
 
-func NewMavenRunner(log *logrus.Logger, fs filesystem.FileSystem) *mavenRunner { // nolint:revive
+func NewMavenRunner(log *logrus.Logger, fs filesystem.FileSystem) *mavenRunner { //nolint:revive
 	return &mavenRunner{
 		fs:  fs,
 		log: log,

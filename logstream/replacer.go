@@ -29,9 +29,8 @@ func NewReplacer(w Writer, secrets []string) Writer {
 		for _, part := range strings.Split(secret, "\n") {
 			part = strings.TrimSpace(part)
 
-			// avoid masking empty or single character
-			// strings.
-			if len(part) < 2 { // nolint:gomnd
+			// avoid masking empty or single character strings.
+			if len(part) < 2 { //nolint:gomnd
 				continue
 			}
 

@@ -32,7 +32,7 @@ type State struct {
 	logClient logstream.Client
 }
 
-func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig api.TIConfig) { // nolint:gocritic
+func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig api.TIConfig) { //nolint:gocritic
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.secrets = secrets

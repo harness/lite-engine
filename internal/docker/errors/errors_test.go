@@ -15,8 +15,8 @@ import (
 
 func TestTrimExtraInfo(t *testing.T) {
 	const (
-		before = `Error response from daemon: container encountered an error during CreateProcess: failure in a Windows system call: The system cannot find the file specified. (0x2) extra info: { "User":"ContainerUser" }` // nolint:lll
-		after  = `Error response from daemon: container encountered an error during CreateProcess: failure in a Windows system call: The system cannot find the file specified.`                                              // nolint:lll
+		before = `Error response from daemon: container encountered an error during CreateProcess: failure in a Windows system call: The system cannot find the file specified. (0x2) extra info: { "User":"ContainerUser" }` //nolint:lll
+		after  = `Error response from daemon: container encountered an error during CreateProcess: failure in a Windows system call: The system cannot find the file specified.`                                              //nolint:lll
 	)
 	errBefore := errors.New(before)
 	errAfter := TrimExtraInfo(errBefore)

@@ -13,7 +13,7 @@ func TestReplace(t *testing.T) {
 
 	sw := &nopWriter{}
 	w := NewReplacer(&nopCloser{sw}, secrets)
-	w.Write([]byte("username octocat password correct-horse-batter-staple")) // nolint:errcheck
+	_, _ = w.Write([]byte("username octocat password correct-horse-batter-staple"))
 	w.Close()
 
 	if got, want := sw.data[0], "username octocat password **************"; got != want {
@@ -40,7 +40,7 @@ r9nicR5wDy2W
 
 	sw := &nopWriter{}
 	w := NewReplacer(&nopCloser{sw}, secrets)
-	w.Write([]byte(line)) // nolint:errcheck
+	_, _ = w.Write([]byte(line))
 	w.Close()
 
 	if got, want := sw.data[0], "> **************"; got != want {
@@ -61,7 +61,7 @@ func TestReplaceMultilineJson(t *testing.T) {
 
 	sw := &nopWriter{}
 	w := NewReplacer(&nopCloser{sw}, secrets)
-	w.Write([]byte(line)) // nolint:errcheck
+	_, _ = w.Write([]byte(line))
 	w.Close()
 
 	if got, want := sw.data[0], "{\n  **************\n}"; got != want {

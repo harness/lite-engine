@@ -69,7 +69,7 @@ func (cg *Callgraph) ToStringMap() map[string]interface{} {
 }
 
 // FromStringMap creates Callgraph object from map[string]interface{}
-func FromStringMap(data map[string]interface{}) (*Callgraph, error) { // nolint:gocyclo
+func FromStringMap(data map[string]interface{}) (*Callgraph, error) { //nolint:gocyclo
 	var fNodes []Node
 	var fRel, vRel []Relation
 	for k, v := range data {

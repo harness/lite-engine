@@ -64,7 +64,7 @@ type HTTPClient struct {
 func (c *HTTPClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.SetupResponse, error) {
 	path := "setup"
 	out := new(api.SetupResponse)
-	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) //nolint:bodyclose
 	return out, err
 }
 
@@ -72,21 +72,21 @@ func (c *HTTPClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.Setu
 func (c *HTTPClient) Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error) {
 	path := "destroy"
 	out := new(api.DestroyResponse)
-	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) //nolint:bodyclose
 	return out, err
 }
 
 func (c *HTTPClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
 	path := "start_step"
 	out := new(api.StartStepResponse)
-	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) //nolint:bodyclose
 	return out, err
 }
 
 func (c *HTTPClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error) {
 	path := "poll_step"
 	out := new(api.PollStepResponse)
-	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) //nolint:bodyclose
 	return out, err
 }
 
@@ -107,7 +107,7 @@ func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest,
 				Trace("RetryPollStep: step completed")
 			return step, pollError
 		}
-		time.Sleep(time.Millisecond * 10) // nolint:gomnd
+		time.Sleep(time.Millisecond * 10) //nolint:gomnd
 	}
 }
 
@@ -151,7 +151,7 @@ func (c *HTTPClient) GetStepLogOutput(ctx context.Context, in *api.StreamOutputR
 func (c *HTTPClient) Health(ctx context.Context) (*api.HealthResponse, error) {
 	path := "healthz"
 	out := new(api.HealthResponse)
-	_, err := c.do(ctx, c.Endpoint+path, http.MethodGet, nil, out) // nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodGet, nil, out) //nolint:bodyclose
 	return out, err
 }
 
@@ -177,12 +177,12 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (*a
 				WithField("retry_num", i).WithError(err).Traceln("health check failed. Retrying")
 			lastErr = err
 		}
-		time.Sleep(time.Millisecond * 100) // nolint:gomnd
+		time.Sleep(time.Millisecond * 100) //nolint:gomnd
 	}
 }
 
 // do is a helper function that posts a http request with the input encoded and response decoded from json.
-func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interface{}) (*http.Response, error) { // nolint:unparam
+func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interface{}) (*http.Response, error) { //nolint:unparam
 	var r io.Reader
 
 	if in != nil {
@@ -204,7 +204,7 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		defer func() {
 			// drain the response body so we can reuse
 			// this connection.
-			if _, cerr := io.Copy(io.Discard, io.LimitReader(res.Body, 4096)); cerr != nil { // nolint:gomnd
+			if _, cerr := io.Copy(io.Discard, io.LimitReader(res.Body, 4096)); cerr != nil { //nolint:gomnd
 				logrus.WithError(cerr).Errorln("failed to drain response body")
 			}
 			res.Body.Close()
@@ -227,7 +227,7 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		return res, err
 	}
 
-	if res.StatusCode > 299 { // nolint:gomnd
+	if res.StatusCode > 299 { //nolint:gomnd
 		// if the response body includes an error message
 		// we should return the error string.
 		if len(body) != 0 {

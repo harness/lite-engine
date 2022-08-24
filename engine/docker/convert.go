@@ -307,7 +307,7 @@ func isBindMount(volume *spec.Volume) bool {
 
 // returns true if the volume is in-memory.
 func isTempfs(volume *spec.Volume) bool {
-	return volume.EmptyDir != nil && volume.EmptyDir.Medium == "memory" // nolint:goconst
+	return volume.EmptyDir != nil && volume.EmptyDir.Medium == "memory" //nolint:goconst
 }
 
 // returns true if the volume is a data-volume.

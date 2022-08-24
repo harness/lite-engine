@@ -222,7 +222,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
 	if r.Detach {
-		go runStep() // nolint:errcheck
+		go runStep() //nolint:errcheck
 		return &runtime.State{Exited: false}, nil
 	}
 
@@ -242,7 +242,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 	client := state.GetLogStreamClient()
 	wc := livelog.New(client, r.LogKey, r.Name, getNudges())
 	wr := logstream.NewReplacer(wc, secrets)
-	go wr.Open() // nolint:errcheck
+	go wr.Open() //nolint:errcheck
 
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
@@ -254,7 +254,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
 				defer cancel()
 			}
-			e.run(ctx, e.engine, r, wr) // nolint:errcheck
+			e.run(ctx, e.engine, r, wr) //nolint:errcheck
 			wc.Close()
 		}()
 		return &runtime.State{Exited: false}, nil, nil

@@ -106,7 +106,7 @@ func NewStdWriter(w io.Writer, t StdType) io.Writer {
 // In other words: if `err` is non nil, it indicates a real underlying error.
 //
 // `written` will hold the total number of bytes written to `dstout` and `dsterr`.
-func StdCopy(dstout, dsterr io.Writer, src io.Reader) (written int64, err error) { // nolint:gocyclo
+func StdCopy(dstout, dsterr io.Writer, src io.Reader) (written int64, err error) { //nolint:gocyclo
 	var (
 		buf       = make([]byte, startingBufLen)
 		bufLen    = len(buf)
@@ -136,7 +136,7 @@ func StdCopy(dstout, dsterr io.Writer, src io.Reader) (written int64, err error)
 		// Check the first byte to know where to write
 		switch StdType(buf[stdWriterFdIndex]) {
 		case Stdin:
-			fallthrough // nolint:gocritic
+			fallthrough //nolint:gocritic
 		case Stdout:
 			// Write on stdout
 			out = dstout

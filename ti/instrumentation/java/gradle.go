@@ -28,7 +28,7 @@ type gradleRunner struct {
 	log *logrus.Logger
 }
 
-func NewGradleRunner(log *logrus.Logger, fs filesystem.FileSystem) *gradleRunner { // nolint:revive
+func NewGradleRunner(log *logrus.Logger, fs filesystem.FileSystem) *gradleRunner { //nolint:revive
 	return &gradleRunner{
 		fs:  fs,
 		log: log,
@@ -43,22 +43,24 @@ func (g *gradleRunner) AutoDetectPackages(workspace string) ([]string, error) {
 The following needs to be added to a build.gradle to make it compatible with test intelligence:
 // This adds HARNESS_JAVA_AGENT to the testing command if it's provided through the command line.
 // Local builds will still remain same as it only adds if the parameter is provided.
-tasks.withType(Test) {
-  if(System.getProperty("HARNESS_JAVA_AGENT")) {
-    jvmArgs += [System.getProperty("HARNESS_JAVA_AGENT")]
-  }
-}
+
+	tasks.withType(Test) {
+	  if(System.getProperty("HARNESS_JAVA_AGENT")) {
+	    jvmArgs += [System.getProperty("HARNESS_JAVA_AGENT")]
+	  }
+	}
 
 // This makes sure that any test tasks for subprojects don't fail in case the test filter does not match
 // with any tests. This is needed since we want to search for a filter in all subprojects without failing if
 // the filter does not match with any of the subprojects.
-gradle.projectsEvaluated {
-        tasks.withType(Test) {
-            filter {
-                setFailOnNoMatchingTests(false)
-            }
-        }
-}
+
+	gradle.projectsEvaluated {
+	  tasks.withType(Test) {
+	    filter {
+	      setFailOnNoMatchingTests(false)
+	    }
+	  }
+	}
 */
 func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
@@ -79,7 +81,7 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	if strings.Contains(userArgs, "||") {
 		// args = "test || orCond1 || orCond2" gets split as:
 		// [test, orCond1 || orCond2]
-		s := strings.SplitN(userArgs, "||", 2) // nolint:gomnd
+		s := strings.SplitN(userArgs, "||", 2) //nolint:gomnd
 		orCmd = s[1]
 		userArgs = s[0]
 	}

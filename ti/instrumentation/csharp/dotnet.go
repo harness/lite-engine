@@ -32,7 +32,7 @@ type dotnetRunner struct {
 	log *logrus.Logger
 }
 
-func NewDotnetRunner(log *logrus.Logger, fs filesystem.FileSystem) *dotnetRunner { // nolint:revive
+func NewDotnetRunner(log *logrus.Logger, fs filesystem.FileSystem) *dotnetRunner { //nolint:revive
 	return &dotnetRunner{
 		fs:  fs,
 		log: log,

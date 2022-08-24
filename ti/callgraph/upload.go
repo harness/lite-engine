@@ -106,7 +106,7 @@ func getFiles(path string) ([]string, error) {
 }
 
 // getCgFiles return list of cg files in given directory
-func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string, error) { // nolint:gocritic,unparam
+func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string, error) { //nolint:gocritic,unparam
 	cgFiles, err1 := getFiles(filepath.Join(dir, "**/*."+ext1))
 	visFiles, err2 := getFiles(filepath.Join(dir, "**/*."+ext2))
 	log.Infoln("cg files: ", cgFiles)
