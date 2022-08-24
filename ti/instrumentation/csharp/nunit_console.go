@@ -5,7 +5,8 @@
 // Supports running tests via the nunit console test runner for C#
 //
 // Test filtering:
-// 		nunit3-console.exe <path-to-dll> --where "class =~ FirstTest || class =~ SecondTest"
+//
+//	nunit3-console.exe <path-to-dll> --where "class =~ FirstTest || class =~ SecondTest"
 package csharp
 
 import (
@@ -27,7 +28,7 @@ type nunitConsoleRunner struct {
 	log *logrus.Logger
 }
 
-func NewNunitConsoleRunner(log *logrus.Logger, fs filesystem.FileSystem) *nunitConsoleRunner { // nolint:revive
+func NewNunitConsoleRunner(log *logrus.Logger, fs filesystem.FileSystem) *nunitConsoleRunner { //nolint:revive
 	return &nunitConsoleRunner{
 		fs:  fs,
 		log: log,
@@ -38,7 +39,7 @@ func (b *nunitConsoleRunner) AutoDetectPackages(workspace string) ([]string, err
 	return []string{}, errors.New("not implemented")
 }
 
-func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, // nolint:gocyclo
+func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, //nolint:gocyclo
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	/*
 		i) Get the DLL list from the command (assume it runs at the root of the repository)

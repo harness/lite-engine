@@ -58,7 +58,7 @@ const (
 	TiSvcEp = "HARNESS_TI_SERVICE_ENDPOINT"
 
 	// TiSvcToken represents the environment variable for TI service token
-	TiSvcToken = "HARNESS_TI_SERVICE_TOKEN"
+	TiSvcToken = "HARNESS_TI_SERVICE_TOKEN" //nolint:gosec
 
 	// InfraEnv represents the environment variable for infra on which the pipeline is running
 	InfraEnv = "HARNESS_INFRA"

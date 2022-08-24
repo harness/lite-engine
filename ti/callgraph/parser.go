@@ -26,7 +26,7 @@ type Parser interface {
 }
 
 // CallGraphParser struct definition
-type CallGraphParser struct { // nolint:revive
+type CallGraphParser struct { //nolint:revive
 	log *logrus.Logger        // logger
 	fs  filesystem.FileSystem // filesystem handler
 }
@@ -143,8 +143,8 @@ func removeDup(s []int) []int {
 
 // parses one line of visGraph file
 // format - [-841968839,1459543895]
-func getNodes(s []string) (int, int, error) { // nolint:gocritic
-	if len(s) != 2 { // nolint:gomnd
+func getNodes(s []string) (int, int, error) { //nolint:gocritic
+	if len(s) != 2 { //nolint:gomnd
 		return 0, 0, fmt.Errorf("parsing failed: string format is not correct %v", s)
 	}
 	key, err1 := strconv.Atoi(s[0])
@@ -196,11 +196,11 @@ func process(inps []Input) *Callgraph {
 	}
 }
 
-func convCgph(inps []Input) (map[int][]int, map[int]Node) { // nolint:gocritic
+func convCgph(inps []Input) (map[int][]int, map[int]Node) { //nolint:gocritic
 	relMap := make(map[int][]int)
 	nodeMap := make(map[int]Node)
 
-	for _, inp := range inps { // nolint:gocritic
+	for _, inp := range inps { //nolint:gocritic
 		// processing nodeMap
 		test := inp.Test
 		test.Type = "test"
@@ -213,7 +213,7 @@ func convCgph(inps []Input) (map[int][]int, map[int]Node) { // nolint:gocritic
 			source.Type = "resource"
 		} else {
 			source = inp.Source
-			source.Type = "source" // nolint:goconst
+			source.Type = "source" //nolint:goconst
 		}
 		sourceID := source.ID
 		nodeMap[sourceID] = source
@@ -239,7 +239,7 @@ func rLine(r *bufio.Reader) (string, error) {
 }
 
 // rFile reads callgraph file
-func rFile(r *bufio.Reader) ([]string, error) { // nolint:unparam
+func rFile(r *bufio.Reader) ([]string, error) { //nolint:unparam
 	var ret []string
 	s, e := rLine(r)
 	for e == nil {

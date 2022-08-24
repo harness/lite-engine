@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 )
 
 type jsonError struct {
@@ -46,7 +47,7 @@ func Copy(in io.Reader, out io.Writer) error {
 		}
 
 		if jm.Error != nil {
-			if jm.Error.Code == 401 { // nolint:gomnd
+			if jm.Error.Code == http.StatusUnauthorized {
 				return fmt.Errorf("authentication is required")
 			}
 			fmt.Fprintf(out, "%s\n", jm.Error)

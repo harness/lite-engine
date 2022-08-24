@@ -208,7 +208,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 // emulate docker commands
 //
 
-func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer) error { // nolint:gocyclo
+func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer) error { //nolint:gocyclo
 	// create pull options with encoded authorization credentials.
 	pullopts := types.ImagePullOptions{}
 	if step.Auth != nil {

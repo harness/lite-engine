@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net/http"
+	"time"
 
 	"github.com/docker/go-connections/tlsconfig"
 	"github.com/sirupsen/logrus"
@@ -52,9 +53,10 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	srv := &http.Server{
-		Addr:      s.Addr,
-		Handler:   s.Handler,
-		TLSConfig: tlsConfig,
+		Addr:              s.Addr,
+		Handler:           s.Handler,
+		TLSConfig:         tlsConfig,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	var g errgroup.Group
@@ -66,7 +68,7 @@ func (s *Server) Start(ctx context.Context) error {
 	})
 	g.Go(func() error {
 		<-ctx.Done()
-		srv.Shutdown(ctx) // nolint: errcheck
+		srv.Shutdown(ctx) //nolint: errcheck
 		return nil
 	})
 	return g.Wait()

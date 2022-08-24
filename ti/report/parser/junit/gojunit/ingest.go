@@ -29,7 +29,7 @@ func findSuites(nodes []xmlNode, suites chan Suite) {
 	}
 }
 
-func ingestSuite(root xmlNode) Suite { // nolint:gocritic
+func ingestSuite(root xmlNode) Suite { //nolint:gocritic
 	suite := Suite{
 		Name:       root.Attr("name"),
 		Package:    root.Attr("package"),
@@ -58,7 +58,7 @@ func ingestSuite(root xmlNode) Suite { // nolint:gocritic
 	return suite
 }
 
-func ingestProperties(root xmlNode) map[string]string { // nolint:gocritic
+func ingestProperties(root xmlNode) map[string]string { //nolint:gocritic
 	props := make(map[string]string, len(root.Nodes))
 
 	for _, node := range root.Nodes {
@@ -72,7 +72,7 @@ func ingestProperties(root xmlNode) map[string]string { // nolint:gocritic
 	return props
 }
 
-func ingestTestcase(root xmlNode) Test { // nolint:gocritic
+func ingestTestcase(root xmlNode) Test { //nolint:gocritic
 	test := Test{
 		Name:       root.Attr("name"),
 		Classname:  root.Attr("classname"),
@@ -112,8 +112,8 @@ func duration(t string) time.Duration {
 	t = strings.ReplaceAll(t, ",", "")
 
 	// Check if there was a valid decimal value
-	if s, err := strconv.ParseFloat(t, 64); err == nil { // nolint:gomnd
-		return time.Duration(s*1000000) * time.Microsecond // nolint:gomnd
+	if s, err := strconv.ParseFloat(t, 64); err == nil { //nolint:gomnd
+		return time.Duration(s*1000000) * time.Microsecond //nolint:gomnd
 	}
 
 	// Check if there was a valid duration string

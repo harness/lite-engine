@@ -64,7 +64,7 @@ func TestCallgraph_ToStringMap(t *testing.T) {
 	assert.Equal(t, reflect.DeepEqual(finalCg, cg), true)
 }
 
-func getCgObject(mp map[string]interface{}) ([]Node, []Relation, []Relation) { // nolint:funlen,gocritic,gocyclo
+func getCgObject(mp map[string]interface{}) ([]Node, []Relation, []Relation) { //nolint:funlen,gocritic,gocyclo
 	var fNodes []Node
 	var fRelations, vRelations []Relation
 	for k, v := range mp {

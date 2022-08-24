@@ -21,7 +21,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 )
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) { // nolint:funlen, gocyclo
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) { //nolint:funlen, gocyclo
 	fs := filesystem.New()
 	tmpFilePath := pipeline.SharedVolPath
 	log := logrus.New()

@@ -75,7 +75,7 @@ func fetchOutputVariables(outputFile string, out io.Writer) (map[string]string, 
 	for s.Scan() {
 		line := s.Text()
 		sa := strings.Split(line, " ")
-		if len(sa) < 2 { // nolint:gomnd
+		if len(sa) < 2 { //nolint:gomnd
 			log.WithField("variable", sa[0]).Warnln("output variable does not exist")
 		} else {
 			outputs[sa[0]] = line[len(sa[0])+1:]
@@ -90,7 +90,6 @@ func fetchOutputVariables(outputFile string, out io.Writer) (map[string]string, 
 
 // setTiEnvVariables sets the environment variables required for TI
 func setTiEnvVariables(step *spec.Step) {
-
 	config := pipeline.GetState().GetTIConfig()
 	if config == nil {
 		return

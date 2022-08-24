@@ -44,7 +44,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 
 	if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchOutputVariables(outputFile, out) // nolint:govet
+			outputs, err := fetchOutputVariables(outputFile, out) //nolint:govet
 			if err != nil {
 				return exited, nil, err
 			}

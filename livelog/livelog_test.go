@@ -19,7 +19,7 @@ func TestLineWriterSingle(t *testing.T) {
 	w := New(client, "1", "1", nil)
 	w.SetInterval(time.Duration(0))
 	w.num = 4
-	w.Write([]byte("foo\nbar\n")) // nolint:errcheck
+	_, _ = w.Write([]byte("foo\nbar\n"))
 
 	a := w.pending
 	b := []*logstream.Line{

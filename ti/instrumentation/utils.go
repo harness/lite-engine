@@ -67,7 +67,7 @@ func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger) 
 		} else if t[0][0] == 'D' {
 			res = append(res, ti.File{Status: ti.FileDeleted, Name: t[1]})
 		} else if t[0][0] == 'R' {
-			res = append(res, ti.File{Status: ti.FileDeleted, Name: t[1]}) // nolint:gocritic
+			res = append(res, ti.File{Status: ti.FileDeleted, Name: t[1]}) //nolint:gocritic
 			res = append(res, ti.File{Status: ti.FileAdded, Name: t[2]})
 		} else {
 			// Log the error, don't error out for now
@@ -202,7 +202,7 @@ func createConfigFile(runner TestRunner, packages, annotations, workspace, tmpDi
 	}
 
 	if packages == "" {
-		pkgs, err := runner.AutoDetectPackages(workspace) // nolint:govet
+		pkgs, err := runner.AutoDetectPackages(workspace) //nolint:govet
 		if err != nil {
 			log.WithError(err).Errorln("could not auto detect packages")
 		}

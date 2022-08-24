@@ -54,7 +54,7 @@ func TestReparent(t *testing.T) {
 	}
 }
 
-func TestParse(t *testing.T) { // nolint:funlen
+func TestParse(t *testing.T) { //nolint:funlen
 	tests := []struct {
 		title    string
 		input    []byte

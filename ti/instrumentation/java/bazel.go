@@ -25,7 +25,7 @@ type bazelRunner struct {
 	log *logrus.Logger
 }
 
-func NewBazelRunner(log *logrus.Logger, fs filesystem.FileSystem) *bazelRunner { // nolint:revive
+func NewBazelRunner(log *logrus.Logger, fs filesystem.FileSystem) *bazelRunner { //nolint:revive
 	return &bazelRunner{
 		fs:  fs,
 		log: log,
@@ -36,7 +36,7 @@ func (b *bazelRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return DetectPkgs(workspace, b.log, b.fs)
 }
 
-func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, // nolint:funlen,gocyclo
+func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, //nolint:funlen,gocyclo
 	workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	if ignoreInstr {
 		return fmt.Sprintf("%s %s //...", bazelCmd, userArgs), nil
@@ -52,7 +52,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		return defaultCmd, nil
 	}
 	if len(tests) == 0 {
-		return "echo \"Skipping test run, received no tests to execute\"", nil // nolint:goconst
+		return "echo \"Skipping test run, received no tests to execute\"", nil //nolint:goconst
 	}
 	// Use only unique classes
 	pkgs := []string{}
@@ -65,7 +65,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			continue
 		}
 		set[t.Class] = struct{}{}
-		ut = append(ut, t.Class) // nolint:staticcheck
+		ut = append(ut, t.Class) //nolint:staticcheck
 		pkgs = append(pkgs, t.Pkg)
 		clss = append(clss, t.Class)
 	}

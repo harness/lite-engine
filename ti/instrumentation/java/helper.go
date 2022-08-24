@@ -32,7 +32,7 @@ func getFiles(path string) ([]string, error) {
 }
 
 // detect java packages by reading all the files and parsing their package names
-func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) ([]string, error) { // nolint:gocyclo
+func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) ([]string, error) { //nolint:gocyclo
 	plist := []string{}
 	excludeList := []string{"com.google"} // exclude any instances of these packages from the package list
 

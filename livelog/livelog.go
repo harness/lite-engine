@@ -169,7 +169,7 @@ func (b *Writer) Close() error {
 	if b.stop() {
 		// Flush anything waiting on a new line
 		if len(b.prev) > 0 {
-			b.Write([]byte("\n")) // nolint:errcheck
+			b.Write([]byte("\n")) //nolint:errcheck
 		}
 		b.flush()
 	}
@@ -277,7 +277,7 @@ func (b *Writer) Start() {
 func (b *Writer) checkErrInLogs() {
 	size := len(b.history)
 	// Check last 10 log lines for errors. TODO(Shubham): see if this can be made better
-	for idx := max(0, size-10); idx < size; idx++ { // nolint:gomnd
+	for idx := max(0, size-10); idx < size; idx++ { //nolint:gomnd
 		line := b.history[idx]
 		// Iterate over the nudges and see if we get a match
 		for _, n := range b.nudges {
@@ -295,7 +295,7 @@ func (b *Writer) checkErrInLogs() {
 
 // return back two byte arrays after splitting on last \n.
 // Eg: ABC\nDEF\nGH will return ABC\nDEF\n and GH
-func splitLast(p []byte) ([]byte, []byte) { // nolint:gocritic
+func splitLast(p []byte) ([]byte, []byte) { //nolint:gocritic
 	if !bytes.Contains(p, []byte("\n")) {
 		return p, []byte{} // If no \n is present, return the string itself
 	}
