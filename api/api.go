@@ -10,11 +10,8 @@ import (
 
 type (
 	HealthResponse struct {
-		Version         string `json:"version"`
-		DockerInstalled bool   `json:"docker_installed"`
-		GitInstalled    bool   `json:"git_installed"`
-		LiteEngineLog   string `json:"lite_engine_log"`
-		OK              bool   `json:"ok"`
+		Version string `json:"version"`
+		OK      bool   `json:"ok"`
 	}
 
 	SetupRequest struct {

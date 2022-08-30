@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/setup"
 	"github.com/harness/lite-engine/version"
 	"github.com/sirupsen/logrus"
 )
@@ -16,16 +15,10 @@ import (
 func HandleHealth() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logrus.Infoln("handler: HandleHealth()")
-		instanceInfo := setup.GetInstanceInfo()
-		dockerOK := setup.DockerInstalled(instanceInfo)
-		gitOK := setup.GitInstalled(instanceInfo)
 		version := version.Version
 		response := api.HealthResponse{
-			Version:         version,
-			DockerInstalled: dockerOK,
-			GitInstalled:    gitOK,
-			LiteEngineLog:   setup.GetLiteEngineLog(instanceInfo),
-			OK:              dockerOK && gitOK,
+			Version: version,
+			OK:      true,
 		}
 		WriteJSON(w, response, http.StatusOK)
 	}
