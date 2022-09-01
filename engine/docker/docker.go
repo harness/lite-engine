@@ -25,6 +25,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/errdefs"
 	"github.com/drone/runner-go/logger"
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/drone/runner-go/registry/auths"
@@ -222,19 +223,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	// by the process configuration, or if the image is :latest
 	if step.Pull == spec.PullAlways ||
 		(step.Pull == spec.PullDefault && image.IsLatest(step.Image)) {
-		rc, pullerr := e.client.ImagePull(ctx, step.Image, pullopts)
-		if pullerr == nil {
-			if e.hidePull {
-				if _, err := io.Copy(io.Discard, rc); err != nil {
-					logrus.WithField("error", err).Warnln("failed to discard image pull logs")
-				}
-			} else {
-				if err := jsonmessage.Copy(rc, output); err != nil {
-					logrus.WithField("error", err).Warnln("failed to output image pull logs")
-				}
-			}
-			rc.Close()
-		}
+		pullerr := e.pullImageWithRetries(ctx, step.Image, pullopts, output)
 		if pullerr != nil {
 			return pullerr
 		}
@@ -251,21 +240,10 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	// automatically pull and try to re-create the image if the
 	// failure is caused because the image does not exist.
 	if client.IsErrNotFound(err) && step.Pull != spec.PullNever {
-		rc, pullerr := e.client.ImagePull(ctx, step.Image, pullopts)
+		pullerr := e.pullImageWithRetries(ctx, step.Image, pullopts, output)
 		if pullerr != nil {
 			return pullerr
 		}
-
-		if e.hidePull {
-			if _, cerr := io.Copy(io.Discard, rc); cerr != nil {
-				logrus.WithField("error", cerr).Warnln("failed to discard image pull logs")
-			}
-		} else {
-			if cerr := jsonmessage.Copy(rc, output); cerr != nil {
-				logrus.WithField("error", cerr).Warnln("failed to copy image pull logs to output")
-			}
-		}
-		rc.Close()
 
 		// once the image is successfully pulled we attempt to
 		// re-create the container.
@@ -373,4 +351,46 @@ func (e *Docker) tail(ctx context.Context, id string, output io.Writer) error {
 		logs.Close()
 	}()
 	return nil
+}
+
+func (e *Docker) pullImage(ctx context.Context, image string, pullOpts types.ImagePullOptions, output io.Writer) error {
+	rc, pullerr := e.client.ImagePull(ctx, image, pullOpts)
+	if pullerr != nil {
+		return pullerr
+	}
+
+	if e.hidePull {
+		if _, cerr := io.Copy(io.Discard, rc); cerr != nil {
+			logrus.WithField("error", cerr).Warnln("failed to discard image pull logs")
+		}
+	} else {
+		if cerr := jsonmessage.Copy(rc, output); cerr != nil {
+			logrus.WithField("error", cerr).Warnln("failed to copy image pull logs to output")
+		}
+	}
+	rc.Close()
+	return nil
+}
+
+func (e *Docker) pullImageWithRetries(ctx context.Context, image string,
+	pullOpts types.ImagePullOptions, output io.Writer) error {
+	var err error
+	for i := 1; i <= 3; i++ {
+		err = e.pullImage(ctx, image, pullOpts, output)
+		logrus.WithError(err).
+			WithField("image", image).
+			Warnln("failed to pull image")
+
+		switch err.(type) {
+		case errdefs.ErrNotFound, errdefs.ErrUnauthorized,
+			errdefs.ErrInvalidParameter, errdefs.ErrForbidden,
+			errdefs.ErrCancelled, errdefs.ErrDeadline:
+			return err
+		default:
+			if i < 3 {
+				logrus.Infoln("retrying image pull")
+			}
+		}
+	}
+	return err
 }
