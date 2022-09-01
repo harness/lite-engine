@@ -1,15 +1,18 @@
 # Changelog
 
-## [v0.3.2](https://github.com/harness/lite-engine/tree/v0.3.2) (2022-09-01)
+## [v0.4.0](https://github.com/harness/lite-engine/tree/v0.4.0) (2022-09-01)
 
-[Full Changelog](https://github.com/harness/lite-engine/compare/v0.3.1...v0.3.2)
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.3.1...v0.4.0)
+
+**Implemented enhancements:**
+
+- Upgrade docker client [\#78](https://github.com/harness/lite-engine/pull/78) ([shubham149](https://github.com/shubham149))
+- \(feat\) inject environment variables for pipeline execution [\#74](https://github.com/harness/lite-engine/pull/74) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
 
 **Merged pull requests:**
 
 - Remove drone & git checks from health check api [\#79](https://github.com/harness/lite-engine/pull/79) ([shubham149](https://github.com/shubham149))
-- Upgrade docker client [\#78](https://github.com/harness/lite-engine/pull/78) ([shubham149](https://github.com/shubham149))
 - \(maint\) clean up linting issues [\#77](https://github.com/harness/lite-engine/pull/77) ([tphoney](https://github.com/tphoney))
-- \(feat\) inject environment variables for pipeline execution [\#74](https://github.com/harness/lite-engine/pull/74) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
 
 ## [v0.3.1](https://github.com/harness/lite-engine/tree/v0.3.1) (2022-06-20)
 
