@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.4.0](https://github.com/harness/lite-engine/tree/v0.4.0) (2022-09-01)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.3.1...v0.4.0)
+
+**Implemented enhancements:**
+
+- Upgrade docker client [\#78](https://github.com/harness/lite-engine/pull/78) ([shubham149](https://github.com/shubham149))
+- \(feat\) inject environment variables for pipeline execution [\#74](https://github.com/harness/lite-engine/pull/74) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+
+**Merged pull requests:**
+
+- Remove drone & git checks from health check api [\#79](https://github.com/harness/lite-engine/pull/79) ([shubham149](https://github.com/shubham149))
+- \(maint\) clean up linting issues [\#77](https://github.com/harness/lite-engine/pull/77) ([tphoney](https://github.com/tphoney))
+
 ## [v0.3.1](https://github.com/harness/lite-engine/tree/v0.3.1) (2022-06-20)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.3.0...v0.3.1)
@@ -7,6 +21,10 @@
 **Fixed bugs:**
 
 - make step nullable bool - default for true doesn't work on bool [\#71](https://github.com/harness/lite-engine/pull/71) ([eoinmcafee00](https://github.com/eoinmcafee00))
+
+**Merged pull requests:**
+
+- v0.3.1 prep [\#72](https://github.com/harness/lite-engine/pull/72) ([eoinmcafee00](https://github.com/eoinmcafee00))
 
 ## [v0.3.0](https://github.com/harness/lite-engine/tree/v0.3.0) (2022-06-16)
 
