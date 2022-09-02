@@ -12,6 +12,7 @@ import (
 	"context"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/harness/lite-engine/engine/docker/image"
 	"github.com/harness/lite-engine/engine/spec"
@@ -381,16 +382,16 @@ func (e *Docker) pullImageWithRetries(ctx context.Context, image string,
 			WithField("image", image).
 			Warnln("failed to pull image")
 
-		switch err.(type) {
-		case errdefs.ErrNotFound, errdefs.ErrUnauthorized,
-			errdefs.ErrInvalidParameter, errdefs.ErrForbidden,
-			errdefs.ErrCancelled, errdefs.ErrDeadline:
+		if errdefs.IsNotFound(err) || errdefs.IsUnauthorized(err) ||
+			errdefs.IsInvalidParameter(err) || errdefs.IsForbidden(err) ||
+			errdefs.IsCancelled(err) || errdefs.IsDeadline(err) {
 			return err
-		default:
-			if i < 3 {
-				logrus.Infoln("retrying image pull")
-			}
 		}
+
+		if i < 3 {
+			logrus.WithField("image", image).Infoln("retrying image pull")
+		}
+		time.Sleep(time.Millisecond * 100)
 	}
 	return err
 }
