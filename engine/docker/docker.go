@@ -396,7 +396,7 @@ func (e *Docker) pullImageWithRetries(ctx context.Context, image string,
 			errdefs.IsDeadline(err):
 			return err
 		default:
-			if i < 3 {
+			if i < imageMaxRetries {
 				logrus.WithField("image", image).Infoln("retrying image pull")
 			}
 		}
