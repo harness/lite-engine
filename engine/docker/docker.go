@@ -32,6 +32,11 @@ import (
 	"github.com/drone/runner-go/registry/auths"
 )
 
+const (
+	imageMaxRetries         = 3
+	imageRetrySleepDuration = 50
+)
+
 // Opts configures the Docker engine.
 type Opts struct {
 	HidePull bool
@@ -210,7 +215,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 // emulate docker commands
 //
 
-func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer) error { //nolint:gocyclo
+func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer) error {
 	// create pull options with encoded authorization credentials.
 	pullopts := types.ImagePullOptions{}
 	if step.Auth != nil {
@@ -376,7 +381,7 @@ func (e *Docker) pullImage(ctx context.Context, image string, pullOpts types.Ima
 func (e *Docker) pullImageWithRetries(ctx context.Context, image string,
 	pullOpts types.ImagePullOptions, output io.Writer) error {
 	var err error
-	for i := 1; i <= 3; i++ {
+	for i := 1; i <= imageMaxRetries; i++ {
 		err = e.pullImage(ctx, image, pullOpts, output)
 		logrus.WithError(err).
 			WithField("image", image).
@@ -395,7 +400,7 @@ func (e *Docker) pullImageWithRetries(ctx context.Context, image string,
 				logrus.WithField("image", image).Infoln("retrying image pull")
 			}
 		}
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Millisecond * imageRetrySleepDuration)
 	}
 	return err
 }
