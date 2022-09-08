@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.4.1](https://github.com/harness/lite-engine/tree/v0.4.1) (2022-09-08)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.0...v0.4.1)
+
+**Implemented enhancements:**
+
+- Add retries for image pull op [\#81](https://github.com/harness/lite-engine/pull/81) ([shubham149](https://github.com/shubham149))
+
 ## [v0.4.0](https://github.com/harness/lite-engine/tree/v0.4.0) (2022-09-01)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.3.1...v0.4.0)
@@ -11,6 +19,7 @@
 
 **Merged pull requests:**
 
+- v0.4.0 prep [\#80](https://github.com/harness/lite-engine/pull/80) ([shubham149](https://github.com/shubham149))
 - Remove drone & git checks from health check api [\#79](https://github.com/harness/lite-engine/pull/79) ([shubham149](https://github.com/shubham149))
 - \(maint\) clean up linting issues [\#77](https://github.com/harness/lite-engine/pull/77) ([tphoney](https://github.com/tphoney))
 
