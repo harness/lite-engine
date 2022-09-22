@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.4.2](https://github.com/harness/lite-engine/tree/v0.4.2) (2022-09-22)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.1...v0.4.2)
+
+**Fixed bugs:**
+
+- Fix retries on image pull [\#83](https://github.com/harness/lite-engine/pull/83) ([shubham149](https://github.com/shubham149))
+
 ## [v0.4.1](https://github.com/harness/lite-engine/tree/v0.4.1) (2022-09-08)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.0...v0.4.1)
@@ -7,6 +15,10 @@
 **Implemented enhancements:**
 
 - Add retries for image pull op [\#81](https://github.com/harness/lite-engine/pull/81) ([shubham149](https://github.com/shubham149))
+
+**Merged pull requests:**
+
+- 0.4.1 prep [\#82](https://github.com/harness/lite-engine/pull/82) ([shubham149](https://github.com/shubham149))
 
 ## [v0.4.0](https://github.com/harness/lite-engine/tree/v0.4.0) (2022-09-01)
 
