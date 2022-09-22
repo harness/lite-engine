@@ -383,7 +383,7 @@ func (e *Docker) pullImageWithRetries(ctx context.Context, image string,
 	var err error
 	for i := 1; i <= imageMaxRetries; i++ {
 		err = e.pullImage(ctx, image, pullOpts, output)
-		if err != nil {
+		if err == nil {
 			return nil
 		}
 		logrus.WithError(err).
