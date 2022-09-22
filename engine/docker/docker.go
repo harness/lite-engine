@@ -202,8 +202,8 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
-	// tail the container
-	err = e.tail(ctx, step.ID, output)
+	// grab the logs from the container execution
+	err = e.logs(ctx, step.ID, output)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
@@ -334,9 +334,9 @@ func (e *Docker) wait(ctx context.Context, id string) (*runtime.State, error) {
 	}, nil
 }
 
-// helper function emulates the `docker logs -f` command, streaming
-// all container logs until the container stops.
-func (e *Docker) tail(ctx context.Context, id string, output io.Writer) error {
+// helper function which emulates the docker logs command and writes the log output to
+// the writer
+func (e *Docker) logs(ctx context.Context, id string, output io.Writer) error {
 	opts := types.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
@@ -347,15 +347,20 @@ func (e *Docker) tail(ctx context.Context, id string, output io.Writer) error {
 
 	logs, err := e.client.ContainerLogs(ctx, id, opts)
 	if err != nil {
+		logger.FromContext(ctx).WithError(err).
+			WithField("container", id).
+			Errorln("failed to stream logs")
 		return err
 	}
+	defer logs.Close()
 
-	go func() {
-		if _, err := stdcopy.StdCopy(output, output, logs); err != nil {
-			logrus.WithField("error", err).Warnln("failed to copy logs while tailing")
-		}
-		logs.Close()
-	}()
+	_, err = stdcopy.StdCopy(output, output, logs)
+	if err != nil {
+		logger.FromContext(ctx).WithError(err).
+			WithField("container", id).
+			Errorln("failed to copy logs from log stream")
+	}
+
 	return nil
 }
 
