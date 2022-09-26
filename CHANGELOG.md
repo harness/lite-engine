@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.4.3](https://github.com/harness/lite-engine/tree/v0.4.3) (2022-09-26)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.2...v0.4.3)
+
+**Fixed bugs:**
+
+- overload .env variables if env file present [\#86](https://github.com/harness/lite-engine/pull/86) ([shubham149](https://github.com/shubham149))
+- \(fix\): wait for log copying to complete before returning control [\#85](https://github.com/harness/lite-engine/pull/85) ([vistaarjuneja](https://github.com/vistaarjuneja))
+
 ## [v0.4.2](https://github.com/harness/lite-engine/tree/v0.4.2) (2022-09-22)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.1...v0.4.2)
@@ -7,6 +16,10 @@
 **Fixed bugs:**
 
 - Fix retries on image pull [\#83](https://github.com/harness/lite-engine/pull/83) ([shubham149](https://github.com/shubham149))
+
+**Merged pull requests:**
+
+- 0.4.2 prep [\#84](https://github.com/harness/lite-engine/pull/84) ([shubham149](https://github.com/shubham149))
 
 ## [v0.4.1](https://github.com/harness/lite-engine/tree/v0.4.1) (2022-09-08)
 
