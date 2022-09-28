@@ -14,6 +14,7 @@ import (
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti/avro"
 	"github.com/harness/lite-engine/ti/client"
+	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -29,29 +30,23 @@ func Upload(ctx context.Context, stepID string, timeMs int64, out io.Writer) err
 	log := logrus.New()
 	log.Out = out
 
+	if instrumentation.IsManualExecution() {
+		log.Infoln("Skipping call graph collection since it is a manual run")
+		return nil
+	}
+
 	cfg := pipeline.GetState().GetTIConfig()
 	if cfg == nil || cfg.URL == "" {
 		return fmt.Errorf("TI config is not provided in setup")
 	}
 
-	isManual := cfg.SourceBranch == "" || cfg.TargetBranch == "" || cfg.Sha == ""
 	source := cfg.SourceBranch
-	if source == "" && !isManual {
+	if source == "" {
 		return fmt.Errorf("source branch is not set")
-	} else if isManual {
-		source = cfg.CommitBranch
-		if source == "" {
-			return fmt.Errorf("commit branch is not set")
-		}
 	}
 	target := cfg.TargetBranch
-	if target == "" && !isManual {
+	if target == "" {
 		return fmt.Errorf("target branch is not set")
-	} else if isManual {
-		target = cfg.CommitBranch
-		if target == "" {
-			return fmt.Errorf("commit branch is not set")
-		}
 	}
 
 	encCg, err := encodeCg(fmt.Sprintf(cgDir, pipeline.SharedVolPath), log)
