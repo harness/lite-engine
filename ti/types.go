@@ -140,10 +140,14 @@ type (
 	// This is different from TestCase struct which contains information
 	// about a test case run. RunnableTest is used to run a test.
 	RunnableTest struct {
-		Pkg       string    `json:"pkg"`
-		Class     string    `json:"class"`
-		Method    string    `json:"method"`
-		Selection Selection `json:"selection"` // information on why a test was selected
+		Pkg        string    `json:"pkg"`
+		Class      string    `json:"class"`
+		Method     string    `json:"method"`
+		Selection  Selection `json:"selection"` // information on why a test was selected
+		Autodetect struct {
+			// auto-detection info depending on the runner
+			Rule string `json:"rule"` // bazel
+		} `json:"autodetect"`
 	}
 
 	SelectTestsResp struct {
@@ -181,6 +185,20 @@ type (
 		SourceBranch string           `json:"source_branch"`
 		TargetBranch string           `json:"target_branch"`
 		Selected     SelectionDetails `json:"selected_tests"`
+	}
+
+	GetTestTimesReq struct {
+		IncludeFilename  bool `json:"include_filename"`
+		IncludeTestSuite bool `json:"include_test_suite"`
+		IncludeTestCase  bool `json:"include_test_case"`
+		IncludeClassname bool `json:"include_classname"`
+	}
+
+	GetTestTimesResp struct {
+		FileTimeMap  map[string]int `json:"file_time_map"`
+		SuiteTimeMap map[string]int `json:"suite_time_map"`
+		TestTimeMap  map[string]int `json:"test_time_map"`
+		ClassTimeMap map[string]int `json:"class_time_map"`
 	}
 
 	File struct {

@@ -110,6 +110,8 @@ type (
 		Packages             string   `json:"packages,omitempty"`
 		RunOnlySelectedTests bool     `json:"run_only_selected_tests,omitempty"`
 		TestAnnotations      string   `json:"test_annotations,omitempty"`
+		TestSplitStrategy    string   `json:"test_split_strategy,omitempty"`
+		ParallelizeTests     bool     `json:"parallelize_tests,omitempty"`
 	}
 
 	LogConfig struct {

@@ -12,12 +12,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
 	"github.com/harness/lite-engine/ti/client"
+	"github.com/harness/lite-engine/ti/testsplitter"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -31,7 +33,113 @@ const (
 	gitBin       = "git"
 	outDir       = "%s/ti/callgraph/" // path passed as outDir in the config.ini file
 	tiConfigPath = ".ticonfig.yaml"
+	// Parallelism environment variables
+	harnessStepIndex  = "HARNESS_STEP_INDEX"
+	harnessStepTotal  = "HARNESS_STEP_TOTAL"
+	harnessStageIndex = "HARNESS_STAGE_INDEX"
+	harnessStageTotal = "HARNESS_STAGE_TOTAL"
 )
+
+func getTestTime(ctx context.Context, log *logrus.Logger, splitStrategy string) (map[string]float64, error) {
+	fileTimesMap := map[string]float64{}
+	// Get the timing data
+	cfg := pipeline.GetState().GetTIConfig()
+	if cfg == nil || cfg.URL == "" {
+		return fileTimesMap, fmt.Errorf("TI config is not provided in setup")
+	}
+	c := client.NewHTTPClient(cfg.URL, cfg.Token, cfg.AccountID, cfg.OrgID, cfg.ProjectID,
+		cfg.PipelineID, cfg.BuildID, cfg.StageID, cfg.Repo, cfg.Sha, false)
+
+	req := ti.GetTestTimesReq{}
+	var res ti.GetTestTimesResp
+	var err error
+
+	switch splitStrategy {
+	case testsplitter.SplitByFileTimeStr:
+		req.IncludeFilename = true
+		res, err = c.GetTestTimes(context.Background(), &req)
+		fileTimesMap = testsplitter.ConvertMap(res.FileTimeMap)
+	case testsplitter.SplitByClassTimeStr:
+		req.IncludeClassname = true
+		res, err = c.GetTestTimes(context.Background(), &req)
+		fileTimesMap = testsplitter.ConvertMap(res.ClassTimeMap)
+	case testsplitter.SplitByTestcaseTimeStr:
+		req.IncludeTestCase = true
+		res, err = c.GetTestTimes(context.Background(), &req)
+		fileTimesMap = testsplitter.ConvertMap(res.TestTimeMap)
+	case testsplitter.SplitByTestSuiteTimeStr:
+		req.IncludeTestSuite = true
+		res, err = c.GetTestTimes(context.Background(), &req)
+		fileTimesMap = testsplitter.ConvertMap(res.SuiteTimeMap)
+	case testsplitter.SplitByFileSizeStr:
+		return map[string]float64{}, nil
+	default:
+		return map[string]float64{}, nil
+	}
+	if err != nil {
+		return map[string]float64{}, err
+	}
+	return fileTimesMap, nil
+}
+
+// getSplitTests takes a list of tests as input and returns the slice of tests to run depending on
+// the test split strategy and index
+func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.RunnableTest, splitStrategy string, splitIdx, splitTotal int) ([]ti.RunnableTest, error) {
+	if len(testsToSplit) == 0 {
+		return testsToSplit, nil
+	}
+
+	currentTestMap := make(map[string][]ti.RunnableTest)
+	currentTestSet := make(map[string]bool)
+	var testID string
+	for _, t := range testsToSplit {
+		switch splitStrategy {
+		case classTimingTestSplitStrategy, countTestSplitStrategy:
+			testID = t.Pkg + t.Class
+		default:
+			testID = t.Pkg + t.Class
+		}
+		currentTestSet[testID] = true
+		currentTestMap[testID] = append(currentTestMap[testID], t)
+	}
+
+	fileTimes := map[string]float64{}
+	var err error
+
+	// Get weights for each test depending on the strategy
+	switch splitStrategy {
+	case classTimingTestSplitStrategy:
+		// Call TI svc to get the test timing data
+		fileTimes, err = getTestTime(ctx, log, splitStrategy)
+		if err != nil {
+			return testsToSplit, err
+		}
+		log.Infoln("Successfully retrieved timing data for splitting")
+	case countTestSplitStrategy:
+		// Send empty fileTimesMap while processing to assign equal weights
+		log.Infoln("Assigning all tests equal weight for splitting")
+	default:
+		// Send empty fileTimesMap while processing to assign equal weights
+		log.Infoln("Assigning all tests equal weight for splitting as default strategy")
+	}
+
+	// Assign weights to the current test set if present, else average. If there are no
+	// weights for taking average, set the weight as 1 to all the tests
+	testsplitter.ProcessFiles(fileTimes, currentTestSet, float64(1), false)
+
+	// Split tests into buckets and return tests from the current node's bucket
+	testsToRun := make([]ti.RunnableTest, 0)
+	buckets, _ := testsplitter.SplitFiles(fileTimes, splitTotal)
+	for _, id := range buckets[splitIdx] {
+		if _, ok := currentTestMap[id]; !ok {
+			// This should not happen
+			log.Warnln(fmt.Sprintf("Test %s from the split not present in the original set of tests, skipping", id))
+			continue
+		}
+		testsToRun = append(testsToRun, currentTestMap[id]...)
+	}
+	return testsToRun, nil
+}
 
 // getChangedFiles returns a list of files changed in the PR along with their corresponding status
 func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger) ([]ti.File, error) {
@@ -112,6 +220,18 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
 		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, false)
 	return c.SelectTests(ctx, stepID, source, target, req)
+}
+
+func formatTests(tests []ti.RunnableTest) string {
+	testStrings := make([]string, 0)
+	for _, t := range tests {
+		tString := fmt.Sprintf("%s.%s", t.Pkg, t.Class)
+		if t.Autodetect.Rule != "" {
+			tString += fmt.Sprintf(" %s", t.Autodetect.Rule)
+		}
+		testStrings = append(testStrings, tString)
+	}
+	return strings.Join(testStrings, ", ")
 }
 
 func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSystem) error {
@@ -303,4 +423,74 @@ func toEnv(env map[string]string) []string {
 		}
 	}
 	return envs
+}
+
+func GetStepStrategyIteration(envs map[string]string) (int, error) {
+	idxStr, ok := envs[harnessStepIndex]
+	if !ok {
+		return -1, fmt.Errorf("parallelism strategy iteration variable not set %s", harnessStepIndex)
+	}
+	idx, err := strconv.Atoi(idxStr)
+	if err != nil {
+		return -1, fmt.Errorf("unable to convert %s from string to int", harnessStepIndex)
+	}
+	return idx, nil
+}
+
+func GetStepStrategyIterations(envs map[string]string) (int, error) {
+	totalStr, ok := envs[harnessStepTotal]
+	if !ok {
+		return -1, fmt.Errorf("parallelism total iteration variable not set %s", harnessStepTotal)
+	}
+	total, err := strconv.Atoi(totalStr)
+	if err != nil {
+		return -1, fmt.Errorf("unable to convert %s from string to int", harnessStepTotal)
+	}
+	return total, nil
+}
+
+func GetStageStrategyIteration(envs map[string]string) (int, error) {
+	idxStr, ok := envs[harnessStageIndex]
+	if !ok {
+		return -1, fmt.Errorf("parallelism strategy iteration variable not set %s", harnessStageIndex)
+	}
+	idx, err := strconv.Atoi(idxStr)
+	if err != nil {
+		return -1, fmt.Errorf("unable to convert %s from string to int", harnessStageIndex)
+	}
+	return idx, nil
+}
+
+func GetStageStrategyIterations(envs map[string]string) (int, error) {
+	totalStr, ok := envs[harnessStageTotal]
+	if !ok {
+		return -1, fmt.Errorf("parallelism total iteration variable not set %s", harnessStageTotal)
+	}
+	total, err := strconv.Atoi(totalStr)
+	if err != nil {
+		return -1, fmt.Errorf("unable to convert %s from string to int", harnessStageTotal)
+	}
+	return total, nil
+}
+
+func IsStepParallelismEnabled(envs map[string]string) bool {
+	v1, err1 := GetStepStrategyIteration(envs)
+	v2, err2 := GetStepStrategyIterations(envs)
+	if err1 != nil || err2 != nil || v1 >= v2 || v2 <= 1 {
+		return false
+	}
+	return true
+}
+
+func IsStageParallelismEnabled(envs map[string]string) bool {
+	v1, err1 := GetStageStrategyIteration(envs)
+	v2, err2 := GetStageStrategyIterations(envs)
+	if err1 != nil || err2 != nil || v1 >= v2 || v2 <= 1 {
+		return false
+	}
+	return true
+}
+
+func IsParallelismEnabled(envs map[string]string) bool {
+	return IsStepParallelismEnabled(envs) || IsStageParallelismEnabled(envs)
 }

@@ -23,7 +23,7 @@ import (
 func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) (
 	*runtime.State, map[string]string, error) {
 	start := time.Now()
-	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, out)
+	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, out, r.Envs)
 	if err != nil {
 		return nil, nil, err
 	}

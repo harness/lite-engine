@@ -4,9 +4,91 @@
 
 package java
 
-import "testing"
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"testing"
+
+	"github.com/golang/mock/gomock"
+	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+)
+
+const bazelRuleStringsBazelAutoDetectTests = "//module1:pkg1.cls1\n//module1:pkg1.cls2\n//module1:pkg2\n//module1:pkg2/cls2\n"
 
 func TestGetBazelCmd(t *testing.T) {
 	// Bazel impl is pretty hacky right now and tailored to running portal.
 	// Will add this once we have a more generic implementation.
+}
+
+func fakeExecCommand(ctx context.Context, command string, args ...string) *exec.Cmd {
+	cs := []string{"-test.run=TestHelperProcess", "--", command}
+	cs = append(cs, args...)
+	cmd := exec.CommandContext(ctx, os.Args[0], cs...)
+	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
+	return cmd
+}
+
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	fmt.Fprintf(os.Stdout, bazelRuleStringsBazelAutoDetectTests)
+	os.Exit(0)
+}
+
+func TestBazelAutoDetectTests(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	defer ctrl.Finish()
+
+	log := logrus.New()
+	fs := filesystem.NewMockFileSystem(ctrl)
+
+	runner := NewBazelRunner(log, fs)
+
+	execCmdCtx = fakeExecCommand
+	defer func() {
+		execCmdCtx = exec.CommandContext
+	}()
+
+	t1 := ti.RunnableTest{Pkg: "pkg1", Class: "cls1"}
+	t1.Autodetect.Rule = "//module1:pkg1.cls1"
+	t2 := ti.RunnableTest{Pkg: "pkg1", Class: "cls2"}
+	t2.Autodetect.Rule = "//module1:pkg1.cls2"
+	// t3 is invalid
+	t4 := ti.RunnableTest{Pkg: "pkg2", Class: "cls2"}
+	t4.Autodetect.Rule = "//module1:pkg2/cls2"
+	testsExpected := []ti.RunnableTest{t1, t2, t4}
+
+	tests, _ := runner.AutoDetectTests(ctx, "")
+	assert.Equal(t, testsExpected, tests)
+}
+
+func TestGetBazelCmd_TestsWithRules(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	defer ctrl.Finish()
+
+	log := logrus.New()
+	fs := filesystem.NewMockFileSystem(ctrl)
+
+	runner := NewBazelRunner(log, fs)
+
+	t1 := ti.RunnableTest{Pkg: "pkg1", Class: "cls1"}
+	t1.Autodetect.Rule = "//module1:pkg1.cls1"
+	t2 := ti.RunnableTest{Pkg: "pkg1", Class: "cls2"}
+	t2.Autodetect.Rule = "//module1:pkg1.cls2"
+	t3 := ti.RunnableTest{Pkg: "pkg2", Class: "cls2"}
+	t3.Autodetect.Rule = "//module1:pkg2/cls2"
+	tests := []ti.RunnableTest{t1, t2, t3}
+	expectedCmd := "bazel  --define=HARNESS_ARGS=-javaagent:java-agent.jar=/test/tmp/config.ini //module1:pkg1.cls1 //module1:pkg1.cls2 //module1:pkg2/cls2"
+
+	cmd, _ := runner.GetCmd(ctx, tests, "", "", "/test/tmp/config.ini", "", false, false)
+
+	//func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, //nolint:funlen,gocyclo
+	//	workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	assert.Equal(t, expectedCmd, cmd)
 }

@@ -19,10 +19,11 @@ import (
 )
 
 const (
-	dbEndpoint    = "/reports/write?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&report=%s&repo=%s&sha=%s"
-	testEndpoint  = "/tests/select?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&repo=%s&sha=%s&source=%s&target=%s"
-	cgEndpoint    = "/tests/uploadcg?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&repo=%s&sha=%s&source=%s&target=%s&timeMs=%d"
-	agentEndpoint = "/agents/link?accountId=%s&language=%s&os=%s&arch=%s&framework=%s"
+	dbEndpoint            = "/reports/write?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&report=%s&repo=%s&sha=%s"
+	testEndpoint          = "/tests/select?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&repo=%s&sha=%s&source=%s&target=%s"
+	cgEndpoint            = "/tests/uploadcg?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&repo=%s&sha=%s&source=%s&target=%s&timeMs=%d"
+	getTestsTimesEndpoint = "/tests/timedata?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s"
+	agentEndpoint         = "/agents/link?accountId=%s&language=%s&os=%s&arch=%s&framework=%s"
 )
 
 var _ Client = (*HTTPClient)(nil)
@@ -110,6 +111,15 @@ func (c *HTTPClient) UploadCg(ctx context.Context, stepID, source, target string
 	path := fmt.Sprintf(cgEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target, timeMs)
 	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &cg, nil) //nolint:bodyclose
 	return err
+}
+
+// GetTestTimes gets test timing data
+func (c *HTTPClient) GetTestTimes(ctx context.Context, in *ti.GetTestTimesReq) (ti.GetTestTimesResp, error) {
+	path := fmt.Sprintf(getTestsTimesEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID)
+
+	var resp ti.GetTestTimesResp
+	_, err := c.do(ctx, c.Endpoint+path, "POST", "", in, &resp)
+	return resp, err
 }
 
 // do is a helper function that posts a signed http request with
