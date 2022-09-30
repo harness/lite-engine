@@ -87,7 +87,7 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 		return ti.SelectTestsResp{}, fmt.Errorf("TI config is not provided in setup")
 	}
 
-	isManual := isManualExecution()
+	isManual := IsManualExecution()
 	source := config.SourceBranch
 	if source == "" && !isManual {
 		return ti.SelectTestsResp{}, fmt.Errorf("source branch is not set")
@@ -284,7 +284,7 @@ func valid(tests []ti.RunnableTest) bool {
 	return true
 }
 
-func isManualExecution() bool {
+func IsManualExecution() bool {
 	cfg := pipeline.GetState().GetTIConfig()
 	if cfg.SourceBranch == "" || cfg.TargetBranch == "" || cfg.Sha == "" {
 		return true // if any of them are not set, treat as a manual execution

@@ -21,44 +21,47 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 )
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) { //nolint:funlen, gocyclo
+func getTestSelection(ctx context.Context, config *api.RunTestConfig, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger, isManual bool) ti.SelectTestsResp {
+	selection := ti.SelectTestsResp{}
+	if isManual {
+		// Manual run
+		log.Infoln("Detected manual execution - for test intelligence to be configured, a PR must be raised. Running all the tests.")
+		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
+	} else {
+		// PR execution
+		files, err := getChangedFiles(ctx, workspace, log)
+		if err != nil || len(files) == 0 {
+			log.Errorln("Unable to get changed files list")
+			config.RunOnlySelectedTests = false
+		} else {
+			// PR execution: Call TI svc only when there is a chance of running selected tests
+			selection, err = selectTests(ctx, workspace, files, config.RunOnlySelectedTests, stepID, fs)
+			if err != nil {
+				log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
+				config.RunOnlySelectedTests = false // run all the tests if an error was encountered
+			} else if !valid(selection.Tests) { // This shouldn't happen
+				log.Warnln("Test Intelligence did not return suitable tests")
+				config.RunOnlySelectedTests = false // TI did not return suitable tests
+			} else if selection.SelectAll {
+				log.Infoln("Test Intelligence determined to run all the tests")
+				config.RunOnlySelectedTests = false // TI selected all the tests to be run
+			} else {
+				log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
+			}
+		}
+	}
+	return selection
+}
+
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer) (string, error) {
 	fs := filesystem.New()
 	tmpFilePath := pipeline.SharedVolPath
 	log := logrus.New()
 	log.Out = out
 
 	// Get the tests that need to be run if we are running selected tests
-	var selection ti.SelectTestsResp
-
-	isManual := isManualExecution()
-	files, err := getChangedFiles(ctx, workspace, log)
-	if err != nil {
-		log.WithError(err).Println("could not get changed files")
-		isManual = true // If we can't get the changed files, treat it as a manual execution
-	}
-
-	runOnlySelectedTests := config.RunOnlySelectedTests
-	if len(files) == 0 {
-		log.Errorln("unable to get changed files list")
-		runOnlySelectedTests = false // run all the tests if we could not find changed files list correctly
-	}
-	if isManual {
-		log.Infoln("detected manual execution - for intelligence to be configured, a PR must be raised. Running all the tests.")
-		runOnlySelectedTests = false // run all the tests if it is a manual execution
-	}
-	selection, err = selectTests(ctx, workspace, files, runOnlySelectedTests, stepID, fs)
-	if err != nil {
-		log.WithError(err).Errorln("there was some issue in trying to intelligently figure out tests to run. Running all the tests")
-		runOnlySelectedTests = false // run all the tests if an error was encountered
-	} else if !valid(selection.Tests) { // This shouldn't happen
-		log.Warnln("test intelligence did not return suitable tests")
-		runOnlySelectedTests = false // TI did not return suitable tests
-	} else if selection.SelectAll {
-		log.Infoln("intelligently determined to run all the tests")
-		runOnlySelectedTests = false // TI selected all the tests to be run
-	} else {
-		log.Infoln(fmt.Sprintf("intelligently running tests: %s", selection.Tests))
-	}
+	isManual := IsManualExecution()
+	selection := getTestSelection(ctx, config, fs, stepID, workspace, log, isManual)
 
 	var runner TestRunner
 	useYaml := false
@@ -85,7 +88,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		case "nunitconsole":
 			runner = csharp.NewNunitConsoleRunner(log, fs)
 		default:
-			return "", fmt.Errorf("could not figure out the build tool: %s", err)
+			return "", fmt.Errorf("could not figure out the build tool: %s", config.BuildTool)
 		}
 	default:
 		return "", fmt.Errorf("language %s is not suported", config.Language)
@@ -103,7 +106,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		return "", err
 	}
 
-	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, isManual, !runOnlySelectedTests)
+	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, isManual, !config.RunOnlySelectedTests)
 	if err != nil {
 		return "", err
 	}
