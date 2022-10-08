@@ -33,6 +33,8 @@ func TestMaven_GetCmd(t *testing.T) {
 
 	t1 := ti.RunnableTest{Pkg: "pkg1", Class: "cls1", Method: "m1"}
 	t2 := ti.RunnableTest{Pkg: "pkg2", Class: "cls2", Method: "m2"}
+	tz := "-Duser.timezone=US/Mountain"
+	enUS := "-Duser.locale=en/US"
 
 	tests := []struct {
 		name                 string // description of test
@@ -46,7 +48,7 @@ func TestMaven_GetCmd(t *testing.T) {
 			name:                 "run all tests with non-empty test list and -Duser parameters",
 			args:                 "clean test -Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: false,
-			want:                 fmt.Sprintf("mvn -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US %s\" clean test", agent),
+			want:                 fmt.Sprintf("mvn -am -DharnessArgLine=\"%s %s %s\" -DargLine=\"%s %s %s\" clean test", tz, enUS, agent, tz, enUS, agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2},
 		},
@@ -54,7 +56,7 @@ func TestMaven_GetCmd(t *testing.T) {
 			name:                 "run all tests with empty test list and no -Duser parameters",
 			args:                 "clean test",
 			runOnlySelectedTests: false,
-			want:                 fmt.Sprintf("mvn -am -DargLine=%s clean test", agent),
+			want:                 fmt.Sprintf("mvn -am -DharnessArgLine=%s -DargLine=%s clean test", agent, agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{},
 		},
@@ -62,7 +64,7 @@ func TestMaven_GetCmd(t *testing.T) {
 			name:                 "run selected tests with given test list and -Duser parameters",
 			args:                 "clean test -Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: true,
-			want:                 fmt.Sprintf("mvn -Dtest=\"pkg1.cls1,pkg2.cls2\" -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US %s\" clean test", agent),
+			want:                 fmt.Sprintf("mvn -Dtest=pkg1.cls1,pkg2.cls2 -am -DharnessArgLine=\"%s %s %s\" -DargLine=\"%s %s %s\" clean test", tz, enUS, agent, tz, enUS, agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2},
 		},
@@ -78,7 +80,7 @@ func TestMaven_GetCmd(t *testing.T) {
 			name:                 "run selected tests with repeating test list and -Duser parameters",
 			args:                 "clean test -B -2C-Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: true,
-			want:                 fmt.Sprintf("mvn -Dtest=\"pkg1.cls1,pkg2.cls2\" -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US %s\" clean test -B -2C", agent),
+			want:                 fmt.Sprintf("mvn -Dtest=pkg1.cls1,pkg2.cls2 -am -DharnessArgLine=\"%s %s %s\" -DargLine=\"%s %s %s\" clean test -B -2C", tz, enUS, agent, tz, enUS, agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2, t1, t2},
 		},
@@ -86,7 +88,7 @@ func TestMaven_GetCmd(t *testing.T) {
 			name:                 "run selected tests with single test and -Duser parameters and or condition",
 			args:                 "clean test -B -2C -Duser.timezone=US/Mountain -Duser.locale=en/US || true",
 			runOnlySelectedTests: true,
-			want:                 fmt.Sprintf("mvn -Dtest=\"pkg2.cls2\" -am -DargLine=\"-Duser.timezone=US/Mountain -Duser.locale=en/US %s\" clean test -B -2C   || true", agent),
+			want:                 fmt.Sprintf("mvn -Dtest=pkg2.cls2 -am -DharnessArgLine=\"%s %s %s\" -DargLine=\"%s %s %s\" clean test -B -2C   || true", tz, enUS, agent, tz, enUS, agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t2},
 		},
