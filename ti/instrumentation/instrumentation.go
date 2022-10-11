@@ -68,7 +68,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	config.Language = strings.ToLower(config.Language)
 	config.BuildTool = strings.ToLower(config.BuildTool)
 	switch strings.ToLower(config.Language) {
-	case "java":
+	case "scala", "java", "kotlin":
 		useYaml = false
 		switch config.BuildTool {
 		case "maven":
@@ -77,6 +77,13 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 			runner = java.NewGradleRunner(log, fs)
 		case "bazel":
 			runner = java.NewBazelRunner(log, fs)
+		case "sbt":
+			{
+				if config.Language != "scala" {
+					return "", fmt.Errorf("build tool: SBT is not supported for non-Scala languages")
+				}
+				runner = java.NewSBTRunner(log, fs)
+			}
 		default:
 			return "", fmt.Errorf("build tool: %s is not supported for Java", config.BuildTool)
 		}
