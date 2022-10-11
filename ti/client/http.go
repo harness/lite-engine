@@ -118,7 +118,7 @@ func (c *HTTPClient) GetTestTimes(ctx context.Context, in *ti.GetTestTimesReq) (
 	path := fmt.Sprintf(getTestsTimesEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID)
 
 	var resp ti.GetTestTimesResp
-	_, err := c.do(ctx, c.Endpoint+path, "POST", "", in, &resp)
+	_, err := c.do(ctx, c.Endpoint+path, "POST", "", in, &resp) //nolint:bodyclose
 	return resp, err
 }
 

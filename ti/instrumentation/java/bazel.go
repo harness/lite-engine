@@ -55,7 +55,8 @@ func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string) ([]
 		if r == "" {
 			continue
 		}
-		if !strings.Contains(r, ":") || len(strings.Split(r, ":")) < 2 {
+		n := 2
+		if !strings.Contains(r, ":") || len(strings.Split(r, ":")) < n {
 			b.log.Errorln(fmt.Sprintf("Rule does not follow the default format: %s", r))
 			continue
 		}
@@ -64,7 +65,7 @@ func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string) ([]
 			fullPkg = strings.Replace(fullPkg, s, ".", -1)
 		}
 		pkgList := strings.Split(fullPkg, ".")
-		if len(pkgList) < 2 {
+		if len(pkgList) < n {
 			b.log.Errorln(fmt.Sprintf("Rule does not follow the default format: %s", r))
 			continue
 		}

@@ -28,7 +28,7 @@ func TestGetBazelCmd(t *testing.T) {
 func fakeExecCommand(ctx context.Context, command string, args ...string) *exec.Cmd {
 	cs := []string{"-test.run=TestHelperProcess", "--", command}
 	cs = append(cs, args...)
-	cmd := exec.CommandContext(ctx, os.Args[0], cs...)
+	cmd := exec.CommandContext(ctx, os.Args[0], cs...) //nolint:gosec
 	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
 	return cmd
 }
@@ -37,7 +37,7 @@ func TestHelperProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
-	fmt.Fprintf(os.Stdout, bazelRuleStringsBazelAutoDetectTests)
+	fmt.Fprintf(os.Stdout, bazelRuleStringsBazelAutoDetectTests) //nolint:staticcheck
 	os.Exit(0)
 }
 
@@ -87,8 +87,5 @@ func TestGetBazelCmd_TestsWithRules(t *testing.T) {
 	expectedCmd := "bazel  --define=HARNESS_ARGS=-javaagent:java-agent.jar=/test/tmp/config.ini //module1:pkg1.cls1 //module1:pkg1.cls2 //module1:pkg2/cls2"
 
 	cmd, _ := runner.GetCmd(ctx, tests, "", "", "/test/tmp/config.ini", "", false, false)
-
-	//func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, //nolint:funlen,gocyclo
-	//	workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	assert.Equal(t, expectedCmd, cmd)
 }

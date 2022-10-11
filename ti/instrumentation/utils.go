@@ -40,7 +40,7 @@ const (
 	harnessStageTotal = "HARNESS_STAGE_TOTAL"
 )
 
-func getTestTime(ctx context.Context, log *logrus.Logger, splitStrategy string) (map[string]float64, error) {
+func getTestTime(ctx context.Context, splitStrategy string) (map[string]float64, error) {
 	fileTimesMap := map[string]float64{}
 	// Get the timing data
 	cfg := pipeline.GetState().GetTIConfig()
@@ -57,19 +57,19 @@ func getTestTime(ctx context.Context, log *logrus.Logger, splitStrategy string) 
 	switch splitStrategy {
 	case testsplitter.SplitByFileTimeStr:
 		req.IncludeFilename = true
-		res, err = c.GetTestTimes(context.Background(), &req)
+		res, err = c.GetTestTimes(ctx, &req)
 		fileTimesMap = testsplitter.ConvertMap(res.FileTimeMap)
 	case testsplitter.SplitByClassTimeStr:
 		req.IncludeClassname = true
-		res, err = c.GetTestTimes(context.Background(), &req)
+		res, err = c.GetTestTimes(ctx, &req)
 		fileTimesMap = testsplitter.ConvertMap(res.ClassTimeMap)
 	case testsplitter.SplitByTestcaseTimeStr:
 		req.IncludeTestCase = true
-		res, err = c.GetTestTimes(context.Background(), &req)
+		res, err = c.GetTestTimes(ctx, &req)
 		fileTimesMap = testsplitter.ConvertMap(res.TestTimeMap)
 	case testsplitter.SplitByTestSuiteTimeStr:
 		req.IncludeTestSuite = true
-		res, err = c.GetTestTimes(context.Background(), &req)
+		res, err = c.GetTestTimes(ctx, &req)
 		fileTimesMap = testsplitter.ConvertMap(res.SuiteTimeMap)
 	case testsplitter.SplitByFileSizeStr:
 		return map[string]float64{}, nil
@@ -110,7 +110,7 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 	switch splitStrategy {
 	case classTimingTestSplitStrategy:
 		// Call TI svc to get the test timing data
-		fileTimes, err = getTestTime(ctx, log, splitStrategy)
+		fileTimes, err = getTestTime(ctx, splitStrategy)
 		if err != nil {
 			return testsToSplit, err
 		}
@@ -125,7 +125,7 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 
 	// Assign weights to the current test set if present, else average. If there are no
 	// weights for taking average, set the weight as 1 to all the tests
-	testsplitter.ProcessFiles(fileTimes, currentTestSet, float64(1), false)
+	testsplitter.ProcessFiles(fileTimes, currentTestSet, float64(1))
 
 	// Split tests into buckets and return tests from the current node's bucket
 	testsToRun := make([]ti.RunnableTest, 0)

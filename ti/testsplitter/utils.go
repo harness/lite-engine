@@ -7,15 +7,8 @@ import (
 	"github.com/bmatcuk/doublestar"
 )
 
-/*
-ProcessFiles removes non-existent files and adds new files to the file-times map.
-Args:
-	fileTimesMap: {fileName : time}
-	currentFileSet: {fileName : true}
-Returns:
-	Nothing. Updates fileTimesMap in place.
-*/
-func ProcessFiles(fileTimesMap map[string]float64, currentFileSet map[string]bool, defaultTime float64, useJunitXml bool) {
+// ProcessFiles removes non-existent files and adds new files to the file-times map.
+func ProcessFiles(fileTimesMap map[string]float64, currentFileSet map[string]bool, defaultTime float64) {
 	// First Remove the entries that no longer exist in the filesystem.
 	for file := range fileTimesMap {
 		if !currentFileSet[file] {
@@ -31,7 +24,7 @@ func ProcessFiles(fileTimesMap map[string]float64, currentFileSet map[string]boo
 		}
 		averageFileTime /= float64(len(fileTimesMap))
 	} else {
-		averageFileTime = float64(defaultTime)
+		averageFileTime = defaultTime
 	}
 
 	// Populate the file time for missing files.
@@ -39,14 +32,11 @@ func ProcessFiles(fileTimesMap map[string]float64, currentFileSet map[string]boo
 		if _, isSet := fileTimesMap[file]; isSet {
 			continue
 		}
-		if useJunitXml {
-			//log.Warn(fmt.Sprintf("Missing file time for %s", file))
-		}
 		fileTimesMap[file] = averageFileTime
 	}
 }
 
-func GetTestData(patterns []string, excludePatterns []string) (map[string]bool, error) {
+func GetTestData(patterns, excludePatterns []string) (map[string]bool, error) {
 	currentFileSet := make(map[string]bool)
 
 	// We are not using filepath.Glob,
@@ -83,33 +73,32 @@ func ConvertMap(intMap map[string]int) map[string]float64 {
 	return fileTimesMap
 }
 
-func ConvertMapToJson(timeMap map[string]float64) []byte {
-	timeMapJson, _ := json.Marshal(timeMap)
-	return timeMapJson
+func ConvertMapToJSON(timeMap map[string]float64) []byte {
+	timeMapJSON, _ := json.Marshal(timeMap)
+	return timeMapJSON
 }
 
-/*
-SplitFiles splits files based on the provided timing data. The output is a list of
-buckets/splits for files as well as the duration of each bucket.
-Args:
-	fileTimesMap: Map containing the time data: <fileName, Duration>
-	splitTotal: Desired number of splits
-Returns:
-	List of buckets with filenames. Eg: [ ["file1", "file2"], ["file3"], ["file4", "file5"]]
-	List of bucket durations. Eg: [10.4, 9.3, 10.5]
-*/
-func SplitFiles(fileTimesMap map[string]float64, splitTotal int) ([][]string, []float64) {
+// SplitFiles splits files based on the provided timing data. The output is a list of
+// buckets/splits for files as well as the duration of each bucket.
+// Args:
+//	 fileTimesMap: Map containing the time data: <fileName, Duration>
+//	 splitTotal: Desired number of splits
+// Returns:
+//	 List of buckets with filenames. Eg: [ ["file1", "file2"], ["file3"], ["file4", "file5"]]
+//	 List of bucket durations. Eg: [10.4, 9.3, 10.5]
+
+func SplitFiles(fileTimesMap map[string]float64, splitTotal int) ([][]string, []float64) { //nolint:gocritic
 	buckets := make([][]string, splitTotal)
 	bucketTimes := make([]float64, splitTotal)
 
 	// Build a sorted list of files
-	fileTimesList := make(fileTimesList, len(fileTimesMap))
+	fileTimes := make(fileTimesList, len(fileTimesMap))
 	for file, time := range fileTimesMap {
-		fileTimesList = append(fileTimesList, fileTimesListItem{file, time})
+		fileTimes = append(fileTimes, fileTimesListItem{file, time})
 	}
-	sort.Sort(fileTimesList)
+	sort.Sort(fileTimes)
 
-	for _, file := range fileTimesList {
+	for _, file := range fileTimes {
 		// find bucket with min weight
 		minBucket := 0
 		for bucket := 1; bucket < splitTotal; bucket++ {

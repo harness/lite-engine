@@ -3,17 +3,18 @@ package instrumentation
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"testing"
+
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/ti"
 	mocks "github.com/harness/lite-engine/ti/instrumentation/mocks"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"strconv"
-	"testing"
 )
 
-func TestComputeSelected(t *testing.T) {
+func TestComputeSelected(t *testing.T) { //nolint:funlen
 	log := logrus.New()
 
 	rts := make([]ti.RunnableTest, 0)

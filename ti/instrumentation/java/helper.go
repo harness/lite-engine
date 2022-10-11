@@ -26,29 +26,29 @@ const (
 type NodeType int32
 
 const (
-	NodeType_SOURCE   NodeType = 0
-	NodeType_TEST     NodeType = 1
-	NodeType_CONF     NodeType = 2
-	NodeType_RESOURCE NodeType = 3
-	NodeType_OTHER    NodeType = 4
+	NodeType_SOURCE   NodeType = 0 //nolint:revive,stylecheck
+	NodeType_TEST     NodeType = 1 //nolint:revive,stylecheck
+	NodeType_CONF     NodeType = 2 //nolint:revive,stylecheck
+	NodeType_RESOURCE NodeType = 3 //nolint:revive,stylecheck
+	NodeType_OTHER    NodeType = 4 //nolint:revive,stylecheck
 )
 
 type LangType int32
 
 const (
-	LangType_JAVA    LangType = 0
-	LangType_CSHARP  LangType = 1
-	LangType_PYTHON  LangType = 2
-	LangType_UNKNOWN LangType = 3
+	LangType_JAVA    LangType = 0 //nolint:revive,stylecheck
+	LangType_CSHARP  LangType = 1 //nolint:revive,stylecheck
+	LangType_PYTHON  LangType = 2 //nolint:revive,stylecheck
+	LangType_UNKNOWN LangType = 3 //nolint:revive,stylecheck
 )
 
 const (
-	JAVA_SRC_PATH      = "src/main/java/"
-	JAVA_TEST_PATH     = "src/test/java/"
-	JAVA_RESOURCE_PATH = "src/test/resources/"
+	JAVA_SRC_PATH      = "src/main/java/"      //nolint:revive,stylecheck
+	JAVA_TEST_PATH     = "src/test/java/"      //nolint:revive,stylecheck
+	JAVA_RESOURCE_PATH = "src/test/resources/" //nolint:revive,stylecheck
 )
 
-//Node holds data about a source code
+// Node holds data about a source code
 type Node struct {
 	Pkg    string
 	Class  string
@@ -83,7 +83,7 @@ func ParseJavaNode(filename string) (*Node, error) {
 	if strings.Contains(filename, JAVA_SRC_PATH) && strings.HasSuffix(filename, ".java") {
 		r = regexp.MustCompile(`^.*src/main/java/`)
 		node.Type = NodeType_SOURCE
-		rr := r.ReplaceAllString(filename, "${1}") //extract the 2nd part after matching the src/main/java prefix
+		rr := r.ReplaceAllString(filename, "${1}") // extract the 2nd part after matching the src/main/java prefix
 		rr = strings.TrimSuffix(rr, ".java")
 
 		parts := strings.Split(rr, "/")
@@ -94,7 +94,7 @@ func ParseJavaNode(filename string) (*Node, error) {
 	} else if strings.Contains(filename, JAVA_TEST_PATH) && strings.HasSuffix(filename, ".java") {
 		r = regexp.MustCompile(`^.*src/test/java/`)
 		node.Type = NodeType_TEST
-		rr := r.ReplaceAllString(filename, "${1}") //extract the 2nd part after matching the src/test/java prefix
+		rr := r.ReplaceAllString(filename, "${1}") // extract the 2nd part after matching the src/test/java prefix
 		rr = strings.TrimSuffix(rr, ".java")
 
 		parts := strings.Split(rr, "/")

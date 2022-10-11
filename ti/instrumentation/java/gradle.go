@@ -43,7 +43,7 @@ func (g *gradleRunner) AutoDetectTests(ctx context.Context, workspace string) ([
 	tests := make([]ti.RunnableTest, 0)
 	files, _ := getFiles(fmt.Sprintf("%s/**/*.java", workspace))
 	for _, path := range files {
-		if len(path) == 0 {
+		if path == "" {
 			continue
 		}
 		node, _ := ParseJavaNode(path)

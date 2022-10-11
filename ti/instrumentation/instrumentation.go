@@ -60,7 +60,8 @@ func getTestSelection(ctx context.Context, config *api.RunTestConfig, fs filesys
 	return selection
 }
 
-func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *logrus.Logger, runner TestRunner, selection *ti.SelectTestsResp, ignoreInstr *bool, workspace string, envs map[string]string) {
+func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *logrus.Logger, runner TestRunner,
+	selection *ti.SelectTestsResp, ignoreInstr *bool, workspace string, envs map[string]string) {
 	if !config.ParallelizeTests {
 		log.Infoln("Skipping test splitting as requested")
 		return
