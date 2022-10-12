@@ -139,7 +139,6 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	log := logrus.New()
 	log.Out = out
 
-	config.ParallelizeTests = true // remove
 	if config.TestSplitStrategy == "" {
 		config.TestSplitStrategy = defaultTestSplitStrategy
 	}
