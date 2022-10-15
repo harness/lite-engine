@@ -39,6 +39,10 @@ func (b *nunitConsoleRunner) AutoDetectPackages(workspace string) ([]string, err
 	return []string{}, errors.New("not implemented")
 }
 
+func (b *nunitConsoleRunner) AutoDetectTests(ctx context.Context, workspace string) ([]ti.RunnableTest, error) {
+	return []ti.RunnableTest{}, nil
+}
+
 func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, //nolint:gocyclo
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	/*

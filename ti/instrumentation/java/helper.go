@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/mattn/go-zglob"
@@ -22,6 +23,41 @@ const (
 	JavaAgentJar = "java-agent.jar"
 )
 
+type NodeType int32
+
+const (
+	NodeType_SOURCE   NodeType = 0 //nolint:revive,stylecheck
+	NodeType_TEST     NodeType = 1 //nolint:revive,stylecheck
+	NodeType_CONF     NodeType = 2 //nolint:revive,stylecheck
+	NodeType_RESOURCE NodeType = 3 //nolint:revive,stylecheck
+	NodeType_OTHER    NodeType = 4 //nolint:revive,stylecheck
+)
+
+type LangType int32
+
+const (
+	LangType_JAVA    LangType = 0 //nolint:revive,stylecheck
+	LangType_CSHARP  LangType = 1 //nolint:revive,stylecheck
+	LangType_PYTHON  LangType = 2 //nolint:revive,stylecheck
+	LangType_UNKNOWN LangType = 3 //nolint:revive,stylecheck
+)
+
+const (
+	JAVA_SRC_PATH      = "src/main/java/"      //nolint:revive,stylecheck
+	JAVA_TEST_PATH     = "src/test/java/"      //nolint:revive,stylecheck
+	JAVA_RESOURCE_PATH = "src/test/resources/" //nolint:revive,stylecheck
+)
+
+// Node holds data about a source code
+type Node struct {
+	Pkg    string
+	Class  string
+	Method string
+	File   string
+	Lang   LangType
+	Type   NodeType
+}
+
 // get list of all file paths matching a provided regex
 func getFiles(path string) ([]string, error) {
 	matches, err := zglob.Glob(path)
@@ -29,6 +65,66 @@ func getFiles(path string) ([]string, error) {
 		return []string{}, err
 	}
 	return matches, err
+}
+
+// ParseJavaNode extracts the pkg and class names from a Java file path
+// e.g., 320-ci-execution/src/main/java/io/harness/stateutils/buildstate/ConnectorUtils.java
+// will return pkg = io.harness.stateutils.buildstate, class = ConnectorUtils
+func ParseJavaNode(filename string) (*Node, error) {
+	var node Node
+	node.Pkg = ""
+	node.Class = ""
+	node.Lang = LangType_UNKNOWN
+	node.Type = NodeType_OTHER
+
+	filename = strings.TrimSpace(filename)
+
+	var r *regexp.Regexp
+	if strings.Contains(filename, JAVA_SRC_PATH) && strings.HasSuffix(filename, ".java") {
+		r = regexp.MustCompile(`^.*src/main/java/`)
+		node.Type = NodeType_SOURCE
+		rr := r.ReplaceAllString(filename, "${1}") // extract the 2nd part after matching the src/main/java prefix
+		rr = strings.TrimSuffix(rr, ".java")
+
+		parts := strings.Split(rr, "/")
+		p := parts[:len(parts)-1]
+		node.Class = parts[len(parts)-1]
+		node.Lang = LangType_JAVA
+		node.Pkg = strings.Join(p, ".")
+	} else if strings.Contains(filename, JAVA_TEST_PATH) && strings.HasSuffix(filename, ".java") {
+		r = regexp.MustCompile(`^.*src/test/java/`)
+		node.Type = NodeType_TEST
+		rr := r.ReplaceAllString(filename, "${1}") // extract the 2nd part after matching the src/test/java prefix
+		rr = strings.TrimSuffix(rr, ".java")
+
+		parts := strings.Split(rr, "/")
+		p := parts[:len(parts)-1]
+		node.Class = parts[len(parts)-1]
+		node.Lang = LangType_JAVA
+		node.Pkg = strings.Join(p, ".")
+	} else if strings.Contains(filename, JAVA_RESOURCE_PATH) {
+		node.Type = NodeType_RESOURCE
+		parts := strings.Split(filename, "/")
+		node.File = parts[len(parts)-1]
+		node.Lang = LangType_JAVA
+	} else if strings.HasSuffix(filename, ".scala") {
+		// Cannot make any assumption from scala/kotlin file path, return generic source node for now
+		node.Lang = LangType_JAVA
+		node.Type = NodeType_SOURCE
+		f := strings.TrimSuffix(filename, ".scala")
+		parts := strings.Split(f, "/")
+		node.Class = parts[len(parts)-1]
+	} else if strings.HasSuffix(filename, ".kt") {
+		node.Lang = LangType_JAVA
+		node.Type = NodeType_SOURCE
+		f := strings.TrimSuffix(filename, ".kt")
+		parts := strings.Split(f, "/")
+		node.Class = parts[len(parts)-1]
+	} else {
+		return &node, nil
+	}
+
+	return &node, nil
 }
 
 // detect java packages by reading all the files and parsing their package names

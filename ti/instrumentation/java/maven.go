@@ -36,6 +36,27 @@ func (m *mavenRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return DetectPkgs(workspace, m.log, m.fs)
 }
 
+// AutoDetectTests parses all the Java test files and converts them to RunnableTest
+func (m *mavenRunner) AutoDetectTests(ctx context.Context, workspace string) ([]ti.RunnableTest, error) {
+	tests := make([]ti.RunnableTest, 0)
+	files, _ := getFiles(fmt.Sprintf("%s/**/*.java", workspace))
+	for _, path := range files {
+		if path == "" {
+			continue
+		}
+		node, _ := ParseJavaNode(path)
+		if node.Type != NodeType_TEST {
+			continue
+		}
+		test := ti.RunnableTest{
+			Pkg:   node.Pkg,
+			Class: node.Class,
+		}
+		tests = append(tests, test)
+	}
+	return tests, nil
+}
+
 func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// If instrumentation needs to be ignored, we run all the tests without adding the agent config
