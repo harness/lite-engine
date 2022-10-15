@@ -38,6 +38,7 @@ func (b *bazelRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return DetectPkgs(workspace, b.log, b.fs)
 }
 
+// AutoDetectTests parses all the Java test rules from bazel query to RunnableTest
 func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string) ([]ti.RunnableTest, error) {
 	tests := make([]ti.RunnableTest, 0)
 
@@ -52,6 +53,7 @@ func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string) ([]
 	// Convert rules to RunnableTest list
 	var test ti.RunnableTest
 	for _, r := range strings.Split(string(resp), "\n") {
+		// r = //module:package.class
 		if r == "" {
 			continue
 		}
@@ -60,6 +62,7 @@ func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string) ([]
 			b.log.Errorln(fmt.Sprintf("Rule does not follow the default format: %s", r))
 			continue
 		}
+		// fullPkg = package.class
 		fullPkg := strings.Split(r, ":")[1]
 		for _, s := range bazelRuleSepList {
 			fullPkg = strings.Replace(fullPkg, s, ".", -1)
@@ -109,18 +112,18 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 	rulesM := make(map[string]struct{})
 	rules := []string{} // List of unique bazel rules to be executed
-	set := make(map[string]interface{})
+	classSet := make(map[string]interface{})
 	for i := 0; i < len(pkgs); i++ {
 		// If the rule is present in the test, use it and skip querying bazel to get the rule
 		if rls[i] != "" {
 			rules = append(rules, rls[i])
 			continue
 		}
-		if _, ok := set[clss[i]]; ok {
+		if _, ok := classSet[clss[i]]; ok {
 			// The class has already been queried
 			continue
 		}
-		set[clss[i]] = struct{}{}
+		classSet[clss[i]] = struct{}{}
 		c := fmt.Sprintf("%s query 'attr(name, %s.%s, //...)'", bazelCmd, pkgs[i], clss[i])
 		cmdArgs := []string{"-c", c}
 		resp, err := exec.CommandContext(ctx, "sh", cmdArgs...).Output()

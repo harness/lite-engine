@@ -36,6 +36,7 @@ func (m *mavenRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return DetectPkgs(workspace, m.log, m.fs)
 }
 
+// AutoDetectTests parses all the Java test files and converts them to RunnableTest
 func (m *mavenRunner) AutoDetectTests(ctx context.Context, workspace string) ([]ti.RunnableTest, error) {
 	tests := make([]ti.RunnableTest, 0)
 	files, _ := getFiles(fmt.Sprintf("%s/**/*.java", workspace))
