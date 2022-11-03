@@ -41,21 +41,13 @@ func (g *gradleRunner) AutoDetectPackages(workspace string) ([]string, error) {
 
 func (g *gradleRunner) AutoDetectTests(ctx context.Context, workspace string) ([]ti.RunnableTest, error) {
 	tests := make([]ti.RunnableTest, 0)
-	files, _ := getFiles(fmt.Sprintf("%s/**/*.java", workspace))
-	for _, path := range files {
-		if path == "" {
-			continue
-		}
-		node, _ := ParseJavaNode(path)
-		if node.Type != NodeType_TEST {
-			continue
-		}
-		test := ti.RunnableTest{
-			Pkg:   node.Pkg,
-			Class: node.Class,
-		}
-		tests = append(tests, test)
-	}
+	javaTests := GetJavaTests(workspace)
+	scalaTests := GetScalaTests(workspace)
+	kotlinTests := GetKotlinTests(workspace)
+
+	tests = append(tests, javaTests...)
+	tests = append(tests, scalaTests...)
+	tests = append(tests, kotlinTests...)
 	return tests, nil
 }
 

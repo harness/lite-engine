@@ -135,7 +135,7 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	*ignoreInstr = false
 }
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer, envs map[string]string) (string, error) {
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer, envs map[string]string) (string, error) { //nolint:funlen
 	fs := filesystem.New()
 	tmpFilePath := pipeline.SharedVolPath
 	log := logrus.New()
@@ -165,12 +165,10 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		case "bazel":
 			runner = java.NewBazelRunner(log, fs)
 		case "sbt":
-			{
-				if config.Language != "scala" {
-					return "", fmt.Errorf("build tool: SBT is not supported for non-Scala languages")
-				}
-				runner = java.NewSBTRunner(log, fs)
+			if config.Language != "scala" {
+				return "", fmt.Errorf("build tool: SBT is not supported for non-Scala languages")
 			}
+			runner = java.NewSBTRunner(log, fs)
 		default:
 			return "", fmt.Errorf("build tool: %s is not supported for Java", config.BuildTool)
 		}

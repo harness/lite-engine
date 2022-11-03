@@ -112,7 +112,7 @@ func duration(t string) time.Duration {
 	t = strings.ReplaceAll(t, ",", "")
 
 	// Check if there was a valid decimal value
-	if s, err := strconv.ParseFloat(t, 64); err == nil { //nolint:gomnd
+	if s, err := strconv.ParseFloat(t, 64); err == nil { //nolint:gomnd,nolintlint
 		return time.Duration(s*1000000) * time.Microsecond //nolint:gomnd
 	}
 

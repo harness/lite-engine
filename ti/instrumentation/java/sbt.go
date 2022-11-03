@@ -31,18 +31,28 @@ func NewSBTRunner(log *logrus.Logger, fs filesystem.FileSystem) *sbtRunner { //n
 	}
 }
 
-func (m *sbtRunner) AutoDetectPackages(workspace string) ([]string, error) {
-	return DetectPkgs(workspace, m.log, m.fs)
+func (s *sbtRunner) AutoDetectPackages(workspace string) ([]string, error) {
+	return DetectPkgs(workspace, s.log, s.fs)
 }
 
-func (m *sbtRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
+func (s *sbtRunner) AutoDetectTests(ctx context.Context, workspace string) ([]ti.RunnableTest, error) {
+	tests := make([]ti.RunnableTest, 0)
+	javaTests := GetJavaTests(workspace)
+	scalaTests := GetScalaTests(workspace)
+
+	tests = append(tests, javaTests...)
+	tests = append(tests, scalaTests...)
+	return tests, nil
+}
+
+func (s *sbtRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	if ignoreInstr {
 		return fmt.Sprintf("%s %s 'test'", sbtCmd, userArgs), nil
 	}
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
 	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
-	instrArg := fmt.Sprintf("'set javaOptions ++= Seq(\"%s\")'", agentArg)
+	instrArg := fmt.Sprintf("'set javaOptions ++= Seq(\"%s\")'", agentArg)   //nolint:gocritic
 	defaultCmd := fmt.Sprintf("%s %s %s 'test'", sbtCmd, userArgs, instrArg) // run all the tests
 
 	if runAll {
@@ -50,7 +60,7 @@ func (m *sbtRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArg
 		return defaultCmd, nil
 	}
 	if len(tests) == 0 {
-		return fmt.Sprintf("echo \"Skipping test run, received no tests to execute\""), nil
+		return "echo \"Skipping test run, received no tests to execute\"", nil
 	}
 	// Use only unique classes
 	testsList := []string{}
