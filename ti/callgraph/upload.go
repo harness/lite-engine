@@ -104,8 +104,6 @@ func getFiles(path string) ([]string, error) {
 func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string, error) { //nolint:gocritic,unparam
 	cgFiles, err1 := getFiles(filepath.Join(dir, "**/*."+ext1))
 	visFiles, err2 := getFiles(filepath.Join(dir, "**/*."+ext2))
-	log.Infoln("cg files: ", cgFiles)
-	log.Infoln("vis files: ", visFiles)
 
 	if err1 != nil || err2 != nil {
 		log.Errorln(fmt.Sprintf("error in getting files list in dir %s", dir), err1, err2)
