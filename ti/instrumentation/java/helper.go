@@ -252,8 +252,13 @@ func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) 
 	if err != nil {
 		return plist, err
 	}
-	// Create a list with all *.java and *.kt file paths
+	scalaFiles, err := getFiles(fmt.Sprintf("%s/**/*.scala", workspace))
+	if err != nil {
+		return plist, err
+	}
+	// Create a list with all *.java, *.kt and *.scala file paths
 	files = append(files, kotlinFiles...)
+	files = append(files, scalaFiles...)
 	fmt.Println("files: ", files)
 	m := make(map[string]struct{})
 	for _, f := range files {

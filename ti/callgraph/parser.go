@@ -41,7 +41,6 @@ func NewCallGraphParser(log *logrus.Logger, fs filesystem.FileSystem) *CallGraph
 
 // Iterate through all the cg files in the directory, parse each of them and return Callgraph object
 func (cg *CallGraphParser) Parse(cgFiles, visFiles []string) (*Callgraph, error) {
-	cg.log.Infof("parsing files := cg - [%s], vis - [%s]", cgFiles, visFiles)
 	cgraph, err := cg.parseCg(cgFiles)
 	if err != nil {
 		return nil, err
@@ -83,7 +82,6 @@ func (cg *CallGraphParser) readFiles(files []string) ([]string, error) {
 		if err != nil {
 			return []string{}, errors.Wrap(err, fmt.Sprintf("failed to parse file %s", file))
 		}
-		cg.log.Infoln(fmt.Sprintf("successfully parsed file %s", file))
 		finalData = append(finalData, cgStr...)
 	}
 	return finalData, nil
