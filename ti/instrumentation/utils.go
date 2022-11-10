@@ -95,9 +95,9 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 	for _, t := range testsToSplit {
 		switch splitStrategy {
 		case classTimingTestSplitStrategy, countTestSplitStrategy:
-			testID = t.Pkg + t.Class
+			testID = t.Pkg + "." + t.Class
 		default:
-			testID = t.Pkg + t.Class
+			testID = t.Pkg + "." + t.Class
 		}
 		currentTestSet[testID] = true
 		currentTestMap[testID] = append(currentTestMap[testID], t)
