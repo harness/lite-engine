@@ -2,11 +2,12 @@ package instrumentation
 
 import (
 	"context"
+	"testing"
+
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/ti"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func Test_GetSplitTests(t *testing.T) {
