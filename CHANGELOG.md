@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.4.4](https://github.com/harness/lite-engine/tree/v0.4.4) (2022-11-11)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.3...v0.4.4)
+
+**Implemented enhancements:**
+
+- \(fix\) Autodetect packages from scala files [\#93](https://github.com/harness/lite-engine/pull/93) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- \(feat\) Test Autodetect support for Scala and Kotlin [\#92](https://github.com/harness/lite-engine/pull/92) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- feat: \[CI-3333\]: SBT support [\#91](https://github.com/harness/lite-engine/pull/91) ([jamie-harness](https://github.com/jamie-harness))
+- \(feat\) RunTests with Parallelism [\#89](https://github.com/harness/lite-engine/pull/89) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- Skip test selection and cg collection in case of manual run [\#88](https://github.com/harness/lite-engine/pull/88) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+
+**Fixed bugs:**
+
+- \(fix\): Fix empty test added by the test splitter [\#94](https://github.com/harness/lite-engine/pull/94) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- \(fix\): Add DharnessArgLine to Maven test command [\#90](https://github.com/harness/lite-engine/pull/90) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+
 ## [v0.4.3](https://github.com/harness/lite-engine/tree/v0.4.3) (2022-09-26)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.2...v0.4.3)
@@ -8,6 +25,10 @@
 
 - overload .env variables if env file present [\#86](https://github.com/harness/lite-engine/pull/86) ([shubham149](https://github.com/shubham149))
 - \(fix\): wait for log copying to complete before returning control [\#85](https://github.com/harness/lite-engine/pull/85) ([vistaarjuneja](https://github.com/vistaarjuneja))
+
+**Merged pull requests:**
+
+- 0.4.3 prep [\#87](https://github.com/harness/lite-engine/pull/87) ([shubham149](https://github.com/shubham149))
 
 ## [v0.4.2](https://github.com/harness/lite-engine/tree/v0.4.2) (2022-09-22)
 
