@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/avro"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -91,4 +92,20 @@ func TestCallGraphParser_ParseShouldFailNoFile(t *testing.T) {
 	assert.NotEqual(t, nil, err)
 	strings.Contains(err.Error(), "failed to open file")
 	assert.True(t, strings.Contains(err.Error(), "failed to open file"))
+}
+
+func Test_AvroSerialize(t *testing.T) {
+	log := logrus.New()
+	fs := filesystem.New()
+	cgParser := NewCallGraphParser(log, fs)
+	cg, _ := cgParser.Parse([]string{"testdata/avro_cg.json"}, []string{})
+
+	cgMap := cg.ToStringMap()
+	cgSer, err := avro.NewCgphSerialzer(cgSchemaType)
+	assert.Equal(t, nil, err)
+
+	encCg, _ := cgSer.Serialize(cgMap)
+	des, _ := cgSer.Deserialize(encCg)
+	desCg, _ := FromStringMap(des.(map[string]interface{}))
+	assert.Equal(t, desCg, cg)
 }
