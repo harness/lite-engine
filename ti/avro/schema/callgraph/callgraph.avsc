@@ -19,6 +19,7 @@
                         {"name" : "class", "type" : "string"},
                         {"name" : "type", "type" : "string"},
                         {"name": "callsReflection", "type" : "boolean"},
+                        {"name": "alwaysRun", "type" : "boolean"},
                         {"name": "file", "type" : "string"}
                     ]
                 }
