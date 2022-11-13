@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.4.5](https://github.com/harness/lite-engine/tree/v0.4.5) (2022-11-13)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.4...v0.4.5)
+
+**Implemented enhancements:**
+
+- \(feat\): HarnessAlwaysRun support for VMs [\#95](https://github.com/harness/lite-engine/pull/95) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+
 ## [v0.4.4](https://github.com/harness/lite-engine/tree/v0.4.4) (2022-11-11)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.3...v0.4.4)
