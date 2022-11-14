@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -291,8 +292,9 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 				ParallelizeTests:     tt.parallelizeTestsBool,
 			}
 			runner := mocks.NewMockTestRunner(ctrl)
+			testGlobs := strings.Split("", ",")
 			if tt.runnerAutodetectExpect {
-				runner.EXPECT().AutoDetectTests(ctx, "").Return(tt.runnerAutodetectTestsVal, tt.runnerAutodetectTestsErr)
+				runner.EXPECT().AutoDetectTests(ctx, "", testGlobs).Return(tt.runnerAutodetectTestsVal, tt.runnerAutodetectTestsErr)
 			}
 
 			selectTestsResponse := ti.SelectTestsResp{}

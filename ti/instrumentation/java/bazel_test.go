@@ -64,7 +64,7 @@ func TestBazelAutoDetectTests(t *testing.T) {
 	t4.Autodetect.Rule = "//module1:pkg2/cls2"
 	testsExpected := []ti.RunnableTest{t1, t2, t4}
 
-	tests, _ := runner.AutoDetectTests(ctx, "")
+	tests, _ := runner.AutoDetectTests(ctx, "", []string{})
 	assert.Equal(t, testsExpected, tests)
 }
 

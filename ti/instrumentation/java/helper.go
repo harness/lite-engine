@@ -14,32 +14,13 @@ import (
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti"
-	"github.com/mattn/go-zglob"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	"github.com/sirupsen/logrus"
 )
 
 const (
 	AgentArg     = "-javaagent:%s=%s"
 	JavaAgentJar = "java-agent.jar"
-)
-
-type NodeType int32
-
-const (
-	NodeType_SOURCE   NodeType = 0 //nolint:revive,stylecheck
-	NodeType_TEST     NodeType = 1 //nolint:revive,stylecheck
-	NodeType_CONF     NodeType = 2 //nolint:revive,stylecheck
-	NodeType_RESOURCE NodeType = 3 //nolint:revive,stylecheck
-	NodeType_OTHER    NodeType = 4 //nolint:revive,stylecheck
-)
-
-type LangType int32
-
-const (
-	LangType_JAVA    LangType = 0 //nolint:revive,stylecheck
-	LangType_CSHARP  LangType = 1 //nolint:revive,stylecheck
-	LangType_PYTHON  LangType = 2 //nolint:revive,stylecheck
-	LangType_UNKNOWN LangType = 3 //nolint:revive,stylecheck
 )
 
 const (
@@ -57,36 +38,17 @@ var (
 	kotlinTestRegex = fmt.Sprintf("^.*%s", KOTLIN_TEST_PATH)
 )
 
-// Node holds data about a source code
-type Node struct {
-	Pkg    string
-	Class  string
-	Method string
-	File   string
-	Lang   LangType
-	Type   NodeType
-}
-
-// get list of all file paths matching a provided regex
-func getFiles(path string) ([]string, error) {
-	matches, err := zglob.Glob(path)
-	if err != nil {
-		return []string{}, err
-	}
-	return matches, err
-}
-
 // GetJavaTests returns list of RunnableTests in the workspace with java extension.
 // In case of errors, return empty list
-func GetJavaTests(workspace string) []ti.RunnableTest {
+func GetJavaTests(workspace string, testGlobs []string) []ti.RunnableTest {
 	tests := make([]ti.RunnableTest, 0)
-	files, _ := getFiles(fmt.Sprintf("%s/**/*.java", workspace))
+	files, _ := common.GetFiles(fmt.Sprintf("%s/**/*.java", workspace))
 	for _, path := range files {
 		if path == "" {
 			continue
 		}
-		node, _ := ParseJavaNode(path)
-		if node.Type != NodeType_TEST {
+		node, _ := ParseJavaNode(path, testGlobs)
+		if node.Type != common.NodeType_TEST {
 			continue
 		}
 		test := ti.RunnableTest{
@@ -100,15 +62,15 @@ func GetJavaTests(workspace string) []ti.RunnableTest {
 
 // GetScalaTests returns list of RunnableTests in the workspace with scala extension.
 // In case of errors, return empty list
-func GetScalaTests(workspace string) []ti.RunnableTest {
+func GetScalaTests(workspace string, testGlobs []string) []ti.RunnableTest {
 	tests := make([]ti.RunnableTest, 0)
-	files, _ := getFiles(fmt.Sprintf("%s/**/*.scala", workspace))
+	files, _ := common.GetFiles(fmt.Sprintf("%s/**/*.scala", workspace))
 	for _, path := range files {
 		if path == "" {
 			continue
 		}
-		node, _ := ParseJavaNode(path)
-		if node.Type != NodeType_TEST {
+		node, _ := ParseJavaNode(path, testGlobs)
+		if node.Type != common.NodeType_TEST {
 			continue
 		}
 		test := ti.RunnableTest{
@@ -122,15 +84,15 @@ func GetScalaTests(workspace string) []ti.RunnableTest {
 
 // GetKotlinTests returns list of RunnableTests in the workspace with kotlin extension.
 // In case of errors, return empty list
-func GetKotlinTests(workspace string) []ti.RunnableTest {
+func GetKotlinTests(workspace string, testGlobs []string) []ti.RunnableTest {
 	tests := make([]ti.RunnableTest, 0)
-	files, _ := getFiles(fmt.Sprintf("%s/**/*.kt", workspace))
+	files, _ := common.GetFiles(fmt.Sprintf("%s/**/*.kt", workspace))
 	for _, path := range files {
 		if path == "" {
 			continue
 		}
-		node, _ := ParseJavaNode(path)
-		if node.Type != NodeType_TEST {
+		node, _ := ParseJavaNode(path, testGlobs)
+		if node.Type != common.NodeType_TEST {
 			continue
 		}
 		test := ti.RunnableTest{
@@ -145,54 +107,54 @@ func GetKotlinTests(workspace string) []ti.RunnableTest {
 // ParseJavaNode extracts the pkg and class names from a Java file path
 // e.g., 320-ci-execution/src/main/java/io/harness/stateutils/buildstate/ConnectorUtils.java
 // will return pkg = io.harness.stateutils.buildstate, class = ConnectorUtils
-func ParseJavaNode(filename string) (*Node, error) {
-	var node Node
+func ParseJavaNode(filename string, testGlobs []string) (*common.Node, error) {
+	var node common.Node
 	node.Pkg = ""
 	node.Class = ""
-	node.Lang = LangType_UNKNOWN
-	node.Type = NodeType_OTHER
+	node.Lang = common.LangType_UNKNOWN
+	node.Type = common.NodeType_OTHER
 
 	filename = strings.TrimSpace(filename)
 
 	var r *regexp.Regexp
 	if strings.Contains(filename, JAVA_SRC_PATH) && strings.HasSuffix(filename, ".java") {
 		r = regexp.MustCompile(javaSourceRegex)
-		node.Type = NodeType_SOURCE
+		node.Type = common.NodeType_SOURCE
 		rr := r.ReplaceAllString(filename, "${1}") // extract the 2nd part after matching the src/main/java prefix
 		rr = strings.TrimSuffix(rr, ".java")
 
 		parts := strings.Split(rr, "/")
 		p := parts[:len(parts)-1]
 		node.Class = parts[len(parts)-1]
-		node.Lang = LangType_JAVA
+		node.Lang = common.LangType_JAVA
 		node.Pkg = strings.Join(p, ".")
 	} else if strings.Contains(filename, JAVA_TEST_PATH) && strings.HasSuffix(filename, ".java") {
 		r = regexp.MustCompile(javaTestRegex)
-		node.Type = NodeType_TEST
+		node.Type = common.NodeType_TEST
 		rr := r.ReplaceAllString(filename, "${1}") // extract the 2nd part after matching the src/test/java prefix
 		rr = strings.TrimSuffix(rr, ".java")
 
 		parts := strings.Split(rr, "/")
 		p := parts[:len(parts)-1]
 		node.Class = parts[len(parts)-1]
-		node.Lang = LangType_JAVA
+		node.Lang = common.LangType_JAVA
 		node.Pkg = strings.Join(p, ".")
 	} else if strings.Contains(filename, JAVA_RESOURCE_PATH) {
-		node.Type = NodeType_RESOURCE
+		node.Type = common.NodeType_RESOURCE
 		parts := strings.Split(filename, "/")
 		node.File = parts[len(parts)-1]
-		node.Lang = LangType_JAVA
+		node.Lang = common.LangType_JAVA
 	} else if strings.HasSuffix(filename, ".scala") {
 		// If the scala filepath does not match any of the test paths below, return generic source node
-		node.Type = NodeType_SOURCE
-		node.Lang = LangType_JAVA
+		node.Type = common.NodeType_SOURCE
+		node.Lang = common.LangType_JAVA
 		f := strings.TrimSuffix(filename, ".scala")
 		parts := strings.Split(f, "/")
 		node.Class = parts[len(parts)-1]
 		// Check for Test Node
 		if strings.Contains(filename, SCALA_TEST_PATH) {
 			r = regexp.MustCompile(scalaTestRegex)
-			node.Type = NodeType_TEST
+			node.Type = common.NodeType_TEST
 			rr := r.ReplaceAllString(f, "${1}")
 
 			parts = strings.Split(rr, "/")
@@ -200,7 +162,7 @@ func ParseJavaNode(filename string) (*Node, error) {
 			node.Pkg = strings.Join(p, ".")
 		} else if strings.Contains(filename, JAVA_TEST_PATH) {
 			r = regexp.MustCompile(javaTestRegex)
-			node.Type = NodeType_TEST
+			node.Type = common.NodeType_TEST
 			rr := r.ReplaceAllString(f, "${1}")
 
 			parts = strings.Split(rr, "/")
@@ -209,15 +171,15 @@ func ParseJavaNode(filename string) (*Node, error) {
 		}
 	} else if strings.HasSuffix(filename, ".kt") {
 		// If the kotlin filepath does not match any of the test paths below, return generic source node
-		node.Type = NodeType_SOURCE
-		node.Lang = LangType_JAVA
+		node.Type = common.NodeType_SOURCE
+		node.Lang = common.LangType_JAVA
 		f := strings.TrimSuffix(filename, ".kt")
 		parts := strings.Split(f, "/")
 		node.Class = parts[len(parts)-1]
 		// Check for Test Node
 		if strings.Contains(filename, KOTLIN_TEST_PATH) {
 			r = regexp.MustCompile(kotlinTestRegex)
-			node.Type = NodeType_TEST
+			node.Type = common.NodeType_TEST
 			rr := r.ReplaceAllString(f, "${1}")
 
 			parts = strings.Split(rr, "/")
@@ -225,7 +187,7 @@ func ParseJavaNode(filename string) (*Node, error) {
 			node.Pkg = strings.Join(p, ".")
 		} else if strings.Contains(filename, JAVA_TEST_PATH) {
 			r = regexp.MustCompile(javaTestRegex)
-			node.Type = NodeType_TEST
+			node.Type = common.NodeType_TEST
 			rr := r.ReplaceAllString(f, "${1}")
 
 			parts = strings.Split(rr, "/")
@@ -244,15 +206,15 @@ func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) 
 	plist := []string{}
 	excludeList := []string{"com.google"} // exclude any instances of these packages from the package list
 
-	files, err := getFiles(fmt.Sprintf("%s/**/*.java", workspace))
+	files, err := common.GetFiles(fmt.Sprintf("%s/**/*.java", workspace))
 	if err != nil {
 		return plist, err
 	}
-	kotlinFiles, err := getFiles(fmt.Sprintf("%s/**/*.kt", workspace))
+	kotlinFiles, err := common.GetFiles(fmt.Sprintf("%s/**/*.kt", workspace))
 	if err != nil {
 		return plist, err
 	}
-	scalaFiles, err := getFiles(fmt.Sprintf("%s/**/*.scala", workspace))
+	scalaFiles, err := common.GetFiles(fmt.Sprintf("%s/**/*.scala", workspace))
 	if err != nil {
 		return plist, err
 	}

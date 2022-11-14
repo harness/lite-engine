@@ -35,10 +35,10 @@ func (s *sbtRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return DetectPkgs(workspace, s.log, s.fs)
 }
 
-func (s *sbtRunner) AutoDetectTests(ctx context.Context, workspace string) ([]ti.RunnableTest, error) {
+func (s *sbtRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
 	tests := make([]ti.RunnableTest, 0)
-	javaTests := GetJavaTests(workspace)
-	scalaTests := GetScalaTests(workspace)
+	javaTests := GetJavaTests(workspace, testGlobs)
+	scalaTests := GetScalaTests(workspace, testGlobs)
 
 	tests = append(tests, javaTests...)
 	tests = append(tests, scalaTests...)
