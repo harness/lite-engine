@@ -17,6 +17,7 @@ import (
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
+	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 )
 
@@ -86,6 +87,19 @@ func fetchOutputVariables(outputFile string, out io.Writer) (map[string]string, 
 		return nil, err
 	}
 	return outputs, nil
+}
+
+// Fetches env variable exported by the step.
+func fetchExportedEnvVars(envFile string, out io.Writer) map[string]string {
+	log := logrus.New()
+	log.Out = out
+
+	env, err := godotenv.Read(envFile)
+	if err != nil {
+		log.WithError(err).WithField("envFile", envFile).Debugln("failed to read exported env file")
+		return nil
+	}
+	return env
 }
 
 // setTiEnvVariables sets the environment variables required for TI
