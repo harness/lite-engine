@@ -18,7 +18,7 @@ import (
 	"github.com/harness/lite-engine/ti/report"
 )
 
-func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) (
+func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) ( //nolint:gocritic
 	*runtime.State, map[string]string, map[string]string, error) {
 	step := toStep(r)
 	step.Command = r.Run.Command

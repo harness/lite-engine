@@ -230,7 +230,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 	return runStep()
 }
 
-func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map[string]string, map[string]string, error) {
+func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map[string]string, map[string]string, error) { //nolint:gocritic
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, err
