@@ -304,7 +304,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 	return exited, outputs, envs, result
 }
 
-func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) (
+func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) ( //nolint:gocritic
 	*runtime.State, map[string]string, map[string]string, error) {
 	if r.Kind == api.Run {
 		return executeRunStep(ctx, engine, r, out)
