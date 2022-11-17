@@ -69,7 +69,7 @@ type: vm
 name: osx acceptance tests
 
 pool:
-  use: anka-intel
+  use: anka-arm64
 
 steps:
   - name: install_go
