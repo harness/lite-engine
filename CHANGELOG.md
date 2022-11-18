@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.4.6](https://github.com/harness/lite-engine/tree/v0.4.6) (2022-11-18)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.5...v0.4.6)
+
+**Implemented enhancements:**
+
+- Add support for exported env vars [\#98](https://github.com/harness/lite-engine/pull/98) ([shubham149](https://github.com/shubham149))
+
+**Merged pull requests:**
+
+- \(maint\) - update pool name to fix build issue for osx [\#99](https://github.com/harness/lite-engine/pull/99) ([eoinmcafee00](https://github.com/eoinmcafee00))
+
 ## [v0.4.5](https://github.com/harness/lite-engine/tree/v0.4.5) (2022-11-13)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.4...v0.4.5)
@@ -7,6 +19,10 @@
 **Implemented enhancements:**
 
 - \(feat\): HarnessAlwaysRun support for VMs [\#95](https://github.com/harness/lite-engine/pull/95) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+
+**Merged pull requests:**
+
+- 0.4.5 prep [\#96](https://github.com/harness/lite-engine/pull/96) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
 
 ## [v0.4.4](https://github.com/harness/lite-engine/tree/v0.4.4) (2022-11-11)
 
