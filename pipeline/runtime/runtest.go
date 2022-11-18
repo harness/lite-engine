@@ -20,12 +20,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) (
-	*runtime.State, map[string]string, error) {
+func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) ( //nolint:gocritic
+	*runtime.State, map[string]string, map[string]string, error) {
 	start := time.Now()
 	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, out, r.Envs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	step := toStep(r)
@@ -33,8 +33,11 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	step.Entrypoint = r.RunTest.Entrypoint
 	setTiEnvVariables(step)
 
+	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
+	step.Envs["DRONE_ENV"] = exportEnvFile
+
 	if len(r.OutputVars) > 0 && len(step.Entrypoint) == 0 || len(step.Command) == 0 {
-		return nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
+		return nil, nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
 	outputFile := fmt.Sprintf("%s/%s.out", pipeline.SharedVolPath, step.ID)
@@ -54,15 +57,16 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 		log.WithError(uerr).Errorln("unable to collect callgraph")
 	}
 
+	exportEnvs := fetchExportedEnvVars(exportEnvFile, out)
 	if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
 			outputs, err := fetchOutputVariables(outputFile, out) //nolint:govet
 			if err != nil {
-				return exited, nil, err
+				return exited, nil, exportEnvs, err
 			}
-			return exited, outputs, err
+			return exited, outputs, exportEnvs, err
 		}
 	}
 
-	return exited, nil, err
+	return exited, nil, exportEnvs, err
 }
