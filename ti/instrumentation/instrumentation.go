@@ -63,7 +63,7 @@ func getTestSelection(ctx context.Context, config *api.RunTestConfig, fs filesys
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
 // AutoDetectTests output and parallelism configuration
 func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *logrus.Logger, runner TestRunner,
-	selection *ti.SelectTestsResp, ignoreInstr *bool, workspace string, envs map[string]string) {
+	selection *ti.SelectTestsResp, workspace string, envs map[string]string) {
 	if !config.ParallelizeTests {
 		log.Infoln("Skipping test splitting as requested")
 		return
@@ -108,7 +108,6 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 				// Error while auto-detecting, no tests for other parallel steps
 				selection.Tests = []ti.RunnableTest{}
 				config.RunOnlySelectedTests = true
-				*ignoreInstr = false // TODO: (Rutvij) Ignore instrumentation for manual runs with split tests
 				log.Errorln("Error in auto-detecting tests for splitting, running all tests in parallel step 0")
 			}
 			return
@@ -132,10 +131,9 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	// Modify runner input to run selected tests
 	selection.Tests = splitTests
 	config.RunOnlySelectedTests = true
-	*ignoreInstr = false
 }
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer, envs map[string]string) (string, error) { //nolint:funlen
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer, envs map[string]string) (string, error) { //nolint:funlen,gocyclo
 	fs := filesystem.New()
 	tmpFilePath := pipeline.SharedVolPath
 	log := logrus.New()
@@ -147,8 +145,10 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	// Get the tests that need to be run if we are running selected tests
 	isManual := IsManualExecution()
-	ignoreInstr := isManual
 	selection := getTestSelection(ctx, config, fs, stepID, workspace, log, isManual)
+
+	// Ignore instrumentation when it's a manual run or user has unchecked RunOnlySelectedTests option
+	ignoreInstr := isManual || !config.RunOnlySelectedTests
 
 	var runner TestRunner
 	useYaml := false
@@ -200,7 +200,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	// Test splitting: only when parallelism is enabled
 	if IsParallelismEnabled(envs) {
-		computeSelectedTests(ctx, config, log, runner, &selection, &ignoreInstr, workspace, envs)
+		computeSelectedTests(ctx, config, log, runner, &selection, workspace, envs)
 	}
 
 	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, ignoreInstr, !config.RunOnlySelectedTests)

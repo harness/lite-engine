@@ -56,9 +56,6 @@ func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 			 ii)  Run agentConfigPath/injector.exe with bin/Debug/net48/ProjectName.dll and config yaml
 			 iii)  Return dotnet test --no-build with args and test selection
 	*/
-	if ignoreInstr {
-		return fmt.Sprintf("%s %s", dotnetCmd, userArgs), nil
-	}
 
 	// This needs to be moved to the UI and made configurable: [CI-3167]
 	pathToDLL := os.Getenv("PATH_TO_DLL")
@@ -82,6 +79,9 @@ func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	cmd := fmt.Sprintf(". %s %s %s\n", pathToInjector, absPath, agentConfigPath)
 
 	if runAll {
+		if ignoreInstr {
+			return fmt.Sprintf("%s %s", dotnetCmd, userArgs), nil
+		}
 		return fmt.Sprintf("%s %s test %s --no-build", cmd, dotnetCmd, userArgs), nil
 	}
 
@@ -113,5 +113,8 @@ func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		testStr += "FullyQualifiedName~" + t
 	}
 
+	if ignoreInstr {
+		return fmt.Sprintf("%s test --filter %q %s --no-build", dotnetCmd, testStr, userArgs), nil
+	}
 	return fmt.Sprintf("%s %s test --filter %q %s --no-build", cmd, dotnetCmd, testStr, userArgs), nil // Add instrumentation here
 }

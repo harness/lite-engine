@@ -53,9 +53,6 @@ func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest
 		Working command:
 			. nunit3-console.exe <path-to-dll> --where "class =~ FirstTest || class =~ SecondTest"
 	*/
-	if ignoreInstr {
-		return userArgs, nil
-	}
 
 	var cmd string
 	pathToInjector := filepath.Join(agentInstallDir, "dotnet-agent", "dotnet-agent.injector.exe")
@@ -85,6 +82,9 @@ func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest
 	}
 
 	if runAll {
+		if ignoreInstr {
+			return userArgs, nil
+		}
 		return fmt.Sprintf("%s %s", cmd, userArgs), nil
 	}
 
@@ -115,6 +115,8 @@ func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest
 		}
 		testStr += fmt.Sprintf("class =~ %s", t)
 	}
-
+	if ignoreInstr {
+		return fmt.Sprintf("%s --where %q", userArgs, testStr), nil
+	}
 	return fmt.Sprintf("%s %s --where %q", cmd, userArgs, testStr), nil
 }

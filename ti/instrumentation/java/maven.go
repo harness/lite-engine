@@ -51,13 +51,8 @@ func (m *mavenRunner) AutoDetectTests(ctx context.Context, workspace string) ([]
 
 func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
-	// If instrumentation needs to be ignored, we run all the tests without adding the agent config
-	if ignoreInstr {
-		return strings.TrimSpace(fmt.Sprintf("%s %s", mavenCmd, userArgs)), nil
-	}
-
+	// Agent arg
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
-
 	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
 	instrArg := agentArg
 	re := regexp.MustCompile(`(-Duser\.\S*)`)
@@ -71,13 +66,18 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	if !strings.HasPrefix(instrArg, "") {
 		instrArg = fmt.Sprintf("%q", instrArg) // add double quotes to the instrumentation arg (needed for Windows OS)
 	}
+
+	// Run all the tests
 	if runAll {
-		// Run all the tests
+		if ignoreInstr {
+			return strings.TrimSpace(fmt.Sprintf("%s %s", mavenCmd, userArgs)), nil
+		}
 		return strings.TrimSpace(fmt.Sprintf("%s -am -DharnessArgLine=%s -DargLine=%s %s", mavenCmd, instrArg, instrArg, userArgs)), nil
 	}
 	if len(tests) == 0 {
 		return "echo \"Skipping test run, received no tests to execute\"", nil
 	}
+
 	// Use only unique <package, class> tuples
 	set := make(map[ti.RunnableTest]interface{})
 	ut := []string{}
@@ -95,5 +95,8 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		}
 	}
 	testStr := strings.Join(ut, ",")
+	if ignoreInstr {
+		return strings.TrimSpace(fmt.Sprintf("%s -Dtest=%s %s", mavenCmd, testStr, userArgs)), nil
+	}
 	return strings.TrimSpace(fmt.Sprintf("%s -Dtest=%s -am -DharnessArgLine=%s -DargLine=%s %s", mavenCmd, testStr, instrArg, instrArg, userArgs)), nil
 }

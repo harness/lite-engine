@@ -133,9 +133,17 @@ func TestGetGradleCmd_Manual(t *testing.T) {
 			name:                 "run selected tests with run only selected tests as true",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: true,
-			want:                 "gradle test -Duser.timezone=US/Mountain -Duser.locale=en/US",
+			want:                 "echo \"Skipping test run, received no tests to execute\"",
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{},
+		},
+		{
+			name:                 "run selected tests with with ignore instrumentation as true",
+			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
+			runOnlySelectedTests: true,
+			want:                 "gradle test -Duser.timezone=US/Mountain -Duser.locale=en/US --tests \"pkg.cls\"",
+			expectedErr:          false,
+			tests:                []ti.RunnableTest{{Pkg: "pkg", Class: "cls"}},
 		},
 	}
 

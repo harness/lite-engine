@@ -88,6 +88,14 @@ func TestDotNet_GetCmd(t *testing.T) {
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t2},
 		},
+		{
+			name:                 "run selected tests with with ignore instrumentation as true",
+			args:                 "test Build.csproj",
+			runOnlySelectedTests: true,
+			want:                 "dotnet test Build.csproj --filter \"FullyQualifiedName~pkg2.cls2\"",
+			expectedErr:          false,
+			tests:                []ti.RunnableTest{t2},
+		},
 	}
 
 	for _, tc := range tests {
