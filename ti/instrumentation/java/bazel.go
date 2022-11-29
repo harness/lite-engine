@@ -83,22 +83,23 @@ func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string) ([]
 
 func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, //nolint:funlen,gocyclo
 	workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
-	if ignoreInstr {
-		return fmt.Sprintf("%s %s //...", bazelCmd, userArgs), nil
-	}
-
+	// Agent arg
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
 	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
 	instrArg := fmt.Sprintf("--define=HARNESS_ARGS=%s", agentArg)
 	defaultCmd := fmt.Sprintf("%s %s %s //...", bazelCmd, userArgs, instrArg) // run all the tests
 
+	// Run all the tests
 	if runAll {
-		// Run all the tests
+		if ignoreInstr {
+			return fmt.Sprintf("%s %s //...", bazelCmd, userArgs), nil
+		}
 		return defaultCmd, nil
 	}
 	if len(tests) == 0 {
 		return "echo \"Skipping test run, received no tests to execute\"", nil //nolint:goconst
 	}
+
 	// Use only unique classes
 	pkgs := []string{}
 	clss := []string{}
@@ -180,5 +181,8 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		return "echo \"Could not find any relevant test rules. Skipping the run\"", nil
 	}
 	testList := strings.Join(rules, " ")
+	if ignoreInstr {
+		return fmt.Sprintf("%s %s %s", bazelCmd, userArgs, testList), nil
+	}
 	return fmt.Sprintf("%s %s %s %s", bazelCmd, userArgs, instrArg, testList), nil
 }

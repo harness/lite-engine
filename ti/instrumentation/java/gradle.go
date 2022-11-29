@@ -84,9 +84,6 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	}
 
 	// If instrumentation needs to be ignored, we run all the tests without adding the agent config
-	if ignoreInstr {
-		return strings.TrimSpace(fmt.Sprintf("%s %s", gc, userArgs)), nil
-	}
 
 	var orCmd string
 
@@ -106,6 +103,9 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
 	if runAll {
 		// Run all the tests
+		if ignoreInstr {
+			return strings.TrimSpace(fmt.Sprintf("%s %s", gc, userArgs)), nil
+		}
 		return strings.TrimSpace(fmt.Sprintf("%s %s -DHARNESS_JAVA_AGENT=%s %s", gc, userArgs, agentArg, orCmd)), nil
 	}
 	if len(tests) == 0 {
@@ -124,5 +124,8 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		testStr = testStr + " --tests " + fmt.Sprintf("\"%s.%s\"", t.Pkg, t.Class)
 	}
 
+	if ignoreInstr {
+		return strings.TrimSpace(fmt.Sprintf("%s %s%s %s", gc, userArgs, testStr, orCmd)), nil
+	}
 	return strings.TrimSpace(fmt.Sprintf("%s %s -DHARNESS_JAVA_AGENT=%s%s %s", gc, userArgs, agentArg, testStr, orCmd)), nil
 }

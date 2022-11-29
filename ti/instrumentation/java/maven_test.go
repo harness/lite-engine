@@ -129,12 +129,20 @@ func TestGetMavenCmd_Manual(t *testing.T) {
 			tests:                []ti.RunnableTest{},
 		},
 		{
-			name:                 "run selected tests with zero tests and -Duser parameters",
-			args:                 "clean test -Duser.timezone=US/Mountain -Duser.locale=en/US",
+			name:                 "run selected tests with zero tests",
+			args:                 "",
 			runOnlySelectedTests: true,
-			want:                 "mvn clean test -Duser.timezone=US/Mountain -Duser.locale=en/US",
+			want:                 "echo \"Skipping test run, received no tests to execute\"",
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{},
+		},
+		{
+			name:                 "run selected tests with with ignore instrumentation as true",
+			args:                 "clean test",
+			runOnlySelectedTests: true,
+			want:                 "mvn -Dtest=pkg.cls clean test",
+			expectedErr:          false,
+			tests:                []ti.RunnableTest{{Pkg: "pkg", Class: "cls"}},
 		},
 	}
 

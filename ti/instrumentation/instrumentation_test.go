@@ -42,7 +42,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 		// Verify
 		runOnlySelectedTests     bool
 		selectTestsResponseTests []ti.RunnableTest
-		ignoreInstrResp          bool
 	}{
 		{
 			name: "SkipParallelization_Manual",
@@ -52,7 +51,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			parallelizeTestsBool:     false,
 			// Expect
 			runOnlySelectedTests: true,
-			ignoreInstrResp:      false,
 		},
 		{
 			name: "SkipParallelization_TiSelection",
@@ -64,7 +62,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: rts[:1],
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "SkipTestSplitting_TiSelectionZeroTests",
@@ -76,7 +73,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{},
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "ManualAutodetectPass",
@@ -95,7 +91,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[0]},
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "ManualAutodetectFailStepZero",
@@ -114,7 +109,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     false,
 			selectTestsResponseTests: []ti.RunnableTest{},
-			ignoreInstrResp:          true,
 		},
 		{
 			name: "ManualAutodetectFailStepNonZero",
@@ -133,7 +127,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: make([]ti.RunnableTest, 0),
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "TestParallelism_StageParallelismOnly",
@@ -148,7 +141,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[0]}, // (Stage 0, Step) - t1
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "TestParallelism_StepParallelismOnly",
@@ -163,7 +155,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[0]}, // (Stage, Step 1) - t2
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "TestParallelism_StageStepParallelism_v1",
@@ -178,7 +169,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[1]}, // (Stage 0, Step 1) - t2
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "TestParallelism_StageStepParallelism_v2",
@@ -193,7 +183,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[3]}, // (Stage 1, Step 1) - t4
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "TestParallelism_StageStepParallelism_v30",
@@ -208,7 +197,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[0]}, // (Stage 0, Step 0) - t1
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "TestParallelism_StageStepParallelism_v31",
@@ -223,7 +211,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[1]}, // (Stage 0, Step 1) - t2
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "TestParallelism_StageStepParallelism_v32",
@@ -238,7 +225,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[2]}, // (Stage 1, Step 0) - t3
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "TestParallelism_StageStepParallelism_v33",
@@ -253,7 +239,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[3]}, // (Stage 1, Step 1) - t4
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "TestParallelism_StageStepParallelism_v34",
@@ -268,7 +253,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[4]}, // (Stage 2, Step 0) - t5
-			ignoreInstrResp:          false,
 		},
 		{
 			name: "TestParallelism_StageStepParallelism_v35",
@@ -283,7 +267,6 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			// Expect
 			runOnlySelectedTests:     true,
 			selectTestsResponseTests: []ti.RunnableTest{rts[5]}, // (Stage 2, Step 1) - t5
-			ignoreInstrResp:          false,
 		},
 	}
 	for _, tt := range tests {
@@ -315,12 +298,10 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			selectTestsResponse := ti.SelectTestsResp{}
 			selectTestsResponse.Tests = tt.runnableTests
 
-			ignoreInstr := tt.IgnoreInstrBool
-			computeSelectedTests(ctx, config, log, runner, &selectTestsResponse, &ignoreInstr, "", envs)
+			computeSelectedTests(ctx, config, log, runner, &selectTestsResponse, "", envs)
 
 			assert.Equal(t, config.RunOnlySelectedTests, tt.runOnlySelectedTests)
 			assert.Equal(t, selectTestsResponse.Tests, tt.selectTestsResponseTests)
-			assert.Equal(t, ignoreInstr, tt.ignoreInstrResp)
 		})
 	}
 }
