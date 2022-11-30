@@ -39,8 +39,9 @@ func (b *nunitConsoleRunner) AutoDetectPackages(workspace string) ([]string, err
 	return []string{}, errors.New("not implemented")
 }
 
-func (b *nunitConsoleRunner) AutoDetectTests(ctx context.Context, workspace string) ([]ti.RunnableTest, error) {
-	return []ti.RunnableTest{}, nil
+func (b *nunitConsoleRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+	tests := GetCsharpTests(workspace, testGlobs)
+	return tests, nil
 }
 
 func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, //nolint:gocyclo

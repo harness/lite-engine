@@ -68,7 +68,6 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 		log.Infoln("Skipping test splitting as requested")
 		return
 	}
-
 	if config.RunOnlySelectedTests && len(selection.Tests) == 0 {
 		// TI returned zero test cases to run. Skip parallelism as
 		// there are no tests to run
@@ -96,7 +95,8 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 		// For full runs, detect all the tests in the repo and split them
 		// If autodetect fails or detects no tests, we run all tests in step 0
 		var err error
-		tests, err = runner.AutoDetectTests(ctx, workspace)
+		testGlobs := strings.Split(config.TestGlobs, ",")
+		tests, err = runner.AutoDetectTests(ctx, workspace, testGlobs)
 		if err != nil || len(tests) == 0 {
 			// AutoDetectTests output should be same across all the parallel steps. If one of the step
 			// receives error / no tests to run, all the other steps should have the same output

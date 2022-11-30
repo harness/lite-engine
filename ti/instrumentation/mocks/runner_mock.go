@@ -51,18 +51,18 @@ func (mr *MockTestRunnerMockRecorder) AutoDetectPackages(workspace interface{}) 
 }
 
 // AutoDetectTests mocks base method.
-func (m *MockTestRunner) AutoDetectTests(ctx context.Context, workspace string) ([]ti.RunnableTest, error) {
+func (m *MockTestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AutoDetectTests", ctx, workspace)
+	ret := m.ctrl.Call(m, "AutoDetectTests", ctx, workspace, testGlobs)
 	ret0, _ := ret[0].([]ti.RunnableTest)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AutoDetectTests indicates an expected call of AutoDetectTests.
-func (mr *MockTestRunnerMockRecorder) AutoDetectTests(ctx, workspace interface{}) *gomock.Call {
+func (mr *MockTestRunnerMockRecorder) AutoDetectTests(ctx, workspace, testGlobs interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AutoDetectTests", reflect.TypeOf((*MockTestRunner)(nil).AutoDetectTests), ctx, workspace)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AutoDetectTests", reflect.TypeOf((*MockTestRunner)(nil).AutoDetectTests), ctx, workspace, testGlobs)
 }
 
 // GetCmd mocks base method.

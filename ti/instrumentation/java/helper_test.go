@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,99 +37,99 @@ func Test_ParseJavaNode(t *testing.T) {
 	tests := []struct {
 		name     string
 		filename string
-		node     Node
+		node     common.Node
 	}{
 		{
 			name:     "ParseJavaNode_JavaSourceFile",
 			filename: "320-ci-execution/src/main/java/io/harness/stateutils/buildstate/ConnectorUtils.java",
-			node: Node{
+			node: common.Node{
 				Pkg:   "io.harness.stateutils.buildstate",
 				Class: "ConnectorUtils",
-				Type:  NodeType_SOURCE,
-				Lang:  LangType_JAVA,
+				Type:  common.NodeType_SOURCE,
+				Lang:  common.LangType_JAVA,
 			},
 		},
 		{
 			name:     "ParseJavaNode_JavaTestFile",
 			filename: "320-ci-execution/src/test/java/io/harness/stateutils/buildstate/ConnectorUtilsTest.java",
-			node: Node{
+			node: common.Node{
 				Pkg:   "io.harness.stateutils.buildstate",
 				Class: "ConnectorUtilsTest",
-				Type:  NodeType_TEST,
-				Lang:  LangType_JAVA,
+				Type:  common.NodeType_TEST,
+				Lang:  common.LangType_JAVA,
 			},
 		},
 		{
 			name:     "ParseJavaNode_JavaResourceFile",
 			filename: "320-ci-execution/src/test/resources/all.json",
-			node: Node{
-				Type: NodeType_RESOURCE,
-				Lang: LangType_JAVA,
+			node: common.Node{
+				Type: common.NodeType_RESOURCE,
+				Lang: common.LangType_JAVA,
 				File: "all.json",
 			},
 		},
 		{
 			name:     "ParseJavaNode_ScalaSourceFile",
 			filename: "320-ci-execution/src/main/java/io/harness/stateutils/buildstate/ConnectorUtils.scala",
-			node: Node{
+			node: common.Node{
 				Class: "ConnectorUtils",
-				Type:  NodeType_SOURCE,
-				Lang:  LangType_JAVA,
+				Type:  common.NodeType_SOURCE,
+				Lang:  common.LangType_JAVA,
 			},
 		},
 		{
 			name:     "ParseJavaNode_ScalaTestFile_ScalaTestPath",
 			filename: "320-ci-execution/src/test/scala/io/harness/stateutils/buildstate/ConnectorUtilsTest.scala",
-			node: Node{
+			node: common.Node{
 				Pkg:   "io.harness.stateutils.buildstate",
 				Class: "ConnectorUtilsTest",
-				Type:  NodeType_TEST,
-				Lang:  LangType_JAVA,
+				Type:  common.NodeType_TEST,
+				Lang:  common.LangType_JAVA,
 			},
 		},
 		{
 			name:     "ParseJavaNode_ScalaTestFile_JavaTestPath",
 			filename: "320-ci-execution/src/test/java/io/harness/stateutils/buildstate/ConnectorUtilsTest.scala",
-			node: Node{
+			node: common.Node{
 				Pkg:   "io.harness.stateutils.buildstate",
 				Class: "ConnectorUtilsTest",
-				Type:  NodeType_TEST,
-				Lang:  LangType_JAVA,
+				Type:  common.NodeType_TEST,
+				Lang:  common.LangType_JAVA,
 			},
 		},
 		{
 			name:     "ParseJavaNode_KotlinSourceFile",
 			filename: "320-ci-execution/src/main/java/io/harness/stateutils/buildstate/ConnectorUtils.kt",
-			node: Node{
+			node: common.Node{
 				Class: "ConnectorUtils",
-				Type:  NodeType_SOURCE,
-				Lang:  LangType_JAVA,
+				Type:  common.NodeType_SOURCE,
+				Lang:  common.LangType_JAVA,
 			},
 		},
 		{
 			name:     "ParseJavaNode_KotlinTestFile_KotlinTestPath",
 			filename: "320-ci-execution/src/test/kotlin/io/harness/stateutils/buildstate/ConnectorUtilsTest.kt",
-			node: Node{
+			node: common.Node{
 				Pkg:   "io.harness.stateutils.buildstate",
 				Class: "ConnectorUtilsTest",
-				Type:  NodeType_TEST,
-				Lang:  LangType_JAVA,
+				Type:  common.NodeType_TEST,
+				Lang:  common.LangType_JAVA,
 			},
 		},
 		{
 			name:     "ParseJavaNode_KotlinTestFile_JavaTestPath",
 			filename: "320-ci-execution/src/test/java/io/harness/stateutils/buildstate/ConnectorUtilsTest.kt",
-			node: Node{
+			node: common.Node{
 				Pkg:   "io.harness.stateutils.buildstate",
 				Class: "ConnectorUtilsTest",
-				Type:  NodeType_TEST,
-				Lang:  LangType_JAVA,
+				Type:  common.NodeType_TEST,
+				Lang:  common.LangType_JAVA,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			n, _ := ParseJavaNode(tt.filename)
+			n, _ := ParseJavaNode(tt.filename, []string{})
 			assert.Equal(t, tt.node, *n, "extracted java node does not match")
 		})
 	}

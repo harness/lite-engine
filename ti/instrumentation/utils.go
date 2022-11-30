@@ -225,7 +225,10 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 func formatTests(tests []ti.RunnableTest) string {
 	testStrings := make([]string, 0)
 	for _, t := range tests {
-		tString := fmt.Sprintf("%s.%s", t.Pkg, t.Class)
+		tString := t.Class
+		if t.Pkg != "" {
+			tString = fmt.Sprintf("%s.", t.Pkg) + tString
+		}
 		if t.Autodetect.Rule != "" {
 			tString += fmt.Sprintf(" %s", t.Autodetect.Rule)
 		}

@@ -113,6 +113,7 @@ type (
 		TestAnnotations      string   `json:"test_annotations,omitempty"`
 		TestSplitStrategy    string   `json:"test_split_strategy,omitempty"`
 		ParallelizeTests     bool     `json:"parallelize_tests,omitempty"`
+		TestGlobs            string   `json:"test_globs,omitempty"`
 	}
 
 	LogConfig struct {
