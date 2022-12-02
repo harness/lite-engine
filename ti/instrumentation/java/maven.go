@@ -52,6 +52,7 @@ func (m *mavenRunner) AutoDetectTests(ctx context.Context, workspace string) ([]
 func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// Agent arg
+	inputUserArgs := userArgs
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
 	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
 	instrArg := agentArg
@@ -70,7 +71,7 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	// Run all the tests
 	if runAll {
 		if ignoreInstr {
-			return strings.TrimSpace(fmt.Sprintf("%s %s", mavenCmd, userArgs)), nil
+			return strings.TrimSpace(fmt.Sprintf("%s %s", mavenCmd, inputUserArgs)), nil
 		}
 		return strings.TrimSpace(fmt.Sprintf("%s -am -DharnessArgLine=%s -DargLine=%s %s", mavenCmd, instrArg, instrArg, userArgs)), nil
 	}
@@ -96,7 +97,7 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 	testStr := strings.Join(ut, ",")
 	if ignoreInstr {
-		return strings.TrimSpace(fmt.Sprintf("%s -Dtest=%s %s", mavenCmd, testStr, userArgs)), nil
+		return strings.TrimSpace(fmt.Sprintf("%s -Dtest=%s %s", mavenCmd, testStr, inputUserArgs)), nil
 	}
 	return strings.TrimSpace(fmt.Sprintf("%s -Dtest=%s -am -DharnessArgLine=%s -DargLine=%s %s", mavenCmd, testStr, instrArg, instrArg, userArgs)), nil
 }

@@ -143,12 +143,12 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		config.TestSplitStrategy = defaultTestSplitStrategy
 	}
 
-	// Get the tests that need to be run if we are running selected tests
-	isManual := IsManualExecution()
-	selection := getTestSelection(ctx, config, fs, stepID, workspace, log, isManual)
-
 	// Ignore instrumentation when it's a manual run or user has unchecked RunOnlySelectedTests option
+	isManual := IsManualExecution()
 	ignoreInstr := isManual || !config.RunOnlySelectedTests
+
+	// Get the tests that need to be run if we are running selected tests
+	selection := getTestSelection(ctx, config, fs, stepID, workspace, log, isManual)
 
 	var runner TestRunner
 	useYaml := false
@@ -208,6 +208,9 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		return "", err
 	}
 
+	if ignoreInstr {
+		log.Infoln("Ignoring instrumentation and not attaching agent")
+	}
 	// TODO: (Vistaar) If using this code for non-Windows, we might need to set TMPDIR for bazel
 	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
 	return command, nil

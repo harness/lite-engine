@@ -47,21 +47,22 @@ func (s *sbtRunner) AutoDetectTests(ctx context.Context, workspace string) ([]ti
 
 func (s *sbtRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
-	if ignoreInstr {
-		return fmt.Sprintf("%s %s 'test'", sbtCmd, userArgs), nil
-	}
+	// Agent arg
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
 	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
-	instrArg := fmt.Sprintf("'set javaOptions ++= Seq(\"%s\")'", agentArg)   //nolint:gocritic
-	defaultCmd := fmt.Sprintf("%s %s %s 'test'", sbtCmd, userArgs, instrArg) // run all the tests
+	instrArg := fmt.Sprintf("'set javaOptions ++= Seq(\"%s\")'", agentArg) //nolint:gocritic
 
+	// Run all the tests
 	if runAll {
-		// Run all the tests
-		return defaultCmd, nil
+		if ignoreInstr {
+			return fmt.Sprintf("%s %s 'test'", sbtCmd, userArgs), nil
+		}
+		return fmt.Sprintf("%s %s %s 'test'", sbtCmd, userArgs, instrArg), nil
 	}
 	if len(tests) == 0 {
 		return "echo \"Skipping test run, received no tests to execute\"", nil
 	}
+
 	// Use only unique classes
 	testsList := []string{}
 	set := make(map[string]interface{})
@@ -72,6 +73,9 @@ func (s *sbtRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArg
 		}
 		set[t.Class] = struct{}{}
 		testsList = append(testsList, t.Pkg+"."+t.Class)
+	}
+	if ignoreInstr {
+		return fmt.Sprintf("%s %s 'testOnly %s'", sbtCmd, userArgs, strings.Join(testsList, " ")), nil
 	}
 	return fmt.Sprintf("%s %s %s 'testOnly %s'", sbtCmd, userArgs, instrArg, strings.Join(testsList, " ")), nil
 }
