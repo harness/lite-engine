@@ -7,7 +7,6 @@ package java
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -18,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetGradleCmd(t *testing.T) {
+func TestGetGradleCmd(t *testing.T) { //nolint:funlen
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
@@ -39,119 +38,130 @@ func TestGetGradleCmd(t *testing.T) {
 		name                 string // description of test
 		args                 string
 		runOnlySelectedTests bool
+		ignoreInstr          bool
 		want                 string
 		expectedErr          bool
 		tests                []ti.RunnableTest
 	}{
+		// PR Run
 		{
-			name:                 "run all tests with run only selected tests as false",
+			name:                 "RunAllTests_AgentAttached",
 			args:                 "test",
 			runOnlySelectedTests: false,
+			ignoreInstr:          false,
 			want:                 fmt.Sprintf("./gradlew test -DHARNESS_JAVA_AGENT=%s", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2},
 		},
 		{
-			name:                 "run selected tests with given test list and extra args",
+			name:                 "RunSelectedTests_TwoTests_UserParams_AgentAttached",
 			args:                 "test -Duser.timezone=US/Mountain",
 			runOnlySelectedTests: true,
+			ignoreInstr:          false,
 			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -DHARNESS_JAVA_AGENT=%s --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2},
 		},
 		{
-			name:                 "run selected tests with zero tests",
+			name:                 "RunSelectedTests_ZeroTests_UserParams_AgentAttached",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: true,
+			ignoreInstr:          false,
 			want:                 "echo \"Skipping test run, received no tests to execute\"",
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{},
 		},
 		{
-			name:                 "run selected tests with repeating test list and -Duser parameters",
+			name:                 "RunSelectedTests_TwoTests__Duplicate_UserParams_AgentAttached",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
 			runOnlySelectedTests: true,
+			ignoreInstr:          false,
 			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=%s --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t1, t2, t1, t2},
 		},
 		{
-			name:                 "run selected tests with single test and -Duser parameters and or condition",
+			name:                 "RunSelectedTests_OneTest_UserParams_OrCondition_AgentAttached",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US || true",
 			runOnlySelectedTests: true,
+			ignoreInstr:          false,
 			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=%s --tests \"pkg2.cls2\" || true", agent),
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t2},
 		},
 		{
-			name:                 "run selected tests with single test and -Duser parameters and multiple or conditions",
+			name:                 "RunSelectedTests_OneTest_UserParams_MultipleOrCondition_AgentAttached",
 			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US || true || false || other",
 			runOnlySelectedTests: true,
+			ignoreInstr:          false,
 			want:                 fmt.Sprintf("./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US -DHARNESS_JAVA_AGENT=%s --tests \"pkg2.cls2\" || true || false || other", agent),
+			expectedErr:          false,
+			tests:                []ti.RunnableTest{t2},
+		},
+		// Ignore instrumentation true: Manual run or RunOnlySelectedTests task input is false
+		{
+			name:                 "RunAllTests_AgentNotAttached",
+			args:                 "test",
+			runOnlySelectedTests: false,
+			ignoreInstr:          true,
+			want:                 "./gradlew test",
+			expectedErr:          false,
+			tests:                []ti.RunnableTest{t1, t2},
+		},
+		{
+			name:                 "RunSelectedTests_TwoTests_UserParams_AgentNotAttached",
+			args:                 "test -Duser.timezone=US/Mountain",
+			runOnlySelectedTests: true,
+			ignoreInstr:          true,
+			want:                 "./gradlew test -Duser.timezone=US/Mountain --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"",
+			expectedErr:          false,
+			tests:                []ti.RunnableTest{t1, t2},
+		},
+		{
+			name:                 "RunSelectedTests_ZeroTests_UserParams_AgentNotAttached",
+			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
+			runOnlySelectedTests: true,
+			ignoreInstr:          true,
+			want:                 "echo \"Skipping test run, received no tests to execute\"",
+			expectedErr:          false,
+			tests:                []ti.RunnableTest{},
+		},
+		{
+			name:                 "RunSelectedTests_TwoTests__Duplicate_UserParams_AgentNotAttached",
+			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
+			runOnlySelectedTests: true,
+			ignoreInstr:          true,
+			want:                 "./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US --tests \"pkg1.cls1\" --tests \"pkg2.cls2\"",
+			expectedErr:          false,
+			tests:                []ti.RunnableTest{t1, t2, t1, t2},
+		},
+		{
+			name:                 "RunSelectedTests_OneTest_UserParams_OrCondition_AgentNotAttached",
+			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US || true",
+			runOnlySelectedTests: true,
+			ignoreInstr:          true,
+			want:                 "./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US --tests \"pkg2.cls2\" || true",
+			expectedErr:          false,
+			tests:                []ti.RunnableTest{t2},
+		},
+		{
+			name:                 "RunSelectedTests_OneTest_UserParams_MultipleOrCondition_AgentNotAttached",
+			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US || true || false || other",
+			runOnlySelectedTests: true,
+			ignoreInstr:          true,
+			want:                 "./gradlew test -Duser.timezone=US/Mountain -Duser.locale=en/US --tests \"pkg2.cls2\" || true || false || other",
 			expectedErr:          false,
 			tests:                []ti.RunnableTest{t2},
 		},
 	}
 
 	for _, tc := range tests {
-		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/java/", false, !tc.runOnlySelectedTests)
-		if tc.expectedErr == (err == nil) {
-			t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
-		}
-		assert.Equal(t, got, tc.want, tc.name)
-	}
-}
-
-func TestGetGradleCmd_Manual(t *testing.T) {
-	ctrl, ctx := gomock.WithContext(context.Background(), t)
-	defer ctrl.Finish()
-
-	log := logrus.New()
-	fs := filesystem.NewMockFileSystem(ctrl)
-
-	fs.EXPECT().Stat("gradlew").Return(nil, os.ErrNotExist).AnyTimes()
-
-	runner := NewGradleRunner(log, fs)
-
-	tests := []struct {
-		name                 string // description of test
-		args                 string
-		runOnlySelectedTests bool
-		want                 string
-		expectedErr          bool
-		tests                []ti.RunnableTest
-	}{
-		{
-			name:                 "run all tests with empty test list and run only selected tests as false",
-			args:                 "test -Duser.timezone=en/US",
-			runOnlySelectedTests: false,
-			want:                 "gradle test -Duser.timezone=en/US",
-			expectedErr:          false,
-			tests:                []ti.RunnableTest{},
-		},
-		{
-			name:                 "run selected tests with run only selected tests as true",
-			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
-			runOnlySelectedTests: true,
-			want:                 "echo \"Skipping test run, received no tests to execute\"",
-			expectedErr:          false,
-			tests:                []ti.RunnableTest{},
-		},
-		{
-			name:                 "run selected tests with with ignore instrumentation as true",
-			args:                 "test -Duser.timezone=US/Mountain -Duser.locale=en/US",
-			runOnlySelectedTests: true,
-			want:                 "gradle test -Duser.timezone=US/Mountain -Duser.locale=en/US --tests \"pkg.cls\"",
-			expectedErr:          false,
-			tests:                []ti.RunnableTest{{Pkg: "pkg", Class: "cls"}},
-		},
-	}
-
-	for _, tc := range tests {
-		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/java/", true, !tc.runOnlySelectedTests)
-		if tc.expectedErr == (err == nil) {
-			t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
-		}
-		assert.Equal(t, got, tc.want)
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/java/", tc.ignoreInstr, !tc.runOnlySelectedTests)
+			if tc.expectedErr == (err == nil) {
+				t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
+			}
+			assert.Equal(t, got, tc.want, tc.name)
+		})
 	}
 }
