@@ -18,12 +18,21 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/sirupsen/logrus"
+	easyFormatter "github.com/t-tomalak/logrus-easy-formatter"
 )
 
 func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) ( //nolint:gocritic
 	*runtime.State, map[string]string, map[string]string, error) {
+	log := &logrus.Logger{
+		Out:   out,
+		Level: logrus.InfoLevel,
+		Formatter: &easyFormatter.Formatter{
+			LogFormat: "%msg%\n",
+		},
+	}
+
 	start := time.Now()
-	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, out, r.Envs)
+	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -45,16 +54,13 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
 	}
 
-	log := logrus.New()
-	log.Out = out
-
 	exited, err := engine.Run(ctx, step, out)
 	if rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log); rerr != nil {
-		log.WithError(rerr).Errorln("failed to upload report")
+		log.Errorln(fmt.Sprintf("Failed to upload report: %s", rerr))
 	}
 
-	if uerr := callgraph.Upload(ctx, step.Name, time.Since(start).Milliseconds(), out); uerr != nil {
-		log.WithError(uerr).Errorln("unable to collect callgraph")
+	if uerr := callgraph.Upload(ctx, step.Name, time.Since(start).Milliseconds(), log); uerr != nil {
+		log.Errorln(fmt.Sprintf("Unable to collect callgraph: %s", uerr))
 	}
 
 	exportEnvs := fetchExportedEnvVars(exportEnvFile, out)
