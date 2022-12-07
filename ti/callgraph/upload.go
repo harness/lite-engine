@@ -7,7 +7,6 @@ package callgraph
 import (
 	"context"
 	"fmt"
-	"io"
 	"path/filepath"
 
 	"github.com/harness/lite-engine/internal/filesystem"
@@ -26,10 +25,7 @@ const (
 )
 
 // Upload method uploads the callgraph.
-func Upload(ctx context.Context, stepID string, timeMs int64, out io.Writer) error {
-	log := logrus.New()
-	log.Out = out
-
+func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger) error {
 	if instrumentation.IsManualExecution() {
 		log.Infoln("Skipping call graph collection since it is a manual run")
 		return nil

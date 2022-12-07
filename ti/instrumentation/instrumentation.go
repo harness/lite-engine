@@ -7,7 +7,6 @@ package instrumentation
 import (
 	"context"
 	"fmt"
-	"io"
 	"runtime"
 	"strings"
 
@@ -133,11 +132,9 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	config.RunOnlySelectedTests = true
 }
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, out io.Writer, envs map[string]string) (string, error) { //nolint:funlen,gocyclo
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string) (string, error) { //nolint:funlen,gocyclo
 	fs := filesystem.New()
 	tmpFilePath := pipeline.SharedVolPath
-	log := logrus.New()
-	log.Out = out
 
 	if config.TestSplitStrategy == "" {
 		config.TestSplitStrategy = defaultTestSplitStrategy
