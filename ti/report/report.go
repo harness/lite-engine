@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/pipeline"
@@ -17,7 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger) error {
+func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time) error {
 	if report.Kind != api.Junit {
 		return fmt.Errorf("unknown report type: %s", report.Kind)
 	}
@@ -48,5 +49,9 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, st
 
 	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
 		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, false)
-	return c.Write(ctx, stepID, strings.ToLower(report.Kind.String()), tests)
+	if err := c.Write(ctx, stepID, strings.ToLower(report.Kind.String()), tests); err != nil {
+		return err
+	}
+	log.Infoln(fmt.Sprintf("Successfully collected test reports in %s time", time.Since(start)))
+	return nil
 }

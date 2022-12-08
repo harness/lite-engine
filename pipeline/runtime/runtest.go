@@ -21,6 +21,11 @@ import (
 	easyFormatter "github.com/t-tomalak/logrus-easy-formatter"
 )
 
+var (
+	collectCgFn          = callgraph.Upload
+	collectTestReportsFn = report.ParseAndUploadTests
+)
+
 func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) ( //nolint:gocritic
 	*runtime.State, map[string]string, map[string]string, error) {
 	log := &logrus.Logger{
@@ -55,12 +60,10 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	}
 
 	exited, err := engine.Run(ctx, step, out)
-	if rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log); rerr != nil {
-		log.Errorln(fmt.Sprintf("Failed to upload report: %s", rerr))
-	}
-
-	if uerr := callgraph.Upload(ctx, step.Name, time.Since(start).Milliseconds(), log); uerr != nil {
-		log.Errorln(fmt.Sprintf("Unable to collect callgraph: %s", uerr))
+	collectionErr := collectRunTestData(ctx, log, r, start, step.Name)
+	if err == nil {
+		// Fail the step if run was successful but error during collection
+		err = collectionErr
 	}
 
 	exportEnvs := fetchExportedEnvVars(exportEnvFile, out)
@@ -75,4 +78,24 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	}
 
 	return exited, nil, exportEnvs, err
+}
+
+// collectRunTestData collects callgraph and test reports after executing the step
+func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string) error {
+	cgStart := time.Now()
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart)
+	if cgErr != nil {
+		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
+	}
+
+	reportStart := time.Now()
+	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart)
+	if crErr != nil {
+		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
+	}
+
+	if cgErr != nil {
+		return cgErr
+	}
+	return crErr
 }
