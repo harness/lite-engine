@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
@@ -25,7 +26,7 @@ const (
 )
 
 // Upload method uploads the callgraph.
-func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger) error {
+func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time) error {
 	if instrumentation.IsManualExecution() {
 		log.Infoln("Skipping call graph collection since it is a manual run")
 		return nil
@@ -52,7 +53,11 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 
 	c := client.NewHTTPClient(cfg.URL, cfg.Token, cfg.AccountID, cfg.OrgID, cfg.ProjectID,
 		cfg.PipelineID, cfg.BuildID, cfg.StageID, cfg.Repo, cfg.Sha, false)
-	return c.UploadCg(ctx, stepID, source, target, timeMs, encCg)
+	if cgErr := c.UploadCg(ctx, stepID, source, target, timeMs, encCg); cgErr != nil {
+		return cgErr
+	}
+	log.Infoln(fmt.Sprintf("Successfully uploaded callgraph in %s time", time.Since(start)))
+	return nil
 }
 
 // encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
@@ -73,7 +78,7 @@ func encodeCg(dataDir string, log *logrus.Logger) (
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse visgraph")
 	}
-	log.Infoln(fmt.Sprintf("size of nodes: %d, testReln: %d, visReln %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
+	log.Infoln(fmt.Sprintf("Size of Test nodes: %d, Test relations: %d, Vis Relations %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
 
 	cgMap := cg.ToStringMap()
 	cgSer, err := avro.NewCgphSerialzer(cgSchemaType)

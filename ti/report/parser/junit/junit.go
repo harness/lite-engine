@@ -49,7 +49,7 @@ func ParseTests(paths []string, log *logrus.Logger) []*ti.TestCase {
 			}
 		}
 	}
-	log.WithField("num_cases", total).Infoln(fmt.Sprintf("parsed %d test cases", total))
+	log.WithField("num_cases", total).Infoln(fmt.Sprintf("Parsed %d test cases", total))
 	return tests
 }
 
