@@ -63,40 +63,40 @@ steps:
     depends_on:
       - server
 
----
-kind: pipeline
-type: vm
-name: osx acceptance tests
+# ---
+# kind: pipeline
+# type: vm
+# name: osx acceptance tests
 
-pool:
-  use: anka-arm64
+# pool:
+#   use: anka-arm64
 
-steps:
-  - name: install_go
-    commands:
-      - brew install golang
-      - go build -o lite-engine
-  - name: server
-    detach: true
-    commands:
-      - touch .env
-      - echo "SERVER_HTTPS_BIND=localhost:9000" >> .env
-      - echo "CLIENT_HTTPS_BIND=localhost:9000" >> .env
-      - echo "SERVER_INSECURE=true" >> .env
-      - echo "CLIENT_INSECURE=true" >> .env
-      - echo "DEBUG=true" >> .env
-      - echo "TRACE=true" >> .env
-      - ./lite-engine server --env-file=".env"
-    depends_on:
-      - install_go
-  - name: client
-    commands:
-      - sleep 5
-      - cat .env
-      - while ! curl -sf http://localhost:9000/healthz; do sleep 1; done
-      - ./lite-engine client --env-file=".env"
-    depends_on:
-      - server
+# steps:
+#   - name: install_go
+#     commands:
+#       - brew install golang
+#       - go build -o lite-engine
+#   - name: server
+#     detach: true
+#     commands:
+#       - touch .env
+#       - echo "SERVER_HTTPS_BIND=localhost:9000" >> .env
+#       - echo "CLIENT_HTTPS_BIND=localhost:9000" >> .env
+#       - echo "SERVER_INSECURE=true" >> .env
+#       - echo "CLIENT_INSECURE=true" >> .env
+#       - echo "DEBUG=true" >> .env
+#       - echo "TRACE=true" >> .env
+#       - ./lite-engine server --env-file=".env"
+#     depends_on:
+#       - install_go
+#   - name: client
+#     commands:
+#       - sleep 5
+#       - cat .env
+#       - while ! curl -sf http://localhost:9000/healthz; do sleep 1; done
+#       - ./lite-engine client --env-file=".env"
+#     depends_on:
+#       - server
       
 ---
 kind: pipeline

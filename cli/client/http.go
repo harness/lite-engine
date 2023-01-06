@@ -167,7 +167,7 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (*a
 			return &api.HealthResponse{}, retryCtx.Err()
 		default:
 		}
-		if ret, err := c.Health(retryCtx); err == nil {
+		if ret, err := c.healthCheck(retryCtx); err == nil {
 			logger.FromContext(retryCtx).
 				WithField("duration", time.Since(startTime)).
 				Trace("RetryHealth: health check completed")
@@ -177,8 +177,15 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (*a
 				WithField("retry_num", i).WithError(err).Traceln("health check failed. Retrying")
 			lastErr = err
 		}
-		time.Sleep(time.Millisecond * 100) //nolint:gomnd
+		time.Sleep(time.Millisecond * 10) //nolint:gomnd
 	}
+}
+
+func (c *HTTPClient) healthCheck(ctx context.Context) (*api.HealthResponse, error) {
+	hctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
+	return c.Health(hctx)
 }
 
 // do is a helper function that posts a http request with the input encoded and response decoded from json.
