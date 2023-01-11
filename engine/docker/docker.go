@@ -239,7 +239,6 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		toConfig(pipelineConfig, step),
 		toHostConfig(pipelineConfig, step),
 		toNetConfig(pipelineConfig, step),
-		toPlatform(pipelineConfig),
 		step.ID,
 	)
 
@@ -257,7 +256,6 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 			toConfig(pipelineConfig, step),
 			toHostConfig(pipelineConfig, step),
 			toNetConfig(pipelineConfig, step),
-			toPlatform(pipelineConfig),
 			step.ID,
 		)
 	}
