@@ -17,7 +17,6 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
-	imagespecs "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 // returns a container configuration.
@@ -340,10 +339,10 @@ func lookupVolume(pipelineConfig *spec.PipelineConfig, name string) (*spec.Volum
 	return nil, false
 }
 
-func toPlatform(pipelineConfig *spec.PipelineConfig) *imagespecs.Platform {
-	return &imagespecs.Platform{
-		Architecture: pipelineConfig.Platform.Arch,
-		OS:           pipelineConfig.Platform.OS,
-		Variant:      pipelineConfig.Platform.Variant,
-	}
-}
+// func toPlatform(pipelineConfig *spec.PipelineConfig) *imagespecs.Platform {
+// 	return &imagespecs.Platform{
+// 		Architecture: pipelineConfig.Platform.Arch,
+// 		OS:           pipelineConfig.Platform.OS,
+// 		Variant:      pipelineConfig.Platform.Variant,
+// 	}
+// }
