@@ -42,23 +42,25 @@ func (b *bazelRunner) AutoDetectPackages(workspace string) ([]string, error) {
 func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
 	tests := make([]ti.RunnableTest, 0)
 
-	// bazel query 'kind(java.*, tests(//...))'
-	c := fmt.Sprintf("%s query 'kind(java.*, tests(//...))'", bazelCmd)
-	cmdArgs := []string{"-c", c}
-	resp, err := execCmdCtx(ctx, "sh", cmdArgs...).Output()
-	if err != nil {
-		b.log.Errorln("Got an error while querying bazel", err)
-		return tests, err
-	}
-	// Convert rules to RunnableTest list
-	var test ti.RunnableTest
-	for _, r := range strings.Split(string(resp), "\n") {
-		test, err = parseBazelTestRule(r)
+	c1 := fmt.Sprintf("%s query 'kind(java.*, tests(//...))'", bazelCmd)  // bazel query 'kind(java.*, tests(//...))'
+	c2 := fmt.Sprintf("%s query 'kind(scala.*, tests(//...))'", bazelCmd) // bazel query 'kind(scala.*, tests(//...))'
+	c3 := fmt.Sprintf("%s query 'kind(kt.*, tests(//...))'", bazelCmd)    // bazel query 'kind(kt.*, tests(//...))'
+	for _, c := range []string{c1, c2, c3} {
+		cmdArgs := []string{"-c", c}
+		resp, err := execCmdCtx(ctx, "sh", cmdArgs...).Output()
 		if err != nil {
-			b.log.Errorf(fmt.Sprintf("Error parsing bazel test rule: %s", err))
-			continue
+			b.log.Errorln("Got an error while querying bazel", err)
+			return tests, err
 		}
-		tests = append(tests, test)
+		// Convert rules to RunnableTest list
+		for _, r := range strings.Split(string(resp), "\n") {
+			test, err := parseBazelTestRule(r)
+			if err != nil {
+				b.log.Errorf(fmt.Sprintf("Error parsing bazel test rule: %s", err))
+				continue
+			}
+			tests = append(tests, test)
+		}
 	}
 	return tests, nil
 }

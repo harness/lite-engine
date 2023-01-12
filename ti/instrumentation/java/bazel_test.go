@@ -79,7 +79,10 @@ func TestBazelAutoDetectTests(t *testing.T) {
 	// t3 is invalid
 	t4 := ti.RunnableTest{Pkg: "pkg2", Class: "cls2"}
 	t4.Autodetect.Rule = "//module1:pkg2/cls2"
-	testsExpected := []ti.RunnableTest{t1, t2, t4}
+
+	// The tests are repeated because the mock exec command is hardcoded to return t1, t2, t4 for
+	// any bazel query irrespective of java/scala/kt.
+	testsExpected := []ti.RunnableTest{t1, t2, t4, t1, t2, t4, t1, t2, t4}
 
 	tests, _ := runner.AutoDetectTests(ctx, "", []string{})
 	assert.Equal(t, testsExpected, tests)
