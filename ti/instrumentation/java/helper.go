@@ -296,3 +296,28 @@ func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) 
 	}
 	return plist, nil
 }
+
+func parseBazelTestRule(r string) (ti.RunnableTest, error) {
+	// r = //module:package.class
+	if r == "" {
+		return ti.RunnableTest{}, fmt.Errorf("empty rule")
+	}
+	n := 2
+	if !strings.Contains(r, ":") || len(strings.Split(r, ":")) < n {
+		return ti.RunnableTest{}, fmt.Errorf("rule does not follow the default format: %s", r)
+	}
+	// fullPkg = package.class
+	fullPkg := strings.Split(r, ":")[1]
+	for _, s := range bazelRuleSepList {
+		fullPkg = strings.Replace(fullPkg, s, ".", -1)
+	}
+	pkgList := strings.Split(fullPkg, ".")
+	if len(pkgList) < n {
+		return ti.RunnableTest{}, fmt.Errorf("rule does not follow the default format: %s", r)
+	}
+	cls := pkgList[len(pkgList)-1]
+	pkg := strings.TrimSuffix(fullPkg, "."+cls)
+	test := ti.RunnableTest{Pkg: pkg, Class: cls}
+	test.Autodetect.Rule = r
+	return test, nil
+}

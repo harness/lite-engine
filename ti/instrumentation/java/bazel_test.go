@@ -19,6 +19,7 @@ import (
 )
 
 const bazelRuleStringsBazelAutoDetectTests = "//module1:pkg1.cls1\n//module1:pkg1.cls2\n//module1:pkg2\n//module1:pkg2/cls2\n"
+const bazelQuery = "//120-ng-manager:io.harness.ng.GenerateOpenApiSpecCommandTest\n//220-graphql-test:io.harness.GraphQLExceptionHandlingTest\n//pipeline-service/service:io.harness.GenerateOpenApiSpecCommandTest\n" //nolint:lll
 
 func TestGetBazelCmd(t *testing.T) {
 	// Bazel impl is pretty hacky right now and tailored to running portal.
@@ -33,11 +34,27 @@ func fakeExecCommand(ctx context.Context, command string, args ...string) *exec.
 	return cmd
 }
 
+func fakeExecCommand2(ctx context.Context, command string, args ...string) *exec.Cmd {
+	cs := []string{"-test.run=TestHelperProcess2", "--", command}
+	cs = append(cs, args...)
+	cmd := exec.CommandContext(ctx, os.Args[0], cs...) //nolint:gosec
+	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
+	return cmd
+}
+
 func TestHelperProcess(t *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
 	fmt.Fprintf(os.Stdout, bazelRuleStringsBazelAutoDetectTests) //nolint:staticcheck
+	os.Exit(0)
+}
+
+func TestHelperProcess2(t *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	fmt.Fprintf(os.Stdout, bazelQuery) //nolint:staticcheck
 	os.Exit(0)
 }
 
@@ -88,4 +105,59 @@ func TestGetBazelCmd_TestsWithRules(t *testing.T) {
 
 	cmd, _ := runner.GetCmd(ctx, tests, "", "", "/test/tmp/config.ini", "", false, false)
 	assert.Equal(t, expectedCmd, cmd)
+}
+
+func TestGetBazelCmd_GetBazelTests(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	defer ctrl.Finish()
+
+	log := logrus.New()
+	execCmdCtx = fakeExecCommand2
+	defer func() {
+		execCmdCtx = exec.CommandContext
+	}()
+
+	tests := []ti.RunnableTest{
+		{
+			Pkg:   "io.harness",
+			Class: "GraphQLExceptionHandlingTest",
+		},
+		{
+			Pkg:   "io.harness",
+			Class: "GenerateOpenApiSpecCommandTest",
+		},
+		{
+			Pkg:   "io.harness.ng",
+			Class: "GenerateOpenApiSpecCommandTest",
+		},
+		{
+			Pkg:   "io.harness.mongo",
+			Class: "MongoIndexesTest",
+		},
+	}
+	expectedTests := []ti.RunnableTest{
+		{
+			Pkg:   "io.harness",
+			Class: "GraphQLExceptionHandlingTest",
+		},
+		{
+			Pkg:   "io.harness",
+			Class: "GenerateOpenApiSpecCommandTest",
+		},
+		{
+			Pkg:   "io.harness.ng",
+			Class: "GenerateOpenApiSpecCommandTest",
+		},
+		{
+			Pkg:   "io.harness.mongo",
+			Class: "MongoIndexesTest",
+		},
+	}
+	expectedTests[0].Autodetect.Rule = "//220-graphql-test:io.harness.GraphQLExceptionHandlingTest"
+	expectedTests[1].Autodetect.Rule = "//pipeline-service/service:io.harness.GenerateOpenApiSpecCommandTest"
+	expectedTests[2].Autodetect.Rule = "//120-ng-manager:io.harness.ng.GenerateOpenApiSpecCommandTest"
+
+	tests = getBazelTestRules(ctx, log, tests)
+	fmt.Println(tests)
+	assert.Equal(t, expectedTests, tests)
 }
