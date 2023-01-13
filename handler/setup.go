@@ -53,6 +53,8 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			logger.FromRequest(r).
 				WithField("latency", time.Since(st)).
 				WithField("time", time.Now().Format(time.RFC3339)).
+				WithField("error", err).
+				WithField("cfg", cfg).
 				Infoln("api: failed stage setup")
 			WriteError(w, err)
 			return
