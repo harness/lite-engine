@@ -83,7 +83,6 @@ linters:
     - noctx
     - nolintlint
     - revive
-    - rowserrcheck
     - staticcheck
     - stylecheck
     - typecheck

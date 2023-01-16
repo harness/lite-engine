@@ -47,7 +47,8 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	// create global files and folders
 	if err := createFiles(pipelineConfig.Files); err != nil {
-		return err
+		return errors.Wrap(err,
+			fmt.Sprintf("failed to create files/folders for pipeline %v", pipelineConfig.Files))
 	}
 	// create volumes
 	for _, vol := range pipelineConfig.Volumes {
@@ -61,7 +62,7 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 
 			if err := os.MkdirAll(path, 0777); err != nil { //nolint:gomnd
 				return errors.Wrap(err,
-					fmt.Sprintf("failed to create directory for host volume path: %s", path))
+					fmt.Sprintf("failed to create directory for host volume path: %q", path))
 			}
 		}
 	}
@@ -139,7 +140,7 @@ func createFiles(paths []*spec.File) error {
 			// create a folder
 			if err := os.MkdirAll(path, fs.FileMode(f.Mode)); err != nil {
 				return errors.Wrap(err,
-					fmt.Sprintf("failed to create directory for host path: %s", path))
+					fmt.Sprintf("failed to create directory for host path: %q", path))
 			}
 
 			continue
@@ -149,20 +150,20 @@ func createFiles(paths []*spec.File) error {
 		file, err := os.Create(path)
 		if err != nil {
 			return errors.Wrap(err,
-				fmt.Sprintf("failed to create file for host path: %s", path))
+				fmt.Sprintf("failed to create file for host path: %q", path))
 		}
 
 		if _, err = file.WriteString(f.Data); err != nil {
 			_ = file.Close()
 			return errors.Wrap(err,
-				fmt.Sprintf("failed to write file for host path: %s", path))
+				fmt.Sprintf("failed to write file for host path: %q", path))
 		}
 
 		_ = file.Close()
 
 		if err = os.Chmod(path, fs.FileMode(f.Mode)); err != nil {
 			return errors.Wrap(err,
-				fmt.Sprintf("failed to change permissions for file on host path: %s", path))
+				fmt.Sprintf("failed to change permissions for file on host path: %q", path))
 		}
 	}
 	return nil
