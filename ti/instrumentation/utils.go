@@ -48,7 +48,7 @@ func getTestTime(ctx context.Context, splitStrategy string) (map[string]float64,
 		return fileTimesMap, fmt.Errorf("TI config is not provided in setup")
 	}
 	c := client.NewHTTPClient(cfg.URL, cfg.Token, cfg.AccountID, cfg.OrgID, cfg.ProjectID,
-		cfg.PipelineID, cfg.BuildID, cfg.StageID, cfg.Repo, cfg.Sha, false)
+		cfg.PipelineID, cfg.BuildID, cfg.StageID, cfg.Repo, cfg.Sha, cfg.CommitLink, false)
 
 	req := ti.GetTestTimesReq{}
 	var res ti.GetTestTimesResp
@@ -218,7 +218,7 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	req := &ti.SelectTestsReq{SelectAll: !runSelected, Files: files, TiConfig: ticonfig}
 
 	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
-		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, false)
+		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, config.CommitLink, false)
 	return c.SelectTests(ctx, stepID, source, target, req)
 }
 
@@ -282,7 +282,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 	config := pipeline.GetState().GetTIConfig()
 
 	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
-		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, false)
+		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, config.CommitLink, false)
 	log.Infoln("getting TI agent artifact download links")
 	links, err := c.DownloadLink(ctx, language, os, arch, framework)
 	if err != nil {

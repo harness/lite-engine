@@ -48,7 +48,7 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, st
 	}
 
 	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
-		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, false)
+		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, config.CommitLink, false)
 	if err := c.Write(ctx, stepID, strings.ToLower(report.Kind.String()), tests); err != nil {
 		return err
 	}
