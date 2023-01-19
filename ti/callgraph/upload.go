@@ -52,7 +52,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 	}
 
 	c := client.NewHTTPClient(cfg.URL, cfg.Token, cfg.AccountID, cfg.OrgID, cfg.ProjectID,
-		cfg.PipelineID, cfg.BuildID, cfg.StageID, cfg.Repo, cfg.Sha, false)
+		cfg.PipelineID, cfg.BuildID, cfg.StageID, cfg.Repo, cfg.Sha, cfg.CommitLink, false)
 	if cgErr := c.UploadCg(ctx, stepID, source, target, timeMs, encCg); cgErr != nil {
 		return cgErr
 	}
