@@ -58,6 +58,10 @@ func TestExamplesInTheWild(t *testing.T) { //nolint:funlen
 				assert.Len(t, suites, 2)
 				assert.Len(t, suites[0].Tests, 2)
 				assert.Len(t, suites[1].Tests, 2)
+				assert.Equal(t, suites[0].Tests[0].Filename, "n1.go")
+				assert.Equal(t, suites[0].Tests[1].Filename, "n1.go")
+				assert.Equal(t, suites[1].Tests[0].Filename, "n2.go")
+				assert.Equal(t, suites[1].Tests[1].Filename, "n2.go")
 				assert.Equal(t, "1.0", suites[0].Properties["go.version"])
 				assert.Equal(t, "1.0", suites[1].Properties["go.version"])
 				assert.Equal(t, suites[1].Tests[0].Result.Desc, "file_test.go:11: Error message\nfile_test.go:11: Longer\n\terror\n\tmessage.")
@@ -183,6 +187,7 @@ func TestExamplesInTheWild(t *testing.T) { //nolint:funlen
 				var testcase = Test{
 					Name:       "testA",
 					Classname:  "SampleTest",
+					Filename:   "/untitled/tests/SampleTest.php",
 					DurationMs: 5,
 					Result: ti.Result{
 						Status: ti.StatusPassed,
