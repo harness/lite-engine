@@ -76,6 +76,7 @@ func ingestTestcase(root xmlNode) Test { //nolint:gocritic
 	test := Test{
 		Name:       root.Attr("name"),
 		Classname:  root.Attr("classname"),
+		Filename:   root.Attr("file"),
 		DurationMs: duration(root.Attr("time")).Milliseconds(),
 		Result:     ti.Result{Status: ti.StatusPassed},
 		Properties: root.Attrs,

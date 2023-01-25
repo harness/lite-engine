@@ -108,6 +108,9 @@ type Test struct {
 	// Classname is an additional descriptor for the hierarchy of the test.
 	Classname string `json:"classname" yaml:"classname"`
 
+	// Filename indicates names of the file containing the test.
+	Filename string `json:"file,omitempty" yaml:"file,omitempty"`
+
 	// DurationMs is the total time taken to run the tests in milliseconds.
 	DurationMs int64 `json:"duration_ms" yaml:"duration"`
 
