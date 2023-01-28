@@ -14,8 +14,8 @@ import (
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/testsplitter"
@@ -27,7 +27,8 @@ const (
 	defaultTestSplitStrategy     = classTimingTestSplitStrategy
 )
 
-func getTestSelection(ctx context.Context, config *api.RunTestConfig, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger, isManual bool) ti.SelectTestsResp {
+func getTestSelection(ctx context.Context, config *api.RunTestConfig, fs filesystem.FileSystem, stepID, workspace string,
+	log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) ti.SelectTestsResp {
 	selection := ti.SelectTestsResp{}
 	if isManual {
 		// Manual run
@@ -41,7 +42,7 @@ func getTestSelection(ctx context.Context, config *api.RunTestConfig, fs filesys
 			config.RunOnlySelectedTests = false
 		} else {
 			// PR execution: Call TI svc only when there is a chance of running selected tests
-			selection, err = selectTests(ctx, workspace, files, config.RunOnlySelectedTests, stepID, fs)
+			selection, err = selectTests(ctx, workspace, files, config.RunOnlySelectedTests, stepID, fs, tiConfig)
 			if err != nil {
 				log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
 				config.RunOnlySelectedTests = false // run all the tests if an error was encountered
@@ -62,7 +63,7 @@ func getTestSelection(ctx context.Context, config *api.RunTestConfig, fs filesys
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
 // AutoDetectTests output and parallelism configuration
 func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *logrus.Logger, runner TestRunner,
-	selection *ti.SelectTestsResp, workspace string, envs map[string]string) {
+	selection *ti.SelectTestsResp, workspace string, envs map[string]string, tiConfig *tiCfg.Cfg) {
 	if !config.ParallelizeTests {
 		log.Infoln("Skipping test splitting as requested")
 		return
@@ -119,11 +120,11 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	}
 
 	// Split the tests and send the split slice to the runner
-	splitTests, err := getSplitTests(ctx, log, tests, config.TestSplitStrategy, splitIdx, splitTotal)
+	splitTests, err := getSplitTests(ctx, log, tests, config.TestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	if err != nil {
 		// Error while splitting by input strategy, splitting tests equally
 		log.Errorln("Error occurred while splitting the tests by input strategy. Splitting tests equally")
-		splitTests, _ = getSplitTests(ctx, log, tests, countTestSplitStrategy, splitIdx, splitTotal)
+		splitTests, _ = getSplitTests(ctx, log, tests, countTestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	}
 	log.Infoln(fmt.Sprintf("Test split for this run: %s", formatTests(splitTests)))
 
@@ -132,20 +133,20 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	config.RunOnlySelectedTests = true
 }
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string) (string, error) { //nolint:funlen,gocyclo
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string, cfg *tiCfg.Cfg) (string, error) { //nolint:funlen,gocyclo
 	fs := filesystem.New()
-	tmpFilePath := pipeline.SharedVolPath
+	tmpFilePath := cfg.GetDataDir()
 
 	if config.TestSplitStrategy == "" {
 		config.TestSplitStrategy = defaultTestSplitStrategy
 	}
 
 	// Ignore instrumentation when it's a manual run or user has unchecked RunOnlySelectedTests option
-	isManual := IsManualExecution()
+	isManual := IsManualExecution(cfg)
 	ignoreInstr := isManual || !config.RunOnlySelectedTests
 
 	// Get the tests that need to be run if we are running selected tests
-	selection := getTestSelection(ctx, config, fs, stepID, workspace, log, isManual)
+	selection := getTestSelection(ctx, config, fs, stepID, workspace, log, isManual, cfg)
 
 	var runner TestRunner
 	useYaml := false
@@ -184,7 +185,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	}
 
 	// Install agent artifacts if not present
-	artifactDir, err := installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log)
+	artifactDir, err := installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log, cfg)
 	if err != nil {
 		return "", err
 	}
@@ -197,7 +198,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	// Test splitting: only when parallelism is enabled
 	if IsParallelismEnabled(envs) {
-		computeSelectedTests(ctx, config, log, runner, &selection, workspace, envs)
+		computeSelectedTests(ctx, config, log, runner, &selection, workspace, envs, cfg)
 	}
 
 	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, ignoreInstr, !config.RunOnlySelectedTests)

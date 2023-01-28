@@ -12,13 +12,12 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/pipeline"
-	"github.com/harness/lite-engine/ti/client"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report/parser/junit"
 	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time) error {
+func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg) error {
 	if report.Kind != api.Junit {
 		return fmt.Errorf("unknown report type: %s", report.Kind)
 	}
@@ -42,13 +41,7 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, st
 		return nil
 	}
 
-	config := pipeline.GetState().GetTIConfig()
-	if config == nil || config.URL == "" {
-		return fmt.Errorf("TI config is not provided in setup")
-	}
-
-	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
-		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, config.CommitLink, false)
+	c := tiConfig.GetClient()
 	if err := c.Write(ctx, stepID, strings.ToLower(report.Kind.String()), tests); err != nil {
 		return err
 	}

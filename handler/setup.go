@@ -16,6 +16,7 @@ import (
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/pipeline"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 )
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
@@ -32,7 +33,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 
 		setProxyEnvs(s.Envs)
 		state := pipeline.GetState()
-		state.Set(s.Secrets, s.LogConfig, s.TIConfig)
+		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig))
 
 		if s.MountDockerSocket == nil || *s.MountDockerSocket { // required to support m1 where docker isn't installed.
 			s.Volumes = append(s.Volumes, getDockerSockVolume())
@@ -96,4 +97,10 @@ func setProxyEnvs(environment map[string]string) {
 	for _, v := range proxyEnvs {
 		os.Setenv(v, environment[v])
 	}
+}
+
+func getTiCfg(t *api.TIConfig) tiCfg.Cfg {
+	cfg := tiCfg.New(t.URL, t.Token, t.AccountID, t.OrgID, t.ProjectID, t.PipelineID, t.BuildID, t.StageID, t.Repo,
+		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.SharedVolPath, false)
+	return cfg
 }

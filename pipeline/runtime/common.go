@@ -15,8 +15,8 @@ import (
 
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logstream"
-	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
 )
@@ -107,8 +107,7 @@ func fetchExportedEnvVars(envFile string, out io.Writer) map[string]string {
 }
 
 // setTiEnvVariables sets the environment variables required for TI
-func setTiEnvVariables(step *spec.Step) {
-	config := pipeline.GetState().GetTIConfig()
+func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 	if config == nil {
 		return
 	}
@@ -117,11 +116,11 @@ func setTiEnvVariables(step *spec.Step) {
 	}
 
 	envMap := step.Envs
-	envMap[ti.TiSvcEp] = config.URL
-	envMap[ti.TiSvcToken] = b64.StdEncoding.EncodeToString([]byte(config.Token))
-	envMap[ti.AccountIDEnv] = config.AccountID
-	envMap[ti.OrgIDEnv] = config.OrgID
-	envMap[ti.ProjectIDEnv] = config.ProjectID
-	envMap[ti.PipelineIDEnv] = config.PipelineID
+	envMap[ti.TiSvcEp] = config.GetURL()
+	envMap[ti.TiSvcToken] = b64.StdEncoding.EncodeToString([]byte(config.GetToken()))
+	envMap[ti.AccountIDEnv] = config.GetAccountID()
+	envMap[ti.OrgIDEnv] = config.GetOrgID()
+	envMap[ti.ProjectIDEnv] = config.GetProjectID()
+	envMap[ti.PipelineIDEnv] = config.GetPipelineID()
 	envMap[ti.InfraEnv] = ti.HarnessInfra
 }

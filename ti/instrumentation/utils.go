@@ -16,9 +16,8 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti"
-	"github.com/harness/lite-engine/ti/client"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -40,16 +39,13 @@ const (
 	harnessStageTotal = "HARNESS_STAGE_TOTAL"
 )
 
-func getTestTime(ctx context.Context, splitStrategy string) (map[string]float64, error) {
+// getTestTime gets the the timing data from TI service based on the split strategy
+func getTestTime(ctx context.Context, splitStrategy string, cfg *tiCfg.Cfg) (map[string]float64, error) {
 	fileTimesMap := map[string]float64{}
-	// Get the timing data
-	cfg := pipeline.GetState().GetTIConfig()
-	if cfg == nil || cfg.URL == "" {
+	if cfg == nil {
 		return fileTimesMap, fmt.Errorf("TI config is not provided in setup")
 	}
-	c := client.NewHTTPClient(cfg.URL, cfg.Token, cfg.AccountID, cfg.OrgID, cfg.ProjectID,
-		cfg.PipelineID, cfg.BuildID, cfg.StageID, cfg.Repo, cfg.Sha, cfg.CommitLink, false)
-
+	c := cfg.GetClient()
 	req := ti.GetTestTimesReq{}
 	var res ti.GetTestTimesResp
 	var err error
@@ -84,7 +80,7 @@ func getTestTime(ctx context.Context, splitStrategy string) (map[string]float64,
 
 // getSplitTests takes a list of tests as input and returns the slice of tests to run depending on
 // the test split strategy and index
-func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.RunnableTest, splitStrategy string, splitIdx, splitTotal int) ([]ti.RunnableTest, error) {
+func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.RunnableTest, splitStrategy string, splitIdx, splitTotal int, tiConfig *tiCfg.Cfg) ([]ti.RunnableTest, error) {
 	if len(testsToSplit) == 0 {
 		return testsToSplit, nil
 	}
@@ -110,7 +106,7 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 	switch splitStrategy {
 	case classTimingTestSplitStrategy:
 		// Call TI svc to get the test timing data
-		fileTimes, err = getTestTime(ctx, splitStrategy)
+		fileTimes, err = getTestTime(ctx, splitStrategy, tiConfig)
 		if err != nil {
 			return testsToSplit, err
 		}
@@ -189,37 +185,14 @@ func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger) 
 // selectTests takes a list of files which were changed as input and gets the tests
 // to be run corresponding to that.
 func selectTests(ctx context.Context, workspace string, files []ti.File, runSelected bool, stepID string,
-	fs filesystem.FileSystem) (ti.SelectTestsResp, error) {
-	config := pipeline.GetState().GetTIConfig()
-	if config == nil || config.URL == "" {
-		return ti.SelectTestsResp{}, fmt.Errorf("TI config is not provided in setup")
-	}
-
-	isManual := IsManualExecution()
-	source := config.SourceBranch
-	if source == "" && !isManual {
-		return ti.SelectTestsResp{}, fmt.Errorf("source branch is not set")
-	}
-	target := config.TargetBranch
-	if target == "" && !isManual {
-		return ti.SelectTestsResp{}, fmt.Errorf("target branch is not set")
-	} else if isManual {
-		target = config.CommitBranch
-		if target == "" {
-			return ti.SelectTestsResp{}, fmt.Errorf("commit branch is not set")
-		}
-	}
-
-	ticonfig, err := getTiConfig(workspace, fs)
+	fs filesystem.FileSystem, cfg *tiCfg.Cfg) (ti.SelectTestsResp, error) {
+	tiConfigYaml, err := getTiConfig(workspace, fs)
 	if err != nil {
 		return ti.SelectTestsResp{}, err
 	}
-
-	req := &ti.SelectTestsReq{SelectAll: !runSelected, Files: files, TiConfig: ticonfig}
-
-	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
-		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, config.CommitLink, false)
-	return c.SelectTests(ctx, stepID, source, target, req)
+	req := &ti.SelectTestsReq{SelectAll: !runSelected, Files: files, TiConfig: tiConfigYaml}
+	c := cfg.GetClient()
+	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
 }
 
 func formatTests(tests []ti.RunnableTest) string {
@@ -278,11 +251,9 @@ func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 // installAgents checks if the required artifacts are installed for the language
 // and if not, installs them. It returns back the directory where all the agents are installed.
 func installAgents(ctx context.Context, baseDir, language, os, arch, framework string,
-	fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
-	config := pipeline.GetState().GetTIConfig()
-
-	c := client.NewHTTPClient(config.URL, config.Token, config.AccountID, config.OrgID, config.ProjectID,
-		config.PipelineID, config.BuildID, config.StageID, config.Repo, config.Sha, config.CommitLink, false)
+	fs filesystem.FileSystem, log *logrus.Logger, config *tiCfg.Cfg) (string, error) {
+	// Get download links from TI service
+	c := config.GetClient()
 	log.Infoln("getting TI agent artifact download links")
 	links, err := c.DownloadLink(ctx, language, os, arch, framework)
 	if err != nil {
@@ -407,9 +378,8 @@ func valid(tests []ti.RunnableTest) bool {
 	return true
 }
 
-func IsManualExecution() bool {
-	cfg := pipeline.GetState().GetTIConfig()
-	if cfg.SourceBranch == "" || cfg.TargetBranch == "" || cfg.Sha == "" {
+func IsManualExecution(cfg *tiCfg.Cfg) bool {
+	if cfg.GetSourceBranch() == "" || cfg.GetTargetBranch() == "" || cfg.GetSha() == "" {
 		return true // if any of them are not set, treat as a manual execution
 	}
 	return false
