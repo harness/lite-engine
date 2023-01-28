@@ -40,7 +40,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 
 	log := logrus.New()
 	log.Out = out
-	
+
 	exited, err := engine.Run(ctx, step, out)
 	if rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, time.Now()); rerr != nil {
 		logrus.WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
