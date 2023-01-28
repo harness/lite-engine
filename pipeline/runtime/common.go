@@ -49,7 +49,7 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 		} else if isBash(entrypoint) || isSh(entrypoint) {
 			cmd += fmt.Sprintf(";echo \"%s $%s\" >> %s", o, o, outputFile)
 		} else if isPython {
-			cmd = cmd + fmt.Sprintf("with open(%s, 'a') as out_file:\n\tout_file.write(\"%s {}\n\".format(os.getenv(%s)))\n", outputFile, o, o)
+			cmd += fmt.Sprintf("with open(%s, 'a') as out_file:\n\tout_file.write(\"%s {}\n\".format(os.getenv(%s)))\n", outputFile, o, o)
 		}
 	}
 
