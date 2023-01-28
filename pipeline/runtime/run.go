@@ -40,11 +40,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 
 	log := logrus.New()
 	log.Out = out
-
-	if isPython(step.Entrypoint) {
-		step.Command[0] = fmt.Sprintf(`exec(%s)`, step.Command[0])
-	}
-
+	
 	exited, err := engine.Run(ctx, step, out)
 	if rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, time.Now()); rerr != nil {
 		logrus.WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
@@ -61,11 +57,4 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 		}
 	}
 	return exited, nil, exportEnvs, err
-}
-
-func isPython(entrypoint []string) bool {
-	if len(entrypoint) > 0 && (entrypoint[0] == "python3") {
-		return true
-	}
-	return false
 }
