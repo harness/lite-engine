@@ -41,7 +41,7 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 	if isPsh {
 		cmd += fmt.Sprintf("\nNew-Item %s", outputFile)
 	} else if isPython {
-		cmd += "import os\n"
+		cmd += "\nimport os\n"
 	}
 	for _, o := range outputVars {
 		if isPsh {
@@ -49,7 +49,7 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 		} else if isBash(entrypoint) || isSh(entrypoint) {
 			cmd += fmt.Sprintf(";echo \"%s $%s\" >> %s", o, o, outputFile)
 		} else if isPython {
-			cmd += fmt.Sprintf("with open(%s, 'a') as out_file:\n\tout_file.write(\"%s {}\n\".format(os.getenv(%s)))\n", outputFile, o, o)
+			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s ' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
 		}
 	}
 
@@ -78,7 +78,7 @@ func isBash(entrypoint []string) bool {
 }
 
 func isPython(entrypoint []string) bool {
-	if len(entrypoint) > 0 && (entrypoint[0] == "python") {
+	if len(entrypoint) > 0 && (entrypoint[0] == "python3") {
 		return true
 	}
 	return false
