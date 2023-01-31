@@ -11,6 +11,7 @@ import (
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/filestore"
 	"github.com/harness/lite-engine/logstream/remote"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 )
 
 var (
@@ -27,12 +28,12 @@ const (
 type State struct {
 	mu        sync.Mutex
 	logConfig api.LogConfig
-	tiConfig  api.TIConfig
+	tiConfig  tiCfg.Cfg
 	secrets   []string
 	logClient logstream.Client
 }
 
-func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig api.TIConfig) { //nolint:gocritic
+func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.secrets = secrets
@@ -62,7 +63,7 @@ func (s *State) GetLogStreamClient() logstream.Client {
 	return s.logClient
 }
 
-func (s *State) GetTIConfig() *api.TIConfig {
+func (s *State) GetTIConfig() *tiCfg.Cfg {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -74,7 +75,7 @@ func GetState() *State {
 		state = &State{
 			mu:        sync.Mutex{},
 			logConfig: api.LogConfig{},
-			tiConfig:  api.TIConfig{},
+			tiConfig:  tiCfg.Cfg{},
 			secrets:   make([]string, 0),
 			logClient: nil,
 		}

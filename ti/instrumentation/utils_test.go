@@ -6,6 +6,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/ti"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,6 +15,10 @@ func Test_GetSplitTests(t *testing.T) {
 	log := logrus.New()
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
+
+	tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
+		"", "", "", "", "", "", "", "",
+		"", false)
 
 	testsToSplit := []ti.RunnableTest{
 		{Pkg: "pkg1", Class: "cls1"},
@@ -24,10 +29,10 @@ func Test_GetSplitTests(t *testing.T) {
 	}
 	splitStrategy := countTestSplitStrategy
 	splitTotal := 3
-	tests, _ := getSplitTests(ctx, log, testsToSplit, splitStrategy, 0, splitTotal)
+	tests, _ := getSplitTests(ctx, log, testsToSplit, splitStrategy, 0, splitTotal, &tiConfig)
 	assert.Equal(t, len(tests), 2)
-	tests, _ = getSplitTests(ctx, log, testsToSplit, splitStrategy, 1, splitTotal)
+	tests, _ = getSplitTests(ctx, log, testsToSplit, splitStrategy, 1, splitTotal, &tiConfig)
 	assert.Equal(t, len(tests), 2)
-	tests, _ = getSplitTests(ctx, log, testsToSplit, splitStrategy, 2, splitTotal)
+	tests, _ = getSplitTests(ctx, log, testsToSplit, splitStrategy, 2, splitTotal, &tiConfig)
 	assert.Equal(t, len(tests), 1)
 }

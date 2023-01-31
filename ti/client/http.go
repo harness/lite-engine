@@ -87,6 +87,9 @@ type HTTPClient struct {
 
 // Write writes test results to the TI server
 func (c *HTTPClient) Write(ctx context.Context, stepID, report string, tests []*ti.TestCase) error {
+	if err := c.validate(); err != nil {
+		return err
+	}
 	path := fmt.Sprintf(dbEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, report, c.Repo, c.Sha, c.CommitLink)
 	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &tests, nil) //nolint:bodyclose
 	return err
@@ -94,6 +97,9 @@ func (c *HTTPClient) Write(ctx context.Context, stepID, report string, tests []*
 
 // DownloadLink returns a list of links where the relevant agent artifacts can be downloaded
 func (c *HTTPClient) DownloadLink(ctx context.Context, language, os, arch, framework string) ([]ti.DownloadLink, error) {
+	if err := c.validate(); err != nil {
+		return []ti.DownloadLink{}, err
+	}
 	path := fmt.Sprintf(agentEndpoint, c.AccountID, language, os, arch, framework)
 	var resp []ti.DownloadLink
 	_, err := c.do(ctx, c.Endpoint+path, "GET", "", nil, &resp) //nolint:bodyclose
@@ -102,14 +108,34 @@ func (c *HTTPClient) DownloadLink(ctx context.Context, language, os, arch, frame
 
 // SelectTests returns a list of tests which should be run intelligently
 func (c *HTTPClient) SelectTests(ctx context.Context, stepID, source, target string, in *ti.SelectTestsReq) (ti.SelectTestsResp, error) {
-	path := fmt.Sprintf(testEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target)
 	var resp ti.SelectTestsResp
+	if err := c.validate(); err != nil {
+		return resp, err
+	}
+	if source == "" {
+		return resp, fmt.Errorf("source branch is not set")
+	}
+	if target == "" {
+		return resp, fmt.Errorf("target branch is not set")
+	}
+
+	path := fmt.Sprintf(testEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target)
 	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, in, &resp) //nolint:bodyclose
 	return resp, err
 }
 
 // UploadCg uploads avro encoded callgraph to server
 func (c *HTTPClient) UploadCg(ctx context.Context, stepID, source, target string, timeMs int64, cg []byte) error {
+	if err := c.validate(); err != nil {
+		return err
+	}
+	if source == "" {
+		return fmt.Errorf("source branch is not set")
+	}
+	if target == "" {
+		return fmt.Errorf("target branch is not set")
+	}
+
 	path := fmt.Sprintf(cgEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target, timeMs)
 	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &cg, nil) //nolint:bodyclose
 	return err
@@ -117,9 +143,11 @@ func (c *HTTPClient) UploadCg(ctx context.Context, stepID, source, target string
 
 // GetTestTimes gets test timing data
 func (c *HTTPClient) GetTestTimes(ctx context.Context, in *ti.GetTestTimesReq) (ti.GetTestTimesResp, error) {
-	path := fmt.Sprintf(getTestsTimesEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID)
-
 	var resp ti.GetTestTimesResp
+	if err := c.validate(); err != nil {
+		return resp, err
+	}
+	path := fmt.Sprintf(getTestsTimesEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID)
 	_, err := c.do(ctx, c.Endpoint+path, "POST", "", in, &resp) //nolint:bodyclose
 	return resp, err
 }
@@ -209,4 +237,11 @@ func (c *HTTPClient) client() *http.Client {
 		return defaultClient
 	}
 	return c.Client
+}
+
+func (c *HTTPClient) validate() error {
+	if c.Endpoint == "" {
+		return fmt.Errorf("TI endpoint is not set in config")
+	}
+	return nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti/callgraph"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/sirupsen/logrus"
@@ -26,7 +27,7 @@ var (
 	collectTestReportsFn = report.ParseAndUploadTests
 )
 
-func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) ( //nolint:gocritic
+func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
 	*runtime.State, map[string]string, map[string]string, error) {
 	log := &logrus.Logger{
 		Out:   out,
@@ -37,7 +38,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	}
 
 	start := time.Now()
-	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs)
+	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs, tiConfig)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -45,7 +46,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	step := toStep(r)
 	step.Command = []string{cmd}
 	step.Entrypoint = r.RunTest.Entrypoint
-	setTiEnvVariables(step)
+	setTiEnvVariables(step, tiConfig)
 
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
@@ -60,7 +61,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	}
 
 	exited, err := engine.Run(ctx, step, out)
-	collectionErr := collectRunTestData(ctx, log, r, start, step.Name)
+	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {
 		// Fail the step if run was successful but error during collection
 		err = collectionErr
@@ -81,15 +82,15 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step
-func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string) error {
+func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
 	cgStart := time.Now()
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart)
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 	}
 
 	reportStart := time.Now()
-	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart)
+	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig)
 	if crErr != nil {
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
 	}

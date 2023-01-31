@@ -306,10 +306,11 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 
 func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) ( //nolint:gocritic
 	*runtime.State, map[string]string, map[string]string, error) {
+	tiConfig := pipeline.GetState().GetTIConfig()
 	if r.Kind == api.Run {
-		return executeRunStep(ctx, engine, r, out)
+		return executeRunStep(ctx, engine, r, out, tiConfig)
 	}
-	return executeRunTestStep(ctx, engine, r, out)
+	return executeRunTestStep(ctx, engine, r, out, tiConfig)
 }
 
 func convertStatus(status StepStatus) *api.PollStepResponse {

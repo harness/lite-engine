@@ -11,9 +11,8 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti/avro"
-	"github.com/harness/lite-engine/ti/client"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
@@ -26,34 +25,19 @@ const (
 )
 
 // Upload method uploads the callgraph.
-func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time) error {
-	if instrumentation.IsManualExecution() {
+func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg) error {
+	if instrumentation.IsManualExecution(cfg) {
 		log.Infoln("Skipping call graph collection since it is a manual run")
 		return nil
 	}
 
-	cfg := pipeline.GetState().GetTIConfig()
-	if cfg == nil || cfg.URL == "" {
-		return fmt.Errorf("TI config is not provided in setup")
-	}
-
-	source := cfg.SourceBranch
-	if source == "" {
-		return fmt.Errorf("source branch is not set")
-	}
-	target := cfg.TargetBranch
-	if target == "" {
-		return fmt.Errorf("target branch is not set")
-	}
-
-	encCg, err := encodeCg(fmt.Sprintf(cgDir, pipeline.SharedVolPath), log)
+	encCg, err := encodeCg(fmt.Sprintf(cgDir, cfg.GetDataDir()), log)
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
 	}
 
-	c := client.NewHTTPClient(cfg.URL, cfg.Token, cfg.AccountID, cfg.OrgID, cfg.ProjectID,
-		cfg.PipelineID, cfg.BuildID, cfg.StageID, cfg.Repo, cfg.Sha, cfg.CommitLink, false)
-	if cgErr := c.UploadCg(ctx, stepID, source, target, timeMs, encCg); cgErr != nil {
+	c := cfg.GetClient()
+	if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
 		return cgErr
 	}
 	log.Infoln(fmt.Sprintf("Successfully uploaded callgraph in %s time", time.Since(start)))

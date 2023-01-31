@@ -10,6 +10,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/ti"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 	mocks "github.com/harness/lite-engine/ti/instrumentation/mocks"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -299,8 +300,11 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 
 			selectTestsResponse := ti.SelectTestsResp{}
 			selectTestsResponse.Tests = tt.runnableTests
+			tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
+				"", "", "", "", "", "", "", "",
+				"", false)
 
-			computeSelectedTests(ctx, config, log, runner, &selectTestsResponse, "", envs)
+			computeSelectedTests(ctx, config, log, runner, &selectTestsResponse, "", envs, &tiConfig)
 
 			assert.Equal(t, config.RunOnlySelectedTests, tt.runOnlySelectedTests)
 			assert.Equal(t, selectTestsResponse.Tests, tt.selectTestsResponseTests)
