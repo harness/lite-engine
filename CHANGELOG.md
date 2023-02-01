@@ -1,5 +1,49 @@
 # Changelog
 
+## [v0.4.9](https://github.com/harness/lite-engine/tree/v0.4.9) (2023-02-01)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.8...v0.4.9)
+
+**Merged pull requests:**
+
+- \[feat\]: \[CI-6692\]: Support for Shell Python in Run steps [\#116](https://github.com/harness/lite-engine/pull/116) ([anurag-harness](https://github.com/anurag-harness))
+- \(fix\): Refactor TI [\#115](https://github.com/harness/lite-engine/pull/115) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- \[feat\]: \[CI-6692\]: Support for Shell Python in Run steps [\#114](https://github.com/harness/lite-engine/pull/114) ([anurag-harness](https://github.com/anurag-harness))
+- \(fix\): Parse file name from JUnit XML test reports [\#113](https://github.com/harness/lite-engine/pull/113) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- \(fix\): Cloud Lite Engine does not send commit\_link data [\#112](https://github.com/harness/lite-engine/pull/112) ([anurag-harness](https://github.com/anurag-harness))
+
+## [v0.4.8](https://github.com/harness/lite-engine/tree/v0.4.8) (2023-01-16)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.7...v0.4.8)
+
+**Fixed bugs:**
+
+- \(fix\) improve logging on setup failure [\#111](https://github.com/harness/lite-engine/pull/111) ([tphoney](https://github.com/tphoney))
+
+**Merged pull requests:**
+
+- \(feat\): Parallelism support for Scala/Kotlin with Bazel [\#110](https://github.com/harness/lite-engine/pull/110) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- Commented unused method [\#109](https://github.com/harness/lite-engine/pull/109) ([devkimittal](https://github.com/devkimittal))
+- Changes for windows hosted [\#107](https://github.com/harness/lite-engine/pull/107) ([devkimittal](https://github.com/devkimittal))
+- \(fix\): Use one bazel query to find all test rules [\#105](https://github.com/harness/lite-engine/pull/105) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+
+## [v0.4.7](https://github.com/harness/lite-engine/tree/v0.4.7) (2023-01-06)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.7-windows...v0.4.7)
+
+**Merged pull requests:**
+
+- Improve health check retrier method [\#106](https://github.com/harness/lite-engine/pull/106) ([shubham149](https://github.com/shubham149))
+- \(feat\): RunTests step log parity [\#104](https://github.com/harness/lite-engine/pull/104) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- \(fix\): Fix logger output in RunTests step [\#103](https://github.com/harness/lite-engine/pull/103) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- \(fix\): Determine ignoreInstr boolean before test selection [\#102](https://github.com/harness/lite-engine/pull/102) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- \(fix\): Ignore instrumentation optimizations [\#101](https://github.com/harness/lite-engine/pull/101) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+- \(feat\): Custom glob support for Autodetect [\#97](https://github.com/harness/lite-engine/pull/97) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+
+## [v0.4.7-windows](https://github.com/harness/lite-engine/tree/v0.4.7-windows) (2023-01-04)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.6...v0.4.7-windows)
+
 ## [v0.4.6](https://github.com/harness/lite-engine/tree/v0.4.6) (2022-11-18)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.5...v0.4.6)
@@ -10,6 +54,7 @@
 
 **Merged pull requests:**
 
+- 0.4.6 prep [\#100](https://github.com/harness/lite-engine/pull/100) ([shubham149](https://github.com/shubham149))
 - \(maint\) - update pool name to fix build issue for osx [\#99](https://github.com/harness/lite-engine/pull/99) ([eoinmcafee00](https://github.com/eoinmcafee00))
 
 ## [v0.4.5](https://github.com/harness/lite-engine/tree/v0.4.5) (2022-11-13)
