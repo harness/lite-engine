@@ -46,10 +46,10 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 	for _, o := range outputVars {
 		if isPsh {
 			cmd += fmt.Sprintf("\n$val = \"%s $Env:%s\" \nAdd-Content -Path %s -Value $val", o, o, outputFile)
-		} else if isBash(entrypoint) || isSh(entrypoint) {
-			cmd += fmt.Sprintf(";echo \"%s $%s\" >> %s", o, o, outputFile)
 		} else if isPython {
 			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s ' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
+		} else {
+			cmd += fmt.Sprintf(";echo \"%s $%s\" >> %s", o, o, outputFile)
 		}
 	}
 
@@ -58,20 +58,6 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 
 func isPowershell(entrypoint []string) bool {
 	if len(entrypoint) > 0 && (entrypoint[0] == "powershell" || entrypoint[0] == "pwsh") {
-		return true
-	}
-	return false
-}
-
-func isSh(entrypoint []string) bool {
-	if len(entrypoint) > 0 && (entrypoint[0] == "sh") {
-		return true
-	}
-	return false
-}
-
-func isBash(entrypoint []string) bool {
-	if len(entrypoint) > 0 && (entrypoint[0] == "bash") {
 		return true
 	}
 	return false
