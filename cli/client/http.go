@@ -21,6 +21,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	healthCheckTimeout = 10 * time.Second
+)
+
 // Error represents a json-encoded API error.
 type Error struct {
 	Message string
@@ -182,7 +186,7 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (*a
 }
 
 func (c *HTTPClient) healthCheck(ctx context.Context) (*api.HealthResponse, error) {
-	hctx, cancel := context.WithTimeout(ctx, time.Second)
+	hctx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
 	defer cancel()
 
 	return c.Health(hctx)
