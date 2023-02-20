@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 )
 
 func TestExamplesInTheWild(t *testing.T) { //nolint:funlen

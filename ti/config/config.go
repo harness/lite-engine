@@ -1,6 +1,6 @@
 package config
 
-import "github.com/harness/lite-engine/ti/client"
+import "github.com/harness/ti-client/client"
 
 type Cfg struct {
 	client       *client.HTTPClient
@@ -13,7 +13,7 @@ type Cfg struct {
 func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink,
 	sourceBranch, targetBranch, commitBranch, dataDir string, skipVerify bool) Cfg {
 	client := client.NewHTTPClient(
-		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify)
+		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify, "")
 	cfg := Cfg{
 		client:       client,
 		sourceBranch: sourceBranch,

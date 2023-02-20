@@ -9,7 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	ti "github.com/harness/lite-engine/ti"
+	types "github.com/harness/ti-client/types"
 )
 
 // MockTestRunner is a mock of TestRunner interface.
@@ -51,10 +51,10 @@ func (mr *MockTestRunnerMockRecorder) AutoDetectPackages(workspace interface{}) 
 }
 
 // AutoDetectTests mocks base method.
-func (m *MockTestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+func (m *MockTestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]types.RunnableTest, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AutoDetectTests", ctx, workspace, testGlobs)
-	ret0, _ := ret[0].([]ti.RunnableTest)
+	ret0, _ := ret[0].([]types.RunnableTest)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -66,7 +66,7 @@ func (mr *MockTestRunnerMockRecorder) AutoDetectTests(ctx, workspace, testGlobs 
 }
 
 // GetCmd mocks base method.
-func (m *MockTestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+func (m *MockTestRunner) GetCmd(ctx context.Context, tests []types.RunnableTest, userArgs, workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCmd", ctx, tests, userArgs, workspace, agentConfigPath, agentInstallDir, ignoreInstr, runAll)
 	ret0, _ := ret[0].(string)
