@@ -75,7 +75,7 @@ func isPython(entrypoint []string) bool {
 }
 
 func isContainerlessPlugin(image string, entrypoint []string) bool {
-	return len(image) == 0 && len(entrypoint) > 0 && entrypoint[0] == "plugin"
+	return image == "" && len(entrypoint) > 0 && entrypoint[0] == "plugin"
 }
 
 // Fetches map of env variable and value from OutputFile.
