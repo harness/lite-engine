@@ -35,7 +35,11 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	}
 
 	outputFile := fmt.Sprintf("%s/%s.out", pipeline.SharedVolPath, step.ID)
-	if len(r.OutputVars) > 0 {
+	pluginOutputFile := fmt.Sprintf(pluginOutputfileFormat, pipeline.SharedVolPath, step.ID)
+
+	if (isContainerlessPlugin(step.Image, step.Entrypoint) && len(step.Command) > 0) {
+		step.Command[0] += fmt.Sprintf(" -outputfile %s", pluginOutputFile)
+	} else if len(r.OutputVars) > 0 {
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
 	}
 
@@ -48,7 +52,10 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	}
 
 	exportEnvs := fetchExportedEnvVars(exportEnvFile, out)
-	if len(r.OutputVars) > 0 {
+	if isContainerlessPlugin(step.Image, step.Entrypoint) {
+		outputs := fetchExportedEnvVars(pluginOutputFile, out)
+		return exited, outputs, exportEnvs, err
+	} else if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
 			outputs, err := fetchOutputVariables(outputFile, out) //nolint:govet
 			if err != nil {

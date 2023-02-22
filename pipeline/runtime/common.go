@@ -21,6 +21,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	pluginOutputfileFormat = "%s/%s-plugin.env"
+)
+
 func getNudges() []logstream.Nudge {
 	// <search-term> <resolution> <error-msg>
 	return []logstream.Nudge{
@@ -68,6 +72,10 @@ func isPython(entrypoint []string) bool {
 		return true
 	}
 	return false
+}
+
+func isContainerlessPlugin(image string, entrypoint []string) bool {
+	return len(image) == 0 && len(entrypoint) > 0 && entrypoint[0] == "plugin"
 }
 
 // Fetches map of env variable and value from OutputFile.
