@@ -38,7 +38,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	pluginOutputFile := fmt.Sprintf(pluginOutputfileFormat, pipeline.SharedVolPath, step.ID)
 
 	if isContainerlessPlugin(step.Image, step.Entrypoint) && len(step.Command) > 0 {
-		step.Command[0] += fmt.Sprintf(" -outputfile %s", pluginOutputFile)
+		step.Command = append(step.Command, "-outputfile", pluginOutputFile)
 	} else if len(r.OutputVars) > 0 {
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
 	}
