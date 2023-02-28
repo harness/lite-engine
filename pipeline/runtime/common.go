@@ -21,10 +21,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	pluginOutputfileFormat = "%s/%s-plugin.env"
-)
-
 func getNudges() []logstream.Nudge {
 	// <search-term> <resolution> <error-msg>
 	return []logstream.Nudge{
@@ -49,11 +45,11 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 	}
 	for _, o := range outputVars {
 		if isPsh {
-			cmd += fmt.Sprintf("\n$val = \"%s $Env:%s\" \nAdd-Content -Path %s -Value $val", o, o, outputFile)
+			cmd += fmt.Sprintf("\n$val = \"%s=$Env:%s\" \nAdd-Content -Path %s -Value $val", o, o, outputFile)
 		} else if isPython {
-			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s ' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
+			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
 		} else {
-			cmd += fmt.Sprintf(";echo \"%s $%s\" >> %s", o, o, outputFile)
+			cmd += fmt.Sprintf(";echo \"%s=$%s\" >> %s", o, o, outputFile)
 		}
 	}
 
@@ -72,10 +68,6 @@ func isPython(entrypoint []string) bool {
 		return true
 	}
 	return false
-}
-
-func isContainerlessPlugin(image string, entrypoint []string) bool {
-	return image == "" && len(entrypoint) > 0 && entrypoint[0] == "plugin"
 }
 
 // Fetches map of env variable and value from OutputFile.
@@ -124,6 +116,26 @@ func fetchExportedEnvVars(envFile string, out io.Writer) map[string]string {
 		return nil
 	}
 	return env
+}
+
+// Fetches output variables exported by the step.
+func fetchOutputVariablesFromEnvFile(outputFile string, out io.Writer) map[string]string {
+	log := logrus.New()
+	log.Out = out
+
+	outputs := make(map[string]string)
+
+	if _, err := os.Stat(outputFile); errors.Is(err, os.ErrNotExist) {
+		log.WithError(err).WithField("outputFile", outputFile).Warnln("failed to read exported output file")
+		return outputs
+	}
+
+	outputs, err := godotenv.Read(outputFile)
+	if err != nil {
+		log.WithError(err).WithField("outputFile", outputFile).Warnln("failed to read exported output file")
+		return outputs
+	}
+	return outputs
 }
 
 // setTiEnvVariables sets the environment variables required for TI

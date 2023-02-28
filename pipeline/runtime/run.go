@@ -34,12 +34,10 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 		return nil, nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
-	outputFile := fmt.Sprintf("%s/%s.out", pipeline.SharedVolPath, step.ID)
-	pluginOutputFile := fmt.Sprintf(pluginOutputfileFormat, pipeline.SharedVolPath, step.ID)
+	outputFile := fmt.Sprintf("%s/%s.env", pipeline.SharedVolPath, step.ID)
+	step.Envs["DRONE_OUTPUT"] = outputFile
 
-	if isContainerlessPlugin(step.Image, step.Entrypoint) && len(step.Command) > 0 {
-		step.Command = append(step.Command, "-outputfile", pluginOutputFile)
-	} else if len(r.OutputVars) > 0 {
+	if len(r.OutputVars) > 0 {
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
 	}
 
@@ -52,17 +50,9 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	}
 
 	exportEnvs := fetchExportedEnvVars(exportEnvFile, out)
-	if isContainerlessPlugin(step.Image, step.Entrypoint) {
-		outputs := fetchExportedEnvVars(pluginOutputFile, out)
+	if exited != nil && exited.Exited && exited.ExitCode == 0 {
+		outputs := fetchOutputVariablesFromEnvFile(outputFile, out) //nolint:govet
 		return exited, outputs, exportEnvs, err
-	} else if len(r.OutputVars) > 0 {
-		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchOutputVariables(outputFile, out) //nolint:govet
-			if err != nil {
-				return exited, nil, exportEnvs, err
-			}
-			return exited, outputs, exportEnvs, err
-		}
 	}
 	return exited, nil, exportEnvs, err
 }
