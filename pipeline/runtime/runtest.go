@@ -55,7 +55,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 		return nil, nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
-	outputFile := fmt.Sprintf("%s/%s.out", pipeline.SharedVolPath, step.ID)
+	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
 	if len(r.OutputVars) > 0 {
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
 	}
@@ -67,13 +67,10 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 		err = collectionErr
 	}
 
-	exportEnvs := fetchExportedEnvVars(exportEnvFile, out)
+	exportEnvs := fetchExportedVarsFromEnvFile(exportEnvFile, out)
 	if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchOutputVariables(outputFile, out) //nolint:govet
-			if err != nil {
-				return exited, nil, exportEnvs, err
-			}
+			outputs := fetchExportedVarsFromEnvFile(outputFile, out)
 			return exited, outputs, exportEnvs, err
 		}
 	}

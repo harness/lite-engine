@@ -34,7 +34,9 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 		return nil, nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
-	outputFile := fmt.Sprintf("%s/%s.out", pipeline.SharedVolPath, step.ID)
+	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
+	step.Envs["DRONE_OUTPUT"] = outputFile
+
 	if len(r.OutputVars) > 0 {
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
 	}
@@ -47,15 +49,10 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 		logrus.WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
 	}
 
-	exportEnvs := fetchExportedEnvVars(exportEnvFile, out)
-	if len(r.OutputVars) > 0 {
-		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchOutputVariables(outputFile, out) //nolint:govet
-			if err != nil {
-				return exited, nil, exportEnvs, err
-			}
-			return exited, outputs, exportEnvs, err
-		}
+	exportEnvs := fetchExportedVarsFromEnvFile(exportEnvFile, out)
+	if exited != nil && exited.Exited && exited.ExitCode == 0 {
+		outputs := fetchExportedVarsFromEnvFile(outputFile, out)
+		return exited, outputs, exportEnvs, err
 	}
 	return exited, nil, exportEnvs, err
 }

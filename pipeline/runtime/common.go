@@ -5,13 +5,11 @@
 package runtime
 
 import (
-	"bufio"
 	b64 "encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logstream"
@@ -45,11 +43,11 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 	}
 	for _, o := range outputVars {
 		if isPsh {
-			cmd += fmt.Sprintf("\n$val = \"%s $Env:%s\" \nAdd-Content -Path %s -Value $val", o, o, outputFile)
+			cmd += fmt.Sprintf("\n$val = \"%s=$Env:%s\" \nAdd-Content -Path %s -Value $val", o, o, outputFile)
 		} else if isPython {
-			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s ' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
+			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
 		} else {
-			cmd += fmt.Sprintf(";echo \"%s $%s\" >> %s", o, o, outputFile)
+			cmd += fmt.Sprintf(";echo \"%s=$%s\" >> %s", o, o, outputFile)
 		}
 	}
 
@@ -70,39 +68,8 @@ func isPython(entrypoint []string) bool {
 	return false
 }
 
-// Fetches map of env variable and value from OutputFile.
-// OutputFile stores all env variable and value
-func fetchOutputVariables(outputFile string, out io.Writer) (map[string]string, error) {
-	log := logrus.New()
-	log.Out = out
-
-	outputs := make(map[string]string)
-	f, err := os.Open(outputFile)
-	if err != nil {
-		log.WithError(err).WithField("outputFile", outputFile).Errorln("failed to open output file")
-		return nil, err
-	}
-	defer f.Close()
-
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		line := s.Text()
-		sa := strings.Split(line, " ")
-		if len(sa) < 2 { //nolint:gomnd
-			log.WithField("variable", sa[0]).Warnln("output variable does not exist")
-		} else {
-			outputs[sa[0]] = line[len(sa[0])+1:]
-		}
-	}
-	if err := s.Err(); err != nil {
-		log.WithError(err).Errorln("failed to create scanner from output file")
-		return nil, err
-	}
-	return outputs, nil
-}
-
-// Fetches env variable exported by the step.
-func fetchExportedEnvVars(envFile string, out io.Writer) map[string]string {
+// Fetches variable in env file exported by the step.
+func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) map[string]string {
 	log := logrus.New()
 	log.Out = out
 
