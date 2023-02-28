@@ -126,7 +126,6 @@ func fetchOutputVariablesFromEnvFile(outputFile string, out io.Writer) map[strin
 	outputs := make(map[string]string)
 
 	if _, err := os.Stat(outputFile); errors.Is(err, os.ErrNotExist) {
-		log.WithError(err).WithField("outputFile", outputFile).Warnln("failed to read exported output file")
 		return outputs
 	}
 
