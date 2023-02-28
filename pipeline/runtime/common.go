@@ -73,16 +73,14 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) map[string]stri
 	log := logrus.New()
 	log.Out = out
 
-	env := make(map[string]string)
-
 	if _, err := os.Stat(envFile); errors.Is(err, os.ErrNotExist) {
-		return env
+		return nil
 	}
 
 	env, err := godotenv.Read(envFile)
 	if err != nil {
 		log.WithError(err).WithField("envFile", envFile).Warnln("failed to read exported env file")
-		return env
+		return nil
 	}
 	return env
 }
