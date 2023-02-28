@@ -101,40 +101,23 @@ func fetchOutputVariables(outputFile string, out io.Writer) (map[string]string, 
 	return outputs, nil
 }
 
-// Fetches env variable exported by the step.
-func fetchExportedEnvVars(envFile string, out io.Writer) map[string]string {
+// Fetches variable in env file exported by the step.
+func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) map[string]string {
 	log := logrus.New()
 	log.Out = out
 
+	env := make(map[string]string)
+
 	if _, err := os.Stat(envFile); errors.Is(err, os.ErrNotExist) {
-		return nil
+		return env
 	}
 
 	env, err := godotenv.Read(envFile)
 	if err != nil {
 		log.WithError(err).WithField("envFile", envFile).Warnln("failed to read exported env file")
-		return nil
+		return env
 	}
 	return env
-}
-
-// Fetches output variables exported by the step.
-func fetchOutputVariablesFromEnvFile(outputFile string, out io.Writer) map[string]string {
-	log := logrus.New()
-	log.Out = out
-
-	outputs := make(map[string]string)
-
-	if _, err := os.Stat(outputFile); errors.Is(err, os.ErrNotExist) {
-		return outputs
-	}
-
-	outputs, err := godotenv.Read(outputFile)
-	if err != nil {
-		log.WithError(err).WithField("outputFile", outputFile).Warnln("failed to read exported output file")
-		return outputs
-	}
-	return outputs
 }
 
 // setTiEnvVariables sets the environment variables required for TI
