@@ -1,5 +1,34 @@
 # Changelog
 
+## [v0.5.2](https://github.com/harness/lite-engine/tree/v0.5.2) (2023-03-07)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.1...v0.5.2)
+
+**Merged pull requests:**
+
+- \[fix\]: \[CI-7224\]: Fix output variable not found error [\#124](https://github.com/harness/lite-engine/pull/124) ([anurag-harness](https://github.com/anurag-harness))
+
+## [v0.5.1](https://github.com/harness/lite-engine/tree/v0.5.1) (2023-02-28)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/plugin_7012...v0.5.1)
+
+**Merged pull requests:**
+
+- Add output variable support for container less plugins [\#123](https://github.com/harness/lite-engine/pull/123) ([raghavharness](https://github.com/raghavharness))
+
+## [plugin_7012](https://github.com/harness/lite-engine/tree/plugin_7012) (2023-02-22)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.0...plugin_7012)
+
+## [v0.5.0](https://github.com/harness/lite-engine/tree/v0.5.0) (2023-02-03)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.9...v0.5.0)
+
+**Merged pull requests:**
+
+- \(fix\): Increase health check timeout to 10 seconds [\#118](https://github.com/harness/lite-engine/pull/118) ([vistaarjuneja](https://github.com/vistaarjuneja))
+- v0.4.9 prep [\#117](https://github.com/harness/lite-engine/pull/117) ([anurag-harness](https://github.com/anurag-harness))
+
 ## [v0.4.9](https://github.com/harness/lite-engine/tree/v0.4.9) (2023-02-01)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.4.8...v0.4.9)
