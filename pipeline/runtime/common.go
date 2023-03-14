@@ -69,20 +69,21 @@ func isPython(entrypoint []string) bool {
 }
 
 // Fetches variable in env file exported by the step.
-func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) map[string]string {
+func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) (map[string]string, error) {
 	log := logrus.New()
 	log.Out = out
 
 	if _, err := os.Stat(envFile); errors.Is(err, os.ErrNotExist) {
-		return nil
+		return nil, err
 	}
 
 	env, err := godotenv.Read(envFile)
 	if err != nil {
-		log.WithError(err).WithField("envFile", envFile).Warnln("failed to read exported env file")
-		return nil
+		content, _ := os.ReadFile(envFile)
+		log.WithError(err).WithField("envFile", envFile).WithField("content", string(content)).Warnln("failed to read exported env file")
+		return nil, err
 	}
-	return env
+	return env, nil
 }
 
 // setTiEnvVariables sets the environment variables required for TI

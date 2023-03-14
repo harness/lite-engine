@@ -49,10 +49,14 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 		logrus.WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
 	}
 
-	exportEnvs := fetchExportedVarsFromEnvFile(exportEnvFile, out)
+	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
 	if exited != nil && exited.Exited && exited.ExitCode == 0 {
-		outputs := fetchExportedVarsFromEnvFile(outputFile, out)
-		return exited, outputs, exportEnvs, err
+		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out)
+		if len(r.OutputVars) > 0 {
+			// only return err when output vars are expected
+			return exited, outputs, exportEnvs, err
+		}
+		return exited, outputs, exportEnvs, nil
 	}
 	return exited, nil, exportEnvs, err
 }
