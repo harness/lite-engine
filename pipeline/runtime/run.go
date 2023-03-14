@@ -51,7 +51,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
 	if exited != nil && exited.Exited && exited.ExitCode == 0 {
-		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out)
+		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
 		if len(r.OutputVars) > 0 {
 			// only return err when output vars are expected
 			return exited, outputs, exportEnvs, err

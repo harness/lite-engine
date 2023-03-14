@@ -70,7 +70,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
 	if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out)
+			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
 			return exited, outputs, exportEnvs, err
 		}
 	}
