@@ -79,7 +79,10 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) (map[string]str
 
 	env, err := godotenv.Read(envFile)
 	if err != nil {
-		content, _ := os.ReadFile(envFile)
+		content, ferr := os.ReadFile(envFile)
+		if ferr != nil {
+			log.WithError(ferr).WithField("envFile", envFile).Warnln("Unable to read exported env file")
+		}
 		log.WithError(err).WithField("envFile", envFile).WithField("content", string(content)).Warnln("failed to read exported env file")
 		return nil, err
 	}
