@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.5.3](https://github.com/harness/lite-engine/tree/v0.5.3) (2023-03-16)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.2...v0.5.3)
+
+**Merged pull requests:**
+
+- 0.5.3-prep [\#127](https://github.com/harness/lite-engine/pull/127) ([raghavharness](https://github.com/raghavharness))
+- Outputvar fixes [\#126](https://github.com/harness/lite-engine/pull/126) ([raghavharness](https://github.com/raghavharness))
+- v0.5.2 prep [\#125](https://github.com/harness/lite-engine/pull/125) ([anurag-harness](https://github.com/anurag-harness))
+
 ## [v0.5.2](https://github.com/harness/lite-engine/tree/v0.5.2) (2023-03-07)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.1...v0.5.2)
