@@ -67,10 +67,10 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 		err = collectionErr
 	}
 
-	exportEnvs := fetchExportedVarsFromEnvFile(exportEnvFile, out)
+	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
 	if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs := fetchExportedVarsFromEnvFile(outputFile, out)
+			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
 			return exited, outputs, exportEnvs, err
 		}
 	}
