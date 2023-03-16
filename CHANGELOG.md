@@ -10,15 +10,11 @@
 
 ## [v0.5.1](https://github.com/harness/lite-engine/tree/v0.5.1) (2023-02-28)
 
-[Full Changelog](https://github.com/harness/lite-engine/compare/plugin_7012...v0.5.1)
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.0...v0.5.1)
 
 **Merged pull requests:**
 
 - Add output variable support for container less plugins [\#123](https://github.com/harness/lite-engine/pull/123) ([raghavharness](https://github.com/raghavharness))
-
-## [plugin_7012](https://github.com/harness/lite-engine/tree/plugin_7012) (2023-02-22)
-
-[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.0...plugin_7012)
 
 ## [v0.5.0](https://github.com/harness/lite-engine/tree/v0.5.0) (2023-02-03)
 
