@@ -21,7 +21,7 @@ import (
 const bazelRuleStringsBazelAutoDetectTests = "//module1:pkg1.cls1\n//module1:pkg1.cls2\n//module1:pkg2\n//module1:pkg2/cls2\n"
 const bazelQuery = "//120-ng-manager:io.harness.ng.GenerateOpenApiSpecCommandTest\n//220-graphql-test:io.harness.GraphQLExceptionHandlingTest\n//pipeline-service/service:io.harness.GenerateOpenApiSpecCommandTest\n" //nolint:lll
 
-func TestGetBazelCmd(t *testing.T) {
+func TestGetBazelCmd(_ *testing.T) {
 	// Bazel impl is pretty hacky right now and tailored to running portal.
 	// Will add this once we have a more generic implementation.
 }
@@ -42,7 +42,7 @@ func fakeExecCommand2(ctx context.Context, command string, args ...string) *exec
 	return cmd
 }
 
-func TestHelperProcess(t *testing.T) {
+func TestHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
@@ -50,7 +50,7 @@ func TestHelperProcess(t *testing.T) {
 	os.Exit(0)
 }
 
-func TestHelperProcess2(t *testing.T) {
+func TestHelperProcess2(_ *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
 	}

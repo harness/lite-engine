@@ -156,10 +156,7 @@ func runStage(client *HTTPClient, remoteLog bool) error {
 	// execute step2
 	s2 := getRunStep("step2", "set -xe; pwd; cat foo; sleep 5; export hello=world", workDir)
 	s2.OutputVars = append(s2.OutputVars, "hello")
-	if err := executeStep(ctx, s2, client); err != nil {
-		return err
-	}
-	return nil
+	return executeStep(ctx, s2, client)
 }
 
 func getRunStep(id, cmd, workdir string) *api.StartStepRequest {
