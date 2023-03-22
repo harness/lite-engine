@@ -15,7 +15,7 @@ steps:
     depends_on:
       - clone
   - name: golangci-lint
-    image: golangci/golangci-lint
+    image: golangci/golangci-lint:v1.51.2
     commands:
       - golangci-lint run --timeout 300s
     volumes:
@@ -176,11 +176,11 @@ steps:
   - name: build
     image: golang:1.19
     commands:
-      - GOOS=linux   GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-amd64
-      - GOOS=linux   GOARCH=arm64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-arm64
-      - GOOS=darwin  GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/lite-engine-darwin-amd64
-      - GOOS=darwin  GOARCH=arm64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/lite-engine-darwin-arm64
-      - GOOS=windows GOARCH=amd64   go build -ldflags "-X main.version=${DRONE_TAG##v}" -o release/lite-engine-windows-amd64.exe
+      - GOOS=linux   GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-amd64
+      - GOOS=linux   GOARCH=arm64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-arm64
+      - GOOS=darwin  GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-darwin-amd64
+      - GOOS=darwin  GOARCH=arm64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-darwin-arm64
+      - GOOS=windows GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-windows-amd64.exe
 
   - name: release
     image: plugins/github-release

@@ -12,8 +12,8 @@ import (
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/pipeline/runtime"
 
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 // Handler returns an http.Handler that exposes the service resources.

@@ -39,12 +39,12 @@ type FileStore struct {
 	state   map[string]State
 }
 
-func (f *FileStore) Upload(ctx context.Context, key string, lines []*logstream.Line) error {
+func (f *FileStore) Upload(_ context.Context, key string, lines []*logstream.Line) error {
 	return nil
 }
 
 // Open opens the data stream.
-func (f *FileStore) Open(ctx context.Context, key string) error {
+func (f *FileStore) Open(_ context.Context, key string) error {
 	file, err := os.Create(path.Join(f.relPath, key))
 	if err != nil {
 		return err
@@ -57,7 +57,7 @@ func (f *FileStore) Open(ctx context.Context, key string) error {
 }
 
 // Close closes the data stream.
-func (f *FileStore) Close(ctx context.Context, key string) error {
+func (f *FileStore) Close(_ context.Context, key string) error {
 	file, err := f.getFileRef(key)
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func (f *FileStore) Close(ctx context.Context, key string) error {
 }
 
 // Write writes logs to the file.
-func (f *FileStore) Write(ctx context.Context, key string, lines []*logstream.Line) error {
+func (f *FileStore) Write(_ context.Context, key string, lines []*logstream.Line) error {
 	data := new(bytes.Buffer)
 	for _, line := range convertLines(lines) {
 		buf := new(bytes.Buffer)
