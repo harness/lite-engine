@@ -74,6 +74,7 @@ func expectedPassedTest() *ti.TestCase {
 		Name:      "report1test1",
 		ClassName: "report1test1class",
 		SuiteName: "report1",
+		FileName:  "path/to/test/t1.java",
 		Result: ti.Result{
 			Status: ti.StatusPassed,
 		},
@@ -88,6 +89,7 @@ func expectedFailedTest() *ti.TestCase {
 		Name:      "report1test2",
 		ClassName: "report1test2class",
 		SuiteName: "report1",
+		FileName:  "path/to/test/t2.java",
 		Result: ti.Result{
 			Status:  ti.StatusFailed,
 			Message: "report1test2message",
