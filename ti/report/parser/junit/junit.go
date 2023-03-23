@@ -96,6 +96,7 @@ func convert(testCase gojunit.Test, testSuite gojunit.Suite) *ti.TestCase { //no
 		Name:       testCase.Name,
 		SuiteName:  testSuite.Name,
 		ClassName:  testCase.Classname,
+		FileName:   testCase.Filename,
 		DurationMs: testCase.DurationMs,
 		Result:     testCase.Result,
 		SystemOut:  restrictLength(testCase.SystemOut),
