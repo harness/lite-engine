@@ -8,6 +8,8 @@ import (
 	"github.com/harness/lite-engine/api"
 )
 
+var _ Client = (*NoopClient)(nil)
+
 type NoopClient struct {
 	stepResponse *api.PollStepResponse // response to return for the step execution
 	stepErr      error                 // if there's an error in polling the step response

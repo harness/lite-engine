@@ -25,6 +25,8 @@ var (
 	healthCheckTimeout = 10 * time.Second
 )
 
+var _ Client = (*HTTPClient)(nil)
+
 // Error represents a json-encoded API error.
 type Error struct {
 	Message string
