@@ -7,6 +7,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -21,6 +22,17 @@ import (
 	"github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
+
+type Client interface {
+	Setup(ctx context.Context, in *api.SetupRequest) (*api.SetupResponse, error)
+	Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error)
+	StartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error)
+	PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error)
+	RetryPollStep(ctx context.Context, in *api.PollStepRequest, timeout time.Duration) (step *api.PollStepResponse, pollError error)
+	GetStepLogOutput(ctx context.Context, in *api.StreamOutputRequest, w io.Writer) error
+	Health(ctx context.Context) (*api.HealthResponse, error)
+	RetryHealth(ctx context.Context, timeout time.Duration) (*api.HealthResponse, error)
+}
 
 type clientCommand struct {
 	envfile   string
@@ -81,7 +93,7 @@ func (c *clientCommand) run(*kingpin.ParseContext) error {
 	return checkServerHealth(client)
 }
 
-func checkServerHealth(client *HTTPClient) error {
+func checkServerHealth(client Client) error {
 	response, healthErr := client.Health(context.Background())
 	if healthErr != nil {
 		logrus.WithError(healthErr).
@@ -92,7 +104,7 @@ func checkServerHealth(client *HTTPClient) error {
 	return nil
 }
 
-func runStage(client *HTTPClient, remoteLog bool) error {
+func runStage(client Client, remoteLog bool) error {
 	ctx := context.Background()
 	defer func() {
 		logrus.Infof("starting destroy")
@@ -187,7 +199,7 @@ func getRunStep(id, cmd, workdir string) *api.StartStepRequest {
 	return s
 }
 
-func executeStep(ctx context.Context, step *api.StartStepRequest, client *HTTPClient) error {
+func executeStep(ctx context.Context, step *api.StartStepRequest, client Client) error {
 	logrus.Infof("calling starting step %s", step.ID)
 	if _, err := client.StartStep(ctx, step); err != nil {
 		logrus.WithError(err).Errorf("start %s call failed", step.ID)
