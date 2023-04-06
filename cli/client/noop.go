@@ -14,21 +14,27 @@ type NoopClient struct {
 	stepResponse *api.PollStepResponse // response to return for the step execution
 	stepErr      error                 // if there's an error in polling the step response
 	stepExecTime time.Duration         // how long to wait for the step to return back
+	setupTime    time.Duration         // time taken to setup the stage
+	destroyTime  time.Duration         // time taken to destroy the stage
 }
 
-func NewNoopClient(r *api.PollStepResponse, err error, time time.Duration) *NoopClient {
+func NewNoopClient(r *api.PollStepResponse, err error, stepExecTime, setupTime, destroyTime time.Duration) *NoopClient {
 	return &NoopClient{
 		stepResponse: r,
 		stepErr:      err,
-		stepExecTime: time,
+		stepExecTime: stepExecTime,
+		setupTime:    setupTime,
+		destroyTime:  destroyTime,
 	}
 }
 
-func (*NoopClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.SetupResponse, error) {
+func (n *NoopClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.SetupResponse, error) {
+	time.Sleep(n.setupTime)
 	return &api.SetupResponse{}, nil
 }
 
-func (*NoopClient) Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error) {
+func (n *NoopClient) Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error) {
+	time.Sleep(n.destroyTime)
 	return &api.DestroyResponse{}, nil
 }
 
