@@ -1,0 +1,15 @@
+name: Sample Pipeline_1680764170549
+stages:
+  - name: build
+    spec:
+      steps:
+        - name: go_build
+          spec:
+            run: go build
+          type: script
+        - name: go_test
+          spec:
+            run: go test -v ./...
+          type: script
+    type: ci
+version: 1
