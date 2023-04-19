@@ -110,12 +110,12 @@ func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest,
 		}
 		step, pollError = c.PollStep(retryCtx, in)
 		if pollError == nil {
-			logger.FromContext(retryCtx).
+			logger.FromContext(ctx).
 				WithField("duration", time.Since(startTime)).
 				Trace("RetryPollStep: step completed")
 			return step, pollError
 		} else if lastErr == nil || (lastErr.Error() != pollError.Error()) {
-			logger.FromContext(retryCtx).
+			logger.FromContext(ctx).
 				WithField("retry_num", i).
 				WithError(pollError).
 				Warn("RetryPollStep: polling failed. retrying")
@@ -182,12 +182,12 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (*a
 		default:
 		}
 		if ret, err := c.healthCheck(retryCtx); err == nil {
-			logger.FromContext(retryCtx).
+			logger.FromContext(ctx).
 				WithField("duration", time.Since(startTime)).
 				Trace("RetryHealth: health check completed")
 			return ret, err
 		} else if lastErr == nil || (lastErr.Error() != err.Error()) {
-			logger.FromContext(retryCtx).
+			logger.FromContext(ctx).
 				WithField("retry_num", i).WithError(err).Traceln("health check failed. Retrying")
 			lastErr = err
 		}
