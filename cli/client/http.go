@@ -108,6 +108,8 @@ func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest,
 			return step, retryCtx.Err()
 		default:
 		}
+
+		st := time.Now()
 		step, pollError = c.PollStep(retryCtx, in)
 		if pollError == nil {
 			logger.FromContext(ctx).
@@ -118,10 +120,11 @@ func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest,
 			logger.FromContext(ctx).
 				WithField("retry_num", i).
 				WithError(pollError).
+				WithField("duration", time.Since(st)).
 				Warn("RetryPollStep: polling failed. retrying")
 			lastErr = pollError
 		}
-		time.Sleep(time.Millisecond * 10) //nolint:gomnd
+		time.Sleep(time.Millisecond * 50) //nolint:gomnd
 	}
 }
 
