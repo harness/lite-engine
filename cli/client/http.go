@@ -62,7 +62,7 @@ func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile str
 				Proxy:                 http.ProxyFromEnvironment,
 				DialContext:           dialer.DialContext,
 				ForceAttemptHTTP2:     true,
-				MaxIdleConns:          100,
+				MaxIdleConns:          10,
 				IdleConnTimeout:       30 * time.Second,
 				TLSClientConfig:       tlsConfig,
 				TLSHandshakeTimeout:   10 * time.Second,
