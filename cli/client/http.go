@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -50,10 +51,22 @@ func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile str
 
 	tlsConfig.RootCAs = x509.NewCertPool()
 	tlsConfig.RootCAs.AppendCertsFromPEM([]byte(caCertFile))
+
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
 	return &HTTPClient{
 		Client: &http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig: tlsConfig,
+				Proxy:                 http.ProxyFromEnvironment,
+				DialContext:           dialer.DialContext,
+				ForceAttemptHTTP2:     true,
+				MaxIdleConns:          10,
+				IdleConnTimeout:       30 * time.Second,
+				TLSClientConfig:       tlsConfig,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
 			},
 		},
 		Endpoint: endpoint,
