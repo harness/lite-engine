@@ -42,6 +42,10 @@ func (*NoopClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*ap
 	return &api.StartStepResponse{}, nil
 }
 
+func (*NoopClient) RetryStartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
+	return &api.StartStepResponse{}, nil
+}
+
 func (n *NoopClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error) {
 	time.Sleep(n.stepExecTime)
 	return n.stepResponse, n.stepErr

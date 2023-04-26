@@ -102,6 +102,19 @@ func (c *HTTPClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*
 	return out, err
 }
 
+func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
+	var err error
+	for i := 0; i <= 3; i++ {
+		var out *api.StartStepResponse
+		out, err = c.StartStep(ctx, in)
+		if err == nil {
+			return out, nil
+		}
+		time.Sleep(time.Millisecond * 50) //nolint:gomnd
+	}
+	return nil, err
+}
+
 func (c *HTTPClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error) {
 	path := "poll_step"
 	out := new(api.PollStepResponse)

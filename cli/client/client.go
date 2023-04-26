@@ -26,6 +26,7 @@ import (
 type Client interface {
 	Setup(ctx context.Context, in *api.SetupRequest) (*api.SetupResponse, error)
 	Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error)
+	RetryStartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error)
 	StartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error)
 	PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error)
 	RetryPollStep(ctx context.Context, in *api.PollStepRequest, timeout time.Duration) (step *api.PollStepResponse, pollError error)

@@ -33,8 +33,10 @@ import (
 )
 
 const (
-	imageMaxRetries         = 3
-	imageRetrySleepDuration = 50
+	imageMaxRetries           = 3
+	imageRetrySleepDuration   = 50
+	networkMaxRetries         = 3
+	networkRetrySleepDuration = 50
 )
 
 // Opts configures the Docker engine.
@@ -93,17 +95,7 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 		}
 	}
 
-	// creates the default pod network. All containers
-	// defined in the pipeline are attached to this network.
-	driver := "bridge"
-	if pipelineConfig.Platform.OS == "windows" {
-		driver = "nat"
-	}
-	_, err := e.client.NetworkCreate(ctx, pipelineConfig.Network.ID, types.NetworkCreate{
-		Driver:  driver,
-		Options: pipelineConfig.Network.Options,
-		Labels:  pipelineConfig.Network.Labels,
-	})
+	err := e.createNetworkWithRetries(ctx, pipelineConfig)
 
 	// launches the inernal setup steps
 	// for _, step := range pipelineConfig.Internal {
@@ -407,6 +399,31 @@ func (e *Docker) pullImageWithRetries(ctx context.Context, image string,
 			}
 		}
 		time.Sleep(time.Millisecond * imageRetrySleepDuration)
+	}
+	return err
+}
+
+func (e *Docker) createNetworkWithRetries(ctx context.Context,
+	pipelineConfig *spec.PipelineConfig) error {
+	// creates the default pod network. All containers
+	// defined in the pipeline are attached to this network.
+	driver := "bridge"
+	if pipelineConfig.Platform.OS == "windows" {
+		driver = "nat"
+	}
+
+	var err error
+	for i := 1; i <= networkMaxRetries; i++ {
+		_, err = e.client.NetworkCreate(ctx, pipelineConfig.Network.ID, types.NetworkCreate{
+			Driver:  driver,
+			Options: pipelineConfig.Network.Options,
+			Labels:  pipelineConfig.Network.Labels,
+		})
+		if err == nil {
+			return nil
+		}
+
+		time.Sleep(time.Millisecond * networkMaxRetries)
 	}
 	return err
 }
