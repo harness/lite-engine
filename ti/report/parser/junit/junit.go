@@ -52,7 +52,7 @@ func ParseTests(paths []string, log *logrus.Logger) []*ti.TestCase {
 		totalTests += testsInFile
 		fileMap[file] = testsInFile
 	}
-	log.Infoln("Number of cases parsed in each file: ", fileMap)
+	log.Infoln("Number of cases parsed in  each file: ", fileMap)
 	log.WithField("num_cases", totalTests).Infoln(fmt.Sprintf("Parsed %d test cases", totalTests))
 	return tests
 }
