@@ -29,8 +29,8 @@ func ParseTests(paths []string, log *logrus.Logger) []*ti.TestCase {
 	if len(files) == 0 {
 		log.Errorln("could not find any files matching the provided report path")
 	}
-
-	total := 0
+	fileMap := make(map[string]int)
+	totalTests := 0
 	var tests []*ti.TestCase
 	for _, file := range files {
 		suites, err := gojunit.IngestFile(file)
@@ -39,17 +39,21 @@ func ParseTests(paths []string, log *logrus.Logger) []*ti.TestCase {
 				Errorln(fmt.Sprintf("could not parse file %s", file))
 			continue
 		}
+		testsInFile := 0
 		for _, suite := range suites { //nolint:gocritic
 			for _, test := range suite.Tests { //nolint:gocritic
 				ct := convert(test, suite)
 				if ct.Name != "" {
 					tests = append(tests, ct)
-					total++
+					testsInFile++
 				}
 			}
 		}
+		totalTests += testsInFile
+		fileMap[file] = testsInFile
 	}
-	log.WithField("num_cases", total).Infoln(fmt.Sprintf("Parsed %d test cases", total))
+	log.Infoln("Number of cases parsed in each file: ", fileMap)
+	log.WithField("num_cases", totalTests).Infoln(fmt.Sprintf("Parsed %d test cases", totalTests))
 	return tests
 }
 
