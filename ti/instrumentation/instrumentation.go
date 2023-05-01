@@ -18,6 +18,7 @@ import (
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
+	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/testsplitter"
 )
 
@@ -152,6 +153,8 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	useYaml := false
 	config.Language = strings.ToLower(config.Language)
 	config.BuildTool = strings.ToLower(config.BuildTool)
+	config.Language = "python"
+	log.Infoln("inside getcmd foo")
 	switch strings.ToLower(config.Language) {
 	case "scala", "java", "kotlin":
 		useYaml = false
@@ -177,6 +180,18 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 			runner = csharp.NewDotnetRunner(log, fs)
 		case "nunitconsole":
 			runner = csharp.NewNunitConsoleRunner(log, fs)
+		default:
+			return "", fmt.Errorf("could not figure out the build tool: %s", config.BuildTool)
+		}
+	case "python":
+		useYaml = false
+		config.BuildTool = "pytest"
+		config.RunOnlySelectedTests = false
+		switch config.BuildTool {
+		case "pytest":
+			runner = python.NewPytestRunner(log, fs)
+		case "unittest":
+			runner = python.NewUnittestRunner(log, fs)
 		default:
 			return "", fmt.Errorf("could not figure out the build tool: %s", config.BuildTool)
 		}

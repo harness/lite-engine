@@ -38,7 +38,9 @@ require (
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/andybalholm/brotli v1.0.5 // indirect
+	github.com/blendle/zapdriver v1.3.1 // indirect
 	github.com/buildkite/yaml v2.1.0+incompatible // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/containerd/containerd v1.7.0 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -49,6 +51,9 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
+	github.com/harness/harness-core v0.0.0-20230426153518-7caf596e05bf // indirect
+	github.com/harness/harness-core/commons/go/lib v0.0.0-20230426181620-8fb9da65b601 // indirect
+	github.com/harness/harness-core/product/log-service v0.0.0-20230426181620-8fb9da65b601 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.16.3 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
@@ -62,6 +67,9 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
+	go.uber.org/atomic v1.6.0 // indirect
+	go.uber.org/multierr v1.5.0 // indirect
+	go.uber.org/zap v1.15.0 // indirect
 	golang.org/x/mod v0.9.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/sys v0.6.0 // indirect
@@ -72,4 +80,5 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools v2.2.0+incompatible // indirect
+	mvdan.cc/sh/v3 v3.6.0 // indirect
 )

@@ -253,21 +253,25 @@ func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 func installAgents(ctx context.Context, baseDir, language, os, arch, framework string,
 	fs filesystem.FileSystem, log *logrus.Logger, config *tiCfg.Cfg) (string, error) {
 	// Get download links from TI service
-	c := config.GetClient()
+	//c := config.GetClient()
 	log.Infoln("getting TI agent artifact download links")
-	links, err := c.DownloadLink(ctx, language, os, arch, framework)
-	if err != nil {
-		log.WithError(err).Println("could not fetch download links for artifact download")
-		return "", err
-	}
-
+	//links, err := c.DownloadLink(ctx, language, os, arch, framework)
+	//if err != nil {
+	//	log.WithError(err).Println("could not fetch download links for artifact download")
+	//	return "", err
+	//}
+	links := []ti.DownloadLink{
+		ti.DownloadLink{
+			URL: "https://s3.console.aws.amazon.com/s3/buckets/ti-python?region=us-east-2&tab=objects"}}
 	var installDir string // directory where all the agents are installed
+	log.Infoln("basedir:" + baseDir)
 
 	// Install the Artifacts
 	for idx, l := range links {
 		absPath := filepath.Join(baseDir, l.RelPath)
 		if idx == 0 {
 			installDir = filepath.Dir(absPath)
+			log.Infoln("installdir:" + installDir)
 		} else if filepath.Dir(absPath) != installDir {
 			return "", fmt.Errorf("artifacts don't have the same relative path: link %s and installDir %s", l, installDir)
 		}
