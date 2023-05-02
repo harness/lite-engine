@@ -20,6 +20,7 @@ var (
 	prefix  = "junit_test_999/"
 	report1 = "testdata/reportWithPassFail.xml"
 	report2 = "testdata/reportWithSkipError.xml"
+	report3 = "testdata/reportWithNestedTestSuite.xml"
 )
 
 func getBaseDir() string {
@@ -135,6 +136,64 @@ func expectedErrorTest() *ti.TestCase {
 	}
 }
 
+func expectedNestedTests() []*ti.TestCase {
+	test1 := &ti.TestCase{
+		Name:      "test1",
+		ClassName: "t.st.c.ApiControllerTest",
+		FileName:  "/harness/tests/unit/Controller/ApiControllerTest.php",
+		SuiteName: "t\\st\\c\\ApiControllerTest",
+		Result: ti.Result{
+			Status: ti.StatusPassed,
+		},
+		DurationMs: 1000,
+	}
+
+	test2 := &ti.TestCase{
+		Name:      "test17",
+		ClassName: "t.st.c.ApiControllerTest",
+		SuiteName: "t\\st\\c\\ApiControllerTest",
+		FileName:  "/harness/tests/unit/Controller/ApiControllerTest.php",
+		Result: ti.Result{
+			Status: ti.StatusPassed,
+		},
+		DurationMs: 1000,
+	}
+
+	test3 := &ti.TestCase{
+		Name:      "test20",
+		ClassName: "t.st.c.RedirectControllerTest",
+		FileName:  "/harness/tests/unit/Controller/RedirectControllerTest.php",
+		SuiteName: "t\\st\\c\\RedirectControllerTest",
+		Result: ti.Result{
+			Status: ti.StatusPassed,
+		},
+		DurationMs: 2000,
+	}
+
+	test4 := &ti.TestCase{
+		Name:      "test29",
+		ClassName: "t.st.c.RouteDispatcherTest",
+		FileName:  "/harness/tests/unit/RouteDispatcherTest.php",
+		SuiteName: "t\\st\\c\\RouteDispatcherTest",
+		Result: ti.Result{
+			Status: ti.StatusPassed,
+		},
+		DurationMs: 2000,
+	}
+
+	test5 := &ti.TestCase{
+		Name:      "test40",
+		ClassName: "t.st.c.PdoAdapterTest",
+		FileName:  "/harness/tests/unit/Storage/Adapter/PdoAdapterTest.php",
+		SuiteName: "t\\st\\c\\PdoAdapterTest",
+		Result: ti.Result{
+			Status: ti.StatusPassed,
+		},
+		DurationMs: 2000,
+	}
+	return []*ti.TestCase{test1, test2, test3, test4, test5}
+}
+
 func TestGetTests_All(t *testing.T) {
 	err := createNestedDir("a/b/c/d")
 	if err != nil {
@@ -148,12 +207,17 @@ func TestGetTests_All(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	err = copy(report3, "a/b/report3.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer removeBaseDir() //nolint:errcheck
 	var paths []string
-	paths = append(paths, getBaseDir()+"**/*.xml") // Regex to get both reports
+	paths = append(paths, getBaseDir()+"**/*.xml") // Regex to get all reports
 
 	tests := ParseTests(paths, logrus.New())
 	exp := []*ti.TestCase{expectedPassedTest(), expectedErrorTest(), expectedFailedTest(), expectedSkippedTest()}
+	exp = append(exp, expectedNestedTests()...)
 	assert.ElementsMatch(t, exp, tests)
 }
 

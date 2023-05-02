@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="STest" tests="5" assertions="20" errors="0" failures="0" skipped="0" time="8">
+    <testsuite name="t\st\c\ApiControllerTest" file="/harness/tests/unit/Controller/ApiControllerTest.php" tests="17" assertions="9" errors="0" failures="0" skipped="0" time="2">
+        <testcase name="test1" class="t\st\c\ApiControllerTest" classname="t.st.c.ApiControllerTest" file="/harness/tests/unit/Controller/ApiControllerTest.php" line="15" assertions="3" time="1"/>
+        <testcase name="test17" class="t\st\c\ApiControllerTest" classname="t.st.c.ApiControllerTest" file="/harness/tests/unit/Controller/ApiControllerTest.php" line="254" assertions="6" time="1"/>
+    </testsuite>
+    <testsuite name="t\st\c\RedirectControllerTest" file="/harness/tests/unit/Controller/RedirectControllerTest.php" tests="3" assertions="2" errors="0" failures="0" skipped="0" time="2">
+      <testcase name="test20" class="t\st\c\RedirectControllerTest" classname="t.st.c.RedirectControllerTest" file="/harness/tests/unit/Controller/RedirectControllerTest.php" line="48" assertions="2" time="2"/>
+    </testsuite>
+    <testsuite name="t\st\c\RouteDispatcherTest" file="/harness/tests/unit/RouteDispatcherTest.php" tests="7" assertions="1" errors="0" failures="0" skipped="0" time="2">
+      <testcase name="test29" class="t\st\c\RouteDispatcherTest" classname="t.st.c.RouteDispatcherTest" file="/harness/tests/unit/RouteDispatcherTest.php" line="143" assertions="1" time="2"/>
+    </testsuite>
+    <testsuite name="t\st\c\PdoAdapterTest" file="/harness/tests/unit/Storage/Adapter/PdoAdapterTest.php" tests="11" assertions="2" errors="0" failures="0" skipped="0" time="2">
+      <testcase name="test40" class="t\st\c\PdoAdapterTest" classname="t.st.c.PdoAdapterTest" file="/harness/tests/unit/Storage/Adapter/PdoAdapterTest.php" line="130" assertions="2" time="2"/>
+    </testsuite>
+  </testsuite>
+</testsuites>

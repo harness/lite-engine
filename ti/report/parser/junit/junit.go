@@ -39,22 +39,29 @@ func ParseTests(paths []string, log *logrus.Logger) []*ti.TestCase {
 				Errorln(fmt.Sprintf("could not parse file %s", file))
 			continue
 		}
-		testsInFile := 0
-		for _, suite := range suites { //nolint:gocritic
-			for _, test := range suite.Tests { //nolint:gocritic
-				ct := convert(test, suite)
-				if ct.Name != "" {
-					tests = append(tests, ct)
-					testsInFile++
-				}
-			}
-		}
+		testsInFile := processTestSuites(&tests, suites)
 		totalTests += testsInFile
 		fileMap[file] = testsInFile
 	}
 	log.Infoln("Number of cases parsed in each file: ", fileMap)
 	log.WithField("num_cases", totalTests).Infoln(fmt.Sprintf("Parsed %d test cases", totalTests))
 	return tests
+}
+
+// processTestSuites recusively writes the test data from parsed data to the
+// input channel and returns the total number of tests written to the channel
+func processTestSuites(tests *[]*ti.TestCase, suites []gojunit.Suite) int {
+	totalTests := 0
+	for _, suite := range suites { //nolint:gocritic
+		for _, test := range suite.Tests { //nolint:gocritic
+			ct := convert(test, suite)
+			if ct.Name != "" {
+				*tests = append(*tests, ct)
+			}
+		}
+		totalTests += processTestSuites(tests, suite.Suites)
+	}
+	return totalTests
 }
 
 // getFiles returns uniques file paths provided in the input after expanding the input paths
