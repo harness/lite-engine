@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 
 	"github.com/harness/lite-engine/engine/spec"
@@ -96,6 +97,11 @@ func fetchArtifactDataFromArtifactFile(artifactFile string, out io.Writer) ([]by
 	if _, err := os.Stat(artifactFile); errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
+
+	contents, _ := ioutil.ReadFile(artifactFile)
+	log.Info("Artifact contents...")
+	log.Info(string(contents))
+
 	var content []byte
 	if content, err := os.ReadFile(artifactFile); err != nil { //nolint:govet
 		log.WithError(err).WithField("artifactFile", artifactFile).WithField("content", string(content)).Warnln("failed to read artifact file")
