@@ -101,13 +101,12 @@ func fetchArtifactDataFromArtifactFile(artifactFile string, out io.Writer) ([]by
 		log.WithError(err).WithField("artifactFile", artifactFile).Warnln("Unable to read artifact file")
 		return nil, err
 	}
-
+	var content []byte
 	if content, err := os.ReadFile(artifactFile); err != nil {
 		log.WithError(err).WithField("artifactFile", artifactFile).WithField("content", string(content)).Warnln("failed to read artifact file")
 		return nil, err
-	} else {
-		return content, nil
 	}
+	return content, nil
 }
 
 // setTiEnvVariables sets the environment variables required for TI
