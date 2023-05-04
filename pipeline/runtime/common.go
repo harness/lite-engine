@@ -102,8 +102,9 @@ func fetchArtifactDataFromArtifactFile(artifactFile string, out io.Writer) ([]by
 	log.Info("Artifact contents...")
 	log.Info(string(contents))
 
-	var content []byte
-	if content, err := os.ReadFile(artifactFile); err != nil { //nolint:govet
+	content, err := os.ReadFile(artifactFile)
+	log.Info(string(content))
+	if err != nil { 
 		log.WithError(err).WithField("artifactFile", artifactFile).WithField("content", string(content)).Warnln("failed to read artifact file")
 		return nil, err
 	}
