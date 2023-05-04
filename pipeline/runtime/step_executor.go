@@ -76,6 +76,10 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 
 	go func() {
 		state, outputs, envs, artifact, stepErr := e.executeStep(r)
+		fmt.Println("Artifact Data...")
+		if artifact != nil {
+			fmt.Println(string(artifact))
+		}
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact}
 		e.mu.Lock()
 		e.stepStatus[r.ID] = status
