@@ -98,12 +98,7 @@ func fetchArtifactDataFromArtifactFile(artifactFile string, out io.Writer) ([]by
 		return nil, err
 	}
 
-	contents, _ := ioutil.ReadFile(artifactFile)
-	log.Info("Artifact contents...")
-	log.Info(string(contents))
-
 	content, err := os.ReadFile(artifactFile)
-	log.Info(string(content))
 	if err != nil { 
 		log.WithError(err).WithField("artifactFile", artifactFile).WithField("content", string(content)).Warnln("failed to read artifact file")
 		return nil, err

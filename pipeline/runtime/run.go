@@ -53,14 +53,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	}
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
-	artifact, erra := fetchArtifactDataFromArtifactFile(artifactFile, out)
-	log.Info("Artifact Data...")
-	if artifact != nil {
-		log.Info(string(artifact))
-	}
-	if erra != nil {
-		log.Info(erra)
-	}
+	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 	if exited != nil && exited.Exited && exited.ExitCode == 0 {
 		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
 		if len(r.OutputVars) > 0 {
