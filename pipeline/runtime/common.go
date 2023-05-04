@@ -90,15 +90,10 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) (map[string]str
 }
 
 func fetchArtifactDataFromArtifactFile(artifactFile string, out io.Writer) ([]byte, error) {
-	if artifactFile == "" {
-		return nil, nil
-	}
-
 	log := logrus.New()
 	log.Out = out
 
 	if _, err := os.Stat(artifactFile); errors.Is(err, os.ErrNotExist) {
-		log.WithError(err).WithField("artifactFile", artifactFile).Warnln("Unable to read artifact file")
 		return nil, err
 	}
 	var content []byte
