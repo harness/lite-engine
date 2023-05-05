@@ -9,15 +9,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti"
+
+	"github.com/mholt/archiver/v3"
 	"github.com/sirupsen/logrus"
 )
 
 var (
-	pytestCmd = "pytest"
+	pytestCmd  = "pytest"
+	currentDir = "."
 )
 
 type pytestRunner struct {
@@ -39,32 +43,41 @@ func (m *pytestRunner) AutoDetectPackages(workspace string) ([]string, error) {
 }
 
 func (m *pytestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
-	tests := make([]ti.RunnableTest, 0)
-	pythonTests, err := GetPythonTests(testGlobs)
-	if err != nil {
-		return tests, err
-	}
-	tests = append(tests, pythonTests...)
-	return tests, nil
+	pythonTests := GetPythonTests(workspace, testGlobs)
+	return pythonTests, nil
 }
 
 func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
-	// Run all the tests
 	m.log.Infoln("Pytest GetCmd starting")
 
+	zip := archiver.Zip{
+		OverwriteExisting: true,
+	}
+	// Unzip everything at agentInstallDir/python-agent.zip
+	err := zip.Unarchive(filepath.Join(agentInstallDir, "python-agent.zip"), agentInstallDir)
+	if err != nil {
+		m.log.WithError(err).Println("could not unzip the python agent")
+		return "", err
+	}
+
+	scriptPath := filepath.Join(agentInstallDir, "harness/python-agent/python_agent.py")
+	m.log.Infoln(fmt.Sprintf("scriptPath:%s", scriptPath))
+
+	scriptPath = "/tmp/engine/python/harness/python-agent/python_agent.py"
 	if runAll {
+		ignoreInstr = false
 		if ignoreInstr {
 			return strings.TrimSpace(fmt.Sprintf("%s %s", pytestCmd, userArgs)), nil
 		}
 		return strings.TrimSpace(
-			fmt.Sprintf("python3 python_agent.py %s --test_harness %s --disable_static",
-				".", pytestCmd)), nil
+			fmt.Sprintf("python3 %s %s --test_harness %s",
+				scriptPath, ".", pytestCmd)), nil
 	}
 	if len(tests) == 0 {
-		return fmt.Sprintf("echo \"Skipping test run, received no tests to execute\""), nil
+		return "echo \"Skipping test run, received no tests to execute\"", nil
 	}
-	// Use only unique <package, class> tuples
+	// Use only unique class
 	set := make(map[ti.RunnableTest]interface{})
 	ut := []string{}
 	for _, t := range tests {
@@ -76,12 +89,13 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		set[w] = struct{}{}
 		ut = append(ut, t.Class)
 	}
-	testStr := strings.Join(ut, ",")
 
 	if ignoreInstr {
+		testStr := strings.Join(ut, " ")
 		return strings.TrimSpace(fmt.Sprintf("%s %s %s", pytestCmd, testStr, userArgs)), nil
 	}
 
-	return fmt.Sprintf("python3 python_agent.py %s --test_harness %s --disable_static",
-		".", pytestCmd), nil
+	testStr := strings.Join(ut, ",")
+	return fmt.Sprintf("python3 %s %s --test_harness %s --test_files %s",
+		scriptPath, currentDir, pytestCmd, testStr), nil
 }

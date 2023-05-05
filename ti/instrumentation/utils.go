@@ -219,18 +219,18 @@ func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	// Create the file
 	out, err := fs.Create(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create directory: %s", err)
 	}
 	defer out.Close()
 
 	// Get the data
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create request with context: %s", err)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not make a request: %s", err)
 	}
 	defer resp.Body.Close()
 
@@ -242,7 +242,7 @@ func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	// Writer the body to file
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not copy: %s", err)
 	}
 
 	return nil
@@ -253,25 +253,21 @@ func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 func installAgents(ctx context.Context, baseDir, language, os, arch, framework string,
 	fs filesystem.FileSystem, log *logrus.Logger, config *tiCfg.Cfg) (string, error) {
 	// Get download links from TI service
-	//c := config.GetClient()
-	log.Infoln("getting TI agent artifact download links")
-	//links, err := c.DownloadLink(ctx, language, os, arch, framework)
-	//if err != nil {
-	//	log.WithError(err).Println("could not fetch download links for artifact download")
-	//	return "", err
-	//}
-	links := []ti.DownloadLink{
-		ti.DownloadLink{
-			URL: "https://s3.console.aws.amazon.com/s3/buckets/ti-python?region=us-east-2&tab=objects"}}
+	c := config.GetClient()
+	log.Infoln("getting TI agent artifact download links for language:" + language)
+	links, err := c.DownloadLink(ctx, language, os, arch, framework)
+	if err != nil {
+		log.WithError(err).Println("could not fetch download links for artifact download")
+		return "", err
+	}
+
 	var installDir string // directory where all the agents are installed
-	log.Infoln("basedir:" + baseDir)
 
 	// Install the Artifacts
 	for idx, l := range links {
 		absPath := filepath.Join(baseDir, l.RelPath)
 		if idx == 0 {
 			installDir = filepath.Dir(absPath)
-			log.Infoln("installdir:" + installDir)
 		} else if filepath.Dir(absPath) != installDir {
 			return "", fmt.Errorf("artifacts don't have the same relative path: link %s and installDir %s", l, installDir)
 		}

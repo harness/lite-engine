@@ -153,8 +153,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	useYaml := false
 	config.Language = strings.ToLower(config.Language)
 	config.BuildTool = strings.ToLower(config.BuildTool)
-	config.Language = "python"
-	log.Infoln("inside getcmd foo")
+
 	switch strings.ToLower(config.Language) {
 	case "scala", "java", "kotlin":
 		useYaml = false
@@ -184,9 +183,6 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 			return "", fmt.Errorf("could not figure out the build tool: %s", config.BuildTool)
 		}
 	case "python":
-		useYaml = false
-		config.BuildTool = "pytest"
-		config.RunOnlySelectedTests = false
 		switch config.BuildTool {
 		case "pytest":
 			runner = python.NewPytestRunner(log, fs)

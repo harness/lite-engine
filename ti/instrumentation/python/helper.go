@@ -18,16 +18,12 @@ var (
 	getWorkspace = external.GetWrkspcPath
 )
 
-// GetPythonTests returns list of RunnableTests in the workspace with python extension.
-// In case of errors, return empty list
-func GetPythonTests(testGlobs []string) ([]ti.RunnableTest, error) {
-	tests := make([]ti.RunnableTest, 0)
-	wp, err := getWorkspace()
+func getPythonTestsFromPattern(tests []ti.RunnableTest, workspace, testpattern string) ([]ti.RunnableTest, error) {
+	files, err := getFiles(fmt.Sprintf("%s/**/%s", workspace, testpattern))
 	if err != nil {
-		return tests, err
+		return nil, err
 	}
 
-	files, _ := getFiles(fmt.Sprintf("%s/**/*.py", wp))
 	for _, path := range files {
 		if path == "" {
 			continue
@@ -38,4 +34,20 @@ func GetPythonTests(testGlobs []string) ([]ti.RunnableTest, error) {
 		tests = append(tests, test)
 	}
 	return tests, nil
+}
+
+// GetPythonTests returns list of RunnableTests in the workspace with python extension.
+// In case of errors, return empty list
+func GetPythonTests(workspace string, testGlobs []string) []ti.RunnableTest {
+	tests := make([]ti.RunnableTest, 0)
+	tests, err := getPythonTestsFromPattern(tests, workspace, "test_*.py")
+	if err != nil {
+		return tests
+	}
+	tests, err = getPythonTestsFromPattern(tests, workspace, "*_test.py")
+	if err != nil {
+		return tests
+	}
+
+	return tests
 }

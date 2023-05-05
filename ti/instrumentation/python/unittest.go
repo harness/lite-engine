@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	unittestCmd = "unittest"
+	unitTestCmd = "unittest"
 )
 
 type unittestRunner struct {
@@ -26,7 +26,7 @@ type unittestRunner struct {
 }
 
 func NewUnittestRunner(log *logrus.Logger, fs filesystem.FileSystem) *unittestRunner { //nolint:revive
-	log.Infoln("NewUnitestRunner starting")
+	log.Infoln("NewUnittestRunner starting")
 
 	return &unittestRunner{
 		fs:  fs,
@@ -39,13 +39,8 @@ func (m *unittestRunner) AutoDetectPackages(workspace string) ([]string, error) 
 }
 
 func (m *unittestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
-	tests := make([]ti.RunnableTest, 0)
-	pythonTests, err := GetPythonTests(testGlobs)
-	if err != nil {
-		return tests, err
-	}
-	tests = append(tests, pythonTests...)
-	return tests, nil
+	pythonTests := GetPythonTests(workspace, testGlobs)
+	return pythonTests, nil
 }
 
 func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
@@ -55,11 +50,11 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, us
 
 	if runAll {
 		if ignoreInstr {
-			return strings.TrimSpace(fmt.Sprintf("%s %s", unittestCmd, userArgs)), nil
+			return strings.TrimSpace(fmt.Sprintf("%s %s", unitTestCmd, userArgs)), nil
 		}
 		return strings.TrimSpace(
-			fmt.Sprintf("python3 python_agent.py %s --test_harness %s --disable_static",
-				".", unittestCmd)), nil
+			fmt.Sprintf("python3 python_agent.py %s --test_harness %s",
+				".", unitTestCmd)), nil
 	}
 	if len(tests) == 0 {
 		return fmt.Sprintf("echo \"Skipping test run, received no tests to execute\""), nil
@@ -79,9 +74,9 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, us
 	testStr := strings.Join(ut, ",")
 
 	if ignoreInstr {
-		return strings.TrimSpace(fmt.Sprintf("%s %s %s", unittestCmd, testStr, userArgs)), nil
+		return strings.TrimSpace(fmt.Sprintf("%s %s %s", unitTestCmd, testStr, userArgs)), nil
 	}
 
-	return fmt.Sprintf("python3 python_agent.py %s --test_harness %s --disable_static",
-		".", unittestCmd), nil
+	return fmt.Sprintf("python3 python_agent.py %s --test_harness %s --test_files %s",
+		".", unitTestCmd, currentDir), nil
 }

@@ -10,13 +10,4 @@ import (
 )
 
 func TestUnittest_GetCmd(t *testing.T) {
-	//ctrl, ctx := gomock.WithContext(context.Background(), t)
-	//defer ctrl.Finish()
-	//
-	//log, _ := logs.GetObservedLogger(zap.InfoLevel)
-	//fs := filesystem.NewMockFileSystem(ctrl)
-	//
-	//cmdFactory := mexec.NewMockCmdContextFactory(ctrl)
-	//
-	//runner := NewPytestRunner(log.Sugar(), fs, cmdFactory)
 }
