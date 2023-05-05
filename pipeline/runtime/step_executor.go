@@ -311,8 +311,7 @@ func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.St
 	if r.Kind == api.Run {
 		return executeRunStep(ctx, engine, r, out, tiConfig)
 	}
-	exited, outputs, exportEnvs, err := executeRunTestStep(ctx, engine, r, out, tiConfig)
-	return exited, outputs, exportEnvs, nil, err
+	return executeRunTestStep(ctx, engine, r, out, tiConfig)
 }
 
 func convertStatus(status StepStatus) *api.PollStepResponse {
