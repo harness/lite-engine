@@ -1,5 +1,81 @@
 # Changelog
 
+## [v0.5.12](https://github.com/harness/lite-engine/tree/v0.5.12) (2023-05-09)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.11...v0.5.12)
+
+**Merged pull requests:**
+
+- fix:  \[CI-7586\]: Increase character limit when parsing Junit XML [\#143](https://github.com/harness/lite-engine/pull/143) ([hemanthmantri](https://github.com/hemanthmantri))
+- \[CI-7731\]: Add support for nested test suites [\#141](https://github.com/harness/lite-engine/pull/141) ([anurag-harness](https://github.com/anurag-harness))
+- \[feat\]: \[CI-7731\]: Improve Junit logging [\#138](https://github.com/harness/lite-engine/pull/138) ([anurag-harness](https://github.com/anurag-harness))
+
+## [v0.5.11](https://github.com/harness/lite-engine/tree/v0.5.11) (2023-04-26)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.10...v0.5.11)
+
+**Merged pull requests:**
+
+- Add retries on network create call [\#139](https://github.com/harness/lite-engine/pull/139) ([shubham149](https://github.com/shubham149))
+
+## [v0.5.10](https://github.com/harness/lite-engine/tree/v0.5.10) (2023-04-24)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.9...v0.5.10)
+
+**Merged pull requests:**
+
+- Add idle connection timeout for client [\#137](https://github.com/harness/lite-engine/pull/137) ([shubham149](https://github.com/shubham149))
+
+## [v0.5.9](https://github.com/harness/lite-engine/tree/v0.5.9) (2023-04-19)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.8...v0.5.9)
+
+**Merged pull requests:**
+
+- Log time info for retry poll step [\#136](https://github.com/harness/lite-engine/pull/136) ([shubham149](https://github.com/shubham149))
+
+## [v0.5.8](https://github.com/harness/lite-engine/tree/v0.5.8) (2023-04-19)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.7...v0.5.8)
+
+**Merged pull requests:**
+
+- Update logger ctx for client calls [\#135](https://github.com/harness/lite-engine/pull/135) ([shubham149](https://github.com/shubham149))
+
+## [v0.5.7](https://github.com/harness/lite-engine/tree/v0.5.7) (2023-04-06)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.6...v0.5.7)
+
+**Merged pull requests:**
+
+- \(feat\): add noop client for lite engine operations [\#134](https://github.com/harness/lite-engine/pull/134) ([vistaarjuneja](https://github.com/vistaarjuneja))
+
+## [v0.5.6](https://github.com/harness/lite-engine/tree/v0.5.6) (2023-03-23)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.5...v0.5.6)
+
+**Merged pull requests:**
+
+- Log errors during retry poll step [\#133](https://github.com/harness/lite-engine/pull/133) ([shubham149](https://github.com/shubham149))
+- Add filename from parsed report while uploading to TI [\#132](https://github.com/harness/lite-engine/pull/132) ([rutvijmehta-harness](https://github.com/rutvijmehta-harness))
+
+## [v0.5.5](https://github.com/harness/lite-engine/tree/v0.5.5) (2023-03-22)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.4...v0.5.5)
+
+**Merged pull requests:**
+
+- Upgrade go-chi version [\#131](https://github.com/harness/lite-engine/pull/131) ([shubham149](https://github.com/shubham149))
+
+## [v0.5.4](https://github.com/harness/lite-engine/tree/v0.5.4) (2023-03-17)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.3...v0.5.4)
+
+**Merged pull requests:**
+
+- revert godotenv version to 1.4.0 [\#129](https://github.com/harness/lite-engine/pull/129) ([raghavharness](https://github.com/raghavharness))
+- 0.5.3 prep [\#128](https://github.com/harness/lite-engine/pull/128) ([raghavharness](https://github.com/raghavharness))
+
 ## [v0.5.3](https://github.com/harness/lite-engine/tree/v0.5.3) (2023-03-16)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.2...v0.5.3)
