@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	strMaxSize = 4000 // Keep the last 4k characters in each field.
+	strMaxSize = 8000 // Keep the last 8k characters in each field.
 )
 
 // ParseTests parses XMLs and writes relevant data to the channel
