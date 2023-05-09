@@ -2,7 +2,7 @@
 
 ## [v0.5.12](https://github.com/harness/lite-engine/tree/v0.5.12) (2023-05-09)
 
-[Full Changelog](https://github.com/harness/lite-engine/compare/ci-7218-test...v0.5.12)
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.11...v0.5.12)
 
 **Merged pull requests:**
 
