@@ -78,7 +78,7 @@
 
 ## [v0.5.3](https://github.com/harness/lite-engine/tree/v0.5.3) (2023-03-16)
 
-[Full Changelog](https://github.com/harness/lite-engine/compare/plugin_7399...v0.5.3)
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.2...v0.5.3)
 
 **Merged pull requests:**
 
@@ -96,7 +96,7 @@
 
 ## [v0.5.1](https://github.com/harness/lite-engine/tree/v0.5.1) (2023-02-28)
 
-[Full Changelog](https://github.com/harness/lite-engine/compare/plugin_7012...v0.5.1)
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.0...v0.5.1)
 
 **Merged pull requests:**
 
