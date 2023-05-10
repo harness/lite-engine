@@ -56,6 +56,7 @@ func processTestSuites(tests *[]*ti.TestCase, suites []gojunit.Suite) int {
 			ct := convert(test, suite)
 			if ct.Name != "" {
 				*tests = append(*tests, ct)
+				totalTests++
 			}
 		}
 		totalTests += processTestSuites(tests, suite.Suites)
