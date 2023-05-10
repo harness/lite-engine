@@ -197,9 +197,9 @@ func (b *Writer) flush() error {
 		return nil
 	}
 	b.mu.Lock()
+	defer b.mu.Unlock()
 	lines := b.copy()
 	b.clear()
-	b.mu.Unlock()
 	if len(lines) == 0 {
 		return nil
 	}
