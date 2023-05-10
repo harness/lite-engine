@@ -6,8 +6,9 @@ package certs
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -54,7 +55,7 @@ func GenerateCert(host string, ca *Certificate) (*Certificate, error) {
 		return nil, err
 	}
 
-	priv, err := rsa.GenerateKey(rand.Reader, size)
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}
@@ -83,9 +84,14 @@ func GenerateCert(host string, ca *Certificate) (*Certificate, error) {
 	}
 
 	keyOut := new(bytes.Buffer)
+	bytes, err := x509.MarshalECPrivateKey(priv)
+	if err != nil {
+		logrus.WithError(err).Errorln("could not convert key to bytes")
+		return nil, err
+	}
 	keyOutErr := pem.Encode(keyOut, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(priv),
+		Type:  "EC PRIVATE KEY",
+		Bytes: bytes,
 	})
 	if keyOutErr != nil {
 		logrus.
@@ -112,7 +118,7 @@ func GenerateCA() (*Certificate, error) {
 	template.KeyUsage |= x509.KeyUsageKeyEncipherment
 	template.KeyUsage |= x509.KeyUsageKeyAgreement
 
-	priv, err := rsa.GenerateKey(rand.Reader, size)
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, err
 	}
@@ -135,9 +141,14 @@ func GenerateCA() (*Certificate, error) {
 		return nil, certOutErr
 	}
 	keyOut := new(bytes.Buffer)
+	bytes, err := x509.MarshalECPrivateKey(priv)
+	if err != nil {
+		logrus.WithError(err).Errorln("could not convert key to bytes")
+		return nil, err
+	}
 	keyOutErr := pem.Encode(keyOut, &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(priv),
+		Type:  "EC PRIVATE KEY",
+		Bytes: bytes,
 	})
 	if keyOutErr != nil {
 		logrus.
