@@ -9,6 +9,7 @@
 package docker
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"sync"
@@ -187,6 +188,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	// create the container
 	err := e.create(ctx, pipelineConfig, step, output)
 	if err != nil {
+		io.Copy(output, bytes.NewBufferString(err.Error()))
 		return nil, errors.TrimExtraInfo(err)
 	}
 	// start the container
@@ -356,9 +358,6 @@ func (e *Docker) logs(ctx context.Context, id string, output io.Writer) error {
 
 func (e *Docker) pullImage(ctx context.Context, image string, pullOpts types.ImagePullOptions, output io.Writer) error {
 	rc, pullerr := e.client.ImagePull(ctx, image, pullOpts)
-	if pullerr != nil {
-		return pullerr
-	}
 
 	if e.hidePull {
 		if _, cerr := io.Copy(io.Discard, rc); cerr != nil {
@@ -370,6 +369,10 @@ func (e *Docker) pullImage(ctx context.Context, image string, pullOpts types.Ima
 		}
 	}
 	rc.Close()
+
+	if pullerr != nil {
+		return pullerr
+	}
 	return nil
 }
 
