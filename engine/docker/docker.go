@@ -188,7 +188,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	// create the container
 	err := e.create(ctx, pipelineConfig, step, output)
 	if err != nil {
-		io.Copy(output, bytes.NewBufferString(err.Error()))
+		_, _ = io.Copy(output, bytes.NewBufferString(err.Error()))
 		return nil, errors.TrimExtraInfo(err)
 	}
 	// start the container
