@@ -1,5 +1,38 @@
 # Changelog
 
+## [v0.5.16](https://github.com/harness/lite-engine/tree/v0.5.16) (2023-05-12)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.15...v0.5.16)
+
+**Merged pull requests:**
+
+- \[fix\]: \[CI-8043\]: Bazel query not working on VMs [\#150](https://github.com/harness/lite-engine/pull/150) ([anurag-harness](https://github.com/anurag-harness))
+
+## [v0.5.15](https://github.com/harness/lite-engine/tree/v0.5.15) (2023-05-10)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.14...v0.5.15)
+
+**Merged pull requests:**
+
+- update lock so that flush\(\) does not return if there is any Write in progress [\#146](https://github.com/harness/lite-engine/pull/146) ([vistaarjuneja](https://github.com/vistaarjuneja))
+
+## [v0.5.14](https://github.com/harness/lite-engine/tree/v0.5.14) (2023-05-10)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.13...v0.5.14)
+
+**Merged pull requests:**
+
+- \[fix\]: \[CI-7731\]: Fix testcase count [\#147](https://github.com/harness/lite-engine/pull/147) ([anurag-harness](https://github.com/anurag-harness))
+
+## [v0.5.13](https://github.com/harness/lite-engine/tree/v0.5.13) (2023-05-10)
+
+[Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.12...v0.5.13)
+
+**Merged pull requests:**
+
+- move to ECDSA from RSA for key generation [\#145](https://github.com/harness/lite-engine/pull/145) ([vistaarjuneja](https://github.com/vistaarjuneja))
+- 0.5.12 prep [\#144](https://github.com/harness/lite-engine/pull/144) ([anurag-harness](https://github.com/anurag-harness))
+
 ## [v0.5.12](https://github.com/harness/lite-engine/tree/v0.5.12) (2023-05-09)
 
 [Full Changelog](https://github.com/harness/lite-engine/compare/v0.5.11...v0.5.12)
