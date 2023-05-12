@@ -42,9 +42,9 @@ func (b *bazelRunner) AutoDetectPackages(workspace string) ([]string, error) {
 func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
 	tests := make([]ti.RunnableTest, 0)
 
-	c1 := fmt.Sprintf("%s query 'kind(java.*, tests(//...))'", bazelCmd)  // bazel query 'kind(java.*, tests(//...))'
-	c2 := fmt.Sprintf("%s query 'kind(scala.*, tests(//...))'", bazelCmd) // bazel query 'kind(scala.*, tests(//...))'
-	c3 := fmt.Sprintf("%s query 'kind(kt.*, tests(//...))'", bazelCmd)    // bazel query 'kind(kt.*, tests(//...))'
+	c1 := fmt.Sprintf("cd %s; %s query 'kind(java.*, tests(//...))'", workspace, bazelCmd)  // bazel query 'kind(java.*, tests(//...))'
+	c2 := fmt.Sprintf("cd %s; %s query 'kind(scala.*, tests(//...))'", workspace, bazelCmd) // bazel query 'kind(scala.*, tests(//...))'
+	c3 := fmt.Sprintf("cd %s; %s query 'kind(kt.*, tests(//...))'", workspace, bazelCmd)    // bazel query 'kind(kt.*, tests(//...))'
 	for _, c := range []string{c1, c2, c3} {
 		cmdArgs := []string{"-c", c}
 		resp, err := execCmdCtx(ctx, "sh", cmdArgs...).Output()
@@ -65,7 +65,7 @@ func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string, tes
 	return tests, nil
 }
 
-func getBazelTestRules(ctx context.Context, log *logrus.Logger, tests []ti.RunnableTest) []ti.RunnableTest {
+func getBazelTestRules(ctx context.Context, log *logrus.Logger, tests []ti.RunnableTest, workspace string) []ti.RunnableTest {
 	var testList []ti.RunnableTest
 	var testStrings []string
 
@@ -88,7 +88,7 @@ func getBazelTestRules(ctx context.Context, log *logrus.Logger, tests []ti.Runna
 	queryString := strings.Join(testStrings, "|")
 
 	// bazel query 'attr(name, "pkg1.cls1|pkg2.cls2|pkg3.cls3", //...)'
-	c := fmt.Sprintf("%s query 'attr(name, %q, //...)'", bazelCmd, queryString)
+	c := fmt.Sprintf("cd %s; %s query 'attr(name, %q, //...)'", workspace, bazelCmd, queryString)
 	cmdArgs := []string{"-c", c}
 	resp, err := execCmdCtx(ctx, "sh", cmdArgs...).Output()
 	if err != nil {
@@ -143,7 +143,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 
 	// Populate the test rules in tests
-	tests = getBazelTestRules(ctx, b.log, tests)
+	tests = getBazelTestRules(ctx, b.log, tests, workspace)
 
 	// Use only unique classes
 	rules := make([]string, 0) // List of unique bazel rules to be executed
@@ -179,7 +179,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		//     bazelisk query "attr('srcs', $fullname, ${fullname//:*/}:*)" --output=label_kind | grep "java_test rule"
 
 		// Get list of paths for the tests
-		pathCmd := fmt.Sprintf(`find . -path '*%s/%s*' | sed -e "s/^\.\///g"`, strings.Replace(pkg, ".", "/", -1), cls)
+		pathCmd := fmt.Sprintf(`cd %s; find . -path '*%s/%s*' | sed -e "s/^\.\///g"`, workspace, strings.Replace(pkg, ".", "/", -1), cls)
 		cmdArgs := []string{"-c", pathCmd}
 		pathResp, pathErr := exec.CommandContext(ctx, "sh", cmdArgs...).Output()
 		if pathErr != nil {
@@ -192,9 +192,9 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			if p == "" || !strings.Contains(p, "src/test") {
 				continue
 			}
-			c := fmt.Sprintf("export fullname=$(%s query %s)\n"+
+			c := fmt.Sprintf("cd %s; export fullname=$(%s query %s)\n"+
 				"%s query \"attr('srcs', $fullname, ${fullname//:*/}:*)\" --output=label_kind | grep 'java_test rule'",
-				bazelCmd, p, bazelCmd)
+				workspace, bazelCmd, p, bazelCmd)
 			cmdArgs = []string{"-c", c}
 			resp2, err2 := exec.CommandContext(ctx, "sh", cmdArgs...).Output()
 			if err2 != nil || len(resp2) == 0 {
