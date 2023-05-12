@@ -160,7 +160,7 @@ func TestGetBazelCmd_GetBazelTests(t *testing.T) {
 	expectedTests[1].Autodetect.Rule = "//pipeline-service/service:io.harness.GenerateOpenApiSpecCommandTest"
 	expectedTests[2].Autodetect.Rule = "//120-ng-manager:io.harness.ng.GenerateOpenApiSpecCommandTest"
 
-	tests = getBazelTestRules(ctx, log, tests)
+	tests = getBazelTestRules(ctx, log, tests, "/harness")
 	fmt.Println(tests)
 	assert.Equal(t, expectedTests, tests)
 }
