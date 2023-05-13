@@ -9,13 +9,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti"
 
-	"github.com/mholt/archiver/v3"
 	"github.com/sirupsen/logrus"
 )
 
@@ -51,28 +49,20 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	m.log.Infoln("Pytest GetCmd starting")
 
-	zip := archiver.Zip{
-		OverwriteExisting: true,
-	}
-	// Unzip everything at agentInstallDir/python-agent.zip
-	err := zip.Unarchive(filepath.Join(agentInstallDir, "python-agent.zip"), agentInstallDir)
+	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, pytestCmd, userArgs, m.log)
 	if err != nil {
-		m.log.WithError(err).Println("could not unzip the python agent")
 		return "", err
 	}
 
-	scriptPath := filepath.Join(agentInstallDir, "harness/python-agent/python_agent.py")
-	m.log.Infoln(fmt.Sprintf("scriptPath:%s", scriptPath))
-
-	scriptPath = "/tmp/engine/python/harness/python-agent/python_agent.py"
+	testCmd := ""
 	if runAll {
-		ignoreInstr = false
 		if ignoreInstr {
-			return strings.TrimSpace(fmt.Sprintf("%s %s", pytestCmd, userArgs)), nil
+			return testHarness, nil
 		}
-		return strings.TrimSpace(
-			fmt.Sprintf("python3 %s %s --test_harness %s",
-				scriptPath, ".", pytestCmd)), nil
+		testCmd = strings.TrimSpace(fmt.Sprintf("python3 %s %s --test_harness %s",
+			scriptPath, currentDir, testHarness))
+		m.log.Infoln(fmt.Sprintf("testCmd: %s", testCmd))
+		return testCmd, nil
 	}
 	if len(tests) == 0 {
 		return "echo \"Skipping test run, received no tests to execute\"", nil
@@ -96,6 +86,8 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	}
 
 	testStr := strings.Join(ut, ",")
-	return fmt.Sprintf("python3 %s %s --test_harness %s --test_files %s",
-		scriptPath, currentDir, pytestCmd, testStr), nil
+	testCmd = fmt.Sprintf("python3 %s %s --test_harness %s --test_files %s",
+		scriptPath, currentDir, testHarness, testStr)
+	m.log.Infoln(fmt.Sprintf("testCmd: %s", testCmd))
+	return testCmd, nil
 }

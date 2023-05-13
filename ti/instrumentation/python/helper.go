@@ -7,15 +7,18 @@ package python
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/harness/harness-core/commons/go/lib/utils"
-	"github.com/harness/harness-core/product/ci/common/external"
 	"github.com/harness/lite-engine/ti"
+
+	"github.com/mholt/archiver/v3"
+	"github.com/sirupsen/logrus"
 )
 
 var (
-	getFiles     = utils.GetFiles
-	getWorkspace = external.GetWrkspcPath
+	getFiles = utils.GetFiles
 )
 
 func getPythonTestsFromPattern(tests []ti.RunnableTest, workspace, testpattern string) ([]ti.RunnableTest, error) {
@@ -50,4 +53,30 @@ func GetPythonTests(workspace string, testGlobs []string) []ti.RunnableTest {
 	}
 
 	return tests
+}
+
+// UnzipAndGetTestInfo unzips the Python agent zip file, and return a pair of
+// string for script path and test harness command as test information.
+// In case of errors, return a pair of empty string as test information.
+func UnzipAndGetTestInfo(agentInstallDir string, ignoreInstr bool, testHarness string,
+	userArgs string, log *logrus.Logger) (scriptPath, testHarnessCmd string, err error) {
+	zip := archiver.Zip{
+		OverwriteExisting: true,
+	}
+	// Unzip everything at agentInstallDir/python-agent.zip
+	err = zip.Unarchive(filepath.Join(agentInstallDir, "python-agent.zip"), agentInstallDir)
+	if err != nil {
+		log.WithError(err).Println("could not unzip the python agent")
+		return "", "", err
+	}
+
+	scriptPath = filepath.Join(agentInstallDir, "harness", "python-agent", "python_agent.py")
+	log.Infoln(fmt.Sprintf("scriptPath: %s", scriptPath))
+
+	testHarnessCmd = ""
+	if !ignoreInstr {
+		testHarnessCmd = strings.TrimSpace(fmt.Sprintf("\"%s %s\"", testHarness, userArgs))
+		log.Infoln(fmt.Sprintf("testHarnessCmd: %s", testHarnessCmd))
+	}
+	return scriptPath, testHarnessCmd, nil
 }
