@@ -1,0 +1,93 @@
+// Copyright 2021 Harness Inc. All rights reserved.
+// Use of this source code is governed by the PolyForm Free Trial 1.0.0 license
+// that can be found in the licenses directory at the root of this repository, also available at
+// https://polyformproject.org/wp-content/uploads/2020/05/PolyForm-Free-Trial-1.0.0.txt.
+
+package python
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti"
+
+	"github.com/sirupsen/logrus"
+)
+
+var (
+	pytestCmd  = "pytest"
+	currentDir = "."
+)
+
+type pytestRunner struct {
+	fs  filesystem.FileSystem
+	log *logrus.Logger
+}
+
+func NewPytestRunner(log *logrus.Logger, fs filesystem.FileSystem) *pytestRunner { //nolint:revive
+	log.Infoln("NewPytestRunner starting")
+
+	return &pytestRunner{
+		fs:  fs,
+		log: log,
+	}
+}
+
+func (m *pytestRunner) AutoDetectPackages(workspace string) ([]string, error) {
+	return []string{}, errors.New("not implemented")
+}
+
+func (m *pytestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+	pythonTests := GetPythonTests(workspace, testGlobs)
+	return pythonTests, nil
+}
+
+func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	m.log.Infoln("Pytest GetCmd starting")
+
+	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, pytestCmd, userArgs, m.log)
+	if err != nil {
+		return "", err
+	}
+
+	testCmd := ""
+	if runAll {
+		if ignoreInstr {
+			return testHarness, nil
+		}
+		testCmd = strings.TrimSpace(fmt.Sprintf("python3 %s %s --test_harness %s",
+			scriptPath, currentDir, testHarness))
+		m.log.Infoln(fmt.Sprintf("testCmd: %s", testCmd))
+		return testCmd, nil
+	}
+	if len(tests) == 0 {
+		return "echo \"Skipping test run, received no tests to execute\"", nil
+	}
+	// Use only unique class
+	set := make(map[ti.RunnableTest]interface{})
+	ut := []string{}
+	for _, t := range tests {
+		w := ti.RunnableTest{Class: t.Class}
+		if _, ok := set[w]; ok {
+			// The test has already been added
+			continue
+		}
+		set[w] = struct{}{}
+		ut = append(ut, t.Class)
+	}
+
+	if ignoreInstr {
+		testStr := strings.Join(ut, " ")
+		return strings.TrimSpace(fmt.Sprintf("%s %s %s", pytestCmd, testStr, userArgs)), nil
+	}
+
+	testStr := strings.Join(ut, ",")
+	testCmd = fmt.Sprintf("python3 %s %s --test_harness %s --test_files %s",
+		scriptPath, currentDir, testHarness, testStr)
+	m.log.Infoln(fmt.Sprintf("testCmd: %s", testCmd))
+	return testCmd, nil
+}
