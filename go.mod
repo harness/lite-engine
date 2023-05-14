@@ -51,9 +51,6 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/harness/harness-core v0.0.0-20230426153518-7caf596e05bf // indirect
-	github.com/harness/harness-core/commons/go/lib v0.0.0-20230426181620-8fb9da65b601 // indirect
-	github.com/harness/harness-core/product/log-service v0.0.0-20230426181620-8fb9da65b601 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.16.3 // indirect
 	github.com/klauspost/pgzip v1.2.5 // indirect
