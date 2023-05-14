@@ -219,18 +219,18 @@ func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	// Create the file
 	out, err := fs.Create(path)
 	if err != nil {
-		return fmt.Errorf("could not create directory: %s", err)
+		return err
 	}
 	defer out.Close()
 
 	// Get the data
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
-		return fmt.Errorf("could not create request with context: %s", err)
+		return err
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("could not make a request: %s", err)
+		return err
 	}
 	defer resp.Body.Close()
 
@@ -242,7 +242,7 @@ func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	// Writer the body to file
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
-		return fmt.Errorf("could not copy: %s", err)
+		return err
 	}
 
 	return nil
