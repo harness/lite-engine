@@ -49,7 +49,6 @@ func getPythonTestsFromPattern(workspace string, testGlobs []string) ([]ti.Runna
 // GetPythonTests returns list of RunnableTests in the workspace with python extension.
 // In case of errors, return empty list
 func GetPythonTests(workspace string, testGlobs []string) []ti.RunnableTest {
-	tests := make([]ti.RunnableTest, 0)
 	if len(testGlobs) == 0 {
 		testGlobs = defaultTestGlobs
 	}
