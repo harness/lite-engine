@@ -18,6 +18,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	defaultTestGlobs = []string{"test_*.py", "*_test.py"}
+)
+
 func getPythonTestsFromPattern(tests []ti.RunnableTest, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
 	files, err := common.GetFiles(fmt.Sprintf("%s/**/*.py", workspace))
 	if err != nil {
@@ -46,7 +50,7 @@ func getPythonTestsFromPattern(tests []ti.RunnableTest, workspace string, testGl
 func GetPythonTests(workspace string, testGlobs []string) []ti.RunnableTest {
 	tests := make([]ti.RunnableTest, 0)
 	if len(testGlobs) == 0 {
-		testGlobs = append(testGlobs, "test_*.py", "*_test.py")
+		testGlobs = append(testGlobs, defaultTestGlobs...)
 	}
 	tests, err := getPythonTestsFromPattern(tests, workspace, testGlobs)
 	if err != nil {
