@@ -45,7 +45,6 @@ func (m *pytestRunner) AutoDetectTests(ctx context.Context, workspace string, te
 
 func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
-
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, pytestCmd, userArgs, m.log)
 	if err != nil {
 		return "", err
