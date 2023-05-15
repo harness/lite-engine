@@ -28,8 +28,6 @@ type pytestRunner struct {
 }
 
 func NewPytestRunner(log *logrus.Logger, fs filesystem.FileSystem) *pytestRunner { //nolint:revive
-	log.Infoln("NewPytestRunner starting")
-
 	return &pytestRunner{
 		fs:  fs,
 		log: log,
@@ -47,8 +45,6 @@ func (m *pytestRunner) AutoDetectTests(ctx context.Context, workspace string, te
 
 func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
-	m.log.Infoln("Pytest GetCmd starting")
-
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, pytestCmd, userArgs, m.log)
 	if err != nil {
 		return "", err
@@ -61,7 +57,6 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		}
 		testCmd = strings.TrimSpace(fmt.Sprintf("python3 %s %s --test_harness %s",
 			scriptPath, currentDir, testHarness))
-		m.log.Infoln(fmt.Sprintf("testCmd: %s", testCmd))
 		return testCmd, nil
 	}
 	if len(tests) == 0 {
@@ -88,6 +83,5 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	testStr := strings.Join(ut, ",")
 	testCmd = fmt.Sprintf("python3 %s %s --test_harness %s --test_files %s",
 		scriptPath, currentDir, testHarness, testStr)
-	m.log.Infoln(fmt.Sprintf("testCmd: %s", testCmd))
 	return testCmd, nil
 }
