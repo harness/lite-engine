@@ -7,7 +7,7 @@ replace github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200
 require (
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/cenkalti/backoff/v4 v4.2.0
-	github.com/docker/distribution v2.8.1+incompatible
+	github.com/docker/distribution v2.8.2+incompatible
 	// this is fake as we are using github.com/docker/engine, this makes the security warning go away
 	github.com/docker/docker v23.0.1+incompatible
 	github.com/docker/go-connections v0.4.0
