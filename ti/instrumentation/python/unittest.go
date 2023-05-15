@@ -27,8 +27,6 @@ type unittestRunner struct {
 }
 
 func NewUnittestRunner(log *logrus.Logger, fs filesystem.FileSystem) *unittestRunner { //nolint:revive
-	log.Infoln("NewUnittestRunner starting")
-
 	return &unittestRunner{
 		fs:  fs,
 		log: log,
@@ -47,8 +45,6 @@ func (m *unittestRunner) AutoDetectTests(ctx context.Context, workspace string, 
 func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// Run all the tests
-	m.log.Infoln("Unittest GetCmd starting")
-
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, unitTestCmd, userArgs, m.log)
 	if err != nil {
 		return "", err
@@ -61,7 +57,6 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, us
 		}
 		testCmd = strings.TrimSpace(fmt.Sprintf("python3 %s %s --test_harness %s",
 			scriptPath, currentDir, testHarness))
-		m.log.Infoln(fmt.Sprintf("testCmd: %s", testCmd))
 		return testCmd, nil
 	}
 
@@ -89,6 +84,5 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, us
 
 	testCmd = fmt.Sprintf("python3 %s %s --test_harness %s --test_files %s",
 		scriptPath, currentDir, testHarness, testStr)
-	m.log.Infoln(fmt.Sprintf("testCmd: %s", testCmd))
 	return testCmd, nil
 }

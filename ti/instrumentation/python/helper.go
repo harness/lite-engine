@@ -10,19 +10,21 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/harness/harness-core/commons/go/lib/utils"
 	"github.com/harness/lite-engine/ti"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
+	"github.com/mattn/go-zglob"
 
 	"github.com/mholt/archiver/v3"
 	"github.com/sirupsen/logrus"
 )
 
 var (
-	getFiles = utils.GetFiles
+	defaultTestGlobs = []string{"test_*.py", "*_test.py"}
 )
 
-func getPythonTestsFromPattern(tests []ti.RunnableTest, workspace, testpattern string) ([]ti.RunnableTest, error) {
-	files, err := getFiles(fmt.Sprintf("%s/**/%s", workspace, testpattern))
+func getPythonTestsFromPattern(workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+	tests := make([]ti.RunnableTest, 0)
+	files, err := common.GetFiles(fmt.Sprintf("%s/**/*.py", workspace))
 	if err != nil {
 		return nil, err
 	}
@@ -31,10 +33,15 @@ func getPythonTestsFromPattern(tests []ti.RunnableTest, workspace, testpattern s
 		if path == "" {
 			continue
 		}
-		test := ti.RunnableTest{
-			Class: path,
+		for _, glob := range testGlobs {
+			if matched, _ := zglob.Match(glob, path); !matched {
+				continue
+			}
+			test := ti.RunnableTest{
+				Class: path,
+			}
+			tests = append(tests, test)
 		}
-		tests = append(tests, test)
 	}
 	return tests, nil
 }
@@ -42,12 +49,10 @@ func getPythonTestsFromPattern(tests []ti.RunnableTest, workspace, testpattern s
 // GetPythonTests returns list of RunnableTests in the workspace with python extension.
 // In case of errors, return empty list
 func GetPythonTests(workspace string, testGlobs []string) []ti.RunnableTest {
-	tests := make([]ti.RunnableTest, 0)
-	tests, err := getPythonTestsFromPattern(tests, workspace, "test_*.py")
-	if err != nil {
-		return tests
+	if len(testGlobs) == 0 {
+		testGlobs = defaultTestGlobs
 	}
-	tests, err = getPythonTestsFromPattern(tests, workspace, "*_test.py")
+	tests, err := getPythonTestsFromPattern(workspace, testGlobs)
 	if err != nil {
 		return tests
 	}
