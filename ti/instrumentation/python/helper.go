@@ -22,7 +22,8 @@ var (
 	defaultTestGlobs = []string{"test_*.py", "*_test.py"}
 )
 
-func getPythonTestsFromPattern(tests []ti.RunnableTest, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+func getPythonTestsFromPattern(workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+	tests := make([]ti.RunnableTest, 0)
 	files, err := common.GetFiles(fmt.Sprintf("%s/**/*.py", workspace))
 	if err != nil {
 		return nil, err
@@ -50,9 +51,9 @@ func getPythonTestsFromPattern(tests []ti.RunnableTest, workspace string, testGl
 func GetPythonTests(workspace string, testGlobs []string) []ti.RunnableTest {
 	tests := make([]ti.RunnableTest, 0)
 	if len(testGlobs) == 0 {
-		testGlobs = append(testGlobs, defaultTestGlobs...)
+		testGlobs = defaultTestGlobs
 	}
-	tests, err := getPythonTestsFromPattern(tests, workspace, testGlobs)
+	tests, err := getPythonTestsFromPattern(workspace, testGlobs)
 	if err != nil {
 		return tests
 	}
