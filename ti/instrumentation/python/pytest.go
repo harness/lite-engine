@@ -18,6 +18,8 @@ import (
 )
 
 var (
+	// we might need to take this from user in the future
+	pythonCmd  = "python3"
 	pytestCmd  = "pytest"
 	currentDir = "."
 )
@@ -53,10 +55,10 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	testCmd := ""
 	if runAll {
 		if ignoreInstr {
-			return strings.TrimSpace(fmt.Sprintf("%s %s", pytestCmd, userArgs)), nil
+			return strings.TrimSpace(fmt.Sprintf("%s -m %s %s", pythonCmd, pytestCmd, userArgs)), nil
 		}
-		testCmd = strings.TrimSpace(fmt.Sprintf("python3 %s %s --test_harness %s",
-			scriptPath, currentDir, testHarness))
+		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s --test_harness %s",
+			pythonCmd, scriptPath, currentDir, testHarness))
 		return testCmd, nil
 	}
 	if len(tests) == 0 {
@@ -77,11 +79,11 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 
 	if ignoreInstr {
 		testStr := strings.Join(ut, " ")
-		return strings.TrimSpace(fmt.Sprintf("%s %s %s", pytestCmd, testStr, userArgs)), nil
+		return strings.TrimSpace(fmt.Sprintf("%s -m %s %s %s", pythonCmd, pytestCmd, testStr, userArgs)), nil
 	}
 
 	testStr := strings.Join(ut, ",")
-	testCmd = fmt.Sprintf("python3 %s %s --test_harness %s --test_files %s",
-		scriptPath, currentDir, testHarness, testStr)
+	testCmd = fmt.Sprintf("%s %s %s --test_harness %s --test_files %s",
+		pythonCmd, scriptPath, currentDir, testHarness, testStr)
 	return testCmd, nil
 }
