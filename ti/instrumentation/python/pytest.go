@@ -53,7 +53,7 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	testCmd := ""
 	if runAll {
 		if ignoreInstr {
-			return testHarness, nil
+			return strings.TrimSpace(fmt.Sprintf("%s %s", pytestCmd, userArgs)), nil
 		}
 		testCmd = strings.TrimSpace(fmt.Sprintf("python3 %s %s --test_harness %s",
 			scriptPath, currentDir, testHarness))
