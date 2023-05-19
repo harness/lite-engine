@@ -89,6 +89,7 @@ type (
 		OOMKilled bool              `json:"oom_killed,omitempty"`
 		Outputs   map[string]string `json:"outputs,omitempty"`
 		Envs      map[string]string `json:"envs,omitempty"` // Env variables exported by step
+		Artifact  []byte            `json:"artifact,omitempty"`
 	}
 
 	StreamOutputRequest struct {
