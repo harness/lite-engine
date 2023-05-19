@@ -28,7 +28,7 @@ var (
 )
 
 func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
-	*runtime.State, map[string]string, map[string]string, error) {
+	*runtime.State, map[string]string, map[string]string, []byte, error) {
 	log := &logrus.Logger{
 		Out:   out,
 		Level: logrus.InfoLevel,
@@ -40,7 +40,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	start := time.Now()
 	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs, tiConfig)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
 	step := toStep(r)
@@ -52,13 +52,16 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
 	if len(r.OutputVars) > 0 && len(step.Entrypoint) == 0 || len(step.Command) == 0 {
-		return nil, nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
+		return nil, nil, nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
 	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
 	if len(r.OutputVars) > 0 {
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
 	}
+
+	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
+	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
 	exited, err := engine.Run(ctx, step, out)
 	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
@@ -68,14 +71,15 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	}
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
+	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 	if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
 			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
-			return exited, outputs, exportEnvs, err
+			return exited, outputs, exportEnvs, artifact, err
 		}
 	}
 
-	return exited, nil, exportEnvs, err
+	return exited, nil, exportEnvs, artifact, err
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step

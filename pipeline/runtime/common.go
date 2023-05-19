@@ -89,6 +89,22 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) (map[string]str
 	return env, nil
 }
 
+func fetchArtifactDataFromArtifactFile(artifactFile string, out io.Writer) ([]byte, error) {
+	log := logrus.New()
+	log.Out = out
+
+	if _, err := os.Stat(artifactFile); errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+
+	content, err := os.ReadFile(artifactFile)
+	if err != nil {
+		log.WithError(err).WithField("artifactFile", artifactFile).WithField("content", string(content)).Warnln("failed to read artifact file")
+		return nil, err
+	}
+	return content, nil
+}
+
 // setTiEnvVariables sets the environment variables required for TI
 func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 	if config == nil {
