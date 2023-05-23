@@ -129,3 +129,14 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	}
 	return strings.TrimSpace(fmt.Sprintf("%s %s -DHARNESS_JAVA_AGENT=%s%s %s", gc, userArgs, agentArg, testStr, orCmd)), nil
 }
+
+func (g *gradleRunner) GetStaticCmd(ctx context.Context, userArgs, workspace, outDir, agentInstallDir string, changedFiles []ti.File) (string, error) {
+	cmd, err := GetJavaStaticCmd(ctx, userArgs, workspace, outDir, agentInstallDir, changedFiles)
+	if err != nil {
+		g.log.Info(err)
+		return "", err
+	}
+	g.log.Info("JAVA STATIC CMD IS")
+	g.log.Info(cmd)
+	return cmd, nil
+}

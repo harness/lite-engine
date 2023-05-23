@@ -79,3 +79,14 @@ func (s *sbtRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArg
 	}
 	return fmt.Sprintf("%s %s %s 'testOnly %s'", sbtCmd, userArgs, instrArg, strings.Join(testsList, " ")), nil
 }
+
+func (m *sbtRunner) GetStaticCmd(ctx context.Context, userArgs, workspace, outDir, agentInstallDir string, changedFiles []ti.File) (string, error) {
+	cmd, err := GetJavaStaticCmd(ctx, userArgs, workspace, outDir, agentInstallDir, changedFiles)
+	if err != nil {
+		m.log.Info(err)
+		return "", err
+	}
+	m.log.Info("JAVA STATIC CMD IS")
+	m.log.Info(cmd)
+	return cmd, nil
+}

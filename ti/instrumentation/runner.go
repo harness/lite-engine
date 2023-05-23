@@ -31,4 +31,6 @@ type TestRunner interface {
 	// AutoDetectTests detects the list of tests in the workspace
 	// Return an error if we could not detect or if it's unimplemented
 	AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error)
+
+	GetStaticCmd(ctx context.Context, userArgs, workspace, outDir, agentInstallDir string, changedFiles []ti.File) (string, error)
 }

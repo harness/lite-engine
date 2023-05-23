@@ -121,3 +121,7 @@ func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest
 	}
 	return fmt.Sprintf("%s %s --where %q", cmd, userArgs, testStr), nil
 }
+
+func (b *nunitConsoleRunner) GetStaticCmd(ctx context.Context, userArgs, workspace, outDir string, changedFiles []ti.File) (string, error) {
+	return "", nil
+}

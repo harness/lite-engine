@@ -219,3 +219,14 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 	return fmt.Sprintf("%s %s %s %s", bazelCmd, userArgs, instrArg, testList), nil
 }
+
+func (b *bazelRunner) GetStaticCmd(ctx context.Context, userArgs, workspace, outDir, agentInstallDir string, changedFiles []ti.File) (string, error) {
+	cmd, err := GetJavaStaticCmd(ctx, userArgs, workspace, outDir, agentInstallDir, changedFiles)
+	if err != nil {
+		b.log.Info(err)
+		return "", err
+	}
+	b.log.Info("JAVA STATIC CMD IS")
+	b.log.Info(cmd)
+	return cmd, nil
+}

@@ -86,3 +86,7 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, us
 		scriptPath, currentDir, testHarness, testStr)
 	return testCmd, nil
 }
+
+func (m *unittestRunner) GetStaticCmd(ctx context.Context, userArgs, workspace, outDir, agentInstallDir string, changedFiles []ti.File) (string, error) {
+	return "", nil
+}

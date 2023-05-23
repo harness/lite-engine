@@ -119,3 +119,7 @@ func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	}
 	return fmt.Sprintf("%s %s test --filter %q %s --no-build", cmd, dotnetCmd, testStr, userArgs), nil // Add instrumentation here
 }
+
+func (b *dotnetRunner) GetStaticCmd(ctx context.Context, userArgs, workspace, outDir string, changedFiles []ti.File) (string, error) {
+	return "", nil
+}

@@ -101,3 +101,14 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 	return strings.TrimSpace(fmt.Sprintf("%s -Dtest=%s -am -DharnessArgLine=%s -DargLine=%s %s", mavenCmd, testStr, instrArg, instrArg, userArgs)), nil
 }
+
+func (m *mavenRunner) GetStaticCmd(ctx context.Context, userArgs, workspace, outDir, agentInstallDir string, changedFiles []ti.File) (string, error) {
+	cmd, err := GetJavaStaticCmd(ctx, userArgs, workspace, outDir, agentInstallDir, changedFiles)
+	if err != nil {
+		m.log.Info(err)
+		return "", err
+	}
+	m.log.Info("JAVA STATIC CMD IS")
+	m.log.Info(cmd)
+	return cmd, nil
+}

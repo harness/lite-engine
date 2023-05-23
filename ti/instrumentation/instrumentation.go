@@ -221,10 +221,23 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		return "", err
 	}
 
+	var staticCmd string = ""
+	if !ignoreInstr {
+		outDir := fmt.Sprintf(outDir, tmpFilePath)
+
+		changedFiles, err := getChangedFiles(ctx, workspace, log)
+
+		staticCmd, err = runner.GetStaticCmd(ctx, config.Args, workspace, outDir, changedFiles)
+		if err != nil {
+			return "", err
+		}
+	}
+
+
 	if ignoreInstr {
 		log.Infoln("Ignoring instrumentation and not attaching agent")
 	}
 	// TODO: (Vistaar) If using this code for non-Windows, we might need to set TMPDIR for bazel
-	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
+	command := fmt.Sprintf("%s\n%s\n%s\n%s", config.PreCommand, testCmd, staticCmd, config.PostCommand)
 	return command, nil
 }

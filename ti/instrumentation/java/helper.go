@@ -6,6 +6,7 @@ package java
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 const (
 	AgentArg     = "-javaagent:%s=%s"
 	JavaAgentJar = "java-agent.jar"
+	JavaStaticAgentJar = "source-code-analysis-java.jar"
 )
 
 const (
@@ -321,3 +323,32 @@ func parseBazelTestRule(r string) (ti.RunnableTest, error) {
 	test.Autodetect.Rule = r
 	return test, nil
 }
+
+func getSourceArg(changedFiles []ti.File) (string) {
+	sourceString := ""
+	for _, file := range changedFiles {
+		if(isJavaTestFile(file.Name)) {
+			sourceString = sourceString + fmt.Sprintf("-s%s ", file.Name)
+		}
+	}
+	return sourceString
+}
+
+func isJavaTestFile(filePath string) bool {
+	fileExt := filepath.Ext(filePath)
+	fileName := filepath.Base(filePath)
+
+	// Check if the file extension is ".java" and the file name ends with "Test"
+	return strings.ToLower(fileExt) == ".java" && strings.HasSuffix(fileName, "Test")
+}
+
+func GetJavaStaticCmd(ctx context.Context, userArgs, workspace, outDir, agentInstallDir string, changedFiles []ti.File) (string, error) {
+	sourceString := getSourceArg(changedFiles)
+	javaStaticAgentPath := filepath.Join(agentInstallDir, JavaStaticAgentJar)
+	outPath := filepath.Join(outDir, "static_callgraph.json")
+
+	staticCmd := fmt.Sprintf("java -jar %s -o%s %s -f%s", javaStaticAgentPath, outPath, sourceString, workspace)
+
+	return staticCmd, nil
+}
+
