@@ -227,7 +227,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 		changedFiles, err := getChangedFiles(ctx, workspace, log)
 
-		staticCmd, err = runner.GetStaticCmd(ctx, config.Args, workspace, outDir, changedFiles)
+		staticCmd, err = runner.GetStaticCmd(ctx, config.Args, workspace, outDir, artifactDir, changedFiles)
 		if err != nil {
 			return "", err
 		}
