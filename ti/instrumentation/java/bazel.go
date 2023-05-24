@@ -226,7 +226,5 @@ func (b *bazelRunner) GetStaticCmd(ctx context.Context, userArgs, workspace, out
 		b.log.Info(err)
 		return "", err
 	}
-	b.log.Info("JAVA STATIC CMD IS")
-	b.log.Info(cmd)
 	return cmd, nil
 }

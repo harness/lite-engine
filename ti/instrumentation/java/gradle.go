@@ -136,7 +136,5 @@ func (g *gradleRunner) GetStaticCmd(ctx context.Context, userArgs, workspace, ou
 		g.log.Info(err)
 		return "", err
 	}
-	g.log.Info("JAVA STATIC CMD IS")
-	g.log.Info(cmd)
 	return cmd, nil
 }

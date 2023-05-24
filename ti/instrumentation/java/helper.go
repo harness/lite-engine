@@ -339,7 +339,7 @@ func isJavaTestFile(filePath string) bool {
 	fileName := filepath.Base(filePath)
 
 	// Check if the file extension is ".java" and the file name ends with "Test"
-	return strings.ToLower(fileExt) == ".java" && strings.HasSuffix(fileName, "Test")
+	return strings.ToLower(fileExt) == ".java" && strings.HasSuffix(fileName, "Test.java")
 }
 
 func GetJavaStaticCmd(ctx context.Context, userArgs, workspace, outDir, agentInstallDir string, changedFiles []ti.File) (string, error) {

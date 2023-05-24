@@ -86,7 +86,5 @@ func (m *sbtRunner) GetStaticCmd(ctx context.Context, userArgs, workspace, outDi
 		m.log.Info(err)
 		return "", err
 	}
-	m.log.Info("JAVA STATIC CMD IS")
-	m.log.Info(cmd)
 	return cmd, nil
 }
