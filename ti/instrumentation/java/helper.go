@@ -344,9 +344,11 @@ func isJavaTestFile(filePath string) bool {
 
 func GetJavaStaticCmd(ctx context.Context, userArgs, workspace, outDir, agentInstallDir string, changedFiles []ti.File) (string, error) {
 	sourceString := getSourceArg(changedFiles)
+	if sourceString == "" {
+		return "", nil
+	}
 	javaStaticAgentPath := filepath.Join(agentInstallDir, JavaStaticAgentJar)
 	outPath := filepath.Join(outDir, "static_callgraph.json")
-
 	staticCmd := fmt.Sprintf("java -jar %s -o%s %s -f%s", javaStaticAgentPath, outPath, sourceString, workspace)
 
 	return staticCmd, nil
