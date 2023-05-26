@@ -64,7 +64,7 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 			continue
 		}
 
-		if err := os.MkdirAll(path, permissions); err != nil { //nolint:gomnd
+		if err := os.MkdirAll(path, permissions); err != nil {
 			return errors.Wrap(err,
 				fmt.Sprintf("failed to create directory for host volume path: %q", path))
 		}
