@@ -57,6 +57,7 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 			vol.HostPath.Path = pathConverter(path)
 
 			if _, err := os.Stat(path); err == nil {
+				_ = os.Chmod(path, 0777)
 				continue
 			}
 
@@ -64,6 +65,7 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 				return errors.Wrap(err,
 					fmt.Sprintf("failed to create directory for host volume path: %q", path))
 			}
+			_ = os.Chmod(path, 0777)
 		}
 	}
 
