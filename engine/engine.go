@@ -25,6 +25,7 @@ const (
 	DockerSockVolName  = "_docker"
 	DockerSockUnixPath = "/var/run/docker.sock"
 	DockerSockWinPath  = `\\.\pipe\docker_engine`
+	permissions        = 0777
 )
 
 type Engine struct {
@@ -52,21 +53,22 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	}
 	// create volumes
 	for _, vol := range pipelineConfig.Volumes {
-		if vol != nil && vol.HostPath != nil {
-			path := vol.HostPath.Path
-			vol.HostPath.Path = pathConverter(path)
-
-			if _, err := os.Stat(path); err == nil {
-				_ = os.Chmod(path, 0777)
-				continue
-			}
-
-			if err := os.MkdirAll(path, 0777); err != nil { //nolint:gomnd
-				return errors.Wrap(err,
-					fmt.Sprintf("failed to create directory for host volume path: %q", path))
-			}
-			_ = os.Chmod(path, 0777)
+		if vol == nil || vol.HostPath == nil {
+			continue
 		}
+		path := vol.HostPath.Path
+		vol.HostPath.Path = pathConverter(path)
+
+		if _, err := os.Stat(path); err == nil {
+			_ = os.Chmod(path, permissions)
+			continue
+		}
+
+		if err := os.MkdirAll(path, permissions); err != nil { //nolint:gomnd
+			return errors.Wrap(err,
+				fmt.Sprintf("failed to create directory for host volume path: %q", path))
+		}
+		_ = os.Chmod(path, permissions)
 	}
 
 	e.mu.Lock()
