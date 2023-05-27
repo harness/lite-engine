@@ -55,7 +55,7 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, us
 		if ignoreInstr {
 			return strings.TrimSpace(fmt.Sprintf("%s %s", unitTestCmd, userArgs)), nil
 		}
-		testCmd = strings.TrimSpace(fmt.Sprintf("python3 %s %s --test_harness \"%s\"",
+		testCmd = strings.TrimSpace(fmt.Sprintf("python3 %s %s --test_harness %q",
 			scriptPath, currentDir, testHarness))
 		return testCmd, nil
 	}
@@ -82,7 +82,7 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, us
 		return strings.TrimSpace(fmt.Sprintf("%s %s %s", unitTestCmd, testStr, userArgs)), nil
 	}
 
-	testCmd = fmt.Sprintf("python3 %s %s --test_harness \"%s\" --test_files %s",
+	testCmd = fmt.Sprintf("python3 %s %s --test_harness %q --test_files %s",
 		scriptPath, currentDir, testHarness, testStr)
 	return testCmd, nil
 }
