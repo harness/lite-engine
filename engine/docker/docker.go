@@ -11,6 +11,7 @@ package docker
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -211,6 +212,11 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 
 func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer) error {
 	// create pull options with encoded authorization credentials.
+	logrus.Infoln("trying to create image")
+	fmt.Println("fmt trying to create image")
+	logrus.WithField("blah", "blah").
+		Warnln("failed to pull image")
+	logrus.WithField("key", "create").Infoln("create method")
 	pullopts := types.ImagePullOptions{}
 	if step.Auth != nil {
 		pullopts.RegistryAuth = auths.Header(
@@ -357,7 +363,13 @@ func (e *Docker) logs(ctx context.Context, id string, output io.Writer) error {
 }
 
 func (e *Docker) pullImage(ctx context.Context, image string, pullOpts types.ImagePullOptions, output io.Writer) error {
+	logrus.WithField("key", "pullImage").Infoln("pulling image")
 	rc, pullerr := e.client.ImagePull(ctx, image, pullOpts)
+	logrus.Infoln("pullImage")
+	logrus.Infoln(pullerr.Error())
+	if pullerr != nil {
+		return pullerr
+	}
 
 	if e.hidePull {
 		if _, cerr := io.Copy(io.Discard, rc); cerr != nil {
@@ -380,7 +392,11 @@ func (e *Docker) pullImageWithRetries(ctx context.Context, image string,
 	pullOpts types.ImagePullOptions, output io.Writer) error {
 	var err error
 	for i := 1; i <= imageMaxRetries; i++ {
+		logrus.Infoln("trying to pull image")
+		fmt.Println("fmt trying to pull image")
 		err = e.pullImage(ctx, image, pullOpts, output)
+		logrus.Infoln("pullImageWithRetries")
+		logrus.Infoln(err.Error())
 		if err == nil {
 			return nil
 		}
