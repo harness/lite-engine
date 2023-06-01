@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -23,7 +24,21 @@ import (
 func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
 	*runtime.State, map[string]string, map[string]string, []byte, error) {
 	step := toStep(r)
-	step.Command = r.Run.Command
+	// keep copy
+	commandNotSplit := r.Run.Command
+	if !r.LogDrone {
+		commands := splitCommands(r.Run.Command[0])
+		filteredCommands := make([]string, 0)
+		for _, command := range commands {
+			trimmedCommand := strings.TrimSpace(command)
+			if trimmedCommand != "set -xe" {
+				filteredCommands = append(filteredCommands, trimmedCommand)
+			}
+		}
+		step.Command = filteredCommands
+	} else {
+		step.Command = r.Run.Command
+	}
 	step.Entrypoint = r.Run.Entrypoint
 	setTiEnvVariables(step, tiConfig)
 
@@ -38,7 +53,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	step.Envs["DRONE_OUTPUT"] = outputFile
 
 	if len(r.OutputVars) > 0 {
-		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
+		commandNotSplit[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
 	}
 
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
@@ -63,4 +78,39 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 		return exited, outputs, exportEnvs, artifact, nil
 	}
 	return exited, nil, exportEnvs, artifact, err
+}
+
+func splitCommands(command string) []string {
+	var commands []string
+
+	var buf strings.Builder
+	inSingleQuote := false
+	inDoubleQuote := false
+	prevChar := rune(0)
+	for _, ch := range command {
+		if ch == '\'' && prevChar != '\\' {
+			inSingleQuote = !inSingleQuote
+		} else if ch == '"' && prevChar != '\\' {
+			inDoubleQuote = !inDoubleQuote
+		}
+
+		if !inSingleQuote && !inDoubleQuote && (ch == ';' || ch == '\n') {
+			if buf.Len() > 0 {
+				// Trim the resulting command before appending
+				commands = append(commands, strings.TrimSpace(buf.String()))
+				buf.Reset()
+			}
+		} else {
+			buf.WriteRune(ch)
+		}
+
+		prevChar = ch
+	}
+
+	if buf.Len() > 0 {
+		// Trim the resulting command before appending
+		commands = append(commands, strings.TrimSpace(buf.String()))
+	}
+
+	return commands
 }

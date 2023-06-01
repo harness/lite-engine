@@ -11,6 +11,7 @@ import (
 	"os/exec"
 
 	"github.com/drone/runner-go/pipeline/runtime"
+	"github.com/drone/runner-go/shell"
 	"github.com/harness/lite-engine/engine/spec"
 )
 
@@ -19,10 +20,10 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 		return nil, errors.New("step entrypoint cannot be empty")
 	}
 
-	cmdArgs := step.Entrypoint[1:]
-	cmdArgs = append(cmdArgs, step.Command...)
+	// use runner-go shell script logic to generate the script
+	script := shell.Script(step.Command)
 
-	cmd := exec.Command(step.Entrypoint[0], cmdArgs...) //nolint:gosec
+	cmd := exec.Command(step.Entrypoint[0], "-c", script) //nolint:gosec
 	cmd.Dir = step.WorkingDir
 	cmd.Env = toEnv(step.Envs)
 	cmd.Stderr = output
