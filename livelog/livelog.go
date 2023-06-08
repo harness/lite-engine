@@ -112,9 +112,10 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			Timestamp:   time.Now(),
 			ElaspedTime: int64(time.Since(b.now).Seconds()),
 		}
+		jsonLine, _ := json.Marshal(line)
 		logrus.WithField("name", b.name).Infoln(line.Message)
 
-		for b.size+len(part) > b.limit {
+		for b.size+len(jsonLine) > b.limit {
 			// Keep streaming even after the limit, but only upload last `b.limit` data to the store
 			if len(b.history) == 0 {
 				break
@@ -128,7 +129,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			b.history = b.history[1:]
 		}
 
-		b.size += len(part)
+		b.size = b.size + len(jsonLine)
 		b.num++
 
 		if !b.stopped() {

@@ -27,7 +27,10 @@ type (
 
 	SetupResponse struct{}
 
-	DestroyRequest struct{}
+	DestroyRequest struct {
+		LogDrone bool   `json:"log_drone,omitempty"`
+		LogKey   string `json:"log_key,omitempty"` // key to write the lite engine logs (optional)
+	}
 
 	DestroyResponse struct{}
 
