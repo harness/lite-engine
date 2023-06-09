@@ -38,8 +38,15 @@ func GetLiteEngineLog(osType string) (string, error) {
 		}
 		return string(content), nil
 	default:
-		return "", errors.New("no log file")
+		return "", nil
 	}
+}
+
+func truncate(lines []*logstream.Line, l int) []*logstream.Line {
+	if len(lines) <= l {
+		return lines
+	}
+	return lines[len(lines)-l:]
 }
 
 func convert(logs string) []*logstream.Line {
@@ -47,7 +54,7 @@ func convert(logs string) []*logstream.Line {
 	for idx, line := range strings.Split(logs, "\n") {
 		lines = append(lines, &logstream.Line{Message: line, Number: idx})
 	}
-	return lines
+	return truncate(lines, 20000) // only keep the last x lines
 }
 
 // HandleDestroy returns an http.HandlerFunc that destroy the stage resources
@@ -82,14 +89,16 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 						logger.FromRequest(r).WithField("time", time.Now().Format(time.RFC3339)).WithError(err).Errorln("could not upload lite engine logs")
 					}
 				}
-			} else {
-				// TODO: handle drone case for lite engine log upload
 			}
+			// else {
+			// TODO: handle drone case for lite engine log upload
+			// }
 		}
 
 		destroyErr := engine.Destroy(r.Context())
 		if destroyErr != nil || uploadErr != nil {
-			WriteError(w, fmt.Errorf("destroy error: %w, upload error: %w", destroyErr, uploadErr))
+
+			WriteError(w, fmt.Errorf("destroy error: %w, upload error: %s", destroyErr, uploadErr))
 		}
 
 		WriteJSON(w, api.DestroyResponse{}, http.StatusOK)

@@ -242,7 +242,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 
 	// Create a log stream for step logs
 	client := state.GetLogStreamClient()
-	wc := livelog.New(client, r.LogKey, r.Name, getNudges())
+	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false)
 	wr := logstream.NewReplacer(wc, secrets)
 	go wr.Open() //nolint:errcheck
 
