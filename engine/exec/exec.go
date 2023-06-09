@@ -21,21 +21,9 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (
 		return nil, errors.New("step entrypoint cannot be empty")
 	}
 
-	// used for printing out the command
-	command := make([]string, len(step.Command))
-	copy(command, step.Command)
-
 	// we shouldn't change this functionality for drone.
 	if !isDrone {
-		// Remove 'set -xe' and 'set -e;' from the command if it's there.
-		for i, arg := range step.Command {
-			step.Command[i] = strings.ReplaceAll(arg, "set -xe;", "set -e;")
-		}
-		// Remove 'set -xe' and '' for printing out commands
-		for i, arg := range command {
-			command[i] = strings.ReplaceAll(arg, "set -xe;", "")
-		}
-		fmt.Fprintf(output, "Executing command:\n%s\n\n", strings.TrimSpace(strings.Join(command, " ")))
+		fmt.Fprintf(output, "Executing command:\n%s\n\n", strings.TrimSpace(strings.Join(step.Command, " ")))
 	}
 	cmdArgs := step.Entrypoint[1:]
 	cmdArgs = append(cmdArgs, step.Command...)

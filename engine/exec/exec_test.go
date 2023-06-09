@@ -38,13 +38,6 @@ func TestRun(t *testing.T) {
 			wantOut:    "Executing command:\ninvalid_command\n\nbash: invalid_command: command not found\n",
 			wantErr:    false,
 		},
-		{
-			name:       "Command with set -xe",
-			entrypoint: []string{"bash", "-c"},
-			command:    []string{"set -xe; echo 'Hello, world!'"},
-			wantOut:    "Executing command:\necho 'Hello, world!'\n\nHello, world!\n",
-			wantErr:    false,
-		},
 	}
 
 	for _, tc := range testCases {
