@@ -8,11 +8,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/drone/runner-go/pipeline/runtime"
-	"github.com/harness/lite-engine/engine/spec"
 	"io"
 	"os/exec"
 	"strings"
+
+	"github.com/drone/runner-go/pipeline/runtime"
+	"github.com/harness/lite-engine/engine/spec"
 )
 
 func Run(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error) {

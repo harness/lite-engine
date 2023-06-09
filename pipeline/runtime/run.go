@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
-	"github.com/sirupsen/logrus"
-
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
+
+	"github.com/sirupsen/logrus"
 )
 
 func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
