@@ -26,6 +26,7 @@ const (
 	DockerSockUnixPath = "/var/run/docker.sock"
 	DockerSockWinPath  = `\\.\pipe\docker_engine`
 	permissions        = 0777
+	boldYellowColor    = "\u001b[33;1m"
 )
 
 type Engine struct {
@@ -89,7 +90,7 @@ func (e *Engine) Destroy(ctx context.Context) error {
 	return e.docker.Destroy(ctx, cfg)
 }
 
-func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State, error) {
+func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error) {
 	e.mu.Lock()
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
@@ -122,11 +123,25 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer) (*r
 		vol.Path = pathConverter(vol.Path)
 	}
 
+	if !isDrone && len(step.Command) > 0 {
+		printCommand(step, output)
+	}
 	if step.Image != "" {
 		return e.docker.Run(ctx, cfg, step, output)
 	}
 
 	return exec.Run(ctx, step, output)
+}
+
+func printCommand(step *spec.Step, output io.Writer) {
+	stepCommand := strings.TrimSpace(strings.Join(step.Command, ""))
+	if stepCommand != "" {
+		printCommand := "Executing the following command(s):\n" + stepCommand
+		lines := strings.Split(printCommand, "\n")
+		for _, line := range lines {
+			_, _ = output.Write([]byte(boldYellowColor + line + "\n"))
+		}
+	}
 }
 
 func createFiles(paths []*spec.File) error {

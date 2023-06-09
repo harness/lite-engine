@@ -11,13 +11,12 @@ import (
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
-	"github.com/sirupsen/logrus"
-
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
+	"github.com/sirupsen/logrus"
 )
 
 func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
@@ -47,7 +46,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	log := logrus.New()
 	log.Out = out
 
-	exited, err := engine.Run(ctx, step, out)
+	exited, err := engine.Run(ctx, step, out, r.LogDrone)
 	if rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, time.Now(), tiConfig); rerr != nil {
 		logrus.WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
 	}
