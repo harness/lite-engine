@@ -23,6 +23,10 @@ import (
 	"github.com/harness/lite-engine/pipeline"
 )
 
+var (
+	liteEngineLogLimit = 2000 // max. number of lines for lite engine logs
+)
+
 func GetLiteEngineLog(osType string) (string, error) {
 	switch osType {
 	// TODO: Add for windows and mac
@@ -54,7 +58,7 @@ func convert(logs string) []*logstream.Line {
 	for idx, line := range strings.Split(logs, "\n") {
 		lines = append(lines, &logstream.Line{Message: line, Number: idx})
 	}
-	return truncate(lines, 20000) // only keep the last x lines
+	return truncate(lines, liteEngineLogLimit) // only keep the last x lines
 }
 
 // HandleDestroy returns an http.HandlerFunc that destroy the stage resources
@@ -79,14 +83,16 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 				client := state.GetLogStreamClient()
 				logs, uploadErr = GetLiteEngineLog(runtime.GOOS)
 				if uploadErr != nil {
-					logger.FromRequest(r).WithField("time", time.Now().Format(time.RFC3339)).WithError(err).Errorln("could not fetch lite engine logs")
+					logger.FromRequest(r).WithField("time", time.Now().
+						Format(time.RFC3339)).WithError(err).Errorln("could not fetch lite engine logs")
 				} else {
 					// error out if logs don't upload in a minute so that the VM can be destroyed
 					ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
 					defer cancel()
 					uploadErr = client.Upload(ctx, d.LogKey, convert(logs))
 					if uploadErr != nil {
-						logger.FromRequest(r).WithField("time", time.Now().Format(time.RFC3339)).WithError(err).Errorln("could not upload lite engine logs")
+						logger.FromRequest(r).WithField("time", time.Now().
+							Format(time.RFC3339)).WithError(err).Errorln("could not upload lite engine logs")
 					}
 				}
 			}
@@ -97,7 +103,6 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 
 		destroyErr := engine.Destroy(r.Context())
 		if destroyErr != nil || uploadErr != nil {
-
 			WriteError(w, fmt.Errorf("destroy error: %w, upload error: %s", destroyErr, uploadErr))
 		}
 
