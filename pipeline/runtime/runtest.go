@@ -63,7 +63,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
-	exited, err := engine.Run(ctx, step, out)
+	exited, err := engine.Run(ctx, step, out, false)
 	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {
 		// Fail the step if run was successful but error during collection
