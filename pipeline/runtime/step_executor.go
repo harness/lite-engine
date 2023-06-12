@@ -242,7 +242,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 
 	// Create a log stream for step logs
 	client := state.GetLogStreamClient()
-	wc := livelog.New(client, r.LogKey, r.Name, getNudges())
+	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false)
 	wr := logstream.NewReplacer(wc, secrets)
 	go wr.Open() //nolint:errcheck
 
@@ -257,7 +257,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 				defer cancel()
 			}
 			e.run(ctx, e.engine, r, wr) //nolint:errcheck
-			wc.Close()
+			wr.Close()
 		}()
 		return &runtime.State{Exited: false}, nil, nil, nil, nil
 	}
@@ -278,7 +278,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 
 	// close the stream. If the session is a remote session, the
 	// full log buffer is uploaded to the remote server.
-	if err = wc.Close(); err != nil {
+	if err = wr.Close(); err != nil {
 		result = multierror.Append(result, err)
 	}
 

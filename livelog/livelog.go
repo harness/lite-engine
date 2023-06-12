@@ -42,10 +42,11 @@ type Writer struct {
 	nudges []logstream.Nudge
 	errs   []error
 
-	interval time.Duration
-	pending  []*logstream.Line
-	history  []*logstream.Line
-	prev     []byte
+	interval      time.Duration
+	printToStdout bool // if logs should be written to both the log service and stdout
+	pending       []*logstream.Line
+	history       []*logstream.Line
+	prev          []byte
 
 	closed bool
 	close  chan struct{}
@@ -53,17 +54,18 @@ type Writer struct {
 }
 
 // New returns a new writer
-func New(client logstream.Client, key, name string, nudges []logstream.Nudge) *Writer {
+func New(client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout bool) *Writer {
 	b := &Writer{
-		client:   client,
-		key:      key,
-		name:     name,
-		now:      time.Now(),
-		limit:    defaultLimit,
-		interval: defaultInterval,
-		nudges:   nudges,
-		close:    make(chan struct{}),
-		ready:    make(chan struct{}, 1),
+		client:        client,
+		key:           key,
+		name:          name,
+		now:           time.Now(),
+		printToStdout: printToStdout,
+		limit:         defaultLimit,
+		interval:      defaultInterval,
+		nudges:        nudges,
+		close:         make(chan struct{}),
+		ready:         make(chan struct{}, 1),
 	}
 	go b.Start()
 	return b
@@ -112,9 +114,14 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			Timestamp:   time.Now(),
 			ElaspedTime: int64(time.Since(b.now).Seconds()),
 		}
-		logrus.WithField("name", b.name).Infoln(line.Message)
 
-		for b.size+len(part) > b.limit {
+		jsonLine, _ := json.Marshal(line)
+
+		if b.printToStdout {
+			logrus.WithField("name", b.name).Infoln(line.Message)
+		}
+
+		for b.size+len(jsonLine) > b.limit {
 			// Keep streaming even after the limit, but only upload last `b.limit` data to the store
 			if len(b.history) == 0 {
 				break
@@ -128,7 +135,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			b.history = b.history[1:]
 		}
 
-		b.size += len(part)
+		b.size += len(jsonLine)
 		b.num++
 
 		if !b.stopped() {
