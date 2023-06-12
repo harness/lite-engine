@@ -7,12 +7,9 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -27,23 +24,12 @@ var (
 	liteEngineLogLimit = 2000 // max. number of lines for lite engine logs
 )
 
-func GetLiteEngineLog(osType string) (string, error) {
-	switch osType {
-	// TODO: Add for windows and mac
-	case "linux":
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", errors.New("could not fetch home dir")
-		}
-		path := filepath.Join(home, "lite-engine.log")
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return "", err
-		}
-		return string(content), nil
-	default:
-		return "", nil
+func GetLiteEngineLog(liteEnginePath string) (string, error) {
+	content, err := os.ReadFile(liteEnginePath)
+	if err != nil {
+		return "", err
 	}
+	return string(content), nil
 }
 
 func truncate(lines []*logstream.Line, l int) []*logstream.Line {
@@ -77,11 +63,11 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
-		if d.LogKey != "" {
+		if d.LogKey != "" && d.LiteEnginePath != "" {
 			if !d.LogDrone {
 				state := pipeline.GetState()
 				client := state.GetLogStreamClient()
-				logs, uploadErr = GetLiteEngineLog(runtime.GOOS)
+				logs, uploadErr = GetLiteEngineLog(d.LiteEnginePath)
 				if uploadErr != nil {
 					logger.FromRequest(r).WithField("time", time.Now().
 						Format(time.RFC3339)).WithError(err).Errorln("could not fetch lite engine logs")
