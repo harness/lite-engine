@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	liteEngineLogLimit = 2000 // max. number of lines for lite engine logs
+	liteEngineLogLimit = 10000 // max. number of lines for lite engine logs
 )
 
 func GetLiteEngineLog(liteEnginePath string) (string, error) {
