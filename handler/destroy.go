@@ -52,7 +52,7 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
-		var uploadErr error
+		var logErr error
 		var logs string
 
 		// Upload lite engine logs if key is set
@@ -67,16 +67,16 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			if !d.LogDrone {
 				state := pipeline.GetState()
 				client := state.GetLogStreamClient()
-				logs, uploadErr = GetLiteEngineLog(d.LiteEnginePath)
-				if uploadErr != nil {
+				logs, logErr = GetLiteEngineLog(d.LiteEnginePath)
+				if logErr != nil {
 					logger.FromRequest(r).WithField("time", time.Now().
 						Format(time.RFC3339)).WithError(err).Errorln("could not fetch lite engine logs")
 				} else {
 					// error out if logs don't upload in a minute so that the VM can be destroyed
 					ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
 					defer cancel()
-					uploadErr = client.Upload(ctx, d.LogKey, convert(logs))
-					if uploadErr != nil {
+					logErr = client.Upload(ctx, d.LogKey, convert(logs))
+					if logErr != nil {
 						logger.FromRequest(r).WithField("time", time.Now().
 							Format(time.RFC3339)).WithError(err).Errorln("could not upload lite engine logs")
 					}
@@ -88,8 +88,8 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		destroyErr := engine.Destroy(r.Context())
-		if destroyErr != nil || uploadErr != nil {
-			WriteError(w, fmt.Errorf("destroy error: %w, upload error: %s", destroyErr, uploadErr))
+		if destroyErr != nil || logErr != nil {
+			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %s", destroyErr, logErr))
 		}
 
 		WriteJSON(w, api.DestroyResponse{}, http.StatusOK)
