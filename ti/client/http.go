@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	dbEndpoint            = "/reports/write?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&report=%s&repo=%s&sha=%s&commitLink=%s"
-	testEndpoint          = "/tests/select?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&repo=%s&sha=%s&source=%s&target=%s"
-	cgEndpoint            = "/tests/uploadcg?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&repo=%s&sha=%s&source=%s&target=%s&timeMs=%d"
-	getTestsTimesEndpoint = "/tests/timedata?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s"
-	agentEndpoint         = "/agents/link?accountId=%s&language=%s&os=%s&arch=%s&framework=%s"
+	dbEndpoint             = "/reports/write?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&report=%s&repo=%s&sha=%s&commitLink=%s"
+	testEndpoint           = "/tests/select?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&repo=%s&sha=%s&source=%s&target=%s"
+	cgEndpoint             = "/tests/uploadcg?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s&buildId=%s&stageId=%s&stepId=%s&repo=%s&sha=%s&source=%s&target=%s&timeMs=%d"
+	getTestsTimesEndpoint  = "/tests/timedata?accountId=%s&orgId=%s&projectId=%s&pipelineId=%s"
+	agentEndpoint          = "/agents/link?accountId=%s&language=%s&os=%s&arch=%s&framework=%s"
+	serverErrorsStatusCode = 500
 )
 
 var _ Client = (*HTTPClient)(nil)
@@ -93,7 +94,8 @@ func (c *HTTPClient) Write(ctx context.Context, stepID, report string, tests []*
 		return err
 	}
 	path := fmt.Sprintf(dbEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, report, c.Repo, c.Sha, c.CommitLink)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, &tests, nil) //nolint:bodyclose
+	backoff := createBackoff(45 * 60 * time.Second)
+	_, err := c.retry(ctx, c.Endpoint+path, "POST", c.Sha, &tests, nil, false, false, backoff) //nolint:bodyclose
 	return err
 }
 
@@ -105,7 +107,7 @@ func (c *HTTPClient) DownloadLink(ctx context.Context, language, os, arch, frame
 	}
 	path := fmt.Sprintf(agentEndpoint, c.AccountID, language, os, arch, framework)
 	backoff := createBackoff(45 * 60 * time.Second)
-	_, err := c.retry(ctx, c.Endpoint+path, "POST", "", nil, &resp, false, backoff)
+	_, err := c.retry(ctx, c.Endpoint+path, "POST", "", nil, &resp, false, true, backoff) //nolint:bodyclose
 	return resp, err
 }
 
@@ -116,7 +118,8 @@ func (c *HTTPClient) SelectTests(ctx context.Context, stepID, source, target str
 		return resp, err
 	}
 	path := fmt.Sprintf(testEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target)
-	_, err := c.do(ctx, c.Endpoint+path, "POST", c.Sha, in, &resp) //nolint:bodyclose
+	backoff := createBackoff(45 * 60 * time.Second)
+	_, err := c.retry(ctx, c.Endpoint+path, "POST", c.Sha, in, &resp, false, false, backoff) //nolint:bodyclose
 	return resp, err
 }
 
@@ -127,7 +130,7 @@ func (c *HTTPClient) UploadCg(ctx context.Context, stepID, source, target string
 	}
 	path := fmt.Sprintf(cgEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target, timeMs)
 	backoff := createBackoff(45 * 60 * time.Second)
-	_, err := c.retry(ctx, c.Endpoint+path, "POST", c.Sha, &cg, nil, false, backoff)
+	_, err := c.retry(ctx, c.Endpoint+path, "POST", c.Sha, &cg, nil, false, true, backoff) //nolint:bodyclose
 	return err
 }
 
@@ -139,11 +142,11 @@ func (c *HTTPClient) GetTestTimes(ctx context.Context, in *ti.GetTestTimesReq) (
 	}
 	path := fmt.Sprintf(getTestsTimesEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID)
 	backoff := createBackoff(45 * 60 * time.Second)
-	_, err := c.retry(ctx, c.Endpoint+path, "POST", "", in, &resp, false, backoff)
+	_, err := c.retry(ctx, c.Endpoint+path, "POST", "", in, &resp, false, true, backoff) //nolint:bodyclose
 	return resp, err
 }
 
-func (c *HTTPClient) retry(ctx context.Context, method, path, sha string, in, out interface{}, isOpen bool, b backoff.BackOff) (*http.Response, error) {
+func (c *HTTPClient) retry(ctx context.Context, method, path, sha string, in, out interface{}, isOpen, retryOnServerErrors bool, b backoff.BackOff) (*http.Response, error) { //nolint:unparam
 	for {
 		var res *http.Response
 		var err error
@@ -155,18 +158,18 @@ func (c *HTTPClient) retry(ctx context.Context, method, path, sha string, in, ou
 
 		// do not retry on Canceled or DeadlineExceeded
 		if err := ctx.Err(); err != nil {
-			// Context cancelled
+			// Context canceled
 			return res, err
 		}
 
 		duration := b.NextBackOff()
 
-		if res != nil {
+		if res != nil && retryOnServerErrors {
 			// Check the response code. We retry on 5xx-range
 			// responses to allow the server time to recover, as
 			// 5xx's are typically not permanent errors and may
 			// relate to outages on the server side.
-			if res.StatusCode >= 500 {
+			if res.StatusCode >= serverErrorsStatusCode {
 				// TI server error: Reconnect and retry
 				if duration == backoff.Stop {
 					return nil, err
@@ -188,7 +191,7 @@ func (c *HTTPClient) retry(ctx context.Context, method, path, sha string, in, ou
 
 // do is a helper function that posts a signed http request with
 // the input encoded and response decoded from json.
-func (c *HTTPClient) do(ctx context.Context, path, method, sha string, in, out interface{}) (*http.Response, error) { //nolint:unparam
+func (c *HTTPClient) do(ctx context.Context, path, method, sha string, in, out interface{}) (*http.Response, error) {
 	var r io.Reader
 
 	if in != nil {
@@ -281,10 +284,6 @@ func (c *HTTPClient) open(ctx context.Context, path, method string, body io.Read
 	}
 	req.Header.Add("X-Harness-Token", c.Token)
 	return c.client().Do(req)
-}
-
-func createInfiniteBackoff() *backoff.ExponentialBackOff {
-	return createBackoff(0)
 }
 
 func createBackoff(maxElapsedTime time.Duration) *backoff.ExponentialBackOff {
