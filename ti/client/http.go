@@ -157,7 +157,7 @@ func (c *HTTPClient) retry(ctx context.Context, method, path, sha string, in, ou
 		}
 
 		// do not retry on Canceled or DeadlineExceeded
-		if errCtx := ctx.Err(); err != nil {
+		if errCtx := ctx.Err(); errCtx != nil {
 			// Context canceled
 			return res, errCtx
 		}
