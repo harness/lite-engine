@@ -94,7 +94,7 @@ func (c *HTTPClient) Write(ctx context.Context, stepID, report string, tests []*
 		return err
 	}
 	path := fmt.Sprintf(dbEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, report, c.Repo, c.Sha, c.CommitLink)
-	backoff := createBackoff(45 * 60 * time.Second)
+	backoff := createBackoff(10 * 60 * time.Second)
 	_, err := c.retry(ctx, c.Endpoint+path, "POST", c.Sha, &tests, nil, false, false, backoff) //nolint:bodyclose
 	return err
 }
@@ -106,7 +106,7 @@ func (c *HTTPClient) DownloadLink(ctx context.Context, language, os, arch, frame
 		return resp, err
 	}
 	path := fmt.Sprintf(agentEndpoint, c.AccountID, language, os, arch, framework)
-	backoff := createBackoff(45 * 60 * time.Second)
+	backoff := createBackoff(5 * 60 * time.Second)
 	_, err := c.retry(ctx, c.Endpoint+path, "POST", "", nil, &resp, false, true, backoff) //nolint:bodyclose
 	return resp, err
 }
@@ -118,7 +118,7 @@ func (c *HTTPClient) SelectTests(ctx context.Context, stepID, source, target str
 		return resp, err
 	}
 	path := fmt.Sprintf(testEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID, c.BuildID, c.StageID, stepID, c.Repo, c.Sha, source, target)
-	backoff := createBackoff(45 * 60 * time.Second)
+	backoff := createBackoff(10 * 60 * time.Second)
 	_, err := c.retry(ctx, c.Endpoint+path, "POST", c.Sha, in, &resp, false, false, backoff) //nolint:bodyclose
 	return resp, err
 }
@@ -141,7 +141,7 @@ func (c *HTTPClient) GetTestTimes(ctx context.Context, in *ti.GetTestTimesReq) (
 		return resp, err
 	}
 	path := fmt.Sprintf(getTestsTimesEndpoint, c.AccountID, c.OrgID, c.ProjectID, c.PipelineID)
-	backoff := createBackoff(45 * 60 * time.Second)
+	backoff := createBackoff(10 * 60 * time.Second)
 	_, err := c.retry(ctx, c.Endpoint+path, "POST", "", in, &resp, false, true, backoff) //nolint:bodyclose
 	return resp, err
 }
@@ -157,9 +157,9 @@ func (c *HTTPClient) retry(ctx context.Context, method, path, sha string, in, ou
 		}
 
 		// do not retry on Canceled or DeadlineExceeded
-		if err := ctx.Err(); err != nil {
+		if errCtx := ctx.Err(); err != nil {
 			// Context canceled
-			return res, err
+			return res, errCtx
 		}
 
 		duration := b.NextBackOff()
