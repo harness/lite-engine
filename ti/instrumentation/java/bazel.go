@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
@@ -192,9 +193,21 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			if p == "" || !strings.Contains(p, "src/test") {
 				continue
 			}
-			c := fmt.Sprintf("cd %s; export fullname=$(%s query %s)\n"+
-				"%s query \"attr('srcs', $fullname, ${fullname//:*/}:*)\" --output=label_kind | grep 'java_test rule'",
-				workspace, bazelCmd, p, bazelCmd)
+			// Get the full name using bazel query
+			c := fmt.Sprintf("cd %s; %s query %s", workspace, bazelCmd, p)
+			cmdArgs = []string{"-c", c}
+			fullname, err2 := exec.CommandContext(ctx, "sh", cmdArgs...).Output()
+			if err2 != nil || len(fullname) == 0 {
+				b.log.WithError(err2).Errorln(fmt.Sprintf("could not find fullname for path %s with err: %s", p, err2))
+				continue
+			}
+			// Get rule regex
+			re := regexp.MustCompile(":.*")
+			fullnameStr := strings.TrimSuffix(string(fullname), "\n")
+			fullnameSubStr := re.ReplaceAllString(fullnameStr, ":*")
+			// Get the test rule
+			c = fmt.Sprintf("cd %s; %s query \"attr('srcs', %s, %s)\" --output=label_kind | grep 'java_test rule'",
+				workspace, bazelCmd, fullnameStr, fullnameSubStr)
 			cmdArgs = []string{"-c", c}
 			resp2, err2 := exec.CommandContext(ctx, "sh", cmdArgs...).Output()
 			if err2 != nil || len(resp2) == 0 {
