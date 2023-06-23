@@ -107,7 +107,7 @@ func (c *HTTPClient) DownloadLink(ctx context.Context, language, os, arch, frame
 	}
 	path := fmt.Sprintf(agentEndpoint, c.AccountID, language, os, arch, framework)
 	backoff := createBackoff(5 * 60 * time.Second)
-	_, err := c.retry(ctx, c.Endpoint+path, "POST", "", nil, &resp, false, true, backoff) //nolint:bodyclose
+	_, err := c.retry(ctx, c.Endpoint+path, "GET", "", nil, &resp, false, true, backoff) //nolint:bodyclose
 	return resp, err
 }
 
@@ -146,7 +146,7 @@ func (c *HTTPClient) GetTestTimes(ctx context.Context, in *ti.GetTestTimesReq) (
 	return resp, err
 }
 
-func (c *HTTPClient) retry(ctx context.Context, method, path, sha string, in, out interface{}, isOpen, retryOnServerErrors bool, b backoff.BackOff) (*http.Response, error) { //nolint:unparam
+func (c *HTTPClient) retry(ctx context.Context, path, method, sha string, in, out interface{}, isOpen, retryOnServerErrors bool, b backoff.BackOff) (*http.Response, error) { //nolint:unparam
 	for {
 		var res *http.Response
 		var err error
@@ -191,7 +191,7 @@ func (c *HTTPClient) retry(ctx context.Context, method, path, sha string, in, ou
 
 // do is a helper function that posts a signed http request with
 // the input encoded and response decoded from json.
-func (c *HTTPClient) do(ctx context.Context, path, method, sha string, in, out interface{}) (*http.Response, error) {
+func (c *HTTPClient) do(ctx context.Context, method, path, sha string, in, out interface{}) (*http.Response, error) {
 	var r io.Reader
 
 	if in != nil {
