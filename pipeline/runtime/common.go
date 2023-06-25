@@ -13,7 +13,7 @@ import (
 
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logstream"
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"

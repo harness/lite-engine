@@ -17,7 +17,7 @@ import (
 	"path/filepath"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 	"github.com/mholt/archiver/v3"
 
 	"github.com/sirupsen/logrus"

@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
 

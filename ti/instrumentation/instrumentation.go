@@ -14,7 +14,7 @@ import (
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"

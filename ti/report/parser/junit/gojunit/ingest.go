@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 )
 
 // findSuites performs a depth-first search through the XML document, and

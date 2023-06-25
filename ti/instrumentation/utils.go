@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	"github.com/pkg/errors"
@@ -346,8 +346,8 @@ instrPackages: [%s]`, dir, strings.Join(p, ","))
 	return outputFile, nil
 }
 
-func getTiConfig(workspace string, fs filesystem.FileSystem) (ti.Config, error) {
-	res := ti.Config{}
+func getTiConfig(workspace string, fs filesystem.FileSystem) (ti.TiConfig, error) {
+	res := ti.TiConfig{}
 
 	path := fmt.Sprintf("%s/%s", workspace, tiConfigPath)
 	_, err := os.Stat(path)

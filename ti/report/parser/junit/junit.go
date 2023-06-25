@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 	"github.com/harness/lite-engine/ti/report/parser/junit/gojunit"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"

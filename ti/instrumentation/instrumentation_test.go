@@ -9,7 +9,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	mocks "github.com/harness/lite-engine/ti/instrumentation/mocks"
 	"github.com/sirupsen/logrus"

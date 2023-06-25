@@ -9,7 +9,7 @@ package instrumentation
 import (
 	"context"
 
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 )
 
 //go:generate mockgen -source runner.go -package=instrumentation -destination mocks/runner_mock.go TestRunner
