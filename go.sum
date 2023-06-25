@@ -68,8 +68,8 @@ github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/
 github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=
 github.com/gorilla/mux v1.8.0 h1:i40aqfkR1h2SlN9hojwV5ZA91wcXFOvkdNIeFDP5koI=
 github.com/gorilla/mux v1.8.0/go.mod h1:DVbg23sWSpFRCP0SfiEN6jmj59UnW/n46BH5rLB71So=
-github.com/harness/ti-client v0.0.0-20230625210213-de916cd21d22 h1:8KiTmGXHIydZEf5/YqE09Tc8Jan1qcaQnFo+ynSLy8M=
-github.com/harness/ti-client v0.0.0-20230625210213-de916cd21d22/go.mod h1:HsmeqG87yzAigxtybh05f2FPvT2pqsMoDLLRTkDWsW4=
+github.com/harness/ti-client v0.0.0-20230625231222-263e215b8017 h1:Ep30TUGSR+TlhMe8Ez0P9awmBUga0KEapfV438hzpP8=
+github.com/harness/ti-client v0.0.0-20230625231222-263e215b8017/go.mod h1:HsmeqG87yzAigxtybh05f2FPvT2pqsMoDLLRTkDWsW4=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/errwrap v1.1.0 h1:OxrOeh75EUXMY8TBjag2fzXGZ40LB6IKw45YeGUDY2I=
 github.com/hashicorp/errwrap v1.1.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=

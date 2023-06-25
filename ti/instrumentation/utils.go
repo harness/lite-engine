@@ -255,7 +255,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 	// Get download links from TI service
 	c := config.GetClient()
 	log.Infoln("getting TI agent artifact download links for language:" + language)
-	links, err := c.DownloadLink(ctx, language, os, arch, framework)
+	links, err := c.DownloadLink(ctx, language, os, arch, framework, "", "")
 	if err != nil {
 		log.WithError(err).Println("could not fetch download links for artifact download")
 		return "", err
