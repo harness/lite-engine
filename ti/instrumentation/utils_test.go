@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	ti "github.com/harness/ti-client/types"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )

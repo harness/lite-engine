@@ -14,12 +14,12 @@ import (
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/internal/filesystem"
-	ti "github.com/harness/ti-client/types"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/testsplitter"
+	ti "github.com/harness/ti-client/types"
 )
 
 const (

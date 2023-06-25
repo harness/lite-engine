@@ -16,9 +16,9 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	ti "github.com/harness/ti-client/types"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/testsplitter"
+	ti "github.com/harness/ti-client/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
