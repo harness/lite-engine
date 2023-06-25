@@ -9,8 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
-	ti "github.com/harness/ti-client/types"
 	"github.com/harness/lite-engine/ti/report/parser/junit/gojunit"
+	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
