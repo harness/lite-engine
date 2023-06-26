@@ -9,7 +9,7 @@
 package gojunit
 
 import (
-	"github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 )
 
 // Totals contains aggregated results across a set of test runs. Is usually

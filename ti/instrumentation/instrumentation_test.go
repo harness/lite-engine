@@ -9,9 +9,9 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/ti"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	mocks "github.com/harness/lite-engine/ti/instrumentation/mocks"
+	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )

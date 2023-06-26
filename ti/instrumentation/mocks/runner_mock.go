@@ -9,7 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
-	ti "github.com/harness/lite-engine/ti"
+	ti "github.com/harness/ti-client/types"
 )
 
 // MockTestRunner is a mock of TestRunner interface.

@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/harness/lite-engine/ti"
 	"github.com/harness/lite-engine/ti/instrumentation/common"
+	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 
 	"github.com/mholt/archiver/v3"
