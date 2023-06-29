@@ -28,4 +28,4 @@ Run the changelog generator again with the future version according to semver.
 docker run -it --rm -v "$(pwd)":/usr/local/src/your-app githubchangeloggenerator/github-changelog-generator -u harness -p lite-engine -t <secret token> --future-release v0.4.7
 ```
 
-Create your pull request for the release. Get it merged then tag the release.
+Create your pull request for the release. Get it merged then tag the release. 
