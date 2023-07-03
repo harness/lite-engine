@@ -33,7 +33,9 @@ type (
 		LiteEnginePath string `json:"lite_engine_path,omitempty"` // where to find the lite engine logs
 	}
 
-	DestroyResponse struct{}
+	DestroyResponse struct {
+		OSStats *spec.OSStats `json:"os_stats,omitempty"`
+	}
 
 	StartStepRequest struct {
 		ID         string            `json:"id,omitempty"` // Unique identifier of step

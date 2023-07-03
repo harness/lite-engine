@@ -76,18 +76,6 @@ func DockerInstalled(instanceInfo InstanceInfo) (installed bool) {
 	return true
 }
 
-func GetLiteEngineLog(instanceInfo InstanceInfo) string {
-	switch instanceInfo.osType {
-	case "linux":
-		content, err := os.ReadFile("/var/log/lite-engine.log")
-		if err != nil {
-			return "no log file at /var/log/lite-engine.log"
-		}
-		return string(content)
-	default:
-		return "no log file"
-	}
-}
 
 func ensureChocolatey() {
 	const windowsInstallChoco = "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1')) " //nolint:lll

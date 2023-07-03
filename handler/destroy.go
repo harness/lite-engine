@@ -15,6 +15,7 @@ import (
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
+	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
@@ -51,6 +52,7 @@ func convert(logs string) []*logstream.Line {
 func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
+		state := pipeline.GetState()
 
 		var logErr error
 		var logs string
@@ -65,7 +67,6 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 
 		if d.LogKey != "" && d.LiteEnginePath != "" {
 			if !d.LogDrone {
-				state := pipeline.GetState()
 				client := state.GetLogStreamClient()
 				logs, logErr = GetLiteEngineLog(d.LiteEnginePath)
 				if logErr != nil {
@@ -92,7 +93,16 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %s", destroyErr, logErr))
 		}
 
-		WriteJSON(w, api.DestroyResponse{}, http.StatusOK)
+		stats := &spec.OSStats{}
+
+		collector := state.GetStatsCollector()
+		if collector != nil {
+			collector.Stop()
+			collector.Aggregate()
+			stats = collector.Stats()
+		}
+
+		WriteJSON(w, api.DestroyResponse{OSStats: stats}, http.StatusOK)
 
 		logger.FromRequest(r).
 			WithField("latency", time.Since(st)).

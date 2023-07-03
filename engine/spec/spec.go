@@ -135,4 +135,26 @@ type (
 		Username string `json:"username,omitempty"`
 		Password string `json:"password,omitempty"`
 	}
+
+	OSStats struct {
+		TotalMemMB     float64 `json:"total_mem_mb"`
+		CPUCores       int     `json:"cpu_cores"`
+		AvgMemUsagePct float64 `json:"avg_mem_usage_pct"`
+		AvgCPUUsagePct float64 `json:"avg_cpu_usage_pct"`
+		MaxMemUsagePct float64 `json:"max_mem_usage_pct"`
+		MaxCPUUsagePct float64 `json:"max_cpu_usage_pct"`
+		MemGraph       *Graph  `json:"mem_graph"` // downsampled memory statistics as a percentage
+		CpuGraph       *Graph  `json:"cpu_graph"` // downsampled cpu statistics as a percentage
+	}
+
+	Graph struct {
+		Points  []Point `json:"points"`  // should be used as a sampled set of points
+		Xmetric string  `json:"xmetric"` // string to label x metric
+		Ymetric string  `json:"ymetric"` // string to label y metric
+	}
+
+	Point struct {
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
+	}
 )

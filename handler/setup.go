@@ -5,6 +5,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -15,8 +16,13 @@ import (
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/osstats"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+)
+
+var (
+	statsInterval = 30 * time.Second
 )
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
@@ -31,9 +37,11 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
+		collector := osstats.New(context.Background(), statsInterval)
+
 		setProxyEnvs(s.Envs)
 		state := pipeline.GetState()
-		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig))
+		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig), collector)
 
 		if s.MountDockerSocket == nil || *s.MountDockerSocket { // required to support m1 where docker isn't installed.
 			s.Volumes = append(s.Volumes, getDockerSockVolume())
@@ -50,6 +58,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			Files:             s.Files,
 			EnableDockerSetup: s.MountDockerSocket,
 		}
+		collector.Start()
 		if err := engine.Setup(r.Context(), cfg); err != nil {
 			logger.FromRequest(r).
 				WithField("latency", time.Since(st)).

@@ -19,7 +19,7 @@ var L = logrus.NewEntry(logrus.StandardLogger())
 // WithContext returns a new context with the provided logger. Use in
 // combination with logger.WithField(s) for great effect.
 func WithContext(ctx context.Context, logger *logrus.Entry) context.Context {
-	return context.WithValue(ctx, loggerKey{}, logger)
+	return context.WithValue(ctx, loggerKey{}, &logrus.Entry{})
 }
 
 // FromContext retrieves the current logger from the context. If no
