@@ -144,7 +144,7 @@ type (
 		MaxMemUsagePct float64 `json:"max_mem_usage_pct"`
 		MaxCPUUsagePct float64 `json:"max_cpu_usage_pct"`
 		MemGraph       *Graph  `json:"mem_graph"` // downsampled memory statistics as a percentage
-		CpuGraph       *Graph  `json:"cpu_graph"` // downsampled cpu statistics as a percentage
+		CPUGraph       *Graph  `json:"cpu_graph"` // downsampled cpu statistics as a percentage
 	}
 
 	Graph struct {

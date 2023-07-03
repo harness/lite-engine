@@ -17,25 +17,6 @@ var (
 	downsampleCount = 10
 )
 
-func New(ctx context.Context, interval time.Duration) *StatsCollector {
-	return &StatsCollector{
-		ctx:      ctx,
-		log:      logger.FromContext(ctx),
-		interval: interval,
-		doneCh:   make(chan struct{}),
-		stats: &spec.OSStats{
-			MemGraph: &spec.Graph{
-				Xmetric: "seconds",
-				Ymetric: "mem_mb",
-			},
-			CpuGraph: &spec.Graph{
-				Xmetric: "seconds",
-				Ymetric: "cpu_milli",
-			},
-		},
-	}
-}
-
 type StatsCollector struct {
 	ctx        context.Context
 	st         time.Time
@@ -47,6 +28,35 @@ type StatsCollector struct {
 	cpuPctSum  float64
 	cpuTotal   int
 	memTotalMB float64
+}
+
+type osStat struct {
+	CPUPct         float64
+	MemPct         float64
+	MemTotalMB     float64
+	MemAvailableMB float64
+	MemUsedMB      float64
+	CPUTotal       int // total number of cores
+	SwapMemPct     float64
+}
+
+func New(ctx context.Context, interval time.Duration) *StatsCollector {
+	return &StatsCollector{
+		ctx:      ctx,
+		log:      logger.FromContext(ctx),
+		interval: interval,
+		doneCh:   make(chan struct{}),
+		stats: &spec.OSStats{
+			MemGraph: &spec.Graph{
+				Xmetric: "seconds",
+				Ymetric: "mem_mb",
+			},
+			CPUGraph: &spec.Graph{
+				Xmetric: "seconds",
+				Ymetric: "cpu_milli",
+			},
+		},
+	}
 }
 
 func (s *StatsCollector) Start() {
@@ -67,13 +77,13 @@ func (s *StatsCollector) Aggregate() {
 	if len(s.stats.MemGraph.Points) > 0 {
 		s.stats.AvgMemUsagePct = s.memPctSum / float64(len(s.stats.MemGraph.Points))
 	}
-	if len(s.stats.CpuGraph.Points) > 0 {
-		s.stats.AvgCPUUsagePct = s.cpuPctSum / float64(len(s.stats.CpuGraph.Points))
+	if len(s.stats.CPUGraph.Points) > 0 {
+		s.stats.AvgCPUUsagePct = s.cpuPctSum / float64(len(s.stats.CPUGraph.Points))
 	}
-	s.stats.TotalMemMB = float64(s.memTotalMB)
+	s.stats.TotalMemMB = s.memTotalMB
 	s.stats.CPUCores = s.cpuTotal
 	s.stats.MemGraph.Points = downsample(s.stats.MemGraph.Points, downsampleCount)
-	s.stats.CpuGraph.Points = downsample(s.stats.CpuGraph.Points, downsampleCount)
+	s.stats.CPUGraph.Points = downsample(s.stats.CPUGraph.Points, downsampleCount)
 }
 
 func (s *StatsCollector) collectStats() {
@@ -100,16 +110,6 @@ func (s *StatsCollector) collectStats() {
 	}
 }
 
-type osStat struct {
-	CPUPct         float64
-	MemPct         float64
-	MemTotalMB     float64
-	MemAvailableMB float64
-	MemUsedMB      float64
-	CPUTotal       int // total number of cores
-	SwapMemPct     float64
-}
-
 func formatGB(val uint64) float64 {
 	return float64(val / (1024 * 1024 * 1024))
 }
@@ -134,11 +134,13 @@ func (s *StatsCollector) get() (*osStat, error) {
 		return nil, err
 	}
 
-	s.cpuTotal = int(runtime.NumCPU())
+	s.cpuTotal = runtime.NumCPU()
 	s.memTotalMB = formatMB(vm.Total)
 
 	// log memory
-	s.log.Infof("total_gb: %f, used_gb: %f, free_gb: %f, used_pct: %f, swap_total_gb: %f, swap_used_gb: %f, swap_free_gb: %f", formatGB(vm.Total), formatGB(vm.Used), formatGB(vm.Available), vm.UsedPercent, formatGB(swap.Total), formatGB(swap.Used), formatGB(swap.Free))
+	s.log.Infof("total_gb: %f, used_gb: %f, free_gb: %f, used_pct: %f, swap_total_gb: %f, swap_used_gb: %f, swap_free_gb: %f",
+		formatGB(vm.Total), formatGB(vm.Used), formatGB(vm.Available), vm.UsedPercent, formatGB(swap.Total),
+		formatGB(swap.Used), formatGB(swap.Free))
 
 	// log cpu
 	s.log.Infof("cpu total: %d, cpu used percent: %f", s.cpuTotal, percent[0])
@@ -156,8 +158,8 @@ func (s *StatsCollector) update(stat *osStat) {
 	}
 	s.memPctSum += stat.MemPct
 	s.cpuPctSum += stat.CPUPct
-	s.stats.MemGraph.Points = append(s.stats.MemGraph.Points, spec.Point{X: time.Since(s.st).Seconds(), Y: float64(stat.MemPct)})
-	s.stats.CpuGraph.Points = append(s.stats.CpuGraph.Points, spec.Point{X: time.Since(s.st).Seconds(), Y: float64(stat.CPUPct)})
+	s.stats.MemGraph.Points = append(s.stats.MemGraph.Points, spec.Point{X: time.Since(s.st).Seconds(), Y: stat.MemPct})
+	s.stats.CPUGraph.Points = append(s.stats.CPUGraph.Points, spec.Point{X: time.Since(s.st).Seconds(), Y: stat.CPUPct})
 }
 
 func downsample(points []spec.Point, n int) []spec.Point {

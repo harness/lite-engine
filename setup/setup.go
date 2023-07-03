@@ -76,7 +76,6 @@ func DockerInstalled(instanceInfo InstanceInfo) (installed bool) {
 	return true
 }
 
-
 func ensureChocolatey() {
 	const windowsInstallChoco = "Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1')) " //nolint:lll
 	cmd := exec.Command("choco", "-h")
