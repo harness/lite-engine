@@ -26,10 +26,10 @@ func TestDetectJavaPkgs(t *testing.T) {
 	log := logrus.New()
 
 	l, err := DetectPkgs(pkgDetectTestdata, log, filesystem.New())
-	assert.Contains(t, l, "com.google.test.test")
+	assert.NotContains(t, l, "com.google.test.test")
 	assert.Contains(t, l, "xyz")
 	assert.Contains(t, l, "test1.test1")
-	assert.Len(t, l, 3)
+	assert.Len(t, l, 2)
 	assert.Nil(t, err)
 }
 

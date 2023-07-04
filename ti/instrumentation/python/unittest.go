@@ -42,6 +42,10 @@ func (m *unittestRunner) AutoDetectTests(ctx context.Context, workspace string, 
 	return pythonTests, nil
 }
 
+func (m *unittestRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+	return files
+}
+
 func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// Run all the tests

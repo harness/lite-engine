@@ -17,6 +17,9 @@ import (
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/harness/lite-engine/ti/instrumentation/csharp"
+	"github.com/harness/lite-engine/ti/instrumentation/java"
+	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
 	"github.com/pkg/errors"
@@ -38,6 +41,52 @@ const (
 	harnessStageIndex = "HARNESS_STAGE_INDEX"
 	harnessStageTotal = "HARNESS_STAGE_TOTAL"
 )
+
+func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem) (TestRunner, bool, error) {
+	var runner TestRunner
+	var useYaml bool
+	switch strings.ToLower(language) {
+	case "scala", "java", "kotlin":
+		useYaml = false
+		switch buildTool {
+		case "maven":
+			runner = java.NewMavenRunner(log, fs)
+		case "gradle":
+			runner = java.NewGradleRunner(log, fs)
+		case "bazel":
+			runner = java.NewBazelRunner(log, fs)
+		case "sbt":
+			if language != "scala" {
+				return runner, useYaml, fmt.Errorf("build tool: SBT is not supported for non-Scala languages")
+			}
+			runner = java.NewSBTRunner(log, fs)
+		default:
+			return runner, useYaml, fmt.Errorf("build tool: %s is not supported for Java", buildTool)
+		}
+	case "csharp":
+		useYaml = true
+		switch buildTool {
+		case "dotnet":
+			runner = csharp.NewDotnetRunner(log, fs)
+		case "nunitconsole":
+			runner = csharp.NewNunitConsoleRunner(log, fs)
+		default:
+			return runner, useYaml, fmt.Errorf("could not figure out the build tool: %s", buildTool)
+		}
+	case "python":
+		switch buildTool {
+		case "pytest":
+			runner = python.NewPytestRunner(log, fs)
+		case "unittest":
+			runner = python.NewUnittestRunner(log, fs)
+		default:
+			return runner, useYaml, fmt.Errorf("could not figure out the build tool: %s", buildTool)
+		}
+	default:
+		return runner, useYaml, fmt.Errorf("language %s is not suported", language)
+	}
+	return runner, useYaml, nil
+}
 
 // getTestTime gets the the timing data from TI service based on the split strategy
 func getTestTime(ctx context.Context, splitStrategy string, cfg *tiCfg.Cfg) (map[string]float64, error) {
@@ -254,7 +303,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 	fs filesystem.FileSystem, log *logrus.Logger, config *tiCfg.Cfg) (string, error) {
 	// Get download links from TI service
 	c := config.GetClient()
-	log.Infoln("getting TI agent artifact download links for language:" + language)
+	log.Infof("Getting TI agent artifact download links for language: %s", language)
 	links, err := c.DownloadLink(ctx, language, os, arch, framework, "", "")
 	if err != nil {
 		log.WithError(err).Println("could not fetch download links for artifact download")
@@ -330,7 +379,7 @@ instrPackages: [%s]`, dir, strings.Join(p, ","))
 		data = data + "\n" + fmt.Sprintf("testAnnotations: %s", annotations)
 	}
 
-	log.Infoln(fmt.Sprintf("attempting to write %s to %s", data, outputFile))
+	log.Infof("Attempting to write to %s with config:\n%s", outputFile, data)
 	f, err := fs.Create(outputFile)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create file %s", outputFile))

@@ -44,6 +44,10 @@ func (b *nunitConsoleRunner) AutoDetectTests(ctx context.Context, workspace stri
 	return tests, nil
 }
 
+func (b *nunitConsoleRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+	return files
+}
+
 func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, //nolint:gocyclo
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	/*

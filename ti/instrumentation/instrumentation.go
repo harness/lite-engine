@@ -15,9 +15,6 @@ import (
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/internal/filesystem"
 	tiCfg "github.com/harness/lite-engine/ti/config"
-	"github.com/harness/lite-engine/ti/instrumentation/csharp"
-	"github.com/harness/lite-engine/ti/instrumentation/java"
-	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
 )
@@ -28,8 +25,8 @@ const (
 	defaultTestSplitStrategy     = classTimingTestSplitStrategy
 )
 
-func getTestSelection(ctx context.Context, config *api.RunTestConfig, fs filesystem.FileSystem, stepID, workspace string,
-	log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) ti.SelectTestsResp {
+func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTestConfig, fs filesystem.FileSystem,
+	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) ti.SelectTestsResp {
 	selection := ti.SelectTestsResp{}
 	if isManual {
 		// Manual run
@@ -43,7 +40,8 @@ func getTestSelection(ctx context.Context, config *api.RunTestConfig, fs filesys
 			config.RunOnlySelectedTests = false
 		} else {
 			// PR execution: Call TI svc only when there is a chance of running selected tests
-			selection, err = selectTests(ctx, workspace, files, config.RunOnlySelectedTests, stepID, fs, tiConfig)
+			filesWithPkg := runner.ReadPackages(workspace, files)
+			selection, err = selectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
 			if err != nil {
 				log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
 				config.RunOnlySelectedTests = false // run all the tests if an error was encountered
@@ -134,7 +132,7 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	config.RunOnlySelectedTests = true
 }
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string, cfg *tiCfg.Cfg) (string, error) { //nolint:funlen,gocyclo
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string, cfg *tiCfg.Cfg) (string, error) {
 	fs := filesystem.New()
 	tmpFilePath := cfg.GetDataDir()
 
@@ -146,54 +144,16 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	isManual := IsManualExecution(cfg)
 	ignoreInstr := isManual || !config.RunOnlySelectedTests
 
-	// Get the tests that need to be run if we are running selected tests
-	selection := getTestSelection(ctx, config, fs, stepID, workspace, log, isManual, cfg)
-
-	var runner TestRunner
-	useYaml := false
+	// Get TI runner
 	config.Language = strings.ToLower(config.Language)
 	config.BuildTool = strings.ToLower(config.BuildTool)
-
-	switch strings.ToLower(config.Language) {
-	case "scala", "java", "kotlin":
-		useYaml = false
-		switch config.BuildTool {
-		case "maven":
-			runner = java.NewMavenRunner(log, fs)
-		case "gradle":
-			runner = java.NewGradleRunner(log, fs)
-		case "bazel":
-			runner = java.NewBazelRunner(log, fs)
-		case "sbt":
-			if config.Language != "scala" {
-				return "", fmt.Errorf("build tool: SBT is not supported for non-Scala languages")
-			}
-			runner = java.NewSBTRunner(log, fs)
-		default:
-			return "", fmt.Errorf("build tool: %s is not supported for Java", config.BuildTool)
-		}
-	case "csharp":
-		useYaml = true
-		switch config.BuildTool {
-		case "dotnet":
-			runner = csharp.NewDotnetRunner(log, fs)
-		case "nunitconsole":
-			runner = csharp.NewNunitConsoleRunner(log, fs)
-		default:
-			return "", fmt.Errorf("could not figure out the build tool: %s", config.BuildTool)
-		}
-	case "python":
-		switch config.BuildTool {
-		case "pytest":
-			runner = python.NewPytestRunner(log, fs)
-		case "unittest":
-			runner = python.NewUnittestRunner(log, fs)
-		default:
-			return "", fmt.Errorf("could not figure out the build tool: %s", config.BuildTool)
-		}
-	default:
-		return "", fmt.Errorf("language %s is not suported", config.Language)
+	runner, useYaml, err := getTiRunner(config.Language, config.BuildTool, log, fs)
+	if err != nil {
+		return "", err
 	}
+
+	// Get the tests that need to be run if we are running selected tests
+	selection := getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
 
 	// Install agent artifacts if not present
 	artifactDir, err := installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log, cfg)

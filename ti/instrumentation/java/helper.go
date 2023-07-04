@@ -201,10 +201,108 @@ func ParseJavaNode(filename string, testGlobs []string) (*common.Node, error) {
 	return &node, nil
 }
 
-// detect java packages by reading all the files and parsing their package names
-func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) ([]string, error) { //nolint:gocyclo
-	plist := []string{}
+// ReadJavaPkg reads the package from the input java file
+func ReadJavaPkg(log *logrus.Logger, fs filesystem.FileSystem, f string, excludeList []string, packageLen int) (string, error) { //nolint:gocyclo
+	// TODO: (Vistaar)
+	// This doesn't handle some special cases right now such as when there is a package
+	// present in a multiline comment with multiple opening and closing comments.
+	// We will require to read all the lines together to handle this.
+	result := ""
+	absPath, err := filepath.Abs(f)
+	if !strings.HasSuffix(absPath, ".java") && !strings.HasSuffix(absPath, ".scala") && !strings.HasSuffix(absPath, ".kt") {
+		return result, nil
+	}
+	if err != nil {
+		log.Errorf("Failed to get absolute path for %s with error: %s", f, err)
+		return "", err
+	}
+	err = fs.ReadFile(absPath, func(fr io.Reader) error {
+		scanner := bufio.NewScanner(fr)
+		commentOpen := false
+		for scanner.Scan() {
+			l := strings.TrimSpace(scanner.Text())
+			if strings.Contains(l, "/*") {
+				commentOpen = true
+			}
+			if strings.Contains(l, "*/") {
+				commentOpen = false
+				continue
+			}
+			if commentOpen || strings.HasPrefix(l, "//") {
+				continue
+			}
+			prev := ""
+			pkg := ""
+			for _, token := range strings.Fields(l) {
+				if prev == "package" {
+					pkg = token
+					break
+				}
+				prev = token
+			}
+			if pkg != "" {
+				pkg = strings.TrimSuffix(pkg, ";")
+				tokens := strings.Split(pkg, ".")
+				for _, exclude := range excludeList {
+					if strings.HasPrefix(pkg, exclude) {
+						log.Infof("Found package: %s having same package prefix as: %s. Excluding this package from the list...", pkg, exclude)
+						return nil
+					}
+				}
+				pkg = tokens[0]
+				if packageLen == -1 {
+					// Read full package name
+					for i, token := range tokens {
+						if i == 0 {
+							continue
+						}
+						pkg = pkg + "." + strings.TrimSpace(token)
+					}
+					result = pkg
+					return nil
+				}
+				for i := 1; i < packageLen && i < len(tokens); i++ {
+					pkg = pkg + "." + strings.TrimSpace(tokens[i])
+				}
+				if pkg == "" {
+					continue
+				}
+				result = pkg
+				return nil
+			}
+		}
+		if err = scanner.Err(); err != nil {
+			log.Errorf("Failed to scan the file %s with error: %s", f, err)
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		log.Errorf("Failed to auto detect java package for %s with error: %s", f, err)
+	}
+	return result, err
+}
+
+// ReadPkgs reads and populates java packages for all input files
+func ReadPkgs(log *logrus.Logger, fs filesystem.FileSystem, workspace string, files []ti.File) []ti.File {
+	for i, file := range files {
+		if file.Status != ti.FileDeleted {
+			fileName := fmt.Sprintf("%s/%s", workspace, file.Name)
+			pkg, err := ReadJavaPkg(log, fs, fileName, make([]string, 0), -1)
+			if err != nil {
+				log.WithError(err).Errorln("something went wrong when parsing package, using file path as package")
+			}
+			files[i].Package = pkg
+		}
+	}
+	return files
+}
+
+// DetectPkgs detects java packages by reading all the files and parsing their package names
+func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) ([]string, error) {
+	plist := make([]string, 0)
 	excludeList := []string{"com.google"} // exclude any instances of these packages from the package list
+	packageLen := 2                       // length of package to be auto-detected (io.harness for io.harness.ci.execution)
 
 	files, err := common.GetFiles(fmt.Sprintf("%s/**/*.java", workspace))
 	if err != nil {
@@ -224,74 +322,13 @@ func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) 
 	fmt.Println("files: ", files)
 	m := make(map[string]struct{})
 	for _, f := range files {
-		absPath, err := filepath.Abs(f)
-		if err != nil {
-			log.WithError(err).WithField("file", f).Errorln("could not get absolute path")
+		pkg, err := ReadJavaPkg(log, fs, f, excludeList, packageLen)
+		if err != nil || pkg == "" {
 			continue
 		}
-		// TODO: (Vistaar)
-		// This doesn't handle some special cases right now such as when there is a package
-		// present in a multiline comment with multiple opening and closing comments.
-		// We will require to read all the lines together to handle this.
-		err = fs.ReadFile(absPath, func(fr io.Reader) error {
-			scanner := bufio.NewScanner(fr)
-			commentOpen := false
-			for scanner.Scan() {
-				l := strings.TrimSpace(scanner.Text())
-				if strings.Contains(l, "/*") {
-					commentOpen = true
-				}
-				if strings.Contains(l, "*/") {
-					commentOpen = false
-					continue
-				}
-				if commentOpen || strings.HasPrefix(l, "//") {
-					continue
-				}
-				prev := ""
-				pkg := ""
-				for _, token := range strings.Fields(l) {
-					if prev == "package" {
-						pkg = token
-						break
-					}
-					prev = token
-				}
-				if pkg != "" {
-					pkg = strings.TrimSuffix(pkg, ";")
-					tokens := strings.Split(pkg, ".")
-					prefix := false
-					for _, exclude := range excludeList {
-						if strings.HasPrefix(pkg, exclude) {
-							logrus.Infoln(fmt.Sprintf("Found package: %s having same package prefix as: %s. Excluding this package from the list...", pkg, exclude))
-							prefix = true
-							break
-						}
-					}
-					if !prefix {
-						pkg = tokens[0]
-						if len(tokens) > 1 {
-							pkg = pkg + "." + tokens[1]
-						}
-					}
-					if pkg == "" {
-						continue
-					}
-					if _, ok := m[pkg]; !ok {
-						plist = append(plist, pkg)
-						m[pkg] = struct{}{}
-					}
-					return nil
-				}
-			}
-			if err = scanner.Err(); err != nil {
-				logrus.WithError(err).Errorln("could not scan all the files")
-				return err
-			}
-			return nil
-		})
-		if err != nil {
-			logrus.WithError(err).Errorln("had issues while trying to auto detect java packages")
+		if _, ok := m[pkg]; !ok {
+			plist = append(plist, pkg)
+			m[pkg] = struct{}{}
 		}
 	}
 	return plist, nil

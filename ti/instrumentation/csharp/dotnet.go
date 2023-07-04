@@ -48,6 +48,10 @@ func (b *dotnetRunner) AutoDetectTests(ctx context.Context, workspace string, te
 	return tests, nil
 }
 
+func (b *dotnetRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+	return files
+}
+
 func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// Move config.ini to Config.yaml manually for now. Later, we will use the same format for both
 	// agentInstallDir should have the zip file
