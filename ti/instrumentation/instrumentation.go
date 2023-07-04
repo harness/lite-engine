@@ -132,7 +132,7 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	config.RunOnlySelectedTests = true
 }
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string, cfg *tiCfg.Cfg) (string, error) { //nolint:funlen,gocyclo
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string, cfg *tiCfg.Cfg) (string, error) {
 	fs := filesystem.New()
 	tmpFilePath := cfg.GetDataDir()
 

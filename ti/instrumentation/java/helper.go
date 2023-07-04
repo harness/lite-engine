@@ -202,7 +202,7 @@ func ParseJavaNode(filename string, testGlobs []string) (*common.Node, error) {
 }
 
 // ReadJavaPkg reads the package from the input java file
-func ReadJavaPkg(log *logrus.Logger, fs filesystem.FileSystem, f string, excludeList []string, packageLen int) (string, error) {
+func ReadJavaPkg(log *logrus.Logger, fs filesystem.FileSystem, f string, excludeList []string, packageLen int) (string, error) { //nolint:gocyclo
 	// TODO: (Vistaar)
 	// This doesn't handle some special cases right now such as when there is a package
 	// present in a multiline comment with multiple opening and closing comments.
@@ -299,9 +299,10 @@ func ReadPkgs(log *logrus.Logger, fs filesystem.FileSystem, workspace string, fi
 }
 
 // DetectPkgs detects java packages by reading all the files and parsing their package names
-func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) ([]string, error) { //nolint:gocyclo
-	plist := []string{}
+func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) ([]string, error) {
+	plist := make([]string, 0)
 	excludeList := []string{"com.google"} // exclude any instances of these packages from the package list
+	packageLen := 2                       // length of package to be auto-detected (io.harness for io.harness.ci.execution)
 
 	files, err := common.GetFiles(fmt.Sprintf("%s/**/*.java", workspace))
 	if err != nil {
@@ -321,7 +322,7 @@ func DetectPkgs(workspace string, log *logrus.Logger, fs filesystem.FileSystem) 
 	fmt.Println("files: ", files)
 	m := make(map[string]struct{})
 	for _, f := range files {
-		pkg, err := ReadJavaPkg(log, fs, f, excludeList, 2)
+		pkg, err := ReadJavaPkg(log, fs, f, excludeList, packageLen)
 		if err != nil || pkg == "" {
 			continue
 		}
