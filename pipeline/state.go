@@ -11,6 +11,7 @@ import (
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/filestore"
 	"github.com/harness/lite-engine/logstream/remote"
+	"github.com/harness/lite-engine/osstats"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 )
 
@@ -30,15 +31,18 @@ type State struct {
 	logConfig api.LogConfig
 	tiConfig  tiCfg.Cfg
 	secrets   []string
-	logClient logstream.Client
+
+	statsCollector *osstats.StatsCollector
+	logClient      logstream.Client
 }
 
-func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg) {
+func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, collector *osstats.StatsCollector) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.secrets = secrets
 	s.logConfig = logConfig
 	s.tiConfig = tiConfig
+	s.statsCollector = collector
 }
 
 func (s *State) GetSecrets() []string {
@@ -46,6 +50,13 @@ func (s *State) GetSecrets() []string {
 	defer s.mu.Unlock()
 
 	return s.secrets
+}
+
+func (s *State) GetStatsCollector() *osstats.StatsCollector {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.statsCollector
 }
 
 func (s *State) GetLogStreamClient() logstream.Client {
@@ -73,11 +84,12 @@ func (s *State) GetTIConfig() *tiCfg.Cfg {
 func GetState() *State {
 	once.Do(func() {
 		state = &State{
-			mu:        sync.Mutex{},
-			logConfig: api.LogConfig{},
-			tiConfig:  tiCfg.Cfg{},
-			secrets:   make([]string, 0),
-			logClient: nil,
+			mu:             sync.Mutex{},
+			logConfig:      api.LogConfig{},
+			tiConfig:       tiCfg.Cfg{},
+			statsCollector: &osstats.StatsCollector{},
+			secrets:        make([]string, 0),
+			logClient:      nil,
 		}
 	})
 	return state
