@@ -66,6 +66,10 @@ func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string, tes
 	return tests, nil
 }
 
+func (b *bazelRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+	return ReadPkgs(b.log, b.fs, workspace, files)
+}
+
 func getBazelTestRules(ctx context.Context, log *logrus.Logger, tests []ti.RunnableTest, workspace string) []ti.RunnableTest {
 	var testList []ti.RunnableTest
 	var testStrings []string

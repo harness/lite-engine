@@ -49,6 +49,10 @@ func (m *mavenRunner) AutoDetectTests(ctx context.Context, workspace string, tes
 	return tests, nil
 }
 
+func (m *mavenRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+	return ReadPkgs(m.log, m.fs, workspace, files)
+}
+
 func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// Agent arg

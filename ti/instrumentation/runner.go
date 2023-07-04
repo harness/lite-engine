@@ -31,4 +31,8 @@ type TestRunner interface {
 	// AutoDetectTests detects the list of tests in the workspace
 	// Return an error if we could not detect or if it's unimplemented
 	AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error)
+
+	// ReadPackages reads and populates the package of each file.
+	// Return the same list if it's unimplemented.
+	ReadPackages(workspace string, files []ti.File) []ti.File
 }

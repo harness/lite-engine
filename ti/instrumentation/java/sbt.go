@@ -45,6 +45,10 @@ func (s *sbtRunner) AutoDetectTests(ctx context.Context, workspace string, testG
 	return tests, nil
 }
 
+func (s *sbtRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+	return ReadPkgs(s.log, s.fs, workspace, files)
+}
+
 func (s *sbtRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// Agent arg
