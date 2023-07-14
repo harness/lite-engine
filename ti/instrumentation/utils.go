@@ -29,6 +29,7 @@ import (
 
 var (
 	diffFilesCmd = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
+	diffFilesCmdPushTrigger = []string{"diff", "--name-status", "--diff-filter=MADR"}
 )
 
 const (
@@ -86,6 +87,15 @@ func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.F
 		return runner, useYaml, fmt.Errorf("language %s is not suported", language)
 	}
 	return runner, useYaml, nil
+}
+
+func getCommitInfo(ctx context.Context, stepID string, cfg *tiCfg.Cfg) string {
+	c:= cfg.GetClient()
+	branch :=cfg.GetSourceBranch()
+
+	resp, _ := c.CommitInfo(ctx, stepID, branch)
+
+	return resp.LastSuccessfullCommitId
 }
 
 // getTestTime gets the the timing data from TI service based on the split strategy
@@ -187,8 +197,14 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 }
 
 // getChangedFiles returns a list of files changed in the PR along with their corresponding status
-func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger) ([]ti.File, error) {
-	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmd...)
+func getChangedFiles(ctx context.Context, workspace, lastSuccessfulCommitId string, isPushTrigger bool, log *logrus.Logger) ([]ti.File, error) {
+
+	diffFilesCmdFinal:= diffFilesCmd
+	if isPushTrigger {
+		diffFilesCmdFinal = append(diffFilesCmdPushTrigger, lastSuccessfulCommitId)
+	}
+	
+	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmdFinal...)
 	envs := make(map[string]string)
 	for _, e := range os.Environ() {
 		if i := strings.Index(e, "="); i >= 0 {
@@ -430,6 +446,13 @@ func valid(tests []ti.RunnableTest) bool {
 func IsManualExecution(cfg *tiCfg.Cfg) bool {
 	if cfg.GetSourceBranch() == "" || cfg.GetTargetBranch() == "" || cfg.GetSha() == "" {
 		return true // if any of them are not set, treat as a manual execution
+	}
+	return false
+}
+
+func IsPushTriggerExecution(cfg *tiCfg.Cfg) bool {
+	if ((cfg.GetSourceBranch() == cfg.GetTargetBranch()) && !IsManualExecution(cfg)){
+		return true
 	}
 	return false
 }

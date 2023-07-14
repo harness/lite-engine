@@ -34,7 +34,23 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
 	} else {
 		// PR execution
-		files, err := getChangedFiles(ctx, workspace, log)
+		var files []ti.File
+		var err error
+		if IsPushTriggerExecution(tiConfig) {
+			log.Infoln("Detected Push Trigger execution")
+			lastSuccessfulCommitId := getCommitInfo(ctx, stepID, tiConfig)
+			log.Infoln("lastSuccessfullCommitId is ", lastSuccessfulCommitId)
+			if lastSuccessfulCommitId == "" {
+				log.Infoln("Test Intelligence determined to run all the tests in push trigger case since no lastsuccessful commit found")
+				config.RunOnlySelectedTests = false // TI selected all the tests to be run
+				return selection
+			}
+			files, err = getChangedFiles(ctx, workspace, lastSuccessfulCommitId, true, log)
+
+		} else {
+			files, err = getChangedFiles(ctx, workspace, "", false, log)
+		}
+		log.Infoln("Changed Files are ", files)
 		if err != nil || len(files) == 0 {
 			log.Errorln("Unable to get changed files list")
 			config.RunOnlySelectedTests = false
