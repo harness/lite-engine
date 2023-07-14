@@ -87,6 +87,12 @@ func (s *StatsCollector) Aggregate() {
 }
 
 func (s *StatsCollector) collectStats() {
+	stat, err := s.get()
+	if err == nil {
+		s.update(stat)
+	}
+
+	// Start collecting stats periodically
 	timer := time.NewTimer(s.interval)
 	defer timer.Stop()
 
@@ -111,11 +117,11 @@ func (s *StatsCollector) collectStats() {
 }
 
 func formatGB(val uint64) float64 {
-	return float64(float64(val) / (1024 * 1024 * 1024))
+	return float64(val) / (1024 * 1024 * 1024)
 }
 
 func formatMB(val uint64) float64 {
-	return float64(float64(val) / (1024 * 1024))
+	return float64(val) / (1024 * 1024)
 }
 
 func (s *StatsCollector) get() (*osStat, error) {
