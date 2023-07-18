@@ -198,7 +198,6 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 
 // getChangedFiles returns a list of files changed in the PR along with their corresponding status
 func getChangedFiles(ctx context.Context, workspace, lastSuccessfulCommitID string, isPushTrigger bool, log *logrus.Logger) ([]ti.File, error) {
-
 	diffFilesCmdFinal := diffFilesCmd
 	if isPushTrigger {
 		diffFilesCmdPushTrigger = append(diffFilesCmdPushTrigger, lastSuccessfulCommitID)
