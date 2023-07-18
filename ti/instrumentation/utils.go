@@ -95,7 +95,7 @@ func getCommitInfo(ctx context.Context, stepID string, cfg *tiCfg.Cfg) string {
 
 	resp, _ := c.CommitInfo(ctx, stepID, branch)
 
-	return resp.LastSuccessfullCommitId
+	return resp.LastSuccessfulCommitId
 }
 
 // getTestTime gets the the timing data from TI service based on the split strategy
@@ -201,7 +201,8 @@ func getChangedFiles(ctx context.Context, workspace, lastSuccessfulCommitId stri
 
 	diffFilesCmdFinal:= diffFilesCmd
 	if isPushTrigger {
-		diffFilesCmdFinal = append(diffFilesCmdPushTrigger, lastSuccessfulCommitId)
+		diffFilesCmdPushTrigger = append(diffFilesCmdPushTrigger, lastSuccessfulCommitId)
+		diffFilesCmdFinal = diffFilesCmdPushTrigger
 	}
 	
 	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmdFinal...)
