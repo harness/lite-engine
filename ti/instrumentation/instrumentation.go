@@ -38,15 +38,14 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		var err error
 		if IsPushTriggerExecution(tiConfig) {
 			log.Infoln("Detected Push Trigger execution")
-			lastSuccessfulCommitId := getCommitInfo(ctx, stepID, tiConfig)
-			log.Infoln("lastSuccessfulCommitId is ", lastSuccessfulCommitId)
-			if lastSuccessfulCommitId == "" {
+			lastSuccessfulCommitID := getCommitInfo(ctx, stepID, tiConfig)
+			log.Infoln("lastSuccessfulCommitID is ", lastSuccessfulCommitID)
+			if lastSuccessfulCommitID == "" {
 				log.Infoln("Test Intelligence determined to run all the tests in push trigger case since no lastsuccessful commit found")
 				config.RunOnlySelectedTests = false // TI selected all the tests to be run
 				return selection
 			}
-			files, err = getChangedFiles(ctx, workspace, lastSuccessfulCommitId, true, log)
-
+			files, err = getChangedFiles(ctx, workspace, lastSuccessfulCommitID, true, log)
 		} else {
 			files, err = getChangedFiles(ctx, workspace, "", false, log)
 		}
