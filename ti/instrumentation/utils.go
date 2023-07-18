@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	diffFilesCmd = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
+	diffFilesCmd            = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
 	diffFilesCmdPushTrigger = []string{"diff", "--name-status", "--diff-filter=MADR"}
 )
 
@@ -90,8 +90,8 @@ func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.F
 }
 
 func getCommitInfo(ctx context.Context, stepID string, cfg *tiCfg.Cfg) string {
-	c:= cfg.GetClient()
-	branch :=cfg.GetSourceBranch()
+	c := cfg.GetClient()
+	branch := cfg.GetSourceBranch()
 
 	resp, _ := c.CommitInfo(ctx, stepID, branch)
 
@@ -199,12 +199,12 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 // getChangedFiles returns a list of files changed in the PR along with their corresponding status
 func getChangedFiles(ctx context.Context, workspace, lastSuccessfulCommitId string, isPushTrigger bool, log *logrus.Logger) ([]ti.File, error) {
 
-	diffFilesCmdFinal:= diffFilesCmd
+	diffFilesCmdFinal := diffFilesCmd
 	if isPushTrigger {
 		diffFilesCmdPushTrigger = append(diffFilesCmdPushTrigger, lastSuccessfulCommitId)
 		diffFilesCmdFinal = diffFilesCmdPushTrigger
 	}
-	
+
 	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmdFinal...)
 	envs := make(map[string]string)
 	for _, e := range os.Environ() {
@@ -452,7 +452,7 @@ func IsManualExecution(cfg *tiCfg.Cfg) bool {
 }
 
 func IsPushTriggerExecution(cfg *tiCfg.Cfg) bool {
-	if ((cfg.GetSourceBranch() == cfg.GetTargetBranch()) && !IsManualExecution(cfg)){
+	if (cfg.GetSourceBranch() == cfg.GetTargetBranch()) && !IsManualExecution(cfg) {
 		return true
 	}
 	return false
