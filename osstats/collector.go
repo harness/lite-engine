@@ -87,6 +87,12 @@ func (s *StatsCollector) Aggregate() {
 }
 
 func (s *StatsCollector) collectStats() {
+	stat, err := s.get()
+	if err == nil {
+		s.update(stat)
+	}
+
+	// Start collecting stats periodically
 	timer := time.NewTimer(s.interval)
 	defer timer.Stop()
 
