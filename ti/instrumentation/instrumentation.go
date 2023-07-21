@@ -30,18 +30,20 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	selection := ti.SelectTestsResp{}
 	if isManual {
 		// Manual run
-		log.Infoln("Detected manual execution - for test intelligence to be configured, a PR must be raised. Running all the tests.")
+		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger. Running all the tests.")
 		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
 	} else {
 		// PR execution
 		var files []ti.File
 		var err error
 		if IsPushTriggerExecution(tiConfig) {
-			log.Infoln("Detected Push Trigger execution")
+			log.Infoln("Detected Push Trigger execution. Invoking Test Intelligence")
 			lastSuccessfulCommitID := getCommitInfo(ctx, stepID, tiConfig)
-			log.Infoln("lastSuccessfulCommitID is ", lastSuccessfulCommitID)
+			if lastSuccessfulCommitID != "" {
+				log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
+			}
 			if lastSuccessfulCommitID == "" {
-				log.Infoln("Test Intelligence determined to run all the tests in push trigger case since no lastsuccessful commit found")
+				log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
 				config.RunOnlySelectedTests = false // TI selected all the tests to be run
 				return selection
 			}
@@ -50,10 +52,10 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			files, err = getChangedFiles(ctx, workspace, "", false, log)
 		}
 		if err != nil || len(files) == 0 {
-			log.Errorln("Unable to get changed files list")
+			log.Errorln("Unable to get changed files list. Running all the tests.")
 			config.RunOnlySelectedTests = false
 		} else {
-			log.Infoln("Changed Files are ", files)
+			log.Infoln("Changed Files are: ", files)
 			// PR execution: Call TI svc only when there is a chance of running selected tests
 			filesWithPkg := runner.ReadPackages(workspace, files)
 			selection, err = selectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
