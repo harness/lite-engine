@@ -13,6 +13,7 @@ import (
 	"io"
 	"sync"
 	"time"
+	"strings"
 
 	"github.com/harness/lite-engine/engine/docker/image"
 	"github.com/harness/lite-engine/engine/spec"
@@ -227,6 +228,13 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		}
 	}
 
+	if path, ok := step.Envs["PATH"]; ok {
+		dockerEnvMap := e.getDockerImageEnvs(ctx, step.Image)
+		if dockerPathEnv, ok := dockerEnvMap["PATH"]; ok {
+			step.Envs["PATH"] = strings.TrimRight(path, ":") + ":" + dockerPathEnv
+		} 
+	}
+
 	_, err := e.client.ContainerCreate(ctx,
 		toConfig(pipelineConfig, step),
 		toHostConfig(pipelineConfig, step),
@@ -426,4 +434,19 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 		time.Sleep(time.Millisecond * networkMaxRetries)
 	}
 	return err
+}
+
+func (e *Docker) getDockerImageEnvs(ctx context.Context, image string) map[string]string {
+	dockerEnvMap := make(map[string]string)
+	if imageInspect, _, err := e.client.ImageInspectWithRaw(ctx, image); err == nil {
+		for _, envVar := range imageInspect.Config.Env {
+			parts := strings.SplitN(envVar, "=", 2)
+			if len(parts) == 2 {
+				dockerEnvMap[parts[0]] = parts[1]
+			}
+		}
+	} else {
+		logrus.Errorf("Unable to inspect docker image, failed with err: %s", err)
+	}
+	return dockerEnvMap
 }
