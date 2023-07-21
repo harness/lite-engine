@@ -38,6 +38,8 @@ const (
 	imageRetrySleepDuration   = 50
 	networkMaxRetries         = 3
 	networkRetrySleepDuration = 50
+	dockerImageSplitLength    = 2
+	pathEnvVariable			  = "PATH"
 )
 
 // Opts configures the Docker engine.
@@ -218,6 +220,8 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		)
 	}
 
+	pulled := false
+
 	// automatically pull the latest version of the image if requested
 	// by the process configuration, or if the image is :latest
 	if step.Pull == spec.PullAlways ||
@@ -226,13 +230,29 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		if pullerr != nil {
 			return pullerr
 		}
+		pulled = true
 	}
 
-	if path, ok := step.Envs["PATH"]; ok {
-		dockerEnvMap := e.getDockerImageEnvs(ctx, step.Image)
-		if dockerPathEnv, ok := dockerEnvMap["PATH"]; ok {
-			step.Envs["PATH"] = strings.TrimRight(path, ":") + ":" + dockerPathEnv
-		} 
+	if path, ok := step.Envs[pathEnvVariable]; ok {
+		// pull the image if not already pulled
+		if !pulled {
+			// check if already present on VM else pull
+			pulled = true
+			if exists := e.imageExistsLocally(ctx, step.Image); !exists {
+				if pullerr := e.pullImageWithRetries(ctx, step.Image, pullopts, output); pullerr != nil {
+					logrus.Warnf("Unable to pull docker image for inspection, failed with err: %s", pullerr)
+					pulled = false
+				}
+			}
+		}
+
+		if pulled {
+			// inspect the image
+			dockerEnvMap := e.getDockerImageEnvs(ctx, step.Image)
+			if dockerPathEnv, ok := dockerEnvMap[pathEnvVariable]; ok {
+				step.Envs[pathEnvVariable] = strings.TrimRight(path, ":") + ":" + dockerPathEnv
+			} 
+		}
 	}
 
 	_, err := e.client.ContainerCreate(ctx,
@@ -436,12 +456,27 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	return err
 }
 
+func (e *Docker) imageExistsLocally(ctx context.Context, imageName string) bool {
+	images, err := e.client.ImageList(ctx, types.ImageListOptions{})
+	if err != nil {
+		return false
+	}
+	for _, image := range images {
+		for _, tag := range image.RepoTags {
+			if tag == imageName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (e *Docker) getDockerImageEnvs(ctx context.Context, image string) map[string]string {
 	dockerEnvMap := make(map[string]string)
 	if imageInspect, _, err := e.client.ImageInspectWithRaw(ctx, image); err == nil {
 		for _, envVar := range imageInspect.Config.Env {
-			parts := strings.SplitN(envVar, "=", 2)
-			if len(parts) == 2 {
+			parts := strings.SplitN(envVar, "=", dockerImageSplitLength)
+			if len(parts) == dockerImageSplitLength {
 				dockerEnvMap[parts[0]] = parts[1]
 			}
 		}
