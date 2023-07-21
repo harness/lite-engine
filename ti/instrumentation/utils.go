@@ -244,6 +244,7 @@ func getChangedFiles(ctx context.Context, workspace, lastSuccessfulCommitID stri
 			return res, nil
 		}
 	}
+	log.Infoln("Changed Files are: ", res)
 	return res, nil
 }
 

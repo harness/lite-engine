@@ -55,7 +55,6 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			log.Errorln("Unable to get changed files list. Running all the tests.")
 			config.RunOnlySelectedTests = false
 		} else {
-			log.Infoln("Changed Files are: ", files)
 			// PR execution: Call TI svc only when there is a chance of running selected tests
 			filesWithPkg := runner.ReadPackages(workspace, files)
 			selection, err = selectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
