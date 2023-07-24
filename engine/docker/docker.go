@@ -11,9 +11,9 @@ package docker
 import (
 	"context"
 	"io"
+	"strings"
 	"sync"
 	"time"
-	"strings"
 
 	"github.com/harness/lite-engine/engine/docker/image"
 	"github.com/harness/lite-engine/engine/spec"
@@ -39,7 +39,7 @@ const (
 	networkMaxRetries         = 3
 	networkRetrySleepDuration = 50
 	dockerImageSplitLength    = 2
-	pathEnvVariable			  = "PATH"
+	pathEnvVariable           = "PATH"
 )
 
 // Opts configures the Docker engine.
@@ -220,39 +220,8 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		)
 	}
 
-	pulled := false
-
-	// automatically pull the latest version of the image if requested
-	// by the process configuration, or if the image is :latest
-	if step.Pull == spec.PullAlways ||
-		(step.Pull == spec.PullDefault && image.IsLatest(step.Image)) {
-		pullerr := e.pullImageWithRetries(ctx, step.Image, pullopts, output)
-		if pullerr != nil {
-			return pullerr
-		}
-		pulled = true
-	}
-
-	if path, ok := step.Envs[pathEnvVariable]; ok {
-		// pull the image if not already pulled
-		if !pulled {
-			// check if already present on VM else pull
-			pulled = true
-			if exists := e.imageExistsLocally(ctx, step.Image); !exists {
-				if pullerr := e.pullImageWithRetries(ctx, step.Image, pullopts, output); pullerr != nil {
-					logrus.Warnf("Unable to pull docker image for inspection, failed with err: %s", pullerr)
-					pulled = false
-				}
-			}
-		}
-
-		if pulled {
-			// inspect the image
-			dockerEnvMap := e.getDockerImageEnvs(ctx, step.Image)
-			if dockerPathEnv, ok := dockerEnvMap[pathEnvVariable]; ok {
-				step.Envs[pathEnvVariable] = strings.TrimRight(path, ":") + ":" + dockerPathEnv
-			} 
-		}
+	if err := e.pullDockerImage(ctx, step, pullopts, output); err != nil {
+		return err
 	}
 
 	_, err := e.client.ContainerCreate(ctx,
@@ -456,14 +425,52 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	return err
 }
 
+func (e *Docker) pullDockerImage(ctx context.Context, step *spec.Step, pullOpts types.ImagePullOptions, output io.Writer) error {
+	pulled := false
+
+	// automatically pull the latest version of the image if requested
+	// by the process configuration, or if the image is :latest
+	if step.Pull == spec.PullAlways ||
+		(step.Pull == spec.PullDefault && image.IsLatest(step.Image)) {
+		pullerr := e.pullImageWithRetries(ctx, step.Image, pullOpts, output)
+		if pullerr != nil {
+			return pullerr
+		}
+		pulled = true
+	}
+
+	if path, ok := step.Envs[pathEnvVariable]; ok {
+		// pull the image if not already pulled
+		if !pulled {
+			// check if already present on VM else pull
+			pulled = true
+			if exists := e.imageExistsLocally(ctx, step.Image); !exists {
+				if pullerr := e.pullImageWithRetries(ctx, step.Image, pullOpts, output); pullerr != nil {
+					logrus.Warnf("Unable to pull docker image for inspection, failed with err: %s", pullerr)
+					pulled = false
+				}
+			}
+		}
+
+		if pulled {
+			// inspect the image
+			dockerEnvMap := e.getDockerImageEnvs(ctx, step.Image)
+			if dockerPathEnv, ok := dockerEnvMap[pathEnvVariable]; ok {
+				step.Envs[pathEnvVariable] = strings.TrimRight(path, ":") + ":" + dockerPathEnv
+			}
+		}
+	}
+	return nil
+}
+
 func (e *Docker) imageExistsLocally(ctx context.Context, imageName string) bool {
 	images, err := e.client.ImageList(ctx, types.ImageListOptions{})
 	if err != nil {
 		return false
 	}
-	for _, image := range images {
-		for _, tag := range image.RepoTags {
-			if tag == imageName {
+	for i := range images {
+		for _, fqn := range images[i].RepoTags {
+			if fqn == imageName {
 				return true
 			}
 		}
