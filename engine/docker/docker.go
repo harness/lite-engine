@@ -220,9 +220,12 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		)
 	}
 
-	if err := e.pullDockerImage(ctx, step, pullopts, output); err != nil {
-		return err
+	pulled, pullErr := e.pullDockerImage(ctx, step, pullopts, output)
+	if pullErr != nil {
+		return pullErr
 	}
+
+	e.dockerEnvOverride(ctx, step, pullopts, output, pulled)
 
 	_, err := e.client.ContainerCreate(ctx,
 		toConfig(pipelineConfig, step),
@@ -425,7 +428,7 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	return err
 }
 
-func (e *Docker) pullDockerImage(ctx context.Context, step *spec.Step, pullOpts types.ImagePullOptions, output io.Writer) error {
+func (e *Docker) pullDockerImage(ctx context.Context, step *spec.Step, pullOpts types.ImagePullOptions, output io.Writer) (bool, error) {
 	pulled := false
 
 	// automatically pull the latest version of the image if requested
@@ -434,11 +437,14 @@ func (e *Docker) pullDockerImage(ctx context.Context, step *spec.Step, pullOpts 
 		(step.Pull == spec.PullDefault && image.IsLatest(step.Image)) {
 		pullerr := e.pullImageWithRetries(ctx, step.Image, pullOpts, output)
 		if pullerr != nil {
-			return pullerr
+			return false, pullerr
 		}
 		pulled = true
 	}
+	return pulled, nil
+}
 
+func (e *Docker) dockerEnvOverride(ctx context.Context, step *spec.Step, pullOpts types.ImagePullOptions, output io.Writer, pulled bool) {
 	if path, ok := step.Envs[pathEnvVariable]; ok {
 		// pull the image if not already pulled
 		if !pulled {
@@ -460,7 +466,6 @@ func (e *Docker) pullDockerImage(ctx context.Context, step *spec.Step, pullOpts 
 			}
 		}
 	}
-	return nil
 }
 
 func (e *Docker) imageExistsLocally(ctx context.Context, imageName string) bool {
