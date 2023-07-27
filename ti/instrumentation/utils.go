@@ -89,13 +89,15 @@ func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.F
 	return runner, useYaml, nil
 }
 
-func getCommitInfo(ctx context.Context, stepID string, cfg *tiCfg.Cfg) string {
+func getCommitInfo(ctx context.Context, stepID string, cfg *tiCfg.Cfg) (string, error) {
 	c := cfg.GetClient()
 	branch := cfg.GetSourceBranch()
 
-	resp, _ := c.CommitInfo(ctx, stepID, branch)
-
-	return resp.LastSuccessfulCommitId
+	resp, err := c.CommitInfo(ctx, stepID, branch)
+	if err != nil {
+		return "", err
+	}
+	return resp.LastSuccessfulCommitId, nil
 }
 
 // getTestTime gets the the timing data from TI service based on the split strategy
@@ -244,7 +246,6 @@ func getChangedFiles(ctx context.Context, workspace, lastSuccessfulCommitID stri
 			return res, nil
 		}
 	}
-	log.Infoln("Changed Files are: ", res)
 	return res, nil
 }
 

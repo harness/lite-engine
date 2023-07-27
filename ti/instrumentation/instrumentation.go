@@ -30,23 +30,20 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	selection := ti.SelectTestsResp{}
 	if isManual {
 		// Manual run
-		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger. Running all the tests.")
+		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger, running all the tests.")
 		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
 	} else {
 		// PR execution
 		var files []ti.File
 		var err error
 		if IsPushTriggerExecution(tiConfig) {
-			log.Infoln("Detected Push Trigger execution. Invoking Test Intelligence")
-			lastSuccessfulCommitID := getCommitInfo(ctx, stepID, tiConfig)
-			if lastSuccessfulCommitID != "" {
-				log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
-			}
+			lastSuccessfulCommitID, commitErr := getCommitInfo(ctx, stepID, tiConfig)
 			if lastSuccessfulCommitID == "" {
-				log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
+				log.Infoln("Test Intelligence determined to run all the tests to bootstrap", "error", commitErr)
 				config.RunOnlySelectedTests = false // TI selected all the tests to be run
 				return selection
 			}
+			log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
 			files, err = getChangedFiles(ctx, workspace, lastSuccessfulCommitID, true, log)
 		} else {
 			files, err = getChangedFiles(ctx, workspace, "", false, log)
@@ -55,7 +52,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			log.Errorln("Unable to get changed files list. Running all the tests.")
 			config.RunOnlySelectedTests = false
 		} else {
-			// PR execution: Call TI svc only when there is a chance of running selected tests
+			// PR/Push execution: Call TI svc only when there is a chance of running selected tests
 			filesWithPkg := runner.ReadPackages(workspace, files)
 			selection, err = selectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
 			if err != nil {
