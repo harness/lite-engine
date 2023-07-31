@@ -292,7 +292,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 	if exited != nil {
 		if exited.ExitCode != 0 {
 			if wc.Error() != nil {
-				result = multierror.Append(result, err)
+				result = multierror.Append(result, wc.Error())
 			}
 		}
 
