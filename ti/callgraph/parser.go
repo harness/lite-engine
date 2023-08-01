@@ -214,7 +214,11 @@ func convCgph(inps []Input) (map[int][]int, map[int]Node) { //nolint:gocritic
 			source.Type = "source" //nolint:goconst
 		}
 		sourceID := source.ID
-		nodeMap[sourceID] = source
+		_, ok := nodeMap[sourceID]
+		// Do not overwrite to source if already exist as test
+		if !ok {
+			nodeMap[sourceID] = source
+		}
 		relMap[sourceID] = append(relMap[sourceID], testID)
 	}
 	return relMap, nodeMap
