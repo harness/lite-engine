@@ -30,6 +30,7 @@ func TestCallGraphParser_Parse(t *testing.T) {
 		-1954679604: {-268233532},
 		2139952358:  {-1648419296},
 		330989721:   {-1648419296},
+		1020759395:  {1020759395},
 	}
 	for _, v := range dto.TestRelations {
 		assert.Equal(t, v.Tests, exp[v.Source])
