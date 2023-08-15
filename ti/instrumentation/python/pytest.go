@@ -82,18 +82,18 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 			testGlobs = []string{"**"}
 		}
 		for _, glob := range testGlobs {
-			if matched, _ := zglob.Match(glob, t.Class); matched {
-				w := ti.RunnableTest{Class: t.Class}
-				if _, ok := set[w]; ok {
-					// The test has already been added
-					continue
-				}
-				set[w] = struct{}{}
-				ut = append(ut, t.Class)
-				break
+			if matched, _ := zglob.Match(glob, t.Class); !matched {
+				continue
 			}
+			w := ti.RunnableTest{Class: t.Class}
+			if _, ok := set[w]; ok {
+				// The test has already been added
+				continue
+			}
+			set[w] = struct{}{}
+			ut = append(ut, t.Class)
+			break
 		}
-
 	}
 
 	if ignoreInstr {
