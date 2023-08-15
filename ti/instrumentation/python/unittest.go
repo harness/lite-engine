@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-
+	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 
 	"github.com/sirupsen/logrus"
@@ -40,16 +40,16 @@ func (m *unittestRunner) AutoDetectPackages(workspace string) ([]string, error) 
 	return []string{}, errors.New("not implemented")
 }
 
-func (m *unittestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]type.RunnableTest, error) {
+func (m *unittestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
 	pythonTests := GetPythonTests(workspace, testGlobs)
 	return pythonTests, nil
 }
 
-func (m *unittestRunner) ReadPackages(workspace string, files []type.File) []type.File {
+func (m *unittestRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
 	return files
 }
 
-func (m *unittestRunner) GetCmd(ctx context.Context, tests []type.RunnableTest, userArgs, workspace,
+func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// Run all the tests
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, unitTestCmd, userArgs, m.log)
@@ -72,7 +72,7 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []type.RunnableTest, 
 	}
 
 	// Use only unique <package, class> tuples
-	set := make(map[type.RunnableTest]interface{})
+	set := make(map[ti.RunnableTest]interface{})
 	ut := []string{}
 	for _, t := range tests {
 		// Only add tests matching test globs
@@ -83,7 +83,7 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []type.RunnableTest, 
 		}
 		for _, glob := range testGlobs {
 			if matched, _ := zglob.Match(glob, t.Class); matched {
-				w := type.RunnableTest{Class: t.Class}
+				w := ti.RunnableTest{Class: t.Class}
 				if _, ok := set[w]; ok {
 					// The test has already been added
 					continue

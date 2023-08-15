@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/harness/ti-client/types"
+	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 
 	"github.com/sirupsen/logrus"
@@ -43,16 +43,16 @@ func (m *pytestRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return []string{}, errors.New("not implemented")
 }
 
-func (m *pytestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]type.RunnableTest, error) {
+func (m *pytestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
 	pythonTests := GetPythonTests(workspace, testGlobs)
 	return pythonTests, nil
 }
 
-func (m *pytestRunner) ReadPackages(workspace string, files []type.File) []type.File {
+func (m *pytestRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
 	return files
 }
 
-func (m *pytestRunner) GetCmd(ctx context.Context, tests []type.RunnableTest, userArgs, workspace,
+func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, pytestCmd, userArgs, m.log)
 	if err != nil {
@@ -72,7 +72,7 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []type.RunnableTest, us
 		return "echo \"Skipping test run, received no tests to execute\"", nil
 	}
 	// Use only unique class
-	set := make(map[type.RunnableTest]interface{})
+	set := make(map[ti.RunnableTest]interface{})
 	ut := []string{}
 	for _, t := range tests {
 		// Only add tests matching test globs
@@ -83,7 +83,7 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []type.RunnableTest, us
 		}
 		for _, glob := range testGlobs {
 			if matched, _ := zglob.Match(glob, t.Class); matched {
-				w := types.RunnableTest{Class: t.Class}
+				w := ti.RunnableTest{Class: t.Class}
 				if _, ok := set[w]; ok {
 					// The test has already been added
 					continue
