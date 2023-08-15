@@ -12,7 +12,8 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	ti "github.com/harness/ti-client/types"
+
+	"github.com/mattn/go-zglob"
 
 	"github.com/sirupsen/logrus"
 )
@@ -22,14 +23,16 @@ var (
 )
 
 type unittestRunner struct {
-	fs  filesystem.FileSystem
-	log *logrus.Logger
+	fs        filesystem.FileSystem
+	log       *logrus.Logger
+	testGlobs []string
 }
 
-func NewUnittestRunner(log *logrus.Logger, fs filesystem.FileSystem) *unittestRunner { //nolint:revive
+func NewUnittestRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string) *unittestRunner { //nolint:revive
 	return &unittestRunner{
-		fs:  fs,
-		log: log,
+		fs:        fs,
+		log:       log,
+		testGlobs: testGlobs,
 	}
 }
 
@@ -37,16 +40,16 @@ func (m *unittestRunner) AutoDetectPackages(workspace string) ([]string, error) 
 	return []string{}, errors.New("not implemented")
 }
 
-func (m *unittestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+func (m *unittestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]type.RunnableTest, error) {
 	pythonTests := GetPythonTests(workspace, testGlobs)
 	return pythonTests, nil
 }
 
-func (m *unittestRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+func (m *unittestRunner) ReadPackages(workspace string, files []type.File) []type.File {
 	return files
 }
 
-func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
+func (m *unittestRunner) GetCmd(ctx context.Context, tests []type.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	// Run all the tests
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, unitTestCmd, userArgs, m.log)
@@ -69,16 +72,28 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, us
 	}
 
 	// Use only unique <package, class> tuples
-	set := make(map[ti.RunnableTest]interface{})
+	set := make(map[type.RunnableTest]interface{})
 	ut := []string{}
 	for _, t := range tests {
-		w := ti.RunnableTest{Class: t.Class}
-		if _, ok := set[w]; ok {
-			// The test has already been added
-			continue
+		// Only add tests matching test globs
+		testGlobs := m.testGlobs
+		// Don't filter if glob not specified
+		if len(m.testGlobs) == 0 {
+			testGlobs = []string{"**"}
 		}
-		set[w] = struct{}{}
-		ut = append(ut, t.Class)
+		for _, glob := range testGlobs {
+			if matched, _ := zglob.Match(glob, t.Class); matched {
+				w := type.RunnableTest{Class: t.Class}
+				if _, ok := set[w]; ok {
+					// The test has already been added
+					continue
+				}
+				set[w] = struct{}{}
+				ut = append(ut, t.Class)
+				break
+			}
+		}
+
 	}
 	testStr := strings.Join(ut, ",")
 

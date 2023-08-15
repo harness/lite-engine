@@ -43,7 +43,7 @@ const (
 	harnessStageTotal = "HARNESS_STAGE_TOTAL"
 )
 
-func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem) (TestRunner, bool, error) {
+func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string) (TestRunner, bool, error) {
 	var runner TestRunner
 	var useYaml bool
 	switch strings.ToLower(language) {
@@ -77,9 +77,9 @@ func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.F
 	case "python":
 		switch buildTool {
 		case "pytest":
-			runner = python.NewPytestRunner(log, fs)
+			runner = python.NewPytestRunner(log, fs, testGlobs)
 		case "unittest":
-			runner = python.NewUnittestRunner(log, fs)
+			runner = python.NewUnittestRunner(log, fs, testGlobs)
 		default:
 			return runner, useYaml, fmt.Errorf("could not figure out the build tool: %s", buildTool)
 		}
