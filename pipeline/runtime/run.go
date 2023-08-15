@@ -43,6 +43,10 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
+	if metadataFile, found := step.Envs["PLUGIN_METADATA_FILE"]; found {
+		step.Envs["PLUGIN_METADATA_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
+	}
+
 	log := logrus.New()
 	log.Out = out
 
