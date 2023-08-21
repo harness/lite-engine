@@ -127,7 +127,7 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 		printCommand(step, output)
 	}
 	if step.Image != "" {
-		return e.docker.Run(ctx, cfg, step, output)
+		return e.docker.Run(ctx, cfg, step, output, isDrone)
 	}
 
 	return exec.Run(ctx, step, output)
