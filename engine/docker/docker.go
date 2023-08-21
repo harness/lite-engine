@@ -192,13 +192,13 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	}
 	if !isDrone && step.Detach {
 		go func() {
-			ctx_bg := context.Background()
+			ctxBg := context.Background()
 			var cancel context.CancelFunc
 			if deadline, ok := ctx.Deadline(); ok {
-				ctx_bg, cancel = context.WithTimeout(ctx_bg, time.Until(deadline))
+				ctxBg, cancel = context.WithTimeout(ctxBg, time.Until(deadline))
 				defer cancel()
 			}
-			e.startContainer(ctx_bg, step.ID, output) //nolint:errcheck
+			e.startContainer(ctxBg, step.ID, output) //nolint:errcheck
 			if wr, ok := output.(logstream.Writer); ok {
 				wr.Close()
 			}
@@ -208,19 +208,19 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	return e.startContainer(ctx, step.ID, output)
 }
 
-func (e *Docker) startContainer(ctx context.Context, stepId string, output io.Writer) (*runtime.State, error) {
+func (e *Docker) startContainer(ctx context.Context, stepID string, output io.Writer) (*runtime.State, error) {
 	// start the container
-	err := e.start(ctx, stepId)
+	err := e.start(ctx, stepID)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
 	// grab the logs from the container execution
-	err = e.logs(ctx, stepId, output)
+	err = e.logs(ctx, stepID, output)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
 	// wait for the response
-	return e.waitRetry(ctx, stepId)
+	return e.waitRetry(ctx, stepID)
 }
 
 //
