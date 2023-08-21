@@ -248,6 +248,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
+	// We do here only for non-container step.
 	if r.Detach && r.Image == "" {
 		go func() {
 			ctx := context.Background()

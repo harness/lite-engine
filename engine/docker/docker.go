@@ -190,6 +190,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
+	// start the execution in go routine if it's a detach step and not drone
 	if !isDrone && step.Detach {
 		go func() {
 			ctxBg := context.Background()
