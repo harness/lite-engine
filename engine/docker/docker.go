@@ -30,6 +30,7 @@ import (
 	"github.com/drone/runner-go/logger"
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/drone/runner-go/registry/auths"
+	"github.com/harness/lite-engine/logstream"
 )
 
 const (
@@ -183,24 +184,44 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfi
 
 // Run runs the pipeline step.
 func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step,
-	output io.Writer) (*runtime.State, error) {
+	output io.Writer, isDrone bool) (*runtime.State, error) {
 	// create the container
 	err := e.create(ctx, pipelineConfig, step, output)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
+	// start the execution in go routine if it's a detach step and not drone
+	if !isDrone && step.Detach {
+		go func() {
+			ctxBg := context.Background()
+			var cancel context.CancelFunc
+			if deadline, ok := ctx.Deadline(); ok {
+				ctxBg, cancel = context.WithTimeout(ctxBg, time.Until(deadline))
+				defer cancel()
+			}
+			e.startContainer(ctxBg, step.ID, output) //nolint:errcheck
+			if wr, ok := output.(logstream.Writer); ok {
+				wr.Close()
+			}
+		}()
+		return &runtime.State{Exited: false}, nil
+	}
+	return e.startContainer(ctx, step.ID, output)
+}
+
+func (e *Docker) startContainer(ctx context.Context, stepID string, output io.Writer) (*runtime.State, error) {
 	// start the container
-	err = e.start(ctx, step.ID)
+	err := e.start(ctx, stepID)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
 	// grab the logs from the container execution
-	err = e.logs(ctx, step.ID, output)
+	err = e.logs(ctx, stepID, output)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
 	// wait for the response
-	return e.waitRetry(ctx, step.ID)
+	return e.waitRetry(ctx, stepID)
 }
 
 //

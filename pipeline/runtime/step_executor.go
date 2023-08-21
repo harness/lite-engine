@@ -248,7 +248,8 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
-	if r.Detach {
+	// We do here only for non-container step.
+	if r.Detach && r.Image == "" {
 		go func() {
 			ctx := context.Background()
 			var cancel context.CancelFunc
@@ -276,10 +277,13 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 		result = multierror.Append(result, err)
 	}
 
-	// close the stream. If the session is a remote session, the
-	// full log buffer is uploaded to the remote server.
-	if err = wr.Close(); err != nil {
-		result = multierror.Append(result, err)
+	// if err is not nill or it's not a detach step then always close the stream
+	if err != nil || !r.Detach {
+		// close the stream. If the session is a remote session, the
+		// full log buffer is uploaded to the remote server.
+		if err = wr.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
 	}
 
 	// if the context was canceled and returns a canceled or
