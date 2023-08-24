@@ -211,6 +211,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 
 func (e *Docker) startContainer(ctx context.Context, stepID string, output io.Writer) (*runtime.State, error) {
 	// start the container
+	logrus.WithContext(ctx).Debugln("Starting command on container")
 	err := e.start(ctx, stepID)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
@@ -221,7 +222,9 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, output io.Wr
 		return nil, errors.TrimExtraInfo(err)
 	}
 	// wait for the response
-	return e.waitRetry(ctx, stepID)
+	state, err := e.waitRetry(ctx, stepID)
+	logrus.WithContext(ctx).Debugln("Completed command on container")
+	return state, err
 }
 
 //

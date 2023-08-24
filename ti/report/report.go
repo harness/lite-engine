@@ -41,10 +41,12 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, st
 		return nil
 	}
 
+	logrus.WithContext(ctx).Debugln("Starting TI service request to write report")
 	c := tiConfig.GetClient()
 	if err := c.Write(ctx, stepID, strings.ToLower(report.Kind.String()), tests); err != nil {
 		return err
 	}
+	logrus.WithContext(ctx).Debugln("Completed TI service request to write report")
 	log.Infoln(fmt.Sprintf("Successfully collected test reports in %s time", time.Since(start)))
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/sirupsen/logrus"
 )
 
 func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State, error) {
@@ -28,11 +29,13 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	cmd.Stderr = output
 	cmd.Stdout = output
 
+	logrus.WithContext(ctx).Debugln("Starting command on host")
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 
 	err := cmd.Wait()
+	logrus.WithContext(ctx).Debugln("Completed command on host")
 	if err == nil {
 		return &runtime.State{ExitCode: 0, Exited: true}, nil
 	}
