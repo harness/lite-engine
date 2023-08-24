@@ -10,6 +10,7 @@ package docker
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -211,7 +212,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 
 func (e *Docker) startContainer(ctx context.Context, stepID string, output io.Writer) (*runtime.State, error) {
 	// start the container
-	logrus.WithContext(ctx).Debugln("Starting command on container")
+	logrus.WithContext(ctx).Debugln(fmt.Sprintf("Starting command on host for step %s", stepID))
 	err := e.start(ctx, stepID)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
@@ -223,7 +224,7 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, output io.Wr
 	}
 	// wait for the response
 	state, err := e.waitRetry(ctx, stepID)
-	logrus.WithContext(ctx).Debugln("Completed command on container")
+	logrus.WithContext(ctx).Debugln(fmt.Sprintf("Completed command on host for step %s", stepID))
 	return state, err
 }
 

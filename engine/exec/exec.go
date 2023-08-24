@@ -7,6 +7,7 @@ package exec
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os/exec"
 
@@ -29,13 +30,13 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	cmd.Stderr = output
 	cmd.Stdout = output
 
-	logrus.WithContext(ctx).Debugln("Starting command on host")
+	logrus.WithContext(ctx).Debugln(fmt.Sprintf("Starting command on host for step %s", step.ID))
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 
 	err := cmd.Wait()
-	logrus.WithContext(ctx).Debugln("Completed command on host")
+	logrus.WithContext(ctx).Debugln(fmt.Sprintf("Completed command on host for step %s", step.ID))
 	if err == nil {
 		return &runtime.State{ExitCode: 0, Exited: true}, nil
 	}
