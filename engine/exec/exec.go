@@ -31,13 +31,12 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	cmd.Stdout = output
 
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on host for step %s", step.ID))
-	logrus.Infoln(fmt.Sprintf("Starting command on host for step %s", step.ID))
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 
 	err := cmd.Wait()
-	logrus.WithContext(ctx).Debugln(fmt.Sprintf("Completed command on host for step %s", step.ID))
+	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on host for step %s", step.ID))
 	if err == nil {
 		return &runtime.State{ExitCode: 0, Exited: true}, nil
 	}
