@@ -7,11 +7,14 @@ package exec
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os/exec"
+	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/sirupsen/logrus"
 )
 
 func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State, error) {
@@ -28,11 +31,14 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	cmd.Stderr = output
 	cmd.Stdout = output
 
+	startTime := time.Now()
+	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on host for step %s", step.ID))
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
 
 	err := cmd.Wait()
+	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on host for step %s, took %.2f seconds", step.ID, time.Since(startTime).Seconds()))
 	if err == nil {
 		return &runtime.State{ExitCode: 0, Exited: true}, nil
 	}
