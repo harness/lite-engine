@@ -107,7 +107,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		select {
 		case <-timeoutCtx.Done():
 			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: timeoutCtx.Err().Error()}
-			e.sendStepStatus(r, resp)
+			e.sendStepStatus(r, &resp)
 			return
 		default:
 		}
@@ -115,7 +115,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		state, outputs, envs, artifact, stepErr := e.executeStep(r)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact}
 		resp = convertPollResponse(convertStatus(status))
-		e.sendStepStatus(r, resp)
+		e.sendStepStatus(r, &resp)
 	}()
 	return nil
 }
@@ -349,7 +349,7 @@ func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.St
 	return executeRunTestStep(ctx, engine, r, out, tiConfig)
 }
 
-func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response api.VMTaskExecutionResponse) {
+func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMTaskExecutionResponse) {
 	jsonData, err := json.Marshal(response)
 	if err != nil {
 		logrus.WithField("id", r.ID).Errorln("Error marshaling struct:", err)
