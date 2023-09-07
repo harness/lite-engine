@@ -100,12 +100,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 
 	go func() {
 		done := make(chan api.VMTaskExecutionResponse, 1)
-
 		var resp api.VMTaskExecutionResponse
-		state, outputs, envs, artifact, stepErr := e.executeStep(r)
-		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact}
-		resp = convertPollResponse(convertStatus(status))
-		done <- resp
 
 		select {
 		case resp = <-done:
@@ -115,7 +110,13 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: "step timed out"}
 			e.sendStepStatus(r, &resp)
 			return
+		default:
 		}
+
+		state, outputs, envs, artifact, stepErr := e.executeStep(r)
+		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact}
+		resp = convertPollResponse(convertStatus(status))
+		done <- resp
 	}()
 	return nil
 }
