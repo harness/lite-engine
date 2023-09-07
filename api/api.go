@@ -80,6 +80,7 @@ type (
 		User         string               `json:"user,omitempty"`
 		Volumes      []*spec.VolumeMount  `json:"volumes,omitempty"`
 		Files        []*spec.File         `json:"files,omitempty"`
+		StepStatus   StepStatusConfig     `json:"step_status,omitempty"`
 	}
 
 	StartStepResponse struct{}
@@ -155,4 +156,29 @@ type (
 	JunitReport struct {
 		Paths []string `json:"paths,omitempty"`
 	}
+
+	StepStatusConfig struct {
+		Endpoint   string `json:"endpoint,omitempty"`
+		Token      string `json:"token,omitempty"`
+		AccountID  string `json:"account_id,omitempty"`
+		DelegateID string `json:"delegate_id,omitempty"`
+		TaskID     string `json:"task_id,omitempty"`
+	}
+
+	VMTaskExecutionResponse struct {
+		ErrorMessage           string                 `json:"error_message"`
+		IPAddress              string                 `json:"ip_address"`
+		OutputVars             map[string]string      `json:"output_vars"`
+		CommandExecutionStatus CommandExecutionStatus `json:"command_execution_status"`
+		Artifact               []byte                 `json:"artifact,omitempty"`
+		PoolDriverUsed         string                 `json:"pool_driver_used"`
+		DliteDistributed       bool                   `json:"dlite_distributed"`
+	}
+)
+
+type CommandExecutionStatus string
+
+const (
+	Success CommandExecutionStatus = "SUCCESS"
+	Failure CommandExecutionStatus = "FAILURE"
 )

@@ -37,7 +37,13 @@ func HandleStartStep(e *pruntime.StepExecutor) http.HandlerFunc {
 
 		s.Volumes = append(s.Volumes, getSharedVolumeMount())
 
-		if err := e.StartStep(r.Context(), &s); err != nil {
+		if s.StepStatus.Token != "" {
+			err = e.StartStepWithStatusUpdate(r.Context(), &s)
+		} else {
+			err = e.StartStep(r.Context(), &s)
+		}
+
+		if err != nil {
 			WriteError(w, err)
 		} else {
 			WriteJSON(w, api.StartStepResponse{}, http.StatusOK)

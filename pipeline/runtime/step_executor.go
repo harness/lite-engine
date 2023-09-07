@@ -6,6 +6,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sync"
@@ -19,6 +20,8 @@ import (
 	"github.com/harness/lite-engine/pipeline"
 
 	"github.com/drone/runner-go/pipeline/runtime"
+	"github.com/wings-software/dlite/client"
+	"github.com/wings-software/dlite/delegate"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
@@ -39,6 +42,7 @@ const (
 	NotStarted ExecutionStatus = iota
 	Running
 	Complete
+	defaultStepTimeout = 10 * time.Hour // default step timeout
 )
 
 type StepExecutor struct {
@@ -85,6 +89,33 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		for _, ch := range channels {
 			ch <- status
 		}
+	}()
+	return nil
+}
+
+func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.StartStepRequest) error {
+	if r.ID == "" {
+		return &errors.BadRequestError{Msg: "ID needs to be set"}
+	}
+
+	go func() {
+		timeoutCtx, cancel := context.WithTimeout(ctx, defaultStepTimeout)
+		defer cancel()
+
+		var resp api.VMTaskExecutionResponse
+
+		select {
+		case <-timeoutCtx.Done():
+			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: timeoutCtx.Err().Error()}
+			e.sendStepStatus(r, resp)
+			return
+		default:
+		}
+
+		state, outputs, envs, artifact, stepErr := e.executeStep(r)
+		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact}
+		resp = convertPollResponse(convertStatus(status))
+		e.sendStepStatus(r, resp)
 	}()
 	return nil
 }
@@ -318,6 +349,23 @@ func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.St
 	return executeRunTestStep(ctx, engine, r, out, tiConfig)
 }
 
+func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response api.VMTaskExecutionResponse) {
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		logrus.WithField("id", r.ID).Errorln("Error marshaling struct:", err)
+		return
+	}
+	delegateClient := delegate.NewFromToken(r.StepStatus.Endpoint, r.StepStatus.AccountID, r.StepStatus.Token, true, "")
+	taskResponse := &client.TaskResponse{
+		Data: json.RawMessage(jsonData),
+		Code: "OK",
+		Type: "CI_LE_STATUS",
+	}
+	if err = delegateClient.SendStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse); err != nil {
+		logrus.WithField("id", r.ID).Errorln("failed to send step status: ", err)
+	}
+}
+
 func convertStatus(status StepStatus) *api.PollStepResponse {
 	r := &api.PollStepResponse{
 		Exited:   true,
@@ -347,4 +395,11 @@ func convertStatus(status StepStatus) *api.PollStepResponse {
 		r.Error = stepErr.Error()
 	}
 	return r
+}
+
+func convertPollResponse(r *api.PollStepResponse) api.VMTaskExecutionResponse {
+	if r.Error == "" {
+		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact}
+	}
+	return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: r.Error}
 }
