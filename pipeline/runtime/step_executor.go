@@ -99,23 +99,23 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 	}
 
 	go func() {
-		timeoutCtx, cancel := context.WithTimeout(ctx, defaultStepTimeout)
-		defer cancel()
+		done := make(chan api.VMTaskExecutionResponse, 1)
 
 		var resp api.VMTaskExecutionResponse
-
-		select {
-		case <-timeoutCtx.Done():
-			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: timeoutCtx.Err().Error()}
-			e.sendStepStatus(r, &resp)
-			return
-		default:
-		}
-
 		state, outputs, envs, artifact, stepErr := e.executeStep(r)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact}
 		resp = convertPollResponse(convertStatus(status))
-		e.sendStepStatus(r, &resp)
+		done <- resp
+
+		select {
+		case resp = <-done:
+			e.sendStepStatus(r, &resp)
+			return
+		case <-time.After(defaultStepTimeout):
+			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: "step timed out"}
+			e.sendStepStatus(r, &resp)
+			return
+		}
 	}()
 	return nil
 }
