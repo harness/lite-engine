@@ -42,7 +42,7 @@ const (
 	NotStarted ExecutionStatus = iota
 	Running
 	Complete
-	defaultStepTimeout = 10 * time.Second // default step timeout
+	defaultStepTimeout = 10 * time.Hour // default step timeout
 )
 
 type StepExecutor struct {
