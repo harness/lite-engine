@@ -167,12 +167,9 @@ type (
 
 	VMTaskExecutionResponse struct {
 		ErrorMessage           string                 `json:"error_message"`
-		IPAddress              string                 `json:"ip_address"`
 		OutputVars             map[string]string      `json:"output_vars"`
 		CommandExecutionStatus CommandExecutionStatus `json:"command_execution_status"`
 		Artifact               []byte                 `json:"artifact,omitempty"`
-		PoolDriverUsed         string                 `json:"pool_driver_used"`
-		DliteDistributed       bool                   `json:"dlite_distributed"`
 	}
 )
 
