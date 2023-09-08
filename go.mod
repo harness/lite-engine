@@ -35,7 +35,7 @@ require (
 require (
 	github.com/dgryski/go-lttb v0.0.0-20230207170358-f8fc36cdbff1
 	github.com/shirou/gopsutil/v3 v3.23.5
-	github.com/wings-software/dlite v1.0.0-rc.7.0.20230906155942-0131cbbd1bee
+	github.com/wings-software/dlite v1.0.0-rc.8
 )
 
 require (

@@ -43,6 +43,7 @@ const (
 	Running
 	Complete
 	defaultStepTimeout = 10 * time.Hour // default step timeout
+	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK"
 )
 
 type StepExecutor struct {
@@ -361,7 +362,7 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 	taskResponse := &client.TaskResponse{
 		Data: json.RawMessage(jsonData),
 		Code: "OK",
-		Type: "DLITE_CI_VM_EXECUTE_TASK",
+		Type: stepStatusUpdate,
 	}
 	if err = delegateClient.SendStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse); err != nil {
 		logrus.WithField("id", r.ID).Errorln("failed to send step status: ", err)

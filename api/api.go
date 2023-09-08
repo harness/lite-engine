@@ -166,9 +166,9 @@ type (
 	}
 
 	VMTaskExecutionResponse struct {
-		ErrorMessage           string                 `json:"error_message"`
-		OutputVars             map[string]string      `json:"output_vars"`
-		CommandExecutionStatus CommandExecutionStatus `json:"command_execution_status"`
+		ErrorMessage           string                 `json:"error_message,omitempty"`
+		OutputVars             map[string]string      `json:"output_vars,omitempty"`
+		CommandExecutionStatus CommandExecutionStatus `json:"command_execution_status,omitempty"`
 		Artifact               []byte                 `json:"artifact,omitempty"`
 	}
 )
