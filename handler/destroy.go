@@ -82,6 +82,9 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 							Format(time.RFC3339)).WithError(err).Errorln("could not upload lite engine logs")
 					}
 				}
+				if d.StageRuntimeID != "" {
+					pipeline.GetEnvState().Delete(d.StageRuntimeID)
+				}
 			}
 			// else {
 			// TODO: handle drone case for lite engine log upload

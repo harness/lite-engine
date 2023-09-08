@@ -104,9 +104,16 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		var resp api.VMTaskExecutionResponse
 
 		go func() {
+			if r.StageRuntimeID != "" && r.Image == "" {
+				setPrevStepExportEnvs(r)
+			}
 			state, outputs, envs, artifact, stepErr := e.executeStep(r)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact}
-			resp = convertPollResponse(convertStatus(status))
+			pollResponse := convertStatus(status)
+			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
+				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
+			}
+			resp = convertPollResponse(pollResponse)
 			done <- resp
 		}()
 
@@ -350,6 +357,18 @@ func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.St
 		return executeRunStep(ctx, engine, r, out, tiConfig)
 	}
 	return executeRunTestStep(ctx, engine, r, out, tiConfig)
+}
+
+// This is used for Github Actions to set the envs from prev step.
+// TODO: This needs to be changed once HARNESS_ENV changes come
+func setPrevStepExportEnvs(r *api.StartStepRequest) {
+	prevStepExportEnvs := pipeline.GetEnvState().Get(r.StageRuntimeID)
+	for k, v := range prevStepExportEnvs {
+		if r.Envs == nil {
+			r.Envs = make(map[string]string)
+		}
+		r.Envs[k] = v
+	}
 }
 
 func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMTaskExecutionResponse) {
