@@ -37,7 +37,14 @@ func HandleStartStep(e *pruntime.StepExecutor) http.HandlerFunc {
 
 		s.Volumes = append(s.Volumes, getSharedVolumeMount())
 
-		if err := e.StartStep(r.Context(), &s); err != nil {
+		// Stage runtime id will only flow when distributed dlite is enabled
+		if s.StageRuntimeID != "" {
+			err = e.StartStepWithStatusUpdate(r.Context(), &s)
+		} else {
+			err = e.StartStep(r.Context(), &s)
+		}
+
+		if err != nil {
 			WriteError(w, err)
 		} else {
 			WriteJSON(w, api.StartStepResponse{}, http.StatusOK)

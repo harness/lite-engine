@@ -6,6 +6,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"sync"
@@ -19,6 +20,8 @@ import (
 	"github.com/harness/lite-engine/pipeline"
 
 	"github.com/drone/runner-go/pipeline/runtime"
+	"github.com/wings-software/dlite/client"
+	"github.com/wings-software/dlite/delegate"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
@@ -39,6 +42,8 @@ const (
 	NotStarted ExecutionStatus = iota
 	Running
 	Complete
+	defaultStepTimeout = 10 * time.Hour // default step timeout
+	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK"
 )
 
 type StepExecutor struct {
@@ -84,6 +89,42 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 
 		for _, ch := range channels {
 			ch <- status
+		}
+	}()
+	return nil
+}
+
+func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.StartStepRequest) error {
+	if r.ID == "" {
+		return &errors.BadRequestError{Msg: "ID needs to be set"}
+	}
+
+	go func() {
+		done := make(chan api.VMTaskExecutionResponse, 1)
+		var resp api.VMTaskExecutionResponse
+
+		go func() {
+			if r.StageRuntimeID != "" && r.Image == "" {
+				setPrevStepExportEnvs(r)
+			}
+			state, outputs, envs, artifact, stepErr := e.executeStep(r)
+			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact}
+			pollResponse := convertStatus(status)
+			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
+				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
+			}
+			resp = convertPollResponse(pollResponse)
+			done <- resp
+		}()
+
+		select {
+		case resp = <-done:
+			e.sendStepStatus(r, &resp)
+			return
+		case <-time.After(defaultStepTimeout):
+			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: "step timed out"}
+			e.sendStepStatus(r, &resp)
+			return
 		}
 	}()
 	return nil
@@ -318,6 +359,37 @@ func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.St
 	return executeRunTestStep(ctx, engine, r, out, tiConfig)
 }
 
+// This is used for Github Actions to set the envs from prev step.
+// TODO: This needs to be changed once HARNESS_ENV changes come
+func setPrevStepExportEnvs(r *api.StartStepRequest) {
+	prevStepExportEnvs := pipeline.GetEnvState().Get(r.StageRuntimeID)
+	for k, v := range prevStepExportEnvs {
+		if r.Envs == nil {
+			r.Envs = make(map[string]string)
+		}
+		r.Envs[k] = v
+	}
+}
+
+func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMTaskExecutionResponse) {
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		logrus.WithField("id", r.ID).Errorln("Error marshaling struct:", err)
+		return
+	}
+	delegateClient := delegate.NewFromToken(r.StepStatus.Endpoint, r.StepStatus.AccountID, r.StepStatus.Token, true, "")
+	taskResponse := &client.TaskResponse{
+		Data: json.RawMessage(jsonData),
+		Code: "OK",
+		Type: stepStatusUpdate,
+	}
+	if err = delegateClient.SendStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse); err != nil {
+		logrus.WithField("id", r.ID).WithError(err).Errorln("failed to send step status")
+		return
+	}
+	logrus.WithField("id", r.ID).Infoln("successfully sent step status")
+}
+
 func convertStatus(status StepStatus) *api.PollStepResponse {
 	r := &api.PollStepResponse{
 		Exited:   true,
@@ -347,4 +419,11 @@ func convertStatus(status StepStatus) *api.PollStepResponse {
 		r.Error = stepErr.Error()
 	}
 	return r
+}
+
+func convertPollResponse(r *api.PollStepResponse) api.VMTaskExecutionResponse {
+	if r.Error == "" {
+		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact}
+	}
+	return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: r.Error}
 }

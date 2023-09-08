@@ -31,6 +31,7 @@ type (
 		LogDrone       bool   `json:"log_drone,omitempty"`
 		LogKey         string `json:"log_key,omitempty"`          // key to write the lite engine logs (optional)
 		LiteEnginePath string `json:"lite_engine_path,omitempty"` // where to find the lite engine logs
+		StageRuntimeID string `json:"stage_runtime_id,omitempty"`
 	}
 
 	DestroyResponse struct {
@@ -38,17 +39,18 @@ type (
 	}
 
 	StartStepRequest struct {
-		ID         string            `json:"id,omitempty"` // Unique identifier of step
-		Detach     bool              `json:"detach,omitempty"`
-		Envs       map[string]string `json:"environment,omitempty"`
-		Name       string            `json:"name,omitempty"`
-		LogKey     string            `json:"log_key,omitempty"`
-		LogDrone   bool              `json:"log_drone"`
-		Secrets    []string          `json:"secrets,omitempty"`
-		WorkingDir string            `json:"working_dir,omitempty"`
-		Kind       StepType          `json:"kind,omitempty"`
-		Run        RunConfig         `json:"run,omitempty"`
-		RunTest    RunTestConfig     `json:"run_test,omitempty"`
+		ID             string            `json:"id,omitempty"` // Unique identifier of step
+		StageRuntimeID string            `json:"stage_runtime_id,omitempty"`
+		Detach         bool              `json:"detach,omitempty"`
+		Envs           map[string]string `json:"environment,omitempty"`
+		Name           string            `json:"name,omitempty"`
+		LogKey         string            `json:"log_key,omitempty"`
+		LogDrone       bool              `json:"log_drone"`
+		Secrets        []string          `json:"secrets,omitempty"`
+		WorkingDir     string            `json:"working_dir,omitempty"`
+		Kind           StepType          `json:"kind,omitempty"`
+		Run            RunConfig         `json:"run,omitempty"`
+		RunTest        RunTestConfig     `json:"run_test,omitempty"`
 
 		OutputVars        []string   `json:"output_vars,omitempty"`
 		TestReport        TestReport `json:"test_report,omitempty"`
@@ -80,6 +82,7 @@ type (
 		User         string               `json:"user,omitempty"`
 		Volumes      []*spec.VolumeMount  `json:"volumes,omitempty"`
 		Files        []*spec.File         `json:"files,omitempty"`
+		StepStatus   StepStatusConfig     `json:"step_status,omitempty"`
 	}
 
 	StartStepResponse struct{}
@@ -155,4 +158,26 @@ type (
 	JunitReport struct {
 		Paths []string `json:"paths,omitempty"`
 	}
+
+	StepStatusConfig struct {
+		Endpoint   string `json:"endpoint,omitempty"`
+		Token      string `json:"token,omitempty"`
+		AccountID  string `json:"account_id,omitempty"`
+		DelegateID string `json:"delegate_id,omitempty"`
+		TaskID     string `json:"task_id,omitempty"`
+	}
+
+	VMTaskExecutionResponse struct {
+		ErrorMessage           string                 `json:"error_message,omitempty"`
+		OutputVars             map[string]string      `json:"output_vars,omitempty"`
+		CommandExecutionStatus CommandExecutionStatus `json:"command_execution_status,omitempty"`
+		Artifact               []byte                 `json:"artifact,omitempty"`
+	}
+)
+
+type CommandExecutionStatus string
+
+const (
+	Success CommandExecutionStatus = "SUCCESS"
+	Failure CommandExecutionStatus = "FAILURE"
 )
