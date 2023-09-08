@@ -384,7 +384,7 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 		Type: stepStatusUpdate,
 	}
 	if err = delegateClient.SendStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse); err != nil {
-		logrus.WithField("id", r.ID).Errorln("failed to send step status: ", err)
+		logrus.WithField("id", r.ID).WithError(err).Errorln("failed to send step status")
 		return
 	}
 	logrus.WithField("id", r.ID).Infoln("successfully sent step status")
