@@ -29,44 +29,53 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) ti.SelectTestsResp {
 	selection := ti.SelectTestsResp{}
 	if isManual {
-		// Manual run
+		// Manual run (we dont enter this case anymore)
 		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger, running all the tests.")
 		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
 	} else {
-		// PR execution
+		// Push+Manual/PR execution
 		var files []ti.File
 		var err error
 		if IsPushTriggerExecution(tiConfig) {
 			lastSuccessfulCommitID, commitErr := getCommitInfo(ctx, stepID, tiConfig)
 			if lastSuccessfulCommitID == "" {
-				log.Infoln("Test Intelligence determined to run all the tests to bootstrap", "error", commitErr)
+				if commitErr != nil {
+					log.Infoln("Test Intelligence determined to run all the tests to bootstrap", "error", commitErr)
+				} else {
+					log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
+				}
 				config.RunOnlySelectedTests = false // TI selected all the tests to be run
 				return selection
 			}
 			log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
 			files, err = getChangedFiles(ctx, workspace, lastSuccessfulCommitID, true, log)
+			if err != nil {
+				log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
+				config.RunOnlySelectedTests = false
+				return selection
+			} 
 		} else {
 			files, err = getChangedFiles(ctx, workspace, "", false, log)
-		}
-		if err != nil || len(files) == 0 {
-			log.Errorln("Unable to get changed files list. Running all the tests.")
-			config.RunOnlySelectedTests = false
-		} else {
-			// PR/Push execution: Call TI svc only when there is a chance of running selected tests
-			filesWithPkg := runner.ReadPackages(workspace, files)
-			selection, err = selectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
-			if err != nil {
-				log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
-				config.RunOnlySelectedTests = false // run all the tests if an error was encountered
-			} else if !valid(selection.Tests) { // This shouldn't happen
-				log.Warnln("Test Intelligence did not return suitable tests")
-				config.RunOnlySelectedTests = false // TI did not return suitable tests
-			} else if selection.SelectAll {
-				log.Infoln("Test Intelligence determined to run all the tests")
-				config.RunOnlySelectedTests = false // TI selected all the tests to be run
-			} else {
-				log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
+			if err != nil || len(files) == 0 {
+				log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
+				config.RunOnlySelectedTests = false
+				return selection
 			}
+		}
+		// Call TI svc only when there is a chance of running selected tests
+		filesWithPkg := runner.ReadPackages(workspace, files)
+		selection, err = selectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
+		if err != nil {
+			log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
+			config.RunOnlySelectedTests = false // run all the tests if an error was encountered
+		} else if !valid(selection.Tests) { // This shouldn't happen
+			log.Warnln("Test Intelligence did not return suitable tests")
+			config.RunOnlySelectedTests = false // TI did not return suitable tests
+		} else if selection.SelectAll {
+			log.Infoln("Test Intelligence determined to run all the tests")
+			config.RunOnlySelectedTests = false // TI selected all the tests to be run
+		} else {
+			log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
 		}
 	}
 	return selection
