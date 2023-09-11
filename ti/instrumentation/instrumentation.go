@@ -30,7 +30,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	selection := ti.SelectTestsResp{}
 	if isManual {
 		// Manual run (we dont enter this case anymore)
-		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger, running all the tests.")
+		log.Infoln("Detectedmanual execution - for test intelligence to be configured the execution should be via a PR or Push trigger, running all the tests.")
 		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
 	} else {
 		// Push+Manual/PR execution
