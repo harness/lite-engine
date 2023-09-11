@@ -43,7 +43,7 @@ const (
 	Running
 	Complete
 	defaultStepTimeout = 10 * time.Hour // default step timeout
-	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK"
+	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
 )
 
 type StepExecutor struct {
