@@ -53,7 +53,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 				log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
 				config.RunOnlySelectedTests = false
 				return selection
-			} 
+			}
 		} else {
 			files, err = getChangedFiles(ctx, workspace, "", false, log)
 			if err != nil || len(files) == 0 {
