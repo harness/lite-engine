@@ -37,11 +37,13 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		var files []ti.File
 		var err error
 		if IsPushTriggerExecution(tiConfig) {
-			lastSuccessfulCommitID, commitErr := getCommitInfo(ctx, stepID, tiConfig)
+			lastSuccessfulCommitID, err := getCommitInfo(ctx, stepID, tiConfig)
+			if err != nil {
+				log.Infoln("Failed to get reference commit", "error", err)
+				config.RunOnlySelectedTests = false // TI selected all the tests to be run
+				return selection
+			}
 			if lastSuccessfulCommitID == "" {
-				if commitErr != nil {
-					log.Infoln("Failed to get reference commit", "error", commitErr)
-				}
 				log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
 				config.RunOnlySelectedTests = false // TI selected all the tests to be run
 				return selection
