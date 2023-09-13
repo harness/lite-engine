@@ -39,7 +39,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	var err error
 	if IsPushTriggerExecution(tiConfig) {
 		lastSuccessfulCommitID, commitErr := getCommitInfo(ctx, stepID, tiConfig)
-		if err != nil {
+		if commitErr != nil {
 			log.Infoln("Failed to get reference commit", "error", commitErr)
 			config.RunOnlySelectedTests = false // TI selected all the tests to be run
 			return selection
