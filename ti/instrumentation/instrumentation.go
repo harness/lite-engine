@@ -29,7 +29,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) ti.SelectTestsResp {
 	selection := ti.SelectTestsResp{}
 	if isManual {
-		// Manual run (we dont enter this case anymore)
+		// Manual run 
 		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger, running all the tests.")
 		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
 	} else {
@@ -40,10 +40,9 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			lastSuccessfulCommitID, commitErr := getCommitInfo(ctx, stepID, tiConfig)
 			if lastSuccessfulCommitID == "" {
 				if commitErr != nil {
-					log.Infoln("Test Intelligence determined to run all the tests to bootstrap", "error", commitErr)
-				} else {
-					log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
+					log.Infoln("Failed to get reference commit", "error", commitErr)
 				}
+				log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
 				config.RunOnlySelectedTests = false // TI selected all the tests to be run
 				return selection
 			}
@@ -57,7 +56,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		} else {
 			files, err = getChangedFiles(ctx, workspace, "", false, log)
 			if err != nil || len(files) == 0 {
-				log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
+				log.Errorln("Unable to get changed files list for PR. Running all the tests.", "error", err)
 				config.RunOnlySelectedTests = false
 				return selection
 			}
