@@ -33,7 +33,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger, running all the tests.")
 		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
 		return selection
-	} 
+	}
 	// Push+Manual/PR execution
 	var files []ti.File
 	var err error
