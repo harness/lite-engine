@@ -81,7 +81,7 @@ func UnzipAndGetTestInfo(agentInstallDir string, log *logrus.Logger) (scriptPath
 }
 
 func WriteGemFile(repoPath string) error {
-	f, err := os.OpenFile("Gemfile", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile("Gemfile", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) //nolint:gomnd
 	if err != nil {
 		return err
 	}
