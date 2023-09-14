@@ -43,7 +43,9 @@ func GetFiles(path string) ([]string, error) {
 	return matches, err
 }
 
-func A() {
+// GetUniqueTestStrings extract list of test strings from Class
+// It should only work if Class is the only primary identifier of the test selection
+func GetUniqueTestStrings(tests []ti.RunnableTest) []string {
 	// Use only unique class
 	set := make(map[ti.RunnableTest]interface{})
 	ut := []string{}
@@ -56,4 +58,5 @@ func A() {
 		set[w] = struct{}{}
 		ut = append(ut, t.Class)
 	}
+	return ut
 }
