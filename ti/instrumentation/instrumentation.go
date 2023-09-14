@@ -187,7 +187,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	// Create the config file required for instrumentation
 	iniFilePath := ""
 	// Python does not use config file now. Will add in the future
-	if !strings.EqualFold(config.Language, "python") {
+	if !strings.EqualFold(config.Language, "python") && !strings.EqualFold(config.Language, "ruby") {
 		iniFilePath, err = createConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log, useYaml)
 	}
 	if err != nil {

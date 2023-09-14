@@ -1,6 +1,9 @@
 package common
 
-import "github.com/mattn/go-zglob"
+import (
+	ti "github.com/harness/ti-client/types"
+	"github.com/mattn/go-zglob"
+)
 
 type NodeType int32
 
@@ -38,4 +41,22 @@ func GetFiles(path string) ([]string, error) {
 		return []string{}, err
 	}
 	return matches, err
+}
+
+// GetUniqueTestStrings extract list of test strings from Class
+// It should only work if Class is the only primary identifier of the test selection
+func GetUniqueTestStrings(tests []ti.RunnableTest) []string {
+	// Use only unique class
+	set := make(map[ti.RunnableTest]interface{})
+	ut := []string{}
+	for _, t := range tests {
+		w := ti.RunnableTest{Class: t.Class}
+		if _, ok := set[w]; ok {
+			// The test has already been added
+			continue
+		}
+		set[w] = struct{}{}
+		ut = append(ut, t.Class)
+	}
+	return ut
 }
