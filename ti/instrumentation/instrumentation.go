@@ -170,7 +170,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	// Get TI runner
 	config.Language = strings.ToLower(config.Language)
 	config.BuildTool = strings.ToLower(config.BuildTool)
-	runner, useYaml, err := getTiRunner(config.Language, config.BuildTool, log, fs)
+	runner, useYaml, err := getTiRunner(config.Language, config.BuildTool, log, fs, strings.Split(config.TestGlobs, ","))
 	if err != nil {
 		return "", err
 	}

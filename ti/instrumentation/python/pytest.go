@@ -13,6 +13,7 @@ import (
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	ti "github.com/harness/ti-client/types"
+	"github.com/mattn/go-zglob"
 
 	"github.com/sirupsen/logrus"
 )
@@ -25,14 +26,16 @@ var (
 )
 
 type pytestRunner struct {
-	fs  filesystem.FileSystem
-	log *logrus.Logger
+	fs        filesystem.FileSystem
+	log       *logrus.Logger
+	testGlobs []string
 }
 
-func NewPytestRunner(log *logrus.Logger, fs filesystem.FileSystem) *pytestRunner { //nolint:revive
+func NewPytestRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string) *pytestRunner { //nolint:revive
 	return &pytestRunner{
-		fs:  fs,
-		log: log,
+		fs:        fs,
+		log:       log,
+		testGlobs: testGlobs,
 	}
 }
 
@@ -72,13 +75,25 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	set := make(map[ti.RunnableTest]interface{})
 	ut := []string{}
 	for _, t := range tests {
-		w := ti.RunnableTest{Class: t.Class}
-		if _, ok := set[w]; ok {
-			// The test has already been added
-			continue
+		// Only add tests matching test globs
+		testGlobs := m.testGlobs
+		// Don't filter if glob not specified
+		if len(m.testGlobs) == 0 {
+			testGlobs = []string{"**"}
 		}
-		set[w] = struct{}{}
-		ut = append(ut, t.Class)
+		for _, glob := range testGlobs {
+			if matched, _ := zglob.Match(glob, t.Class); !matched {
+				continue
+			}
+			w := ti.RunnableTest{Class: t.Class}
+			if _, ok := set[w]; ok {
+				// The test has already been added
+				continue
+			}
+			set[w] = struct{}{}
+			ut = append(ut, t.Class)
+			break
+		}
 	}
 
 	if ignoreInstr {
