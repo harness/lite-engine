@@ -20,6 +20,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/instrumentation/python"
+	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
 	"github.com/pkg/errors"
@@ -80,6 +81,13 @@ func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.F
 			runner = python.NewPytestRunner(log, fs)
 		case "unittest":
 			runner = python.NewUnittestRunner(log, fs)
+		default:
+			return runner, useYaml, fmt.Errorf("could not figure out the build tool: %s", buildTool)
+		}
+	case "ruby":
+		switch buildTool {
+		case "rspec":
+			runner = ruby.NewRubyRunner(log, fs)
 		default:
 			return runner, useYaml, fmt.Errorf("could not figure out the build tool: %s", buildTool)
 		}
