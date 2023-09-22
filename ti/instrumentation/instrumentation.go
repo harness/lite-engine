@@ -186,12 +186,15 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	// Create the config file required for instrumentation
 	iniFilePath := ""
-	// Python does not use config file now. Will add in the future
-	if !strings.EqualFold(config.Language, "python") && !strings.EqualFold(config.Language, "ruby") {
+	// Ruby does not use config file now. Will add in the future
+	// TODO: Ruby to use config file as well, remove both conditons
+	if !strings.EqualFold(config.Language, "ruby") {
 		iniFilePath, err = createConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log, useYaml)
-	}
-	if err != nil {
-		return "", err
+		if err != nil {
+			return "", err
+		}
+	} else {
+		config.PreCommand = fmt.Sprintf("export TI_OUTPUT_PATH=%s\n%s", getCgDir(tmpFilePath), config.PreCommand)
 	}
 
 	// Test splitting: only when parallelism is enabled
@@ -207,7 +210,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	if ignoreInstr {
 		log.Infoln("Ignoring instrumentation and not attaching agent")
 	}
-	// TODO: (Vistaar) If using this code for non-Windows, we might need to set TMPDIR for bazel
+
 	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
 	return command, nil
 }

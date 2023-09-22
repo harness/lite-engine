@@ -55,10 +55,12 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 
 	testCmd := ""
-	tiFlag := "INTEL=1"
-	err = WriteGemFile(repoPath)
-	if err != nil {
-		return testCmd, err
+	tiFlag := "TI=1"
+	if !ignoreInstr {
+		err := WriteGemFile(repoPath)
+		if err != nil {
+			return testCmd, err
+		}
 	}
 	// Run all the tests
 	if runAll {

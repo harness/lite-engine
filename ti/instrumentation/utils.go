@@ -358,12 +358,17 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 	return installDir, nil
 }
 
+// getCgDir returns Callgraph Directory
+func getCgDir(tmpDir string) string {
+	return fmt.Sprintf(outDir, tmpDir)
+}
+
 // createConfigFile creates the ini file which is required as input to the instrumentation agent
 // and returns back the path to the file.
 func createConfigFile(runner TestRunner, packages, annotations, workspace, tmpDir string,
 	fs filesystem.FileSystem, log *logrus.Logger, yaml bool) (string, error) {
 	// Create config file
-	dir := fmt.Sprintf(outDir, tmpDir)
+	dir := getCgDir(tmpDir)
 	err := fs.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", dir))
