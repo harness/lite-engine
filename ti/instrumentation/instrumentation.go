@@ -206,13 +206,13 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		computeSelectedTests(ctx, config, log, runner, &selection, workspace, envs, cfg)
 	}
 
-	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, ignoreInstr, !config.RunOnlySelectedTests)
+	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, cfg.GetIgnoreInstr(), !config.RunOnlySelectedTests)
 	if err != nil {
 		return "", err
 	}
 
 	if cfg.GetIgnoreInstr() {
-		log.Infoln("Ignoring instrumentation and not attaching agent new version")
+		log.Infoln("Ignoring instrumentation and not attaching agent")
 	}
 
 	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
