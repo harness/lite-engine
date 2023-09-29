@@ -21,7 +21,7 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 		targetBranch: targetBranch,
 		commitBranch: commitBranch,
 		dataDir:      dataDir,
-		ignoreInstr: false,
+		ignoreInstr:  false,
 	}
 	return cfg
 }

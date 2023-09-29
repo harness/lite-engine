@@ -199,7 +199,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		} else {
 			config.PreCommand = fmt.Sprintf("export TI_OUTPUT_PATH=%s\n%s", getCgDir(tmpFilePath), config.PreCommand)
 		}
-	} 
+	}
 
 	// Test splitting: only when parallelism is enabled
 	if IsParallelismEnabled(envs) {
