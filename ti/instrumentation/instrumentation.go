@@ -178,7 +178,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	selection := ti.SelectTestsResp{}
 	var artifactDir, iniFilePath string
-	if !ignoreInstr {
+	if !cfg.GetIgnoreInstr() {
 		// Get the tests that need to be run if we are running selected tests
 		selection = getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
 
@@ -211,8 +211,8 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		return "", err
 	}
 
-	if ignoreInstr {
-		log.Infoln("Ignoring instrumentation and not attaching agent")
+	if cfg.GetIgnoreInstr() {
+		log.Infoln("Ignoring instrumentation and not attaching agent new version")
 	}
 
 	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
