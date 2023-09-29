@@ -166,6 +166,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	// Ignore instrumentation when it's a manual run or user has unchecked RunOnlySelectedTests option
 	isManual := IsManualExecution(cfg)
 	ignoreInstr := isManual || !config.RunOnlySelectedTests
+	cfg.SetIgnoreInstr(ignoreInstr)
 
 	// Get TI runner
 	config.Language = strings.ToLower(config.Language)
@@ -175,27 +176,30 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		return "", err
 	}
 
-	// Get the tests that need to be run if we are running selected tests
-	selection := getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
+	selection := ti.SelectTestsResp{}
+	var artifactDir, iniFilePath string
+	if !ignoreInstr {
+		// Get the tests that need to be run if we are running selected tests
+		selection = getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
 
-	// Install agent artifacts if not present
-	artifactDir, err := installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log, cfg)
-	if err != nil {
-		return "", err
-	}
-
-	// Create the config file required for instrumentation
-	iniFilePath := ""
-	// Ruby does not use config file now. Will add in the future
-	// TODO: Ruby to use config file as well, remove both conditons
-	if !strings.EqualFold(config.Language, "ruby") {
-		iniFilePath, err = createConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log, useYaml)
+		// Install agent artifacts if not present
+		artifactDir, err = installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log, cfg)
 		if err != nil {
 			return "", err
 		}
-	} else {
-		config.PreCommand = fmt.Sprintf("export TI_OUTPUT_PATH=%s\n%s", getCgDir(tmpFilePath), config.PreCommand)
-	}
+
+		// Create the config file required for instrumentation
+		// Ruby does not use config file now. Will add in the future
+		// TODO: Ruby to use config file as well, remove both conditons
+		if !strings.EqualFold(config.Language, "ruby") {
+			iniFilePath, err = createConfigFile(runner, config.Packages, config.TestAnnotations, workspace, tmpFilePath, fs, log, useYaml)
+			if err != nil {
+				return "", err
+			}
+		} else {
+			config.PreCommand = fmt.Sprintf("export TI_OUTPUT_PATH=%s\n%s", getCgDir(tmpFilePath), config.PreCommand)
+		}
+	} 
 
 	// Test splitting: only when parallelism is enabled
 	if IsParallelismEnabled(envs) {
