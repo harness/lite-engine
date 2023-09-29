@@ -13,7 +13,6 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti/avro"
 	tiCfg "github.com/harness/lite-engine/ti/config"
-	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
