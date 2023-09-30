@@ -13,7 +13,6 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti/avro"
 	tiCfg "github.com/harness/lite-engine/ti/config"
-	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -26,8 +25,8 @@ const (
 
 // Upload method uploads the callgraph.
 func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg) error {
-	if instrumentation.IsManualExecution(cfg) {
-		log.Infoln("Skipping call graph collection since it is a manual run")
+	if cfg.GetIgnoreInstr() {
+		log.Infoln("Skipping call graph collection since instrumentation was ignored")
 		return nil
 	}
 

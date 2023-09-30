@@ -8,6 +8,7 @@ type Cfg struct {
 	targetBranch string
 	commitBranch string
 	dataDir      string
+	ignoreInstr  bool
 }
 
 func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink,
@@ -20,6 +21,7 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 		targetBranch: targetBranch,
 		commitBranch: commitBranch,
 		dataDir:      dataDir,
+		ignoreInstr:  false,
 	}
 	return cfg
 }
@@ -66,4 +68,12 @@ func (c *Cfg) GetTargetBranch() string {
 
 func (c *Cfg) GetSha() string {
 	return c.client.Sha
+}
+
+func (c *Cfg) SetIgnoreInstr(ignoreInstr bool) {
+	c.ignoreInstr = ignoreInstr
+}
+
+func (c *Cfg) GetIgnoreInstr() bool {
+	return c.ignoreInstr
 }
