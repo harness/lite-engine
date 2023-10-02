@@ -64,11 +64,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
 	exited, err := engine.Run(ctx, step, out, false)
-	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
-	if err == nil {
-		// Fail the step if run was successful but error during collection
-		err = collectionErr
-	}
+	collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
@@ -83,7 +79,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step
-func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
+func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg)  {
 	cgStart := time.Now()
 	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig)
 	if cgErr != nil {
@@ -95,9 +91,4 @@ func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartSte
 	if crErr != nil {
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
 	}
-
-	if cgErr != nil {
-		return cgErr
-	}
-	return crErr
 }
