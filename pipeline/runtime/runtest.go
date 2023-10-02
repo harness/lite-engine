@@ -64,6 +64,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
 	exited, err := engine.Run(ctx, step, out, false)
+	// Do not fail RunTests Step if uploading test reports or cg fails
 	collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
