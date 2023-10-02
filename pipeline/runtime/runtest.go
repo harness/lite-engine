@@ -80,7 +80,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step
-func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg)  {
+func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) {
 	cgStart := time.Now()
 	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig)
 	if cgErr != nil {
