@@ -184,12 +184,17 @@ func (b *Writer) Close() error {
 	b.checkErrInLogs()
 
 	err := b.upload()
+	if err != nil {
+		logrus.WithError(err).WithField("key", b.key).
+			Errorln("failed to upload logs")
+	}
 	// Close the log stream once upload has completed. Log in case of any error
 
 	if errc := b.client.Close(context.Background(), b.key); errc != nil {
 		logrus.WithError(errc).WithField("key", b.key).
 			Errorln("failed to close log stream")
 	}
+	logrus.WithField("name", b.name).Infoln("successfully closed log stream")
 	return err
 }
 
