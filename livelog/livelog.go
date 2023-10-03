@@ -21,6 +21,7 @@ import (
 
 const (
 	defaultInterval = 1 * time.Second
+	maxLineLimit    = 2048 // 2KB
 	defaultLevel    = "info"
 	defaultLimit    = 5242880 // 5MB
 )
@@ -109,7 +110,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 		}
 		line := &logstream.Line{
 			Level:       defaultLevel,
-			Message:     part,
+			Message:     truncate(part, maxLineLimit),
 			Number:      b.num,
 			Timestamp:   time.Now(),
 			ElaspedTime: int64(time.Since(b.now).Seconds()),
@@ -339,4 +340,12 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// truncates a string to the given length
+func truncate(inp string, to int) string {
+	if len(inp) > to {
+		return inp[:to] + "... (log line truncated)"
+	}
+	return inp
 }
