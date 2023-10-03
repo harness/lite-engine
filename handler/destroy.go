@@ -65,6 +65,12 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
+		destroyErr := engine.Destroy(r.Context())
+		if destroyErr != nil || logErr != nil {
+			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %s", destroyErr, logErr))
+		}
+
+		// upload engine logs
 		if d.LogKey != "" && d.LiteEnginePath != "" {
 			if !d.LogDrone {
 				client := state.GetLogStreamClient()
@@ -89,11 +95,6 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			// else {
 			// TODO: handle drone case for lite engine log upload
 			// }
-		}
-
-		destroyErr := engine.Destroy(r.Context())
-		if destroyErr != nil || logErr != nil {
-			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %s", destroyErr, logErr))
 		}
 
 		stats := &spec.OSStats{}
