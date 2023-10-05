@@ -95,8 +95,8 @@ func WriteGemFile(repoPath string) error {
 }
 
 // WriteHelperFile writes the rspec helper file needed to attach agent.
-// If no rspec helper file fond in this pattern or any error happens,
-// will print a message ask for manual writeand continue
+// If no rspec helper file found in this pattern or any error happens,
+// will print a message ask for manual write and continue
 func WriteHelperFile(repoPath string) error {
 	pattern := "**/*spec_helper*.rb"
 
@@ -121,7 +121,7 @@ func WriteHelperFile(repoPath string) error {
 	return nil
 }
 
-// findRootMostPath helper funtion to find shortest file path
+// findRootMostPath helper function to find shortest file path
 func findRootMostPath(paths []string) string {
 	rootmost := paths[0]
 	for _, path := range paths[1:] {
