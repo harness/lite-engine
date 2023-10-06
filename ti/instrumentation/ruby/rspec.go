@@ -57,9 +57,13 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	testCmd := ""
 	tiFlag := "TI=1"
 	if !ignoreInstr {
-		err := WriteGemFile(repoPath)
+		err := WriteGemFile(workspace, repoPath)
 		if err != nil {
 			return testCmd, err
+		}
+		err = WriteHelperFile(repoPath)
+		if err != nil {
+			m.log.Errorln("Unable to write rspec helper file automatically", err)
 		}
 	}
 	// Run all the tests
