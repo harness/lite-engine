@@ -81,8 +81,18 @@ func UnzipAndGetTestInfo(agentInstallDir string, log *logrus.Logger) (scriptPath
 	return scriptPath, nil
 }
 
-func WriteGemFile(repoPath string) error {
-	f, err := os.OpenFile("Gemfile", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) //nolint:gomnd
+func WriteGemFile(workspace, repoPath string) error {
+	pattern := "**/Gemfile"
+
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return err
+	}
+	file := filepath.Join(workspace, "Gemfile")
+	if len(matches) > 0 {
+		file = findRootMostPath(matches)
+	}
+	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) //nolint:gomnd
 	if err != nil {
 		return err
 	}
