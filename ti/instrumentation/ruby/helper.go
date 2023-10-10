@@ -13,39 +13,14 @@ import (
 
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
-	"github.com/mattn/go-zglob"
 
 	"github.com/mholt/archiver/v3"
 	"github.com/sirupsen/logrus"
 )
 
 var (
-	defaultTestGlobs = []string{"**/*_spec.rb"}
+	defaultTestGlobs = []string{"spec/**/*_spec.rb"}
 )
-
-func getRubyTestsFromPattern(workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
-	tests := make([]ti.RunnableTest, 0)
-	files, err := common.GetFiles(fmt.Sprintf("%s/**/*.rb", workspace))
-	if err != nil {
-		return nil, err
-	}
-
-	for _, path := range files {
-		if path == "" {
-			continue
-		}
-		for _, glob := range testGlobs {
-			if matched, _ := zglob.Match(glob, path); !matched {
-				continue
-			}
-			test := ti.RunnableTest{
-				Class: path,
-			}
-			tests = append(tests, test)
-		}
-	}
-	return tests, nil
-}
 
 // GetRubyTests returns list of RunnableTests in the workspace with python extension.
 // In case of errors, return empty list
@@ -53,7 +28,7 @@ func GetRubyTests(workspace string, testGlobs []string) []ti.RunnableTest {
 	if len(testGlobs) == 0 {
 		testGlobs = defaultTestGlobs
 	}
-	tests, err := getRubyTestsFromPattern(workspace, testGlobs)
+	tests, err := common.GetTestsFromLocal(workspace, testGlobs)
 	if err != nil {
 		return tests
 	}
