@@ -81,7 +81,6 @@ func GetTestsFromLocal(workspace string, testGlobs []string) ([]ti.RunnableTest,
 			}
 			tests = append(tests, test)
 		}
-
 	}
 	return tests, nil
 }
