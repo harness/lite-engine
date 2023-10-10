@@ -1,6 +1,9 @@
 package common
 
 import (
+	"path"
+	"strings"
+
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 )
@@ -59,4 +62,26 @@ func GetUniqueTestStrings(tests []ti.RunnableTest) []string {
 		ut = append(ut, t.Class)
 	}
 	return ut
+}
+
+// GetTestsFromLocal creates list of RunnableTest within file system on given globs
+func GetTestsFromLocal(workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+	tests := make([]ti.RunnableTest, 0)
+	for _, glob := range testGlobs {
+		if !strings.HasPrefix(glob, "/") {
+			glob = path.Join(workspace, glob)
+		}
+		files, err := GetFiles(glob)
+		if err != nil {
+			return nil, err
+		}
+		for _, path := range files {
+			test := ti.RunnableTest{
+				Class: path,
+			}
+			tests = append(tests, test)
+		}
+
+	}
+	return tests, nil
 }

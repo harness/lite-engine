@@ -12,39 +12,14 @@ import (
 
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
-	"github.com/mattn/go-zglob"
 
 	"github.com/mholt/archiver/v3"
 	"github.com/sirupsen/logrus"
 )
 
 var (
-	defaultTestGlobs = []string{"test_*.py", "*_test.py"}
+	defaultTestGlobs = []string{"**/test_*.py", "**/*_test.py"}
 )
-
-func getPythonTestsFromPattern(workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
-	tests := make([]ti.RunnableTest, 0)
-	files, err := common.GetFiles(fmt.Sprintf("%s/**/*.py", workspace))
-	if err != nil {
-		return nil, err
-	}
-
-	for _, path := range files {
-		if path == "" {
-			continue
-		}
-		for _, glob := range testGlobs {
-			if matched, _ := zglob.Match(glob, path); !matched {
-				continue
-			}
-			test := ti.RunnableTest{
-				Class: path,
-			}
-			tests = append(tests, test)
-		}
-	}
-	return tests, nil
-}
 
 // GetPythonTests returns list of RunnableTests in the workspace with python extension.
 // In case of errors, return empty list
@@ -52,7 +27,7 @@ func GetPythonTests(workspace string, testGlobs []string) []ti.RunnableTest {
 	if len(testGlobs) == 0 {
 		testGlobs = defaultTestGlobs
 	}
-	tests, err := getPythonTestsFromPattern(workspace, testGlobs)
+	tests, err := common.GetTestsFromLocal(workspace, testGlobs)
 	if err != nil {
 		return tests
 	}

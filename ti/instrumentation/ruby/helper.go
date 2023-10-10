@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	defaultTestGlobs = []string{"*_spec.rb"}
+	defaultTestGlobs = []string{"**/*_spec.rb"}
 )
 
 func getRubyTestsFromPattern(workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
