@@ -23,6 +23,7 @@ type (
 		TIConfig          TIConfig          `json:"ti_config,omitempty"`
 		Files             []*spec.File      `json:"files,omitempty"`
 		MountDockerSocket *bool             `json:"mount_docker_socket,omitempty"`
+		TTY               bool              `json:"tty,omitempty" default:"false"`
 	}
 
 	SetupResponse struct{}

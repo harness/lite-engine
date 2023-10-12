@@ -57,6 +57,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			Volumes:           s.Volumes,
 			Files:             s.Files,
 			EnableDockerSetup: s.MountDockerSocket,
+			TTY:               s.TTY,
 		}
 		collector.Start()
 		if err := engine.Setup(r.Context(), cfg); err != nil {
