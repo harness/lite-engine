@@ -191,14 +191,18 @@ func (c *HTTPClient) GetStepLogOutput(ctx context.Context, in *api.StreamOutputR
 	return err
 }
 
-func (c *HTTPClient) Health(ctx context.Context) (*api.HealthResponse, error) {
+func (c *HTTPClient) Health(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error) {
 	path := "healthz"
+	if performDNSLookup {
+		path += "?perform_dns_lookup=true"
+	}
+
 	out := new(api.HealthResponse)
 	_, err := c.do(ctx, c.Endpoint+path, http.MethodGet, nil, out) //nolint:bodyclose
 	return out, err
 }
 
-func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (*api.HealthResponse, error) {
+func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration, performDNSLookup bool) (*api.HealthResponse, error) {
 	startTime := time.Now()
 	retryCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -210,7 +214,7 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (*a
 			return &api.HealthResponse{}, retryCtx.Err()
 		default:
 		}
-		if ret, err := c.healthCheck(retryCtx); err == nil {
+		if ret, err := c.healthCheck(retryCtx, performDNSLookup); err == nil {
 			logger.FromContext(ctx).
 				WithField("duration", time.Since(startTime)).
 				Trace("RetryHealth: health check completed")
@@ -224,11 +228,11 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration) (*a
 	}
 }
 
-func (c *HTTPClient) healthCheck(ctx context.Context) (*api.HealthResponse, error) {
+func (c *HTTPClient) healthCheck(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error) {
 	hctx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
 	defer cancel()
 
-	return c.Health(hctx)
+	return c.Health(hctx, performDNSLookup)
 }
 
 // do is a helper function that posts a http request with the input encoded and response decoded from json.

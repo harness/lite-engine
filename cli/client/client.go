@@ -31,8 +31,8 @@ type Client interface {
 	PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error)
 	RetryPollStep(ctx context.Context, in *api.PollStepRequest, timeout time.Duration) (step *api.PollStepResponse, pollError error)
 	GetStepLogOutput(ctx context.Context, in *api.StreamOutputRequest, w io.Writer) error
-	Health(ctx context.Context) (*api.HealthResponse, error)
-	RetryHealth(ctx context.Context, timeout time.Duration) (*api.HealthResponse, error)
+	Health(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error)
+	RetryHealth(ctx context.Context, timeout time.Duration, performDNSLookup bool) (*api.HealthResponse, error)
 }
 
 type clientCommand struct {
@@ -95,7 +95,7 @@ func (c *clientCommand) run(*kingpin.ParseContext) error {
 }
 
 func checkServerHealth(client Client) error {
-	response, healthErr := client.Health(context.Background())
+	response, healthErr := client.Health(context.Background(), false)
 	if healthErr != nil {
 		logrus.WithError(healthErr).
 			Errorln("cannot check the health of the server")
@@ -118,7 +118,7 @@ func runStage(client Client, remoteLog bool) error {
 	const healthTimeout = time.Minute * 20
 
 	logrus.Infof("check health")
-	if _, err := client.RetryHealth(ctx, healthTimeout); err != nil {
+	if _, err := client.RetryHealth(ctx, healthTimeout, false); err != nil {
 		logrus.WithError(err).Errorln("not healthy")
 		return err
 	}

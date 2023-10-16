@@ -59,10 +59,10 @@ func (*NoopClient) GetStepLogOutput(ctx context.Context, in *api.StreamOutputReq
 	return nil
 }
 
-func (*NoopClient) Health(ctx context.Context) (*api.HealthResponse, error) {
+func (*NoopClient) Health(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error) {
 	return &api.HealthResponse{OK: true, Version: "noop"}, nil
 }
 
-func (n *NoopClient) RetryHealth(ctx context.Context, timeout time.Duration) (*api.HealthResponse, error) {
-	return n.Health(ctx)
+func (n *NoopClient) RetryHealth(ctx context.Context, timeout time.Duration, performDNSLookup bool) (*api.HealthResponse, error) {
+	return n.Health(ctx, performDNSLookup)
 }
