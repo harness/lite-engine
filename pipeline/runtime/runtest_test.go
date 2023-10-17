@@ -61,7 +61,7 @@ func Test_CollectRunTestData(t *testing.T) {
 			collectTestReportsFn = func(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg) error {
 				return tc.crErr
 			}
-			err := collectRunTestData(ctx, log, &apiReq, time.Now(), stepName, &tiConfig)
+			err := collectRunTestData(ctx, log, &apiReq, time.Now(), stepName, &tiConfig, true)
 			assert.Equal(t, tc.collectionErr, err)
 		})
 	}
