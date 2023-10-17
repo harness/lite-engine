@@ -95,9 +95,5 @@ func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartSte
 	if crErr != nil {
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
 	}
-
-	if cgErr != nil {
-		return cgErr
-	}
-	return crErr
+	return cgErr
 }
