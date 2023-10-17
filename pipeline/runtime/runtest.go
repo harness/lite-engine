@@ -66,10 +66,8 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	exited, err := engine.Run(ctx, step, out, false)
 
 	shouldCollectCg := true
-	if instrumentation.IsPushTriggerExecution(tiConfig) {
-		if err != nil || (exited != nil && exited.Exited && exited.ExitCode != 0) {
-			shouldCollectCg = false
-		}
+	if instrumentation.IsPushTriggerExecution(tiConfig) && (err != nil || (exited != nil && exited.Exited && exited.ExitCode != 0)) {
+		shouldCollectCg = false
 	}
 
 	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig, shouldCollectCg)
