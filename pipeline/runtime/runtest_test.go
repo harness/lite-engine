@@ -44,7 +44,7 @@ func Test_CollectRunTestData(t *testing.T) {
 			name:          "TestReportsUploadError",
 			cgErr:         nil,
 			crErr:         fmt.Errorf("test reports upload error"),
-			collectionErr: fmt.Errorf("test reports upload error"),
+			collectionErr: nil,
 		},
 	}
 
