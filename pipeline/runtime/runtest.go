@@ -66,7 +66,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	exited, err := engine.Run(ctx, step, out, false)
 
 	shouldCollectCg := true
-	if instrumentation.IsPushTriggerExecution(tiConfig) && (err != nil || (exited != nil && exited.Exited && exited.ExitCode != 0)) {
+	if instrumentation.IsPushTriggerExecution(tiConfig) && runTestStepFailed(err, exited) {
 		shouldCollectCg = false
 	}
 
@@ -108,4 +108,11 @@ func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartSte
 		return cgErr
 	}
 	return crErr
+}
+
+func runTestStepFailed(err error, exited *runtime.State) bool {
+	if err != nil || (exited != nil && exited.Exited && exited.ExitCode != 0) {
+		return true
+	}
+	return false
 }
