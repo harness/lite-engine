@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"testing"
@@ -19,7 +20,7 @@ func TestFetchExportedVars(t *testing.T) {
 			Name:       "env_variable_long",
 			OutputFile: "testdata/long_output.txt",
 			EnvMap:     nil,
-			Error:      fmt.Errorf("output variable length is more than 65536 bytes"),
+			Error:      fmt.Errorf("output variable length is more than %d bytes", bufio.MaxScanTokenSize),
 		},
 		{
 			Name:       "env_variable_short",
