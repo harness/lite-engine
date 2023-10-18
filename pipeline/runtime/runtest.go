@@ -88,6 +88,7 @@ func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartSte
 	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
+		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
 	}
 
 	reportStart := time.Now()
