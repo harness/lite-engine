@@ -5,6 +5,7 @@
 package runtime
 
 import (
+	"bufio"
 	b64 "encoding/base64"
 	"errors"
 	"fmt"
@@ -84,6 +85,9 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) (map[string]str
 			log.WithError(ferr).WithField("envFile", envFile).Warnln("Unable to read exported env file")
 		}
 		log.WithError(err).WithField("envFile", envFile).WithField("content", string(content)).Warnln("failed to read exported env file")
+		if errors.Is(err, bufio.ErrTooLong) {
+			err = fmt.Errorf("output variable length is more than %d bytes", bufio.MaxScanTokenSize)
+		}
 		return nil, err
 	}
 	return env, nil
