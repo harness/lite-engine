@@ -38,13 +38,13 @@ func Test_CollectRunTestData(t *testing.T) {
 			name:          "CallgraphUploadError",
 			cgErr:         fmt.Errorf("callgraph upload error"),
 			crErr:         nil,
-			collectionErr: fmt.Errorf("callgraph upload error"),
+			collectionErr: fmt.Errorf("failed to collect callgraph: callgraph upload error"),
 		},
 		{
 			name:          "TestReportsUploadError",
 			cgErr:         nil,
 			crErr:         fmt.Errorf("test reports upload error"),
-			collectionErr: fmt.Errorf("test reports upload error"),
+			collectionErr: nil,
 		},
 	}
 

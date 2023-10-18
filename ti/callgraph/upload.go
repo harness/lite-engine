@@ -30,9 +30,12 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 		return nil
 	}
 
-	encCg, err := encodeCg(fmt.Sprintf(cgDir, cfg.GetDataDir()), log)
+	encCg, cgEmpty, err := encodeCg(fmt.Sprintf(cgDir, cfg.GetDataDir()), log)
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
+	} else if cgEmpty {
+		log.Infoln("Skipping call graph upload since no call graph was generated")
+		return nil
 	}
 
 	c := cfg.GetClient()
@@ -44,35 +47,37 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 }
 
 // encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
-func encodeCg(dataDir string, log *logrus.Logger) (
-	[]byte, error) {
+func encodeCg(dataDir string, log *logrus.Logger) ([]byte, bool, error) { //nolint:gocritic
 	var parser Parser
 	fs := filesystem.New()
 
 	if dataDir == "" {
-		return nil, fmt.Errorf("dataDir not present in request")
+		return nil, false, fmt.Errorf("dataDir not present in request")
 	}
 	cgFiles, visFiles, err := getCgFiles(dataDir, "json", "csv", log)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to fetch files inside the directory")
+		return nil, false, errors.Wrap(err, "failed to fetch files inside the directory")
 	}
 	parser = NewCallGraphParser(log, fs)
 	cg, err := parser.Parse(cgFiles, visFiles)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse visgraph")
+		return nil, false, errors.Wrap(err, "failed to parse visgraph")
 	}
 	log.Infoln(fmt.Sprintf("Size of Test nodes: %d, Test relations: %d, Vis Relations %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
+	if isCgEmpty(cg) {
+		return nil, true, nil
+	}
 
 	cgMap := cg.ToStringMap()
 	cgSer, err := avro.NewCgphSerialzer(cgSchemaType)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create serializer")
+		return nil, false, errors.Wrap(err, "failed to create serializer")
 	}
 	encCg, err := cgSer.Serialize(cgMap)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to encode callgraph")
+		return nil, false, errors.Wrap(err, "failed to encode callgraph")
 	}
-	return encCg, nil
+	return encCg, false, nil
 }
 
 // get list of all file paths matching a provided regex
@@ -93,4 +98,11 @@ func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string,
 		log.Errorln(fmt.Sprintf("error in getting files list in dir %s", dir), err1, err2)
 	}
 	return cgFiles, visFiles, nil
+}
+
+func isCgEmpty(cg *Callgraph) bool {
+	if len(cg.Nodes) == 0 && len(cg.TestRelations) == 0 && len(cg.VisRelations) == 0 {
+		return true
+	}
+	return false
 }
