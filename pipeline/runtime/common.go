@@ -19,6 +19,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	ErrBufioTokenTooLong = fmt.Errorf("bufio.Scanner: token too long")
+)
+
 func getNudges() []logstream.Nudge {
 	// <search-term> <resolution> <error-msg>
 	return []logstream.Nudge{
@@ -84,6 +88,9 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) (map[string]str
 			log.WithError(ferr).WithField("envFile", envFile).Warnln("Unable to read exported env file")
 		}
 		log.WithError(err).WithField("envFile", envFile).WithField("content", string(content)).Warnln("failed to read exported env file")
+		if err.Error() == ErrBufioTokenTooLong.Error() {
+			err = fmt.Errorf("output variable length is more than 65536 bytes")
+		}
 		return nil, err
 	}
 	return env, nil

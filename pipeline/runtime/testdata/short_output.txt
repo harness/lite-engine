@@ -1,0 +1,1 @@
+SHORT_ENV_VAR=value
