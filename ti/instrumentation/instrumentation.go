@@ -50,14 +50,14 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			return selection
 		}
 		log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
-		files, err = getChangedFiles(ctx, workspace, lastSuccessfulCommitID, true, log)
+		files, err = getChangedFiles(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), true, log)
 		if err != nil {
 			log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
 			config.RunOnlySelectedTests = false
 			return selection
 		}
 	} else {
-		files, err = getChangedFiles(ctx, workspace, "", false, log)
+		files, err = getChangedFiles(ctx, workspace, "", "", false, log)
 		if err != nil || len(files) == 0 {
 			log.Errorln("Unable to get changed files list for PR. Running all the tests.", "error", err)
 			config.RunOnlySelectedTests = false
