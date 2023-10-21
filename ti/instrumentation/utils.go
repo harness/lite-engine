@@ -23,6 +23,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
+	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -268,6 +269,24 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	req := &ti.SelectTestsReq{SelectAll: !runSelected, Files: files, TiConfig: tiConfigYaml}
 	c := cfg.GetClient()
 	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
+}
+
+func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs []string) ti.SelectTestsResp {
+	if selection.SelectAll || len(testGlobs) == 0 {
+		return selection
+	}
+	filteredTests := []ti.RunnableTest{}
+	for _, test := range selection.Tests {
+		for _, glob := range testGlobs {
+			if matched, _ := zglob.Match(glob, test.Class); matched {
+				filteredTests = append(filteredTests, test)
+				break
+			}
+		}
+	}
+	selection.SelectedTests = len(filteredTests)
+	selection.Tests = filteredTests
+	return selection
 }
 
 func formatTests(tests []ti.RunnableTest) string {
