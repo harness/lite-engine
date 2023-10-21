@@ -29,7 +29,7 @@ import (
 )
 
 var (
-	diffFilesCmd            = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
+	diffFilesCmdPR            = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
 	diffFilesCmdPushTrigger = []string{"diff", "--name-status", "--diff-filter=MADR"}
 )
 
@@ -207,7 +207,7 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 }
 
 func getChangedFilesPR(ctx context.Context, workspace string, log *logrus.Logger) ([]ti.File, error) {
-	return getChangedFiles(ctx, workspace, log, diffFilesCmd)
+	return getChangedFiles(ctx, workspace, log, diffFilesCmdPR)
 }
 
 func getChangedFilesPush(ctx context.Context, workspace, lastSuccessfulCommitID, currentCommitID string, log *logrus.Logger) ([]ti.File, error) {
