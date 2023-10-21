@@ -215,7 +215,7 @@ func getChangedFilesPush(ctx context.Context, workspace, lastSuccessfulCommitID,
 	return getChangedFiles(ctx, workspace, log, diffFilesCmd)
 }
 
-// getChangedFiles returns a list of files changed in the PR along with their corresponding status
+// getChangedFiles returns a list of files changed given the changed file command with their corresponding status
 func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger, diffFilesCmd []string) ([]ti.File, error) {
 	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmd...)
 	envs := make(map[string]string)
