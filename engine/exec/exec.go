@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -26,6 +27,13 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	cmdArgs = append(cmdArgs, step.Command...)
 
 	cmd := exec.Command(step.Entrypoint[0], cmdArgs...) //nolint:gosec
+
+	if step.User != "" {
+		if userID, err := strconv.Atoi(step.User); err == nil {
+			SetUserID(cmd, uint32(userID))
+		}
+	}
+
 	cmd.Dir = step.WorkingDir
 	cmd.Env = toEnv(step.Envs)
 	cmd.Stderr = output
