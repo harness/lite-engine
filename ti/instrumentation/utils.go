@@ -206,19 +206,19 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 	return testsToRun, nil
 }
 
-// getChangedFilesPR returns a list of files changed with their corresponding status for a PR
+// getChangedFilesPR returns a list of files changed with their corresponding status for a PR.
 func getChangedFilesPR(ctx context.Context, workspace string, log *logrus.Logger) ([]ti.File, error) {
 	return getChangedFiles(ctx, workspace, log, diffFilesCmdPR)
 }
 
-// getChangedFilesPush returns a list of files changed with their corresponding status for push trigger/manual execution
+// getChangedFilesPush returns a list of files changed with their corresponding status for push trigger/manual execution.
 func getChangedFilesPush(ctx context.Context, workspace, lastSuccessfulCommitID, currentCommitID string, log *logrus.Logger) ([]ti.File, error) {
 	diffFilesCmd := diffFilesCmdPush
 	diffFilesCmd = append(diffFilesCmd, lastSuccessfulCommitID, currentCommitID)
 	return getChangedFiles(ctx, workspace, log, diffFilesCmd)
 }
 
-// getChangedFiles returns a list of files changed given the changed file command with their corresponding status
+// getChangedFiles returns a list of files changed given the changed file command with their corresponding status.
 func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger, diffFilesCmd []string) ([]ti.File, error) {
 	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmd...)
 	envs := make(map[string]string)
