@@ -29,8 +29,8 @@ import (
 )
 
 var (
-	diffFilesCmdPR          = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
-	diffFilesCmdPushTrigger = []string{"diff", "--name-status", "--diff-filter=MADR"}
+	diffFilesCmdPR   = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
+	diffFilesCmdPush = []string{"diff", "--name-status", "--diff-filter=MADR"}
 )
 
 const (
@@ -213,7 +213,7 @@ func getChangedFilesPR(ctx context.Context, workspace string, log *logrus.Logger
 
 // getChangedFilesPush returns a list of files changed with their corresponding status for push trigger/manual execution
 func getChangedFilesPush(ctx context.Context, workspace, lastSuccessfulCommitID, currentCommitID string, log *logrus.Logger) ([]ti.File, error) {
-	diffFilesCmd := diffFilesCmdPushTrigger
+	diffFilesCmd := diffFilesCmdPush
 	diffFilesCmd = append(diffFilesCmd, lastSuccessfulCommitID, currentCommitID)
 	return getChangedFiles(ctx, workspace, log, diffFilesCmd)
 }
