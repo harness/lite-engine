@@ -211,8 +211,9 @@ func getChangedFilesPR(ctx context.Context, workspace string, log *logrus.Logger
 }
 
 func getChangedFilesPush(ctx context.Context, workspace, lastSuccessfulCommitID, currentCommitID string, log *logrus.Logger) ([]ti.File, error) {
-	diffFilesCmdPushTrigger := append(diffFilesCmdPushTrigger, lastSuccessfulCommitID, currentCommitID)
-	return getChangedFiles(ctx, workspace, log, diffFilesCmdPushTrigger)
+	diffFilesCmd := diffFilesCmdPushTrigger
+	diffFilesCmd = append(diffFilesCmd, lastSuccessfulCommitID, currentCommitID)
+	return getChangedFiles(ctx, workspace, log, diffFilesCmd)
 }
 
 // getChangedFiles returns a list of files changed given the changed file command with their corresponding status
