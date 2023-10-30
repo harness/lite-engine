@@ -362,4 +362,18 @@ func TestFilterSelection(t *testing.T) {
 
 	filteredTests = filterTestsAfterSelection(selection, testGlob)
 	assert.Equal(t, filteredTests.Tests, []ti.RunnableTest{rts[0]})
+
+	testGlob = "c*"
+	selection = ti.SelectTestsResp{
+		TotalTests:    20,
+		SelectedTests: 12,
+		NewTests:      0,
+		UpdatedTests:  12,
+		SrcCodeTests:  12,
+		SelectAll:     false,
+		Tests:         rts,
+	}
+
+	filteredTests = filterTestsAfterSelection(selection, testGlob)
+	assert.Equal(t, filteredTests.Tests, rts)
 }
