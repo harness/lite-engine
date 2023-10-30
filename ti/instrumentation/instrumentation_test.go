@@ -311,3 +311,56 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 		})
 	}
 }
+
+func TestFilterSelection(t *testing.T) {
+	testGlob := ""
+	rts := make([]ti.RunnableTest, 0)
+	for i := 1; i <= 12; i++ {
+		rt := ti.RunnableTest{
+			Pkg:   fmt.Sprintf("p%d", i),
+			Class: fmt.Sprintf("c%d", i),
+		}
+		rts = append(rts, rt)
+	}
+	selection := ti.SelectTestsResp{
+		TotalTests:    20,
+		SelectedTests: 12,
+		NewTests:      0,
+		UpdatedTests:  12,
+		SrcCodeTests:  12,
+		SelectAll:     false,
+		Tests:         rts,
+	}
+
+	filteredTests := filterTestsAfterSelection(selection, testGlob)
+	assert.Equal(t, filteredTests, rts)
+
+	testGlob = "abc"
+	selection = ti.SelectTestsResp{
+		TotalTests:    20,
+		SelectedTests: 12,
+		NewTests:      0,
+		UpdatedTests:  12,
+		SrcCodeTests:  12,
+		SelectAll:     true,
+		Tests:         rts,
+	}
+
+	filteredTests = filterTestsAfterSelection(selection, testGlob)
+	assert.Equal(t, filteredTests, rts)
+
+	testGlob = "c1"
+	selection = ti.SelectTestsResp{
+		TotalTests:    20,
+		SelectedTests: 12,
+		NewTests:      0,
+		UpdatedTests:  12,
+		SrcCodeTests:  12,
+		SelectAll:     true,
+		Tests:         rts,
+	}
+
+	filteredTests = filterTestsAfterSelection(selection, testGlob)
+	assert.Equal(t, filteredTests, []ti.RunnableTest{rts[1]})
+
+}

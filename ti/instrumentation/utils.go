@@ -270,6 +270,28 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
 }
 
+<<<<<<< Updated upstream
+=======
+func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string) ti.SelectTestsResp {
+	if selection.SelectAll || testGlobs == "" {
+		return selection
+	}
+	testGlobSlice := strings.Split(testGlobs, ",")
+	filteredTests := []ti.RunnableTest{}
+	for _, test := range selection.Tests {
+		for _, glob := range testGlobSlice {
+			if matched, _ := zglob.Match(glob, test.Class); matched {
+				filteredTests = append(filteredTests, test)
+				break
+			}
+		}
+	}
+	selection.SelectedTests = len(filteredTests)
+	selection.Tests = filteredTests
+	return selection
+}
+
+>>>>>>> Stashed changes
 func formatTests(tests []ti.RunnableTest) string {
 	testStrings := make([]string, 0)
 	for _, t := range tests {
