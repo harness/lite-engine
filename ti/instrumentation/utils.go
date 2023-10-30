@@ -23,6 +23,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
+	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
@@ -270,8 +271,6 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
 }
 
-<<<<<<< Updated upstream
-=======
 func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string) ti.SelectTestsResp {
 	if selection.SelectAll || testGlobs == "" {
 		return selection
@@ -291,7 +290,6 @@ func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string) t
 	return selection
 }
 
->>>>>>> Stashed changes
 func formatTests(tests []ti.RunnableTest) string {
 	testStrings := make([]string, 0)
 	for _, t := range tests {
