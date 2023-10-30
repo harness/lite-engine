@@ -277,13 +277,14 @@ func selectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
 }
 
-func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs []string) ti.SelectTestsResp {
-	if selection.SelectAll || len(testGlobs) == 0 {
+func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string) ti.SelectTestsResp {
+	if selection.SelectAll || testGlobs == "" {
 		return selection
 	}
+	testGlobSlice := strings.Split(testGlobs, ",")
 	filteredTests := []ti.RunnableTest{}
 	for _, test := range selection.Tests {
-		for _, glob := range testGlobs {
+		for _, glob := range testGlobSlice {
 			if matched, _ := zglob.Match(glob, test.Class); matched {
 				filteredTests = append(filteredTests, test)
 				break
