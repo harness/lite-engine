@@ -333,7 +333,7 @@ func TestFilterSelection(t *testing.T) {
 	}
 
 	filteredTests := filterTestsAfterSelection(selection, testGlob)
-	assert.Equal(t, filteredTests, rts)
+	assert.Equal(t, filteredTests.Tests, rts)
 
 	testGlob = "abc"
 	selection = ti.SelectTestsResp{
@@ -347,7 +347,7 @@ func TestFilterSelection(t *testing.T) {
 	}
 
 	filteredTests = filterTestsAfterSelection(selection, testGlob)
-	assert.Equal(t, filteredTests, rts)
+	assert.Equal(t, filteredTests.Tests, rts)
 
 	testGlob = "c1"
 	selection = ti.SelectTestsResp{
@@ -361,6 +361,5 @@ func TestFilterSelection(t *testing.T) {
 	}
 
 	filteredTests = filterTestsAfterSelection(selection, testGlob)
-	assert.Equal(t, filteredTests, []ti.RunnableTest{rts[1]})
-
+	assert.Equal(t, filteredTests.Tests, []ti.RunnableTest{rts[1]})
 }
