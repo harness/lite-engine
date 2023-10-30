@@ -356,10 +356,10 @@ func TestFilterSelection(t *testing.T) {
 		NewTests:      0,
 		UpdatedTests:  12,
 		SrcCodeTests:  12,
-		SelectAll:     true,
+		SelectAll:     false,
 		Tests:         rts,
 	}
 
 	filteredTests = filterTestsAfterSelection(selection, testGlob)
-	assert.Equal(t, filteredTests.Tests, []ti.RunnableTest{rts[1]})
+	assert.Equal(t, filteredTests.Tests, []ti.RunnableTest{rts[0]})
 }
