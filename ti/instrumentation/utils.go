@@ -30,8 +30,8 @@ import (
 )
 
 var (
-	diffFilesCmd            = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
-	diffFilesCmdPushTrigger = []string{"diff", "--name-status", "--diff-filter=MADR"}
+	diffFilesCmdPR   = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
+	diffFilesCmdPush = []string{"diff", "--name-status", "--diff-filter=MADR"}
 )
 
 const (
@@ -207,15 +207,21 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 	return testsToRun, nil
 }
 
-// getChangedFiles returns a list of files changed in the PR along with their corresponding status
-func getChangedFiles(ctx context.Context, workspace, lastSuccessfulCommitID string, isPushTrigger bool, log *logrus.Logger) ([]ti.File, error) {
-	diffFilesCmdFinal := diffFilesCmd
-	if isPushTrigger {
-		diffFilesCmdPushTrigger = append(diffFilesCmdPushTrigger, lastSuccessfulCommitID)
-		diffFilesCmdFinal = diffFilesCmdPushTrigger
-	}
+// getChangedFilesPR returns a list of files changed with their corresponding status for a PR.
+func getChangedFilesPR(ctx context.Context, workspace string, log *logrus.Logger) ([]ti.File, error) {
+	return getChangedFiles(ctx, workspace, log, diffFilesCmdPR)
+}
 
-	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmdFinal...)
+// getChangedFilesPush returns a list of files changed with their corresponding status for push trigger/manual execution.
+func getChangedFilesPush(ctx context.Context, workspace, lastSuccessfulCommitID, currentCommitID string, log *logrus.Logger) ([]ti.File, error) {
+	diffFilesCmd := diffFilesCmdPush
+	diffFilesCmd = append(diffFilesCmd, lastSuccessfulCommitID, currentCommitID)
+	return getChangedFiles(ctx, workspace, log, diffFilesCmd)
+}
+
+// getChangedFiles returns a list of files changed given the changed file command with their corresponding status.
+func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger, diffFilesCmd []string) ([]ti.File, error) {
+	cmd := exec.CommandContext(ctx, gitBin, diffFilesCmd...)
 	envs := make(map[string]string)
 	for _, e := range os.Environ() {
 		if i := strings.Index(e, "="); i >= 0 {

@@ -200,17 +200,17 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 				ctxBg, cancel = context.WithTimeout(ctxBg, time.Until(deadline))
 				defer cancel()
 			}
-			e.startContainer(ctxBg, step.ID, output) //nolint:errcheck
+			e.startContainer(ctxBg, step.ID, pipelineConfig.TTY, output) //nolint:errcheck
 			if wr, ok := output.(logstream.Writer); ok {
 				wr.Close()
 			}
 		}()
 		return &runtime.State{Exited: false}, nil
 	}
-	return e.startContainer(ctx, step.ID, output)
+	return e.startContainer(ctx, step.ID, pipelineConfig.TTY, output)
 }
 
-func (e *Docker) startContainer(ctx context.Context, stepID string, output io.Writer) (*runtime.State, error) {
+func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, output io.Writer) (*runtime.State, error) {
 	// start the container
 	startTime := time.Now()
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on container for step %s", stepID))
@@ -219,7 +219,7 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, output io.Wr
 		return nil, errors.TrimExtraInfo(err)
 	}
 	// grab the logs from the container execution
-	err = e.logs(ctx, stepID, output)
+	err = e.logs(ctx, stepID, tty, output)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
@@ -352,7 +352,7 @@ func (e *Docker) wait(ctx context.Context, id string) (*runtime.State, error) {
 
 // helper function which emulates the docker logs command and writes the log output to
 // the writer
-func (e *Docker) logs(ctx context.Context, id string, output io.Writer) error {
+func (e *Docker) logs(ctx context.Context, id string, tty bool, output io.Writer) error {
 	opts := types.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
@@ -370,11 +370,21 @@ func (e *Docker) logs(ctx context.Context, id string, output io.Writer) error {
 	}
 	defer logs.Close()
 
-	_, err = stdcopy.StdCopy(output, output, logs)
-	if err != nil {
-		logger.FromContext(ctx).WithError(err).
-			WithField("container", id).
-			Errorln("failed to copy logs from log stream")
+	if tty {
+		_, err = io.Copy(output, logs)
+		if err != nil && err != io.EOF {
+			logger.FromContext(ctx).WithError(err).
+				WithField("container", id).
+				Errorln("failed to copy logs from log stream")
+		}
+	} else {
+		// multiplexed copy of stdout and stderr
+		_, err = stdcopy.StdCopy(output, output, logs)
+		if err != nil {
+			logger.FromContext(ctx).WithError(err).
+				WithField("container", id).
+				Errorln("failed to copy logs from log stream")
+		}
 	}
 
 	return nil

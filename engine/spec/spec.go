@@ -19,6 +19,7 @@ type (
 		Envs              map[string]string `json:"envs,omitempty"`
 		Files             []*File           `json:"files,omitempty"`
 		EnableDockerSetup *bool             `json:"mount_docker_socket"`
+		TTY               bool              `json:"tty,omitempty" default:"false"`
 	}
 
 	// Step defines a pipeline step.
