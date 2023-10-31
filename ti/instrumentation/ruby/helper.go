@@ -84,7 +84,7 @@ func UnzipAndGetTestInfo(agentInstallDir string, log *logrus.Logger) (scriptPath
 func WriteGemFile(workspace, repoPath string) error {
 	pattern := "**/Gemfile"
 
-	matches, err := filepath.Glob(pattern)
+	matches, err := zglob.Glob(pattern)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func WriteGemFile(workspace, repoPath string) error {
 func WriteHelperFile(repoPath string) error {
 	pattern := "**/*spec_helper*.rb"
 
-	matches, err := filepath.Glob(pattern)
+	matches, err := zglob.Glob(pattern)
 	if err != nil {
 		return err
 	}
