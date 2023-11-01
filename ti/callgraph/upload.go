@@ -61,9 +61,6 @@ func encodeCg(dataDir string, log *logrus.Logger) ([]byte, bool, error) { //noli
 		return nil, false, errors.Wrap(err, "failed to parse visgraph")
 	}
 	log.Infoln(fmt.Sprintf("Size of Test nodes: %d, Test relations: %d, Vis Relations %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
-	if isCgEmpty(cg) {
-		return nil, true, nil
-	}
 
 	cgMap := cg.ToStringMap()
 	cgSer, err := avro.NewCgphSerialzer(cgSchemaType)
