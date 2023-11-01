@@ -30,12 +30,9 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 		return nil
 	}
 
-	encCg, cgEmpty, err := encodeCg(fmt.Sprintf(cgDir, cfg.GetDataDir()), log)
+	encCg, _, err := encodeCg(fmt.Sprintf(cgDir, cfg.GetDataDir()), log)
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
-	} else if cgEmpty {
-		log.Infoln("Skipping call graph upload since no call graph was generated")
-		return nil
 	}
 
 	c := cfg.GetClient()
