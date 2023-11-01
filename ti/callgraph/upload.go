@@ -44,7 +44,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 }
 
 // encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
-func encodeCg(dataDir string, log *logrus.Logger) ([]byte, error) { //nolint:gocritic
+func encodeCg(dataDir string, log *logrus.Logger) ([]byte, error) {
 	var parser Parser
 	fs := filesystem.New()
 
