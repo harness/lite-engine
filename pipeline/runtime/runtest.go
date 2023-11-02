@@ -26,7 +26,7 @@ import (
 
 var (
 	collectCgFn          = callgraph.Upload
-	collectTestReportsFn = report.ParseAndUploadTestsWithLanguage
+	collectTestReportsFn = report.ParseAndUploadTestsForLanguage
 )
 
 func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
