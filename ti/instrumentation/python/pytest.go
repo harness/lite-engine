@@ -54,6 +54,10 @@ func (m *pytestRunner) ReadPackages(workspace string, files []ti.File) []ti.File
 
 func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	if userArgs == "" {
+		userArgs = "--junitxml=harness_test_results.xml -o junit_family='xunit1'"
+	}
+
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, pytestCmd, userArgs, m.log)
 	if err != nil {
 		return "", err

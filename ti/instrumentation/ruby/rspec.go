@@ -67,6 +67,10 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		}
 	}
 	// Run all the tests
+	if userArgs == "" {
+		userArgs = "--format RspecJunitFormatter --out harness_test_results.xml"
+	}
+
 	if runAll {
 		if ignoreInstr {
 			return strings.TrimSpace(fmt.Sprintf("%s %s", rspecCmd, userArgs)), nil
