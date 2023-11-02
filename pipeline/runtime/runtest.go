@@ -8,8 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -94,12 +92,6 @@ func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartSte
 	}
 
 	reportStart := time.Now()
-	switch strings.ToLower(r.RunTest.Language) {
-	case "python", "ruby":
-		if len(r.TestReport.Junit.Paths) == 0 {
-			r.TestReport.Junit.Paths = []string{filepath.Join(r.WorkingDir, "harness_test_results.xml")}
-		}
-	}
 	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, r.RunTest.Language, log, reportStart, tiConfig)
 	if crErr != nil {
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
