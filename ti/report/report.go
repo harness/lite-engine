@@ -26,10 +26,8 @@ func ParseAndUploadTestsForLanguage(ctx context.Context, report api.TestReport, 
 	case "python", "ruby":
 		if len(report.Junit.Paths) == 0 {
 			report.Junit.Paths = []string{"harness_test_results.xml*"}
-		} else {
-			if report.Kind != api.Junit {
-				return fmt.Errorf("unknown report type: %s", report.Kind)
-			}
+		} else if report.Kind != api.Junit {
+			return fmt.Errorf("unknown report type: %s", report.Kind)
 		}
 	default:
 		if report.Kind != api.Junit {
