@@ -68,7 +68,7 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 	// Run all the tests
 	if userArgs == "" {
-		userArgs = "--out harness_test_results.xml"
+		userArgs = "--format RspecJunitFormatter --out harness_test_results.xml"
 	}
 
 	if runAll {
