@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	HARNESS_REPORT_PATH = "harness_test_results.xml"
+	HarnessDefaultReportPath = "harness_test_results.xml"
 )
 
 type NodeType int32

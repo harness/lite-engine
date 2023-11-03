@@ -221,13 +221,14 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	return command, nil
 }
 
+// InjectReportInformation add default test paths information to ruby and python when test runner is invoked without a value
+// This serves as a default
 func InjectReportInformation(r *api.StartStepRequest) {
 	switch strings.ToLower(r.RunTest.Language) {
 	case "ruby", "python":
 		if r.RunTest.Args == "" && len(r.TestReport.Junit.Paths) == 0 {
-			r.TestReport.Junit.Paths = []string{fmt.Sprintf("**/%s*", common.HARNESS_REPORT_PATH)}
+			r.TestReport.Junit.Paths = []string{fmt.Sprintf("**/%s*", common.HarnessDefaultReportPath)}
 			r.TestReport.Kind = api.Junit
 		}
 	}
-
 }
