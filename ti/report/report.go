@@ -18,25 +18,12 @@ import (
 )
 
 func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg) error {
-	return ParseAndUploadTestsForLanguage(ctx, report, workDir, stepID, "", log, start, tiConfig)
-}
+	if report.Kind != api.Junit {
+		return fmt.Errorf("unknown report type: %s", report.Kind)
+	}
 
-func ParseAndUploadTestsForLanguage(ctx context.Context, report api.TestReport, workDir, stepID, language string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg) error {
-	switch strings.ToLower(language) {
-	case "python", "ruby":
-		if len(report.Junit.Paths) == 0 {
-			report.Junit.Paths = []string{"harness_test_results.xml*"}
-		} else if report.Kind != api.Junit {
-			return fmt.Errorf("unknown report type: %s", report.Kind)
-		}
-	default:
-		if report.Kind != api.Junit {
-			return fmt.Errorf("unknown report type: %s", report.Kind)
-		}
-
-		if len(report.Junit.Paths) == 0 {
-			return nil
-		}
+	if len(report.Junit.Paths) == 0 {
+		return nil
 	}
 
 	// Append working dir to the paths. In k8s, we specify the workDir in the YAML but this is

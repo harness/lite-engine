@@ -24,7 +24,7 @@ import (
 
 var (
 	collectCgFn          = callgraph.Upload
-	collectTestReportsFn = report.ParseAndUploadTestsForLanguage
+	collectTestReportsFn = report.ParseAndUploadTests
 )
 
 func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
@@ -43,6 +43,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 		return nil, nil, nil, nil, err
 	}
 
+	instrumentation.InjectReportInformation(r)
 	step := toStep(r)
 	step.Command = []string{cmd}
 	step.Entrypoint = r.RunTest.Entrypoint
@@ -92,7 +93,7 @@ func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartSte
 	}
 
 	reportStart := time.Now()
-	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, r.RunTest.Language, log, reportStart, tiConfig)
+	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig)
 	if crErr != nil {
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
 	}

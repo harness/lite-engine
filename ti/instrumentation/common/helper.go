@@ -5,6 +5,10 @@ import (
 	"github.com/mattn/go-zglob"
 )
 
+const (
+	HarnessDefaultReportPath = "harness_test_results.xml"
+)
+
 type NodeType int32
 
 const (
