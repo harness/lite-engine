@@ -24,7 +24,7 @@ import (
 
 var (
 	collectCgFn          = callgraph.Upload
-	collectTestReportsFn = report.ParseAndUploadTestsForLanguage
+	collectTestReportsFn = report.ParseAndUploadTests
 )
 
 func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
@@ -39,6 +39,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 
 	start := time.Now()
 	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs, tiConfig)
+	instrumentation.InjectReportInformation(r)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/internal/filesystem"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
 )
@@ -218,4 +219,15 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
 	return command, nil
+}
+
+func InjectReportInformation(r *api.StartStepRequest) {
+	switch strings.ToLower(r.RunTest.Language) {
+	case "ruby", "python":
+		if r.RunTest.Args == "" && len(r.TestReport.Junit.Paths) == 0 {
+			r.TestReport.Junit.Paths = []string{common.HARNESS_REPORT_PATH}
+			r.TestReport.Kind = api.Junit
+		}
+	}
+
 }

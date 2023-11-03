@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 
@@ -55,7 +56,7 @@ func (m *pytestRunner) ReadPackages(workspace string, files []ti.File) []ti.File
 func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	if userArgs == "" {
-		userArgs = "--junitxml=harness_test_results.xml -o junit_family='xunit1'"
+		userArgs = fmt.Sprintf("--junitxml=%s -o junit_family='xunit1'", common.HARNESS_REPORT_PATH)
 	}
 
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, pytestCmd, userArgs, m.log)
