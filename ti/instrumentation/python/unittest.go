@@ -53,7 +53,7 @@ func (m *unittestRunner) ReadPackages(workspace string, files []ti.File) []ti.Fi
 func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	if userArgs == "" {
-		userArgs = fmt.Sprintf("--junitxml=%s -o junit_family='xunit1'", common.HarnessDefaultReportPath)
+		userArgs = fmt.Sprintf("--junitxml='%s${HARNESS_NODE_INDEX}' -o junit_family='xunit1'", common.HarnessDefaultReportPath)
 	}
 	// Run all the tests
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, unitTestCmd, userArgs, m.log)

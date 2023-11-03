@@ -56,7 +56,7 @@ func (m *pytestRunner) ReadPackages(workspace string, files []ti.File) []ti.File
 func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	if userArgs == "" {
-		userArgs = fmt.Sprintf("--junitxml=%s -o junit_family='xunit1'", common.HarnessDefaultReportPath)
+		userArgs = fmt.Sprintf("--junitxml='%s${HARNESS_NODE_INDEX}' -o junit_family='xunit1'", common.HarnessDefaultReportPath)
 	}
 
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, pytestCmd, userArgs, m.log)
