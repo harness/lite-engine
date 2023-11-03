@@ -225,7 +225,7 @@ func InjectReportInformation(r *api.StartStepRequest) {
 	switch strings.ToLower(r.RunTest.Language) {
 	case "ruby", "python":
 		if r.RunTest.Args == "" && len(r.TestReport.Junit.Paths) == 0 {
-			r.TestReport.Junit.Paths = []string{common.HARNESS_REPORT_PATH}
+			r.TestReport.Junit.Paths = []string{fmt.Sprintf("**/%s*", common.HARNESS_REPORT_PATH)}
 			r.TestReport.Kind = api.Junit
 		}
 	}
