@@ -39,11 +39,11 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 
 	start := time.Now()
 	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs, tiConfig)
-	instrumentation.InjectReportInformation(r)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 
+	instrumentation.InjectReportInformation(r)
 	step := toStep(r)
 	step.Command = []string{cmd}
 	step.Entrypoint = r.RunTest.Entrypoint

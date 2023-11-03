@@ -39,11 +39,10 @@ const (
 	outDir       = "%s/ti/callgraph/" // path passed as outDir in the config.ini file
 	tiConfigPath = ".ticonfig.yaml"
 	// Parallelism environment variables
-	harnessStepIndex    = "HARNESS_STEP_INDEX"
-	harnessStepTotal    = "HARNESS_STEP_TOTAL"
-	harnessStageIndex   = "HARNESS_STAGE_INDEX"
-	harnessStageTotal   = "HARNESS_STAGE_TOTAL"
-	HARNESS_REPORT_PATH = "harness_test_results.xml"
+	harnessStepIndex  = "HARNESS_STEP_INDEX"
+	harnessStepTotal  = "HARNESS_STEP_TOTAL"
+	harnessStageIndex = "HARNESS_STAGE_INDEX"
+	harnessStageTotal = "HARNESS_STAGE_TOTAL"
 )
 
 func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string) (TestRunner, bool, error) {
