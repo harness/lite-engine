@@ -82,7 +82,7 @@ func UnzipAndGetTestInfo(agentInstallDir string, log *logrus.Logger) (scriptPath
 }
 
 func WriteGemFile(workspace, repoPath string) error {
-	pattern :=  fmt.Sprintf("%s/**/Gemfile", workspace)
+	pattern := fmt.Sprintf("%s/**/Gemfile", workspace)
 
 	matches, err := zglob.Glob(pattern)
 	if err != nil {
