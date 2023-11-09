@@ -61,7 +61,7 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		if err != nil {
 			return testCmd, err
 		}
-		err = WriteHelperFile(repoPath)
+		err = WriteHelperFile(workspace, repoPath)
 		if err != nil {
 			m.log.Errorln("Unable to write rspec helper file automatically", err)
 		}
