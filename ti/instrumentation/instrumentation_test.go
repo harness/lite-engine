@@ -333,11 +333,7 @@ func TestFilterSelection(t *testing.T) {
 	}
 
 	filteredTests := filterTestsAfterSelection(selection, testGlob)
-<<<<<<< Updated upstream
 	assert.Equal(t, filteredTests.Tests, rts)
-=======
-	assert.Equal(t, filteredTests, rts)
->>>>>>> Stashed changes
 
 	testGlob = "abc"
 	selection = ti.SelectTestsResp{
@@ -351,11 +347,7 @@ func TestFilterSelection(t *testing.T) {
 	}
 
 	filteredTests = filterTestsAfterSelection(selection, testGlob)
-<<<<<<< Updated upstream
 	assert.Equal(t, filteredTests.Tests, rts)
-=======
-	assert.Equal(t, filteredTests, rts)
->>>>>>> Stashed changes
 
 	testGlob = "c1"
 	selection = ti.SelectTestsResp{
@@ -364,16 +356,11 @@ func TestFilterSelection(t *testing.T) {
 		NewTests:      0,
 		UpdatedTests:  12,
 		SrcCodeTests:  12,
-<<<<<<< Updated upstream
 		SelectAll:     false,
-=======
-		SelectAll:     true,
->>>>>>> Stashed changes
 		Tests:         rts,
 	}
 
 	filteredTests = filterTestsAfterSelection(selection, testGlob)
-<<<<<<< Updated upstream
 	assert.Equal(t, filteredTests.Tests, []ti.RunnableTest{rts[0]})
 
 	testGlob = "c*"
@@ -389,8 +376,4 @@ func TestFilterSelection(t *testing.T) {
 
 	filteredTests = filterTestsAfterSelection(selection, testGlob)
 	assert.Equal(t, filteredTests.Tests, rts)
-=======
-	assert.Equal(t, filteredTests, []ti.RunnableTest{rts[1]})
-
->>>>>>> Stashed changes
 }
