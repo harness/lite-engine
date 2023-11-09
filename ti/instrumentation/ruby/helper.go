@@ -82,7 +82,7 @@ func UnzipAndGetTestInfo(agentInstallDir string, log *logrus.Logger) (scriptPath
 }
 
 func WriteGemFile(workspace, repoPath string) error {
-	pattern := "**/Gemfile"
+	pattern := fmt.Sprintf("%s/**/Gemfile", workspace)
 
 	matches, err := zglob.Glob(pattern)
 	if err != nil {
@@ -107,8 +107,8 @@ func WriteGemFile(workspace, repoPath string) error {
 // WriteHelperFile writes the rspec helper file needed to attach agent.
 // If no rspec helper file found in this pattern or any error happens,
 // will print a message ask for manual write and continue
-func WriteHelperFile(repoPath string) error {
-	pattern := "**/*spec_helper*.rb"
+func WriteHelperFile(workspace, repoPath string) error {
+	pattern := fmt.Sprintf("%s/**/*spec_helper*.rb", workspace)
 
 	matches, err := zglob.Glob(pattern)
 	if err != nil {
