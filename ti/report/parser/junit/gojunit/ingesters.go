@@ -40,7 +40,7 @@ func IngestReader(reader io.Reader) ([]Suite, error) {
 	}
 
 	go func() {
-		findSuites(nodes, suiteChan)
+		findSuites(nodes, suiteChan, "")
 		close(suiteChan)
 	}()
 

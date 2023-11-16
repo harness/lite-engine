@@ -16,33 +16,40 @@ import (
 	ti "github.com/harness/ti-client/types"
 )
 
+const cypressRootSuiteName = "Root Suite"
+
 // findSuites performs a depth-first search through the XML document, and
 // attempts to ingest any "testsuite" tags that are encountered.
-func findSuites(nodes []xmlNode, suites chan Suite) {
+func findSuites(nodes []xmlNode, suites chan Suite, parentFilename string) {
 	for _, node := range nodes {
 		switch node.XMLName.Local {
 		case "testsuite":
-			suites <- ingestSuite(node)
+			suites <- ingestSuite(node, parentFilename)
+			if node.Attr("name") == cypressRootSuiteName {
+				parentFilename = node.Attr("file")
+			}
 		default:
-			findSuites(node.Nodes, suites)
+			findSuites(node.Nodes, suites, parentFilename)
 		}
 	}
 }
 
-func ingestSuite(root xmlNode) Suite { //nolint:gocritic
+func ingestSuite(root xmlNode, parentFilename string) Suite { //nolint:gocritic
 	suite := Suite{
 		Name:       root.Attr("name"),
 		Package:    root.Attr("package"),
 		Properties: root.Attrs,
 	}
 
+	file := getFilename(root.Attr("file"), parentFilename)
+
 	for _, node := range root.Nodes {
 		switch node.XMLName.Local {
 		case "testsuite":
-			testsuite := ingestSuite(node)
+			testsuite := ingestSuite(node, file)
 			suite.Suites = append(suite.Suites, testsuite)
 		case "testcase":
-			testcase := ingestTestcase(node)
+			testcase := ingestTestcase(node, file)
 			suite.Tests = append(suite.Tests, testcase)
 		case "properties":
 			props := ingestProperties(node)
@@ -72,11 +79,11 @@ func ingestProperties(root xmlNode) map[string]string { //nolint:gocritic
 	return props
 }
 
-func ingestTestcase(root xmlNode) Test { //nolint:gocritic
+func ingestTestcase(root xmlNode, parentFilename string) Test { //nolint:gocritic
 	test := Test{
 		Name:       root.Attr("name"),
 		Classname:  root.Attr("classname"),
-		Filename:   root.Attr("file"),
+		Filename:   getFilename(root.Attr("file"), parentFilename),
 		DurationMs: duration(root.Attr("time")).Milliseconds(),
 		Result:     ti.Result{Status: ti.StatusPassed},
 		Properties: root.Attrs,
@@ -123,4 +130,12 @@ func duration(t string) time.Duration {
 	}
 
 	return 0
+}
+
+// getFilename returns the filename, using the parent filename if the current filename is empty
+func getFilename(currentFilename, parentFilename string) string {
+	if currentFilename != "" {
+		return currentFilename
+	}
+	return parentFilename
 }

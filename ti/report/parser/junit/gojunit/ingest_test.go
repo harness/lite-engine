@@ -223,6 +223,32 @@ func TestExamplesInTheWild(t *testing.T) { //nolint:funlen
 				assert.Equal(t, expectedTotals, actualTotals)
 			},
 		},
+		{
+			title:    "cypress example",
+			filename: "testdata/cypress.xml",
+			check: func(t *testing.T, suites []Suite) {
+				assert.Len(t, suites, 5)
+				assert.Len(t, suites[0].Tests, 0)
+				assert.Len(t, suites[2].Tests, 3)
+
+				var testcase = Test{
+					Name:       "RUN PIPELINE MODAL - Jira Approval Stage Jira Create Form Test Submit form with empty required fields validations",
+					Classname:  "Submit form with empty required fields validations",
+					Filename:   "integration/70-pipeline/RunPipelineJiraApprovalStage.spec.ts",
+					DurationMs: 22701,
+					Result: ti.Result{
+						Status: ti.StatusPassed,
+					},
+					Properties: map[string]string{
+						"classname": "Submit form with empty required fields validations",
+						"name":      "RUN PIPELINE MODAL - Jira Approval Stage Jira Create Form Test Submit form with empty required fields validations",
+						"time":      "22.701",
+					},
+				}
+
+				assert.Equal(t, testcase, suites[2].Tests[1])
+			},
+		},
 	}
 
 	for index, test := range tests {
