@@ -159,7 +159,7 @@ func prepend(lineToAdd, fileName string) error {
 		return err
 	}
 
-	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0600) //nolint:gomnd
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func prepend(lineToAdd, fileName string) error {
 	writer := bufio.NewWriter(f)
 	writer.WriteString(fmt.Sprintf("%s\n", lineToAdd))
 	for _, line := range content {
-		_, err := writer.WriteString(fmt.Sprintf("%s\n", line))
+		_, err := writer.WriteString(fmt.Sprintf("%s\n", line)) //nolint:gomnd
 		if err != nil {
 			return err
 		}
