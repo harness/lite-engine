@@ -135,7 +135,7 @@ func readLines(fileName string) ([]string, error) {
 		return nil, nil
 	}
 
-	f, err := os.OpenFile(fileName, os.O_RDONLY, 0600)
+	f, err := os.OpenFile(fileName, os.O_RDONLY, 0600) //nolint:gomnd
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func readLines(fileName string) ([]string, error) {
 	content := []string{}
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
-		if tmp := scanner.Text(); len(tmp) != 0 {
+		if tmp := scanner.Text(); tmp != "" {
 			content = append(content, tmp)
 		}
 	}
@@ -166,9 +166,12 @@ func prepend(lineToAdd, fileName string) error {
 	defer f.Close()
 
 	writer := bufio.NewWriter(f)
-	writer.WriteString(fmt.Sprintf("%s\n", lineToAdd))
+	_, err = writer.WriteString(fmt.Sprintf("%s\n", lineToAdd))
+	if err != nil {
+		return err
+	}
 	for _, line := range content {
-		_, err := writer.WriteString(fmt.Sprintf("%s\n", line)) //nolint:gomnd
+		_, err := writer.WriteString(fmt.Sprintf("%s\n", line))
 		if err != nil {
 			return err
 		}
