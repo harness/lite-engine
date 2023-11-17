@@ -49,15 +49,14 @@ func (m *rspecRunner) ReadPackages(workspace string, files []ti.File) []ti.File 
 
 func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
-	repoPath, err := UnzipAndGetTestInfo(agentInstallDir, m.log)
-	if err != nil {
-		return "", err
-	}
-
 	testCmd := ""
 	tiFlag := "TI=1"
 	if !ignoreInstr {
-		err := WriteGemFile(workspace, repoPath)
+		repoPath, err := UnzipAndGetTestInfo(agentInstallDir, m.log)
+		if err != nil {
+			return "", err
+		}
+		err = WriteGemFile(workspace, repoPath)
 		if err != nil {
 			return testCmd, err
 		}

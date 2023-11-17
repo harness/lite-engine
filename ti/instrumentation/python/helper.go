@@ -72,7 +72,7 @@ func UnzipAndGetTestInfo(agentInstallDir string, ignoreInstr bool, testHarness s
 	err = zip.Unarchive(filepath.Join(agentInstallDir, "python-agent.zip"), agentInstallDir)
 	if err != nil {
 		log.WithError(err).Println("could not unzip the python agent")
-		return "", "", err
+		return "", "", nil
 	}
 
 	scriptPath = filepath.Join(agentInstallDir, "harness", "python-agent", "python_agent.py")
