@@ -12,6 +12,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -39,6 +41,7 @@ const (
 	imageRetrySleepDuration   = 50
 	networkMaxRetries         = 3
 	networkRetrySleepDuration = 50
+	DRONE_HTTP_PROXY          = "DRONE_HTTP_PROXY"
 )
 
 // Opts configures the Docker engine.
@@ -83,6 +86,11 @@ func (e *Docker) Ping(ctx context.Context) error {
 func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
+
+	if proxy, ok := pipelineConfig.Envs[DRONE_HTTP_PROXY]; ok {
+		e.setProxyForDockerClient(ctx, proxy)
+	}
+
 	for _, vol := range pipelineConfig.Volumes {
 		if vol.EmptyDir == nil {
 			continue
@@ -462,4 +470,20 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 		time.Sleep(time.Millisecond * networkMaxRetries)
 	}
 	return err
+}
+
+func (e *Docker) setProxyForDockerClient(ctx context.Context, proxyURL string) {
+	// Create a custom HTTP client with proxy settings
+	proxy := func(_ *http.Request) (*url.URL, error) {
+		return url.Parse(proxyURL)
+	}
+
+	transport := http.Transport{Proxy: proxy}
+	httpClient := http.Client{Transport: &transport}
+
+	if cli, err := client.NewClientWithOpts(client.FromEnv, client.WithHTTPClient(&httpClient)); err == nil {
+		e.client = cli
+	} else {
+		logger.FromContext(ctx).WithError(err).Errorln("Unable to set proxy")
+	}
 }
