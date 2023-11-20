@@ -44,6 +44,8 @@ const (
 	droneHttpProxy            = "DRONE_HTTP_PROXY"
 	dockerServiceDir          = "/etc/systemd/system/docker.service.d"
 	httpProxyConfFilePath     = dockerServiceDir + "/http-proxy.conf"
+	directoryPermission       = 0700
+	filePermission            = 0600
 )
 
 // Opts configures the Docker engine.
@@ -476,7 +478,7 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 
 func (e *Docker) setProxyInDockerDaemon(ctx context.Context, proxyURL string) {
 	if _, err := os.Stat(dockerServiceDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dockerServiceDir, 0755); err != nil {
+		if err := os.MkdirAll(dockerServiceDir, directoryPermission); err != nil {
 			logger.FromContext(ctx).WithError(err).Warnln("Unable to create directory for setting proxy in docker daemon")
 			return
 		}
@@ -487,7 +489,7 @@ Environment="HTTP_PROXY=%s"
 Environment="HTTPS_PROXY=%s"
 `, proxyURL, proxyURL)
 
-	if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), 0644); err != nil {
+	if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), filePermission); err != nil {
 		logger.FromContext(ctx).WithError(err).Warnln("Error writing proxy configuration")
 		return
 	}
