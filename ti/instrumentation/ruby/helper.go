@@ -167,7 +167,6 @@ func prepend(lineToAdd, fileName string) error {
 	defer f.Close()
 
 	writer := bufio.NewWriter(f)
-	_, err = writer.WriteString(fmt.Sprintf("%s\n", lineToAdd))
 	contentModified := false
 	for _, line := range content {
 		if !contentModified && strings.HasPrefix(strings.TrimSpace(strings.TrimSpace(line)), "require") {
