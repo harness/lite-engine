@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
@@ -167,10 +168,15 @@ func prepend(lineToAdd, fileName string) error {
 
 	writer := bufio.NewWriter(f)
 	_, err = writer.WriteString(fmt.Sprintf("%s\n", lineToAdd))
-	if err != nil {
-		return err
-	}
+	contentModified := false
 	for _, line := range content {
+		if !contentModified && strings.HasPrefix(strings.TrimSpace(strings.TrimSpace(line)), "require") {
+			_, err = writer.WriteString(fmt.Sprintf("%s\n", lineToAdd))
+			if err != nil {
+				return err
+			}
+			contentModified = true
+		}
 		_, err := writer.WriteString(fmt.Sprintf("%s\n", line))
 		if err != nil {
 			return err
