@@ -14,7 +14,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	osruntime "runtime"
 	"sync"
 	"time"
 
@@ -47,6 +46,7 @@ const (
 	httpProxyConfFilePath     = dockerServiceDir + "/http-proxy.conf"
 	directoryPermission       = 0700
 	filePermission            = 0600
+	windowsOS                 = "windows"
 )
 
 // Opts configures the Docker engine.
@@ -93,7 +93,7 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	// that are mounted into each container step.
 
 	if proxy, ok := pipelineConfig.Envs[droneHTTPProxy]; ok {
-		e.setProxyInDockerDaemon(ctx, proxy)
+		e.setProxyInDockerDaemon(ctx, pipelineConfig, proxy)
 	}
 
 	for _, vol := range pipelineConfig.Volumes {
@@ -477,8 +477,8 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	return err
 }
 
-func (e *Docker) setProxyInDockerDaemon(ctx context.Context, proxyURL string) {
-	if osruntime.GOOS == "windows" {
+func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spec.PipelineConfig, proxyURL string) {
+	if pipelineConfig.Platform.OS == windowsOS {
 		os.Setenv("HTTP_PROXY", proxyURL)
 		os.Setenv("HTTPS_PROXY", proxyURL)
 		// Restart Docker service
