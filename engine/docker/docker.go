@@ -41,7 +41,7 @@ const (
 	imageRetrySleepDuration   = 50
 	networkMaxRetries         = 3
 	networkRetrySleepDuration = 50
-	droneHttpProxy            = "DRONE_HTTP_PROXY"
+	droneHTTPProxy            = "DRONE_HTTP_PROXY"
 	dockerServiceDir          = "/etc/systemd/system/docker.service.d"
 	httpProxyConfFilePath     = dockerServiceDir + "/http-proxy.conf"
 	directoryPermission       = 0700
@@ -91,7 +91,7 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
 
-	if proxy, ok := pipelineConfig.Envs[droneHttpProxy]; ok {
+	if proxy, ok := pipelineConfig.Envs[droneHTTPProxy]; ok {
 		e.setProxyInDockerDaemon(ctx, proxy)
 	}
 
