@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	osruntime "runtime"
 	"sync"
 	"time"
 
@@ -477,32 +478,42 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 }
 
 func (e *Docker) setProxyInDockerDaemon(ctx context.Context, proxyURL string) {
-	if _, err := os.Stat(dockerServiceDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dockerServiceDir, directoryPermission); err != nil {
-			logger.FromContext(ctx).WithError(err).Warnln("Unable to create directory for setting proxy in docker daemon")
+	if osruntime.GOOS == "windows" {
+		os.Setenv("HTTP_PROXY", proxyURL)
+		os.Setenv("HTTPS_PROXY", proxyURL)
+		// Restart Docker service
+		if err := exec.Command("Restart-Service", "docker").Run(); err != nil {
+			logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
 			return
 		}
-	}
+	} else {
+		if _, err := os.Stat(dockerServiceDir); os.IsNotExist(err) {
+			if err := os.MkdirAll(dockerServiceDir, directoryPermission); err != nil {
+				logger.FromContext(ctx).WithError(err).Infoln("Unable to create directory for setting proxy in docker daemon")
+				return
+			}
+		}
 
-	proxyConf := fmt.Sprintf(`[Service]
-Environment="HTTP_PROXY=%s"
-Environment="HTTPS_PROXY=%s"
-`, proxyURL, proxyURL)
+		proxyConf := fmt.Sprintf(`[Service]
+	Environment="HTTP_PROXY=%s"
+	Environment="HTTPS_PROXY=%s"
+	`, proxyURL, proxyURL)
 
-	if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), filePermission); err != nil {
-		logger.FromContext(ctx).WithError(err).Warnln("Error writing proxy configuration")
-		return
-	}
+		if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), filePermission); err != nil {
+			logger.FromContext(ctx).WithError(err).Infoln("Error writing proxy configuration")
+			return
+		}
 
-	// Reload systemd daemon
-	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
-		logger.FromContext(ctx).WithError(err).Warnln("Error reloading systemd daemon")
-		return
-	}
+		// Reload systemd daemon
+		if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+			logger.FromContext(ctx).WithError(err).Infoln("Error reloading systemd daemon")
+			return
+		}
 
-	// Restart Docker service
-	if err := exec.Command("systemctl", "restart", "docker").Run(); err != nil {
-		logger.FromContext(ctx).WithError(err).Warnln("Error restarting Docker service")
-		return
+		// Restart Docker service
+		if err := exec.Command("systemctl", "restart", "docker").Run(); err != nil {
+			logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
+			return
+		}
 	}
 }
