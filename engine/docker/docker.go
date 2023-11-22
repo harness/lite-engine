@@ -42,6 +42,7 @@ const (
 	networkMaxRetries         = 3
 	networkRetrySleepDuration = 50
 	droneHTTPProxy            = "DRONE_HTTP_PROXY"
+	droneNoProxy              = "DRONE_NO_PROXY"
 	dockerServiceDir          = "/etc/systemd/system/docker.service.d"
 	httpProxyConfFilePath     = dockerServiceDir + "/http-proxy.conf"
 	directoryPermission       = 0700
@@ -478,9 +479,12 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 }
 
 func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spec.PipelineConfig, proxyURL string) {
+	noProxy := pipelineConfig.Envs[droneNoProxy]
 	if pipelineConfig.Platform.OS == windowsOS {
 		os.Setenv("HTTP_PROXY", proxyURL)
 		os.Setenv("HTTPS_PROXY", proxyURL)
+		os.Setenv("NO_PROXY", noProxy)
+
 		// Restart Docker service
 		if err := exec.Command("Restart-Service", "docker").Run(); err != nil {
 			logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
@@ -497,7 +501,8 @@ func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spe
 		proxyConf := fmt.Sprintf(`[Service]
 	Environment="HTTP_PROXY=%s"
 	Environment="HTTPS_PROXY=%s"
-	`, proxyURL, proxyURL)
+	Environment="NO_PROXY=%s"
+	`, proxyURL, proxyURL, noProxy)
 
 		if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), filePermission); err != nil {
 			logger.FromContext(ctx).WithError(err).Infoln("Error writing proxy configuration")
