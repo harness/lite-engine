@@ -6,10 +6,12 @@
 package ruby
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
@@ -118,16 +120,72 @@ func WriteHelperFile(workspace, repoPath string) error {
 		return errors.New("cannot find rspec helper file. Please make change manually to enable TI")
 	}
 
-	f, err := os.OpenFile(findRootMostPath(matches), os.O_APPEND|os.O_WRONLY, 0644) //nolint:gomnd
+	fileName := findRootMostPath(matches)
+	scriptPath := filepath.Join(repoPath, "test_intelligence.rb")
+	lineToAdd := fmt.Sprintf("require '%s'", scriptPath)
+
+	err = prepend(lineToAdd, fileName)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func readLines(fileName string) ([]string, error) {
+	if _, err := os.Stat(fileName); err != nil {
+		return nil, nil
+	}
+
+	f, err := os.OpenFile(fileName, os.O_RDONLY, 0600) //nolint:gomnd
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	content := []string{}
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if tmp := scanner.Text(); tmp != "" {
+			content = append(content, tmp)
+		}
+	}
+
+	return content, nil
+}
+
+// prepend adds line in front of a file
+func prepend(lineToAdd, fileName string) error {
+	content, err := readLines(fileName)
+	if err != nil {
+		return err
+	}
+
+	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0600) //nolint:gomnd
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	scriptPath := filepath.Join(repoPath, "test_intelligence.rb")
-	_, err = f.WriteString(fmt.Sprintf("\nrequire '%s'", scriptPath))
-	if err != nil {
+
+	writer := bufio.NewWriter(f)
+	contentModified := false
+	for _, line := range content {
+		if !contentModified && strings.HasPrefix(strings.TrimSpace(strings.TrimSpace(line)), "require") {
+			_, err = writer.WriteString(fmt.Sprintf("%s\n", lineToAdd))
+			if err != nil {
+				return err
+			}
+			contentModified = true
+		}
+		_, err := writer.WriteString(fmt.Sprintf("%s\n", line))
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := writer.Flush(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
