@@ -263,7 +263,7 @@ func TestExamplesInTheWild(t *testing.T) { //nolint:funlen
 	}
 }
 
-func TestCustomRootSuite(t *testing.T) { //nolint:funlen
+func TestCustomRootSuite(t *testing.T) {
 	envs := make(map[string]string)
 	envs["HARNESS_JUNIT_ROOT_SUITE_NAME"] = "Custom Root Suite"
 	tests := []struct {
