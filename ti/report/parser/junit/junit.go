@@ -21,9 +21,10 @@ const (
 )
 
 const defaultRootSuiteName = "Root Suite"
+const rootSuiteEnvVariableName = "HARNESS_JUNIT_ROOT_SUITE_NAME"
 
 func getRootSuiteName(envs map[string]string) string {
-	if val, ok := envs["HARNESS_JUNIT_ROOT_SUITE_NAME"]; ok {
+	if val, ok := envs[rootSuiteEnvVariableName]; ok {
 		return val
 	}
 	return defaultRootSuiteName

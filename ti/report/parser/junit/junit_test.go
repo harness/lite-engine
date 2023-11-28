@@ -329,7 +329,7 @@ func Test_GetRootSuiteName(t *testing.T) {
 	}{
 		{
 			name: "Root suite name provided in environment variable",
-			args: args{envs: map[string]string{"HARNESS_JUNIT_ROOT_SUITE_NAME": "CustomRootSuite"}},
+			args: args{envs: map[string]string{rootSuiteEnvVariableName: "CustomRootSuite"}},
 			want: "CustomRootSuite",
 		},
 		{
