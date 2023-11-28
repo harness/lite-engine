@@ -215,7 +215,7 @@ func TestGetTests_All(t *testing.T) {
 	var paths []string
 	paths = append(paths, getBaseDir()+"**/*.xml") // Regex to get all reports
 	envs := make(map[string]string)
-	
+
 	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedPassedTest(), expectedErrorTest(), expectedFailedTest(), expectedSkippedTest()}
 	exp = append(exp, expectedNestedTests()...)

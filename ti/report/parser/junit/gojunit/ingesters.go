@@ -14,6 +14,15 @@ import (
 	"os"
 )
 
+const defaultRootSuiteName = "Root Suite"
+
+func getRootSuiteName(envs map[string]string) string {
+	if val, ok := envs["HARNESS_JUNIT_ROOT_SUITE_NAME"]; ok {
+		return val
+	}
+	return defaultRootSuiteName
+}
+
 // IngestFile will parse the given XML file and return a slice of all contained
 // JUnit test suite definitions.
 func IngestFile(filename string, envs map[string]string) ([]Suite, error) {
@@ -40,7 +49,7 @@ func IngestReader(reader io.Reader, envs map[string]string) ([]Suite, error) {
 	}
 
 	go func() {
-		findSuites(nodes, suiteChan, "", envs)
+		findSuites(nodes, suiteChan, "", getRootSuiteName(envs))
 		close(suiteChan)
 	}()
 
