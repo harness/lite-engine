@@ -20,6 +20,15 @@ const (
 	strMaxSize = 8000 // Keep the last 8k characters in each field.
 )
 
+const defaultRootSuiteName = "Root Suite"
+
+func getRootSuiteName(envs map[string]string) string {
+	if val, ok := envs["HARNESS_JUNIT_ROOT_SUITE_NAME"]; ok {
+		return val
+	}
+	return defaultRootSuiteName
+}
+
 // ParseTests parses XMLs and writes relevant data to the channel
 func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*ti.TestCase {
 	files := getFiles(paths, log)
@@ -32,7 +41,7 @@ func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*t
 	totalTests := 0
 	var tests []*ti.TestCase
 	for _, file := range files {
-		suites, err := gojunit.IngestFile(file, envs)
+		suites, err := gojunit.IngestFile(file, getRootSuiteName(envs))
 		if err != nil {
 			log.WithError(err).WithField("file", file).
 				Errorln(fmt.Sprintf("could not parse file %s", file))

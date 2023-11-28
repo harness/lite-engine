@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-
 	"testing"
 
 	ti "github.com/harness/ti-client/types"
@@ -317,4 +316,35 @@ func TestGetTests_NoMatchingRegex(t *testing.T) {
 	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{}
 	assert.ElementsMatch(t, exp, tests)
+}
+
+func Test_GetRootSuiteName(t *testing.T) {
+	type args struct {
+		envs map[string]string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "Root suite name provided in environment variable",
+			args: args{envs: map[string]string{"HARNESS_JUNIT_ROOT_SUITE_NAME": "CustomRootSuite"}},
+			want: "CustomRootSuite",
+		},
+		{
+			name: "No root suite name in environment variable, use default",
+			args: args{envs: map[string]string{}},
+			want: defaultRootSuiteName,
+		},
+		// Add more test cases as needed
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getRootSuiteName(tt.args.envs); got != tt.want {
+				t.Errorf("getRootSuiteName() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

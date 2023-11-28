@@ -19,7 +19,6 @@ import (
 )
 
 func TestExamplesInTheWild(t *testing.T) { //nolint:funlen
-	envs := make(map[string]string)
 	tests := []struct {
 		title    string
 		filename string
@@ -256,7 +255,7 @@ func TestExamplesInTheWild(t *testing.T) { //nolint:funlen
 		name := fmt.Sprintf("#%d - %s", index+1, test.title)
 
 		t.Run(name, func(t *testing.T) {
-			suites, err := IngestFile(test.filename, envs)
+			suites, err := IngestFile(test.filename, "Root Suite")
 			require.NoError(t, err)
 			test.check(t, suites)
 		})
@@ -264,8 +263,6 @@ func TestExamplesInTheWild(t *testing.T) { //nolint:funlen
 }
 
 func TestCustomRootSuite(t *testing.T) {
-	envs := make(map[string]string)
-	envs["HARNESS_JUNIT_ROOT_SUITE_NAME"] = "Custom Root Suite"
 	tests := []struct {
 		title    string
 		filename string
@@ -304,7 +301,7 @@ func TestCustomRootSuite(t *testing.T) {
 		name := fmt.Sprintf("#%d - %s", index+1, test.title)
 
 		t.Run(name, func(t *testing.T) {
-			suites, err := IngestFile(test.filename, envs)
+			suites, err := IngestFile(test.filename, "Custom Root Suite")
 			require.NoError(t, err)
 			test.check(t, suites)
 		})
