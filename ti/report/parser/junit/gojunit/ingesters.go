@@ -16,7 +16,7 @@ import (
 
 // IngestFile will parse the given XML file and return a slice of all contained
 // JUnit test suite definitions.
-func IngestFile(filename string, rootSuiteName string) ([]Suite, error) {
+func IngestFile(filename, rootSuiteName string) ([]Suite, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
