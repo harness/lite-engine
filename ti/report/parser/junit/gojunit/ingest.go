@@ -16,20 +16,28 @@ import (
 	ti "github.com/harness/ti-client/types"
 )
 
-const cypressRootSuiteName = "Root Suite"
+const defaultRootSuiteName = "Root Suite"
+
+func getRootSuiteName(envs map[string]string) string {
+	if val, ok := envs["HARNESS_JUNIT_ROOT_SUITE_NAME"]; ok {
+		return val
+	}
+	return defaultRootSuiteName
+}
 
 // findSuites performs a depth-first search through the XML document, and
 // attempts to ingest any "testsuite" tags that are encountered.
-func findSuites(nodes []xmlNode, suites chan Suite, parentFilename string) {
+func findSuites(nodes []xmlNode, suites chan Suite, parentFilename string, envs map[string]string) {
+	rootSuiteName := getRootSuiteName(envs)
 	for _, node := range nodes {
 		switch node.XMLName.Local {
 		case "testsuite":
 			suites <- ingestSuite(node, parentFilename)
-			if node.Attr("name") == cypressRootSuiteName {
+			if node.Attr("name") == rootSuiteName {
 				parentFilename = node.Attr("file")
 			}
 		default:
-			findSuites(node.Nodes, suites, parentFilename)
+			findSuites(node.Nodes, suites, parentFilename, envs)
 		}
 	}
 }

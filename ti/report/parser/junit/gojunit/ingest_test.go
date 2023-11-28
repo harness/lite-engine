@@ -19,6 +19,7 @@ import (
 )
 
 func TestExamplesInTheWild(t *testing.T) { //nolint:funlen
+	envs := make(map[string]string)
 	tests := []struct {
 		title    string
 		filename string
@@ -255,7 +256,55 @@ func TestExamplesInTheWild(t *testing.T) { //nolint:funlen
 		name := fmt.Sprintf("#%d - %s", index+1, test.title)
 
 		t.Run(name, func(t *testing.T) {
-			suites, err := IngestFile(test.filename)
+			suites, err := IngestFile(test.filename, envs)
+			require.NoError(t, err)
+			test.check(t, suites)
+		})
+	}
+}
+
+func TestCustomRootSuite(t *testing.T) { //nolint:funlen
+	envs := make(map[string]string)
+	envs["HARNESS_JUNIT_ROOT_SUITE_NAME"] = "Custom Root Suite"
+	tests := []struct {
+		title    string
+		filename string
+		origin   string
+		check    func(*testing.T, []Suite)
+	}{
+		{
+			title:    "cypress example",
+			filename: "testdata/cypress-custom.xml",
+			check: func(t *testing.T, suites []Suite) {
+				assert.Len(t, suites, 5)
+				assert.Len(t, suites[0].Tests, 0)
+				assert.Len(t, suites[2].Tests, 3)
+
+				var testcase = Test{
+					Name:       "RUN PIPELINE MODAL - Jira Approval Stage Jira Create Form Test Submit form with empty required fields validations",
+					Classname:  "Submit form with empty required fields validations",
+					Filename:   "integration/70-pipeline/RunPipelineJiraApprovalStage.spec.ts",
+					DurationMs: 22701,
+					Result: ti.Result{
+						Status: ti.StatusPassed,
+					},
+					Properties: map[string]string{
+						"classname": "Submit form with empty required fields validations",
+						"name":      "RUN PIPELINE MODAL - Jira Approval Stage Jira Create Form Test Submit form with empty required fields validations",
+						"time":      "22.701",
+					},
+				}
+
+				assert.Equal(t, testcase, suites[2].Tests[1])
+			},
+		},
+	}
+
+	for index, test := range tests {
+		name := fmt.Sprintf("#%d - %s", index+1, test.title)
+
+		t.Run(name, func(t *testing.T) {
+			suites, err := IngestFile(test.filename, envs)
 			require.NoError(t, err)
 			test.check(t, suites)
 		})

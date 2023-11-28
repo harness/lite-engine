@@ -21,7 +21,7 @@ const (
 )
 
 // ParseTests parses XMLs and writes relevant data to the channel
-func ParseTests(paths []string, log *logrus.Logger) []*ti.TestCase {
+func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*ti.TestCase {
 	files := getFiles(paths, log)
 
 	log.Debugln(fmt.Sprintf("list of files to collect test reports from: %s", files))
@@ -32,7 +32,7 @@ func ParseTests(paths []string, log *logrus.Logger) []*ti.TestCase {
 	totalTests := 0
 	var tests []*ti.TestCase
 	for _, file := range files {
-		suites, err := gojunit.IngestFile(file)
+		suites, err := gojunit.IngestFile(file, envs)
 		if err != nil {
 			log.WithError(err).WithField("file", file).
 				Errorln(fmt.Sprintf("could not parse file %s", file))

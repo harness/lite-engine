@@ -214,8 +214,9 @@ func TestGetTests_All(t *testing.T) {
 	defer removeBaseDir() //nolint:errcheck
 	var paths []string
 	paths = append(paths, getBaseDir()+"**/*.xml") // Regex to get all reports
-
-	tests := ParseTests(paths, logrus.New())
+	envs := make(map[string]string)
+	
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedPassedTest(), expectedErrorTest(), expectedFailedTest(), expectedSkippedTest()}
 	exp = append(exp, expectedNestedTests()...)
 	assert.ElementsMatch(t, exp, tests)
@@ -239,8 +240,9 @@ func TestGetTests_All_MultiplePaths(t *testing.T) {
 	var paths []string
 	// Add multiple paths to get repeated filenames. Tests should still be unique (per filename)
 	paths = append(paths, basePath+"a/*/*.xml", basePath+"a/**/*.xml", basePath+"a/b/c/d/*.xml") // Regex to get both reports
+	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New())
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedPassedTest(), expectedErrorTest(), expectedFailedTest(), expectedSkippedTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -262,8 +264,9 @@ func TestGetTests_FirstRegex(t *testing.T) {
 	basePath := getBaseDir()
 	var paths []string
 	paths = append(paths, basePath+"a/b/*.xml") // Regex to get both reports
+	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New())
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedPassedTest(), expectedFailedTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -285,8 +288,9 @@ func TestGetTests_SecondRegex(t *testing.T) {
 	basePath := getBaseDir()
 	var paths []string
 	paths = append(paths, basePath+"a/b/**/*2.xml") // Regex to get both reports
+	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New())
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedSkippedTest(), expectedErrorTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -308,8 +312,9 @@ func TestGetTests_NoMatchingRegex(t *testing.T) {
 	basePath := getBaseDir()
 	var paths []string
 	paths = append(paths, basePath+"a/b/**/*3.xml") // Regex to get both reports
+	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New())
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{}
 	assert.ElementsMatch(t, exp, tests)
 }
