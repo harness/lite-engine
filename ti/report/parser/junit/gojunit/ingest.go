@@ -49,15 +49,15 @@ func ingestSuite(root xmlNode, parentFilename string) Suite { //nolint:gocritic
 		Properties: root.Attrs,
 	}
 
-	file := getFilename(root.Attr("file"), parentFilename)
+	parentFilename = getFilename(root.Attr("file"), parentFilename)
 
 	for _, node := range root.Nodes {
 		switch node.XMLName.Local {
 		case "testsuite":
-			testsuite := ingestSuite(node, file)
+			testsuite := ingestSuite(node, parentFilename)
 			suite.Suites = append(suite.Suites, testsuite)
 		case "testcase":
-			testcase := ingestTestcase(node, file)
+			testcase := ingestTestcase(node, parentFilename)
 			suite.Tests = append(suite.Tests, testcase)
 		case "properties":
 			props := ingestProperties(node)
