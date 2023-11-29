@@ -58,7 +58,7 @@ func Test_CollectRunTestData(t *testing.T) {
 			collectCgFn = func(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg) error {
 				return tc.cgErr
 			}
-			collectTestReportsFn = func(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg) error {
+			collectTestReportsFn = func(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, envs map[string]string) error {
 				return tc.crErr
 			}
 			err := collectRunTestData(ctx, log, &apiReq, time.Now(), stepName, &tiConfig)

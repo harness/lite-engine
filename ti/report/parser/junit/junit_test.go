@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-
 	"testing"
 
 	ti "github.com/harness/ti-client/types"
@@ -214,8 +213,9 @@ func TestGetTests_All(t *testing.T) {
 	defer removeBaseDir() //nolint:errcheck
 	var paths []string
 	paths = append(paths, getBaseDir()+"**/*.xml") // Regex to get all reports
+	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New())
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedPassedTest(), expectedErrorTest(), expectedFailedTest(), expectedSkippedTest()}
 	exp = append(exp, expectedNestedTests()...)
 	assert.ElementsMatch(t, exp, tests)
@@ -239,8 +239,9 @@ func TestGetTests_All_MultiplePaths(t *testing.T) {
 	var paths []string
 	// Add multiple paths to get repeated filenames. Tests should still be unique (per filename)
 	paths = append(paths, basePath+"a/*/*.xml", basePath+"a/**/*.xml", basePath+"a/b/c/d/*.xml") // Regex to get both reports
+	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New())
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedPassedTest(), expectedErrorTest(), expectedFailedTest(), expectedSkippedTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -262,8 +263,9 @@ func TestGetTests_FirstRegex(t *testing.T) {
 	basePath := getBaseDir()
 	var paths []string
 	paths = append(paths, basePath+"a/b/*.xml") // Regex to get both reports
+	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New())
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedPassedTest(), expectedFailedTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -285,8 +287,9 @@ func TestGetTests_SecondRegex(t *testing.T) {
 	basePath := getBaseDir()
 	var paths []string
 	paths = append(paths, basePath+"a/b/**/*2.xml") // Regex to get both reports
+	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New())
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedSkippedTest(), expectedErrorTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -308,8 +311,40 @@ func TestGetTests_NoMatchingRegex(t *testing.T) {
 	basePath := getBaseDir()
 	var paths []string
 	paths = append(paths, basePath+"a/b/**/*3.xml") // Regex to get both reports
+	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New())
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{}
 	assert.ElementsMatch(t, exp, tests)
+}
+
+func Test_GetRootSuiteName(t *testing.T) {
+	type args struct {
+		envs map[string]string
+	}
+	tests := []struct {
+		name string
+		args args
+		want string
+	}{
+		{
+			name: "Root suite name provided in environment variable",
+			args: args{envs: map[string]string{rootSuiteEnvVariableName: "CustomRootSuite"}},
+			want: "CustomRootSuite",
+		},
+		{
+			name: "No root suite name in environment variable, use default",
+			args: args{envs: map[string]string{}},
+			want: defaultRootSuiteName,
+		},
+		// Add more test cases as needed
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getRootSuiteName(tt.args.envs); got != tt.want {
+				t.Errorf("getRootSuiteName() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Mocha Tests" time="147.803" tests="8" failures="0">
+  <testsuite name="Root Suite" timestamp="2023-11-15T18:28:15" tests="0" file="integration/70-pipeline/RunPipelineJiraApprovalStage.spec.ts" time="0.000" failures="0">
+  </testsuite>
+  <testsuite name="RUN PIPELINE MODAL - Jira Approval Stage" timestamp="2023-11-15T18:28:15" tests="1" time="0.000" failures="0">
+    <testcase name="RUN PIPELINE MODAL - Jira Approval Stage should display the delete pipeline stage modal" time="13.856" classname="should display the delete pipeline stage modal">
+    </testcase>
+  </testsuite>
+  <testsuite name="Jira Create Form Test" timestamp="2023-11-15T18:28:29" tests="3" time="62.737" failures="0">
+    <testcase name="RUN PIPELINE MODAL - Jira Approval Stage Jira Create Form Test Submit empty form Validations" time="15.354" classname="Submit empty form Validations">
+    </testcase>
+    <testcase name="RUN PIPELINE MODAL - Jira Approval Stage Jira Create Form Test Submit form with empty required fields validations" time="22.701" classname="Submit form with empty required fields validations">
+    </testcase>
+    <testcase name="RUN PIPELINE MODAL - Jira Approval Stage Jira Create Form Test Submit form after filling details" time="24.647" classname="Submit form after filling details">
+    </testcase>
+  </testsuite>
+  <testsuite name="Jira Approval Form Test" timestamp="2023-11-15T18:29:32" tests="2" time="36.923" failures="0">
+    <testcase name="RUN PIPELINE MODAL - Jira Approval Stage Jira Approval Form Test Submit empty form Validations" time="15.775" classname="Submit empty form Validations">
+    </testcase>
+    <testcase name="RUN PIPELINE MODAL - Jira Approval Stage Jira Approval Form Test Submit form after filling details" time="21.116" classname="Submit form after filling details">
+    </testcase>
+  </testsuite>
+  <testsuite name="Jira Update Form Test" timestamp="2023-11-15T18:30:09" tests="2" time="34.267" failures="0">
+    <testcase name="RUN PIPELINE MODAL - Jira Approval Stage Jira Update Form Test Submit empty form Validations" time="15.440" classname="Submit empty form Validations">
+    </testcase>
+    <testcase name="RUN PIPELINE MODAL - Jira Approval Stage Jira Update Form Test Submit form after filling details" time="18.673" classname="Submit form after filling details">
+    </testcase>
+  </testsuite>
+</testsuites>

@@ -16,19 +16,19 @@ import (
 
 // IngestFile will parse the given XML file and return a slice of all contained
 // JUnit test suite definitions.
-func IngestFile(filename string) ([]Suite, error) {
+func IngestFile(filename, rootSuiteName string) ([]Suite, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	return IngestReader(file)
+	return IngestReader(file, rootSuiteName)
 }
 
 // IngestReader will parse the given XML reader and return a slice of all
 // contained JUnit test suite definitions.
-func IngestReader(reader io.Reader) ([]Suite, error) {
+func IngestReader(reader io.Reader, rootSuiteName string) ([]Suite, error) {
 	var (
 		suiteChan = make(chan Suite)
 		suites    = make([]Suite, 0)
@@ -40,7 +40,7 @@ func IngestReader(reader io.Reader) ([]Suite, error) {
 	}
 
 	go func() {
-		findSuites(nodes, suiteChan)
+		findSuites(nodes, suiteChan, "", rootSuiteName)
 		close(suiteChan)
 	}()
 
@@ -53,6 +53,6 @@ func IngestReader(reader io.Reader) ([]Suite, error) {
 
 // Ingest will parse the given XML data and return a slice of all contained
 // JUnit test suite definitions.
-func Ingest(data []byte) ([]Suite, error) {
-	return IngestReader(bytes.NewReader(data))
+func Ingest(data []byte, rootSuiteName string) ([]Suite, error) {
+	return IngestReader(bytes.NewReader(data), rootSuiteName)
 }
