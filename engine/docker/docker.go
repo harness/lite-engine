@@ -12,6 +12,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -39,6 +41,13 @@ const (
 	imageRetrySleepDuration   = 50
 	networkMaxRetries         = 3
 	networkRetrySleepDuration = 50
+	droneHTTPProxy            = "DRONE_HTTP_PROXY"
+	droneNoProxy              = "DRONE_NO_PROXY"
+	dockerServiceDir          = "/etc/systemd/system/docker.service.d"
+	httpProxyConfFilePath     = dockerServiceDir + "/http-proxy.conf"
+	directoryPermission       = 0700
+	filePermission            = 0600
+	windowsOS                 = "windows"
 )
 
 // Opts configures the Docker engine.
@@ -83,6 +92,11 @@ func (e *Docker) Ping(ctx context.Context) error {
 func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
+
+	if proxy, ok := pipelineConfig.Envs[droneHTTPProxy]; ok {
+		e.setProxyInDockerDaemon(ctx, pipelineConfig, proxy)
+	}
+
 	for _, vol := range pipelineConfig.Volumes {
 		if vol.EmptyDir == nil {
 			continue
@@ -462,4 +476,49 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 		time.Sleep(time.Millisecond * networkMaxRetries)
 	}
 	return err
+}
+
+func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spec.PipelineConfig, proxyURL string) {
+	noProxy := pipelineConfig.Envs[droneNoProxy]
+	if pipelineConfig.Platform.OS == windowsOS {
+		os.Setenv("HTTP_PROXY", proxyURL)
+		os.Setenv("HTTPS_PROXY", proxyURL)
+		os.Setenv("NO_PROXY", noProxy)
+
+		// Restart Docker service
+		if err := exec.Command("Restart-Service", "docker").Run(); err != nil {
+			logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
+			return
+		}
+	} else {
+		if _, err := os.Stat(dockerServiceDir); os.IsNotExist(err) {
+			if err := os.MkdirAll(dockerServiceDir, directoryPermission); err != nil {
+				logger.FromContext(ctx).WithError(err).Infoln("Unable to create directory for setting proxy in docker daemon")
+				return
+			}
+		}
+
+		proxyConf := fmt.Sprintf(`[Service]
+	Environment="HTTP_PROXY=%s"
+	Environment="HTTPS_PROXY=%s"
+	Environment="NO_PROXY=%s"
+	`, proxyURL, proxyURL, noProxy)
+
+		if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), filePermission); err != nil {
+			logger.FromContext(ctx).WithError(err).Infoln("Error writing proxy configuration")
+			return
+		}
+
+		// Reload systemd daemon
+		if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+			logger.FromContext(ctx).WithError(err).Infoln("Error reloading systemd daemon")
+			return
+		}
+
+		// Restart Docker service
+		if err := exec.Command("systemctl", "restart", "docker").Run(); err != nil {
+			logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
+			return
+		}
+	}
 }
