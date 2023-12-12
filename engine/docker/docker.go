@@ -41,8 +41,9 @@ const (
 	imageRetrySleepDuration   = 50
 	networkMaxRetries         = 3
 	networkRetrySleepDuration = 50
-	droneHTTPProxy            = "DRONE_HTTP_PROXY"
-	droneNoProxy              = "DRONE_NO_PROXY"
+	harnessHTTPProxy          = "HARNESS_HTTP_PROXY"
+	harnessHTTPSProxy         = "HARNESS_HTTPS_PROXY"
+	harnessNoProxy            = "HARNESS_NO_PROXY"
 	dockerServiceDir          = "/etc/systemd/system/docker.service.d"
 	httpProxyConfFilePath     = dockerServiceDir + "/http-proxy.conf"
 	directoryPermission       = 0700
@@ -93,8 +94,8 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
 
-	if proxy, ok := pipelineConfig.Envs[droneHTTPProxy]; ok {
-		e.setProxyInDockerDaemon(ctx, pipelineConfig, proxy)
+	if _, ok := pipelineConfig.Envs[harnessHTTPProxy]; ok {
+		e.setProxyInDockerDaemon(ctx, pipelineConfig)
 	}
 
 	for _, vol := range pipelineConfig.Volumes {
@@ -478,11 +479,13 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	return err
 }
 
-func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spec.PipelineConfig, proxyURL string) {
-	noProxy := pipelineConfig.Envs[droneNoProxy]
+func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spec.PipelineConfig) {
+	httpProxy := pipelineConfig.Envs[harnessHTTPProxy]
+	httpsProxy := pipelineConfig.Envs[harnessHTTPSProxy]
+	noProxy := pipelineConfig.Envs[harnessNoProxy]
 	if pipelineConfig.Platform.OS == windowsOS {
-		os.Setenv("HTTP_PROXY", proxyURL)
-		os.Setenv("HTTPS_PROXY", proxyURL)
+		os.Setenv("HTTP_PROXY", httpProxy)
+		os.Setenv("HTTPS_PROXY", httpsProxy)
 		os.Setenv("NO_PROXY", noProxy)
 
 		// Restart Docker service
@@ -502,7 +505,7 @@ func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spe
 	Environment="HTTP_PROXY=%s"
 	Environment="HTTPS_PROXY=%s"
 	Environment="NO_PROXY=%s"
-	`, proxyURL, proxyURL, noProxy)
+	`, httpProxy, httpsProxy, noProxy)
 
 		if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), filePermission); err != nil {
 			logger.FromContext(ctx).WithError(err).Infoln("Error writing proxy configuration")
