@@ -41,7 +41,6 @@ const (
 	imageRetrySleepDuration   = 50
 	networkMaxRetries         = 3
 	networkRetrySleepDuration = 50
-	harnessHTTPProxy          = "HARNESS_HTTP_PROXY"
 	harnessHTTPSProxy         = "HARNESS_HTTPS_PROXY"
 	harnessNoProxy            = "HARNESS_NO_PROXY"
 	dockerServiceDir          = "/etc/systemd/system/docker.service.d"
@@ -94,8 +93,8 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
 
-	if _, ok := pipelineConfig.Envs[harnessHTTPProxy]; ok {
-		e.setProxyInDockerDaemon(ctx, pipelineConfig)
+	if proxy, ok := pipelineConfig.Envs[harnessHTTPSProxy]; ok {
+		e.setProxyInDockerDaemon(ctx, pipelineConfig, proxy)
 	}
 
 	for _, vol := range pipelineConfig.Volumes {
@@ -479,13 +478,10 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	return err
 }
 
-func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spec.PipelineConfig) {
-	httpProxy := pipelineConfig.Envs[harnessHTTPProxy]
-	httpsProxy := pipelineConfig.Envs[harnessHTTPSProxy]
+func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spec.PipelineConfig, proxyURL string) {
 	noProxy := pipelineConfig.Envs[harnessNoProxy]
 	if pipelineConfig.Platform.OS == windowsOS {
-		os.Setenv("HTTP_PROXY", httpProxy)
-		os.Setenv("HTTPS_PROXY", httpsProxy)
+		os.Setenv("HTTP_PROXY", proxyURL)
 		os.Setenv("NO_PROXY", noProxy)
 
 		// Restart Docker service
@@ -503,9 +499,8 @@ func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spe
 
 		proxyConf := fmt.Sprintf(`[Service]
 	Environment="HTTP_PROXY=%s"
-	Environment="HTTPS_PROXY=%s"
 	Environment="NO_PROXY=%s"
-	`, httpProxy, httpsProxy, noProxy)
+	`, proxyURL, noProxy)
 
 		if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), filePermission); err != nil {
 			logger.FromContext(ctx).WithError(err).Infoln("Error writing proxy configuration")
