@@ -169,7 +169,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	isManual := IsManualExecution(cfg)
 	ignoreInstr := isManual || !config.RunOnlySelectedTests
 	cfg.SetIgnoreInstr(ignoreInstr)
-	if (cfg.GetIgnoreInstr()) {
+	if cfg.GetIgnoreInstr() {
 		config.RunOnlySelectedTests = false
 	}
 
