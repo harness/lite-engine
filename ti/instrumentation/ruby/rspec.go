@@ -18,7 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var (
+const (
 	rspecCmd = "bundle exec rspec"
 )
 
@@ -39,8 +39,8 @@ func (m *rspecRunner) AutoDetectPackages(workspace string) ([]string, error) {
 }
 
 func (m *rspecRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
-	pythonTests := GetRubyTests(workspace, testGlobs)
-	return pythonTests, nil
+	rubyTests, err := GetRubyTests(workspace, testGlobs, m.log)
+	return rubyTests, err
 }
 
 func (m *rspecRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
@@ -56,9 +56,13 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		if err != nil {
 			return "", err
 		}
-		err = WriteGemFile(workspace, repoPath)
+		err = AddHarnessRubyAgentToGemfile(repoPath, m.log)
 		if err != nil {
-			return testCmd, err
+			return "", err
+		}
+		err = AddRspecJunitFormatterToGemfile(repoPath, m.log)
+		if err != nil {
+			return "", err
 		}
 		err = WriteHelperFile(workspace, repoPath)
 		if err != nil {

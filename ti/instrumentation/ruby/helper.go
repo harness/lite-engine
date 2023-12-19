@@ -10,10 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 
@@ -22,45 +22,45 @@ import (
 )
 
 var (
-	defaultTestGlobs = []string{"*_spec.rb"}
+	defaultTestGlobs = []string{"spec/**{,/*/**}/*_spec.rb"}
 )
 
-func getRubyTestsFromPattern(workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+func getRubyTestsFromPattern(workspace string, testGlobs []string, log *logrus.Logger) []ti.RunnableTest {
 	tests := make([]ti.RunnableTest, 0)
-	files, err := common.GetFiles(fmt.Sprintf("%s/**/*.rb", workspace))
-	if err != nil {
-		return nil, err
+	// iterate over all the test globs
+	for _, testGlob := range testGlobs {
+		// find all the files matching the glob
+		matches, err := zglob.Glob(filepath.Join(workspace, testGlob))
+		if err != nil {
+			log.Info(fmt.Sprintf("could not find ruby tests using %s: %s", testGlob, err))
+		}
+		// iterate over all the matches
+		for _, match := range matches {
+			// append a new RunnableTest to the tests slice if its a file
+			if info, err := os.Stat(match); err == nil && !info.IsDir() {
+				tests = append(tests, ti.RunnableTest{
+					Class: match,
+				})
+			}
+		}
 	}
 
-	for _, path := range files {
-		if path == "" {
-			continue
-		}
-		for _, glob := range testGlobs {
-			if matched, _ := zglob.Match(glob, path); !matched {
-				continue
-			}
-			test := ti.RunnableTest{
-				Class: path,
-			}
-			tests = append(tests, test)
-		}
-	}
-	return tests, nil
+	return tests
 }
 
 // GetRubyTests returns list of RunnableTests in the workspace with python extension.
 // In case of errors, return empty list
-func GetRubyTests(workspace string, testGlobs []string) []ti.RunnableTest {
+func GetRubyTests(workspace string, testGlobs []string, log *logrus.Logger) ([]ti.RunnableTest, error) {
 	if len(testGlobs) == 0 {
 		testGlobs = defaultTestGlobs
 	}
-	tests, err := getRubyTestsFromPattern(workspace, testGlobs)
-	if err != nil {
-		return tests
-	}
+	log.Infoln(fmt.Sprintf("testGlobs: %v", testGlobs))
+	tests := getRubyTestsFromPattern(workspace, testGlobs, log)
 
-	return tests
+	if len(tests) == 0 {
+		return tests, fmt.Errorf("no ruby tests found with the given patterns %v", testGlobs)
+	}
+	return tests, nil
 }
 
 // UnzipAndGetTestInfo unzips the Python agent zip file, and return a pair of
@@ -83,26 +83,26 @@ func UnzipAndGetTestInfo(agentInstallDir string, log *logrus.Logger) (scriptPath
 	return scriptPath, nil
 }
 
-func WriteGemFile(workspace, repoPath string) error {
-	pattern := fmt.Sprintf("%s/**/Gemfile", workspace)
+func AddHarnessRubyAgentToGemfile(repoPath string, log *logrus.Logger) error {
+	cmd := exec.Command("bundle", "add", "harness_ruby_agent", "--path", fmt.Sprintf("%q", repoPath), "--version", "~> 0.0.1") // #nosec
+	err := cmd.Run()
 
-	matches, err := zglob.Glob(pattern)
 	if err != nil {
+		log.WithError(err).Println("Error adding harness_ruby_agent gem")
 		return err
 	}
-	file := filepath.Join(workspace, "Gemfile")
-	if len(matches) > 0 {
-		file = findRootMostPath(matches)
-	}
-	f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644) //nolint:gomnd
+	log.Infoln("'harness_ruby_agent' successfully added and installed!")
+	return nil
+}
+
+func AddRspecJunitFormatterToGemfile(repoPath string, log *logrus.Logger) error {
+	cmd := exec.Command("bundle", "add", "rspec_junit_formatter")
+	err := cmd.Run()
 	if err != nil {
+		log.WithError(err).Println("Error adding rspec_junit_formatter gem")
 		return err
 	}
-	defer f.Close()
-	_, err = f.WriteString(fmt.Sprintf("gem 'harness_ruby_agent', path: '%s'", repoPath))
-	if err != nil {
-		return err
-	}
+	log.Infoln("'rspec_junit_formatter' successfully added and installed!")
 	return nil
 }
 
