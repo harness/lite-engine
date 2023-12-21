@@ -391,7 +391,7 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 	logrus.WithField("id", r.ID).Infoln("successfully sent step status")
 }
 
-func convertStatus(status StepStatus) *api.PollStepResponse {
+func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 	r := &api.PollStepResponse{
 		Exited:   true,
 		Outputs:  status.Outputs,
