@@ -425,7 +425,7 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 
 func convertPollResponse(r *api.PollStepResponse) api.VMTaskExecutionResponse {
 	if r.Error == "" {
-		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact}
+		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact, Outputs: r.OutputV2}
 	}
 	return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: r.Error}
 }

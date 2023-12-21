@@ -180,6 +180,7 @@ type (
 		OutputVars             map[string]string      `json:"output_vars,omitempty"`
 		CommandExecutionStatus CommandExecutionStatus `json:"command_execution_status,omitempty"`
 		Artifact               []byte                 `json:"artifact,omitempty"`
+		Outputs                []*OutputV2            `json:"outputs,omitempty"`
 	}
 )
 
