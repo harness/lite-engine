@@ -27,8 +27,8 @@ var (
 	collectTestReportsFn = report.ParseAndUploadTests
 )
 
-func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
-	*runtime.State, map[string]string, map[string]string, []byte, error) {
+func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
+	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, error) {
 	log := &logrus.Logger{
 		Out:   out,
 		Level: logrus.InfoLevel,
@@ -40,7 +40,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	start := time.Now()
 	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs, tiConfig)
 	if err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, err
 	}
 
 	instrumentation.InjectReportInformation(r)
@@ -52,12 +52,14 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
-	if len(r.OutputVars) > 0 && len(step.Entrypoint) == 0 || len(step.Command) == 0 {
-		return nil, nil, nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
+	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
+		return nil, nil, nil, nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
 	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
-	if len(r.OutputVars) > 0 {
+	if len(r.Outputs) > 0 {
+		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile)
+	} else if len(r.OutputVars) > 0 {
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
 	}
 
@@ -73,14 +75,29 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
-	if len(r.OutputVars) > 0 {
+	if len(r.Outputs) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
 			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
-			return exited, outputs, exportEnvs, artifact, err
+			outputsV2 := []*api.OutputV2{}
+			for _, output := range r.Outputs {
+				if _, ok := outputs[output.Key]; ok {
+					outputsV2 = append(outputsV2, &api.OutputV2{
+						Key:   output.Key,
+						Value: outputs[output.Key],
+						Type:  output.Type,
+					})
+				}
+			}
+			return exited, outputs, exportEnvs, artifact, outputsV2, err
+		}
+	} else if len(r.OutputVars) > 0 {
+		if exited != nil && exited.Exited && exited.ExitCode == 0 {
+			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
+			return exited, outputs, exportEnvs, artifact, nil, err
 		}
 	}
 
-	return exited, nil, exportEnvs, artifact, err
+	return exited, nil, exportEnvs, artifact, nil, err
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step

@@ -53,10 +53,11 @@ type (
 		Run            RunConfig         `json:"run,omitempty"`
 		RunTest        RunTestConfig     `json:"run_test,omitempty"`
 
-		OutputVars        []string   `json:"output_vars,omitempty"`
-		TestReport        TestReport `json:"test_report,omitempty"`
-		Timeout           int        `json:"timeout,omitempty"` // step timeout in seconds
-		MountDockerSocket *bool      `json:"mount_docker_socket"`
+		OutputVars        []string    `json:"output_vars,omitempty"`
+		TestReport        TestReport  `json:"test_report,omitempty"`
+		Timeout           int         `json:"timeout,omitempty"` // step timeout in seconds
+		MountDockerSocket *bool       `json:"mount_docker_socket"`
+		Outputs           []*OutputV2 `json:"outputs,omitempty"`
 
 		// Valid only for steps running on docker container
 		Auth         *spec.Auth           `json:"auth,omitempty"`
@@ -85,6 +86,11 @@ type (
 		Files        []*spec.File         `json:"files,omitempty"`
 		StepStatus   StepStatusConfig     `json:"step_status,omitempty"`
 	}
+	OutputV2 struct {
+		Key   string `json:"key,omitempty"`
+		Value string `json:"value,omitempty"`
+		Type  string `json:"type,omitempty"`
+	}
 
 	StartStepResponse struct{}
 
@@ -100,6 +106,7 @@ type (
 		Outputs   map[string]string `json:"outputs,omitempty"`
 		Envs      map[string]string `json:"envs,omitempty"` // Env variables exported by step
 		Artifact  []byte            `json:"artifact,omitempty"`
+		OutputV2  []*OutputV2       `json:"outputV2,omitempty"`
 	}
 
 	StreamOutputRequest struct {
@@ -173,6 +180,7 @@ type (
 		OutputVars             map[string]string      `json:"output_vars,omitempty"`
 		CommandExecutionStatus CommandExecutionStatus `json:"command_execution_status,omitempty"`
 		Artifact               []byte                 `json:"artifact,omitempty"`
+		Outputs                []*OutputV2            `json:"outputs,omitempty"`
 	}
 )
 

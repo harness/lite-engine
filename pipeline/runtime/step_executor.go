@@ -36,6 +36,7 @@ type StepStatus struct {
 	Outputs  map[string]string
 	Envs     map[string]string
 	Artifact []byte
+	OutputV2 []*api.OutputV2
 }
 
 const (
@@ -80,8 +81,8 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.mu.Unlock()
 
 	go func() {
-		state, outputs, envs, artifact, stepErr := e.executeStep(r)
-		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact}
+		state, outputs, envs, artifact, outputV2, stepErr := e.executeStep(r)
+		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact, OutputV2: outputV2}
 		e.mu.Lock()
 		e.stepStatus[r.ID] = status
 		channels := e.stepWaitCh[r.ID]
@@ -107,8 +108,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			if r.StageRuntimeID != "" && r.Image == "" {
 				setPrevStepExportEnvs(r)
 			}
-			state, outputs, envs, artifact, stepErr := e.executeStep(r)
-			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact}
+			state, outputs, envs, artifact, outputV2, stepErr := e.executeStep(r)
+			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs, Artifact: artifact, OutputV2: outputV2}
 			pollResponse := convertStatus(status)
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
@@ -241,7 +242,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 
 		r.Kind = api.Run // only this kind is supported
 
-		exited, _, _, _, err := e.run(ctx, e.engine, r, stepLog)
+		exited, _, _, _, _, err := e.run(ctx, e.engine, r, stepLog)
 		if ctx.Err() == context.Canceled || ctx.Err() == context.DeadlineExceeded {
 			logr.WithError(err).Warnln("step execution canceled")
 			return nil, ctx.Err()
@@ -272,10 +273,10 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 	return runStep()
 }
 
-func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map[string]string, map[string]string, []byte, error) { //nolint:gocritic
+func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, error) { //nolint:gocritic
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
-		return state, nil, nil, nil, err
+		return state, nil, nil, nil, nil, err
 	}
 
 	state := pipeline.GetState()
@@ -301,7 +302,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 			e.run(ctx, e.engine, r, wr) //nolint:errcheck
 			wr.Close()
 		}()
-		return &runtime.State{Exited: false}, nil, nil, nil, nil
+		return &runtime.State{Exited: false}, nil, nil, nil, nil, nil
 	}
 
 	var result error
@@ -313,7 +314,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 		defer cancel()
 	}
 
-	exited, outputs, envs, artifact, err := e.run(ctx, e.engine, r, wr)
+	exited, outputs, envs, artifact, outputV2, err := e.run(ctx, e.engine, r, wr)
 	if err != nil {
 		result = multierror.Append(result, err)
 	}
@@ -331,7 +332,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 	// DeadlineExceeded error this indicates the step was timed out.
 	switch ctx.Err() {
 	case context.Canceled, context.DeadlineExceeded:
-		return nil, nil, nil, nil, ctx.Err()
+		return nil, nil, nil, nil, nil, ctx.Err()
 	}
 
 	if exited != nil {
@@ -347,11 +348,11 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 			logrus.WithField("id", r.ID).Infof("received exit code %d\n", exited.ExitCode)
 		}
 	}
-	return exited, outputs, envs, artifact, result
+	return exited, outputs, envs, artifact, outputV2, result
 }
 
 func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) ( //nolint:gocritic
-	*runtime.State, map[string]string, map[string]string, []byte, error) {
+	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, error) {
 	tiConfig := pipeline.GetState().GetTIConfig()
 	if r.Kind == api.Run {
 		return executeRunStep(ctx, engine, r, out, tiConfig)
@@ -390,12 +391,13 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 	logrus.WithField("id", r.ID).Infoln("successfully sent step status")
 }
 
-func convertStatus(status StepStatus) *api.PollStepResponse {
+func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 	r := &api.PollStepResponse{
 		Exited:   true,
 		Outputs:  status.Outputs,
 		Envs:     status.Envs,
 		Artifact: status.Artifact,
+		OutputV2: status.OutputV2,
 	}
 
 	stepErr := status.StepErr
@@ -423,7 +425,7 @@ func convertStatus(status StepStatus) *api.PollStepResponse {
 
 func convertPollResponse(r *api.PollStepResponse) api.VMTaskExecutionResponse {
 	if r.Error == "" {
-		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact}
+		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact, Outputs: r.OutputV2}
 	}
 	return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: r.Error}
 }
