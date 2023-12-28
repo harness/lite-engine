@@ -14,7 +14,6 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
-	"github.com/mattn/go-zglob"
 
 	"github.com/sirupsen/logrus"
 )
@@ -76,30 +75,8 @@ func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	if len(tests) == 0 {
 		return "echo \"Skipping test run, received no tests to execute\"", nil
 	}
-	// Use only unique class
-	set := make(map[ti.RunnableTest]interface{})
-	ut := []string{}
-	for _, t := range tests {
-		// Only add tests matching test globs
-		testGlobs := m.testGlobs
-		// Don't filter if glob not specified
-		if len(m.testGlobs) == 0 {
-			testGlobs = []string{"**"}
-		}
-		for _, glob := range testGlobs {
-			if matched, _ := zglob.Match(glob, t.Class); !matched {
-				continue
-			}
-			w := ti.RunnableTest{Class: t.Class}
-			if _, ok := set[w]; ok {
-				// The test has already been added
-				continue
-			}
-			set[w] = struct{}{}
-			ut = append(ut, t.Class)
-			break
-		}
-	}
+
+	ut := common.GetUniqueTestStrings(tests)
 
 	if ignoreInstr {
 		testStr := strings.Join(ut, " ")
