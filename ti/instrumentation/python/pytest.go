@@ -40,7 +40,7 @@ func NewPytestRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs []s
 }
 
 func (m *pytestRunner) AutoDetectPackages(workspace string) ([]string, error) {
-	return []string{}, errors.New("not implemented")
+	return []string{}, nil
 }
 
 func (m *pytestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
