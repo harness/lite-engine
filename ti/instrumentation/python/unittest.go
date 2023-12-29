@@ -7,7 +7,6 @@ package python
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -38,7 +37,7 @@ func NewUnittestRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs [
 }
 
 func (m *unittestRunner) AutoDetectPackages(workspace string) ([]string, error) {
-	return []string{}, errors.New("not implemented")
+	return []string{}, nil
 }
 
 func (m *unittestRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {

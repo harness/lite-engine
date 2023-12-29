@@ -40,7 +40,7 @@ func NewDotnetRunner(log *logrus.Logger, fs filesystem.FileSystem) *dotnetRunner
 }
 
 func (b *dotnetRunner) AutoDetectPackages(workspace string) ([]string, error) {
-	return []string{}, errors.New("not implemented")
+	return []string{}, nil
 }
 
 func (b *dotnetRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
