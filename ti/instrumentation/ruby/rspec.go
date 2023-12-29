@@ -7,7 +7,6 @@ package ruby
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -35,7 +34,7 @@ func NewRubyRunner(log *logrus.Logger, fs filesystem.FileSystem) *rspecRunner { 
 }
 
 func (m *rspecRunner) AutoDetectPackages(workspace string) ([]string, error) {
-	return []string{}, errors.New("not implemented")
+	return []string{}, nil
 }
 
 func (m *rspecRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
