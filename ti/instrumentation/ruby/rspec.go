@@ -55,11 +55,11 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		if err != nil {
 			return "", err
 		}
-		err = AddHarnessRubyAgentToGemfile(repoPath, m.log)
+		err = AddHarnessRubyAgentToGemfile(workspace, repoPath, m.log)
 		if err != nil {
 			m.log.Errorln("Unable to write Gemfile automatically", err)
 		}
-		err = AddRspecJunitFormatterToGemfile(repoPath, m.log)
+		err = AddRspecJunitFormatterToGemfile(workspace, repoPath, m.log)
 		if err != nil {
 			m.log.Errorln("Unable to write Gemfile automatically", err)
 		}

@@ -83,8 +83,9 @@ func UnzipAndGetTestInfo(agentInstallDir string, log *logrus.Logger) (scriptPath
 	return scriptPath, nil
 }
 
-func AddHarnessRubyAgentToGemfile(repoPath string, log *logrus.Logger) error {
+func AddHarnessRubyAgentToGemfile(workspace, repoPath string, log *logrus.Logger) error {
 	cmd := exec.Command("bundle", "add", "harness_ruby_agent", "--path", fmt.Sprintf("%q", repoPath), "--version", "~> 0.0.1") // #nosec
+	cmd.Dir = workspace
 	err := cmd.Run()
 
 	if err != nil {
@@ -95,8 +96,9 @@ func AddHarnessRubyAgentToGemfile(repoPath string, log *logrus.Logger) error {
 	return nil
 }
 
-func AddRspecJunitFormatterToGemfile(repoPath string, log *logrus.Logger) error {
+func AddRspecJunitFormatterToGemfile(workspace, repoPath string, log *logrus.Logger) error {
 	cmd := exec.Command("bundle", "add", "rspec_junit_formatter")
+	cmd.Dir = workspace
 	err := cmd.Run()
 	if err != nil {
 		log.WithError(err).Println("Error adding rspec_junit_formatter gem")
