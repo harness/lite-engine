@@ -7,7 +7,6 @@ package python
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
