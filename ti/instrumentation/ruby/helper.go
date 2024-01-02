@@ -140,21 +140,18 @@ func readLines(fileName string) ([]string, error) {
 		return nil, nil
 	}
 
-	f, err := os.OpenFile(fileName, os.O_RDONLY, 0600) //nolint:gomnd
+	file, err := os.Open(fileName)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer file.Close()
 
-	content := []string{}
-	scanner := bufio.NewScanner(f)
+	var lines []string
+	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		if tmp := scanner.Text(); tmp != "" {
-			content = append(content, tmp)
-		}
+		lines = append(lines, scanner.Text())
 	}
-
-	return content, nil
+	return lines, scanner.Err()
 }
 
 // prepend adds line in front of a file

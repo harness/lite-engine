@@ -50,19 +50,15 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	testCmd := ""
 	tiFlag := "TI=1"
+	installCmd := ""
 	if !ignoreInstr {
 		repoPath, err := UnzipAndGetTestInfo(agentInstallDir, m.log)
 		if err != nil {
 			return "", err
 		}
-		err = AddHarnessRubyAgentToGemfile(workspace, repoPath, m.log)
-		if err != nil {
-			m.log.Errorln("Unable to write Gemfile automatically", err)
-		}
-		err = AddRspecJunitFormatterToGemfile(workspace, repoPath, m.log)
-		if err != nil {
-			m.log.Errorln("Unable to write Gemfile automatically", err)
-		}
+		installReportCmd := "bundle add rspec_junit_formatter;"
+		installAgentCmd := fmt.Sprintf("bundle add harness_ruby_agent --path %q --version ~> 0.0.1;", repoPath)
+		installCmd = fmt.Sprintf("%s %s", installAgentCmd, installReportCmd)
 		err = WriteHelperFile(workspace, repoPath)
 		if err != nil {
 			m.log.Errorln("Unable to write rspec helper file automatically", err)
@@ -77,8 +73,8 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		if ignoreInstr {
 			return strings.TrimSpace(fmt.Sprintf("%s %s", rspecCmd, userArgs)), nil
 		}
-		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s ",
-			tiFlag, rspecCmd, userArgs))
+		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s %s ",
+			installCmd, tiFlag, rspecCmd, userArgs))
 		return testCmd, nil
 	}
 
@@ -93,7 +89,7 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		return strings.TrimSpace(fmt.Sprintf("%s %s %s", rspecCmd, userArgs, testStr)), nil
 	}
 
-	testCmd = fmt.Sprintf("%s %s %s %s",
-		tiFlag, rspecCmd, userArgs, testStr)
+	testCmd = fmt.Sprintf("%s %s %s %s %s",
+		installCmd, tiFlag, rspecCmd, userArgs, testStr)
 	return testCmd, nil
 }
