@@ -8,7 +8,6 @@ package ruby
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -136,13 +135,13 @@ func WriteHelperFile(workspace, repoPath string) error {
 
 // prepend adds line in front of a file
 func prepend(lineToAdd, fileName string) error {
-	fileData, err := ioutil.ReadFile(fileName)
+	fileData, err := os.ReadFile(fileName)
 	if err != nil {
 		return err
 	}
 
 	newContent := []byte(lineToAdd + "\n" + string(fileData))
-	err = ioutil.WriteFile(fileName, newContent, os.ModePerm)
+	err = os.WriteFile(fileName, newContent, os.ModePerm)
 	if err != nil {
 		return err
 	}
