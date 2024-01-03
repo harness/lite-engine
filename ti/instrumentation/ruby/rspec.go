@@ -50,15 +50,14 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
 	testCmd := ""
 	tiFlag := "TI=1"
-	installCmd := ""
+	installReportCmd := ""
+	installAgentCmd := ""
 	if !ignoreInstr {
 		repoPath, err := UnzipAndGetTestInfo(agentInstallDir, m.log)
 		if err != nil {
 			return "", err
 		}
-		installReportCmd := "bundle add rspec_junit_formatter;"
-		installAgentCmd := fmt.Sprintf("bundle add harness_ruby_agent --path %q --version ~> 0.0.1;", repoPath)
-		installCmd = fmt.Sprintf("%s %s", installAgentCmd, installReportCmd)
+		installAgentCmd = fmt.Sprintf("bundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
 		err = WriteHelperFile(workspace, repoPath)
 		if err != nil {
 			m.log.Errorln("Unable to write rspec helper file automatically", err)
@@ -66,15 +65,16 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 	// Run all the tests
 	if userArgs == "" {
+		installReportCmd = "bundle add rspec_junit_formatter || true;"
 		userArgs = fmt.Sprintf("--format RspecJunitFormatter --out %s${HARNESS_NODE_INDEX}", common.HarnessDefaultReportPath)
 	}
 
 	if runAll {
 		if ignoreInstr {
-			return strings.TrimSpace(fmt.Sprintf("%s %s", rspecCmd, userArgs)), nil
+			return strings.TrimSpace(fmt.Sprintf("%s %s %s", installReportCmd, rspecCmd, userArgs)), nil
 		}
-		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s %s ",
-			installCmd, tiFlag, rspecCmd, userArgs))
+		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s ",
+			installReportCmd, installAgentCmd, tiFlag, rspecCmd, userArgs))
 		return testCmd, nil
 	}
 
@@ -86,10 +86,10 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	testStr := strings.Join(ut, " ")
 
 	if ignoreInstr {
-		return strings.TrimSpace(fmt.Sprintf("%s %s %s", rspecCmd, userArgs, testStr)), nil
+		return strings.TrimSpace(fmt.Sprintf("%s %s %s %s", installAgentCmd, rspecCmd, userArgs, testStr)), nil
 	}
 
-	testCmd = fmt.Sprintf("%s %s %s %s %s",
-		installCmd, tiFlag, rspecCmd, userArgs, testStr)
+	testCmd = fmt.Sprintf("%s %s %s %s %s %s",
+		installReportCmd, installAgentCmd, tiFlag, rspecCmd, userArgs, testStr)
 	return testCmd, nil
 }
