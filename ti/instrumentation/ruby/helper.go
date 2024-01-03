@@ -6,13 +6,12 @@
 package ruby
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
@@ -135,58 +134,18 @@ func WriteHelperFile(workspace, repoPath string) error {
 	return nil
 }
 
-func readLines(fileName string) ([]string, error) {
-	if _, err := os.Stat(fileName); err != nil {
-		return nil, nil
-	}
-
-	file, err := os.Open(fileName)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return lines, scanner.Err()
-}
-
 // prepend adds line in front of a file
 func prepend(lineToAdd, fileName string) error {
-	content, err := readLines(fileName)
+	fileData, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		return err
 	}
 
-	f, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY, 0600) //nolint:gomnd
+	newContent := []byte(lineToAdd + "\n" + string(fileData))
+	err = ioutil.WriteFile(fileName, newContent, os.ModePerm)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-
-	writer := bufio.NewWriter(f)
-	contentModified := false
-	for _, line := range content {
-		if !contentModified && strings.HasPrefix(strings.TrimSpace(strings.TrimSpace(line)), "require") {
-			_, err = writer.WriteString(fmt.Sprintf("%s\n", lineToAdd))
-			if err != nil {
-				return err
-			}
-			contentModified = true
-		}
-		_, err := writer.WriteString(fmt.Sprintf("%s\n", line))
-		if err != nil {
-			return err
-		}
-	}
-
-	if err := writer.Flush(); err != nil {
-		return err
-	}
-
 	return nil
 }
 
