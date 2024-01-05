@@ -135,7 +135,7 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 				// Error while auto-detecting, no tests for other parallel steps
 				selection.Tests = []ti.RunnableTest{}
 				config.RunOnlySelectedTests = true
-				log.Errorln("Error in auto-detecting tests for splitting, running all tests in parallel step 0")
+				log.WithError(err).Errorln("Error in auto-detecting tests for splitting, running all tests in parallel step 0")
 			}
 			return
 		}
