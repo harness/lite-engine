@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	ti "github.com/harness/ti-client/types"
@@ -79,33 +78,6 @@ func UnzipAndGetTestInfo(agentInstallDir string, log *logrus.Logger) (scriptPath
 	log.Infoln(fmt.Sprintf("scriptPath: %s", scriptPath))
 
 	return scriptPath, nil
-}
-
-func AddHarnessRubyAgentToGemfile(workspace, repoPath string, log *logrus.Logger) error {
-	c := fmt.Sprintf("cd %s; bundle add harness_ruby_agent --path %q --version ~> 0.0.1", workspace, repoPath) // #nosec
-	cmdArgs := []string{"-c", c}
-	cmd := exec.Command("sh", cmdArgs...)
-	err := cmd.Run()
-
-	if err != nil {
-		log.WithError(err).Println("Error adding harness_ruby_agent gem")
-		return err
-	}
-	log.Infoln("'harness_ruby_agent' successfully added and installed!")
-	return nil
-}
-
-func AddRspecJunitFormatterToGemfile(workspace, repoPath string, log *logrus.Logger) error {
-	c := fmt.Sprintf("cd %s; bundle add rspec_junit_formatter", workspace) // #nosec
-	cmdArgs := []string{"-c", c}
-	cmd := exec.Command("sh", cmdArgs...)
-	err := cmd.Run()
-	if err != nil {
-		log.WithError(err).Println("Error adding rspec_junit_formatter gem")
-		return err
-	}
-	log.Infoln("'rspec_junit_formatter' successfully added and installed!")
-	return nil
 }
 
 // WriteHelperFile writes the rspec helper file needed to attach agent.

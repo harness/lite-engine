@@ -120,6 +120,9 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 		// If autodetect fails or detects no tests, we run all tests in step 0
 		var err error
 		testGlobs := strings.Split(config.TestGlobs, ",")
+		if config.TestGlobs == "" {
+			testGlobs = make([]string, 0)
+		}
 		tests, err = runner.AutoDetectTests(ctx, workspace, testGlobs)
 		if err != nil || len(tests) == 0 {
 			// AutoDetectTests output should be same across all the parallel steps. If one of the step
@@ -132,7 +135,7 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 				// Error while auto-detecting, no tests for other parallel steps
 				selection.Tests = []ti.RunnableTest{}
 				config.RunOnlySelectedTests = true
-				log.Errorln("Error in auto-detecting tests for splitting, running all tests in parallel step 0")
+				log.WithError(err).Errorln("Error in auto-detecting tests for splitting, running all tests in parallel step 0")
 			}
 			return
 		}
