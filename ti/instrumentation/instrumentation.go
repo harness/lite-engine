@@ -119,10 +119,7 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 		// For full runs, detect all the tests in the repo and split them
 		// If autodetect fails or detects no tests, we run all tests in step 0
 		var err error
-		testGlobs := strings.Split(config.TestGlobs, ",")
-		if config.TestGlobs == "" {
-			testGlobs = make([]string, 0)
-		}
+		testGlobs := sanitizeTestGlob(config.TestGlobs)
 		tests, err = runner.AutoDetectTests(ctx, workspace, testGlobs)
 		if err != nil || len(tests) == 0 {
 			// AutoDetectTests output should be same across all the parallel steps. If one of the step
@@ -179,7 +176,8 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	// Get TI runner
 	config.Language = strings.ToLower(config.Language)
 	config.BuildTool = strings.ToLower(config.BuildTool)
-	runner, useYaml, err := getTiRunner(config.Language, config.BuildTool, log, fs, strings.Split(config.TestGlobs, ","))
+	testGlobs := sanitizeTestGlob(config.TestGlobs)
+	runner, useYaml, err := getTiRunner(config.Language, config.BuildTool, log, fs, testGlobs)
 	if err != nil {
 		return "", err
 	}
@@ -237,4 +235,11 @@ func InjectReportInformation(r *api.StartStepRequest) {
 			r.TestReport.Kind = api.Junit
 		}
 	}
+}
+
+func sanitizeTestGlob(globString string) []string {
+	if globString == "" {
+		return make([]string, 0)
+	}
+	return strings.Split(globString, ",")
 }

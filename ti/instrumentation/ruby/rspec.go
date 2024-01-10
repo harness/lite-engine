@@ -22,14 +22,16 @@ const (
 )
 
 type rspecRunner struct {
-	fs  filesystem.FileSystem
-	log *logrus.Logger
+	fs        filesystem.FileSystem
+	log       *logrus.Logger
+	testGlobs []string
 }
 
-func NewRubyRunner(log *logrus.Logger, fs filesystem.FileSystem) *rspecRunner { //nolint:revive
+func NewRubyRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string) *rspecRunner { //nolint:revive
 	return &rspecRunner{
-		fs:  fs,
-		log: log,
+		fs:        fs,
+		log:       log,
+		testGlobs: testGlobs,
 	}
 }
 
@@ -70,11 +72,15 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 
 	if runAll {
-		if ignoreInstr {
-			return strings.TrimSpace(fmt.Sprintf("%s %s %s", installReportCmd, rspecCmd, userArgs)), nil
+		rspecGlob := ""
+		if len(m.testGlobs) > 0 {
+			rspecGlob = strings.Join(m.testGlobs, " ")
 		}
-		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s ",
-			installReportCmd, installAgentCmd, tiFlag, rspecCmd, userArgs))
+		if ignoreInstr {
+			return strings.TrimSpace(fmt.Sprintf("%s %s %s %s", installReportCmd, rspecCmd, userArgs, rspecGlob)), nil
+		}
+		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s %s",
+			installReportCmd, installAgentCmd, tiFlag, rspecCmd, userArgs, rspecGlob))
 		return testCmd, nil
 	}
 
