@@ -88,7 +88,7 @@ func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.F
 	case "ruby":
 		switch buildTool {
 		case "rspec":
-			runner = ruby.NewRubyRunner(log, fs)
+			runner = ruby.NewRubyRunner(log, fs, testGlobs)
 		default:
 			return runner, useYaml, fmt.Errorf("could not figure out the build tool: %s", buildTool)
 		}
