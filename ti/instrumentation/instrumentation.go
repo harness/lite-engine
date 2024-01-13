@@ -29,6 +29,7 @@ const (
 func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTestConfig, fs filesystem.FileSystem,
 	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) ti.SelectTestsResp {
 	selection := ti.SelectTestsResp{}
+	log.Infoln("Aishwarya - testing lite engine VM setup.")
 	if isManual {
 		// Manual run
 		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger, running all the tests.")
@@ -65,6 +66,10 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			return selection
 		}
 	}
+
+	//add src files listed in java target rules in the BUILD.bazel files if BUILD.bazel is changed
+	files, err = addBazelFilesToChangedFiles(ctx, workspace, log, files, fs)
+
 	// Call TI svc only when there is a chance of running selected tests
 	filesWithPkg := runner.ReadPackages(workspace, files)
 	selection, err = selectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)

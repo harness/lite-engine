@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -32,6 +33,8 @@ import (
 var (
 	diffFilesCmdPR   = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
 	diffFilesCmdPush = []string{"diff", "--name-status", "--diff-filter=MADR"}
+	bazelCmd         = "bazel"
+	execCmdCtx       = exec.CommandContext
 )
 
 const (
@@ -262,6 +265,108 @@ func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger, 
 		}
 	}
 	return res, nil
+}
+
+// addBazelFilesToChangedFiles takes a list of changed files and removes bazel build files and adds java files listed in target src globs
+func addBazelFilesToChangedFiles(ctx context.Context, workspace string, log *logrus.Logger, res []ti.File, fs filesystem.FileSystem) ([]ti.File, error) {
+	//to prevent duplicate records
+	uniqueFiles := make(map[string]struct{})
+
+	//check ticonfig params to allow bazel optimization, and get threshold for max file count
+	tiConfigYaml, err := getTiConfig(workspace, fs)
+	if err != nil {
+		log.Infoln("Ti config parsing before selectTests fails")
+	}
+	//flag to allow bazel optimaztion
+	optmizeBazel := tiConfigYaml.Config.BazelOptimization
+	threshold, err := strconv.Atoi(tiConfigYaml.Config.BazelFileCount)
+	if err!= nil{
+		return nil, fmt.Errorf("bazelFileCount not set correctly in ticonfig.yml, expecting number found character %v ", tiConfigYaml.Config.BazelFileCount)
+	}
+	//skip bazel src inspection if optimization in config not selected
+	if !optmizeBazel {
+		return res, nil
+	}
+
+	var changedRes []ti.File
+	for _, file := range res {
+		if strings.HasSuffix(string(file.Name), "BUILD.bazel") {
+			//If BUILD.Bazel at the root of harness-core is modified, run all tests /... by keeping BUILD.Bazel in changed files list
+			if len(strings.Replace(file.Name, "BUILD.bazel", "", -1)) == 0 {
+				return res, nil
+			}
+			bazelQueryInput :=  strings.Replace(file.Name, "/BUILD.bazel", "", -1)
+			directory := workspace + "/" + strings.Replace(file.Name, "/BUILD.bazel", "", -1)
+			//bazel query to fetch test src globs from java_library rule
+			c1 := fmt.Sprintf("cd %s; %s query 'kind(\"java\", %s:*)' --output=build | grep 'srcs =' ", workspace, bazelCmd, bazelQueryInput)
+			cmdArgs1 := []string{"-c", c1}
+			bazelQueryOutput, err := execCmdCtx(ctx, "sh", cmdArgs1...).Output()
+			if err != nil {
+				return res, fmt.Errorf("failed to run bazel query %v, encountered %v as %v has no java_library rule", c1, err, file)
+			}
+
+			//count the scr files in bazelQueryOutput
+			c2 := fmt.Sprintf("cd %s; %s query 'kind(\"java\", %s:*)' --output=build | grep 'srcs =' | grep -o '\\.java' | wc -l", workspace, bazelCmd, bazelQueryInput)
+			cmdArgs2 := []string{"-c", c2}
+			countQueryOutput, err := execCmdCtx(ctx, "sh", cmdArgs2...).Output()
+			count, err := strconv.Atoi(strings.TrimSpace(string(countQueryOutput)))
+			if err!= nil{
+				count = 0
+			}
+			//if count of files changed due to bazel build file modification is over the limit set then select files inside the package/module level
+			if count >= threshold || count == 0{
+				log.Infoln("Selecting all java files inside directory as changed files: ", directory)
+				changedRes, err = getAllJavaFilesInsideDirectory(directory, changedRes, file, uniqueFiles)
+			}else{
+				//parse the bazel query output and extract .java files
+				// Outer Regex to extract only srcs
+				pattern1 := `srcs = \[[^\]]+\]`
+				r1 := regexp.MustCompile(pattern1)
+
+				sections := r1.FindAllString(string(bazelQueryOutput), -1)
+				for _, section := range sections {
+					// Inner Regex to match only .java files inside each src glob
+					pattern2 := `"//[^"]+\.java"`
+					r2 := regexp.MustCompile(pattern2)
+					matches := r2.FindAllString(section, -1)
+					for _, match := range matches {
+						srcFile := strings.Split(strings.Trim(match, `\"`), ":")
+						changedFile := strings.TrimLeft(string(srcFile[0]), "//") + "/" + string(srcFile[1])
+						if _, exists := uniqueFiles[changedFile]; !exists {
+							changedRes = append(changedRes, ti.File{Status: file.Status, Name: changedFile})
+							uniqueFiles[changedFile] = struct{}{}
+						}
+					}
+				}
+			}
+		} else {
+			//add non BUILD.bazel files to the changed files result directly
+			if _, exists := uniqueFiles[file.Name]; !exists {
+				changedRes = append(changedRes, file)
+				uniqueFiles[file.Name] = struct{}{}
+			}
+		}
+	}
+	log.Infoln("Changed file list is : ", changedRes)
+	return changedRes, nil
+}
+
+// takes a directory name and adds all java files within that module/package in changed file res
+func getAllJavaFilesInsideDirectory(directory string, res[]ti.File, file ti.File, uniqueFiles map[string]struct{}) ([]ti.File, error) {
+	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		// add only .java files to the list
+		if strings.HasSuffix(info.Name(), ".java") {
+			if _, exists := uniqueFiles[path]; !exists {
+				res = append(res, ti.File{Status: file.Status, Name: path})
+				uniqueFiles[path] = struct{}{}
+			}
+		}
+		return nil
+	})
+	return res, err
 }
 
 // selectTests takes a list of files which were changed as input and gets the tests
