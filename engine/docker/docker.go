@@ -157,10 +157,31 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfi
 	containers := e.containers
 	e.mu.Unlock()
 
+	timeout := time.Second * 30 // similar to k8s default timeout in pods
 	// stop all containers
 	for _, ctrName := range containers {
-		if err := e.client.ContainerKill(ctx, ctrName, "9"); err != nil {
-			logrus.WithField("container", ctrName).WithField("error", err).Warnln("failed to kill container")
+		if err := e.client.ContainerStop(ctx, ctrName, &timeout); err != nil {
+			logrus.WithField("container", ctrName).WithField("error", err).Warnln("failed to stop the container")
+		}
+
+		// Before removing the container we want to be sure that it's in a healthy state to be removed.
+
+		containerStatus, err := e.client.ContainerInspect(ctx, ctrName)
+
+		if err != nil {
+			logrus.WithField("container", ctrName).WithField("error", err).Warnln("failed to retrieve container stats")
+		}
+
+		for {
+			if containerStatus.State.Status == "removing" || containerStatus.State.Status == "running" {
+				time.Sleep(1 * time.Second)
+				containerStatus, err = e.client.ContainerInspect(ctx, ctrName)
+				if err != nil {
+					logrus.WithField("container", ctrName).WithField("error", err).Warnln("failed to retrieve container stats")
+				}
+			} else {
+				break
+			}
 		}
 	}
 
