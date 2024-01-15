@@ -14,7 +14,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"reflect"
 	"sync"
 	"time"
 
@@ -174,7 +173,7 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfi
 		}
 
 		for {
-			if reflect.DeepEqual(containerStatus, types.ContainerStats{}) && containerStatus.State.Status == "removing" || containerStatus.State.Status == "running" {
+			if err != nil && containerStatus.State.Status == "removing" || containerStatus.State.Status == "running" {
 				time.Sleep(1 * time.Second)
 				containerStatus, err = e.client.ContainerInspect(ctx, ctrName)
 				if err != nil {
