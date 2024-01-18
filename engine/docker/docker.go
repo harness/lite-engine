@@ -61,7 +61,12 @@ type Docker struct {
 	client     client.APIClient
 	hidePull   bool
 	mu         sync.Mutex
-	containers []string
+	containers []Containers
+}
+
+type Containers struct {
+	id       string
+	softStop bool
 }
 
 // New returns a new engine.
@@ -70,7 +75,7 @@ func New(client client.APIClient, opts Opts) *Docker {
 		client:     client,
 		hidePull:   opts.HidePull,
 		mu:         sync.Mutex{},
-		containers: make([]string, 0),
+		containers: make([]Containers, 0),
 	}
 }
 
@@ -157,38 +162,21 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfi
 	containers := e.containers
 	e.mu.Unlock()
 
-	timeout := time.Second * 30 // similar to k8s default timeout in pods
 	// stop all containers
-	for _, ctrName := range containers {
-		if err := e.client.ContainerStop(ctx, ctrName, &timeout); err != nil {
-			logrus.WithField("container", ctrName).WithField("error", err).Warnln("failed to stop the container")
-		}
-
-		// Before removing the container we want to be sure that it's in a healthy state to be removed.
-
-		containerStatus, err := e.client.ContainerInspect(ctx, ctrName)
-
-		if err != nil {
-			logrus.WithField("container", ctrName).WithField("error", err).Warnln("failed to retrieve container stats")
-		}
-
-		for {
-			if err != nil && containerStatus.State.Status == "removing" || containerStatus.State.Status == "running" {
-				time.Sleep(1 * time.Second)
-				containerStatus, err = e.client.ContainerInspect(ctx, ctrName)
-				if err != nil {
-					logrus.WithField("container", ctrName).WithField("error", err).Warnln("failed to retrieve container stats")
-				}
-			} else {
-				break
+	for _, ctiner := range containers {
+		if ctiner.softStop {
+			e.SoftStop(ctx, ctiner.id)
+		} else {
+			if err := e.client.ContainerKill(ctx, ctiner.id, "9"); err != nil {
+				logrus.WithField("container", ctiner.id).WithField("error", err).Warnln("failed to kill container")
 			}
 		}
 	}
 
 	// cleanup all containers
-	for _, ctrName := range containers {
-		if err := e.client.ContainerRemove(ctx, ctrName, removeOpts); err != nil {
-			logrus.WithField("container", ctrName).WithField("error", err).Warnln("failed to remove container")
+	for _, ctiner := range containers {
+		if err := e.client.ContainerRemove(ctx, ctiner.id, removeOpts); err != nil {
+			logrus.WithField("container", ctiner).WithField("error", err).Warnln("failed to remove container")
 		}
 	}
 
@@ -331,7 +319,10 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	}
 
 	e.mu.Lock()
-	e.containers = append(e.containers, step.ID)
+	e.containers = append(e.containers, Containers{
+		id:       step.ID,
+		softStop: step.SoftStop,
+	})
 	e.mu.Unlock()
 
 	return nil
@@ -543,6 +534,36 @@ func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spe
 		if err := exec.Command("systemctl", "restart", "docker").Run(); err != nil {
 			logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
 			return
+		}
+	}
+}
+
+// SoftStop stops the container giving them a 30 seconds grace period. The signal sent by ContainerStop is SIGTERM.
+// After the grace period, the container is killed with SIGKILL.
+// After all the containers are stopped, they are removed only when the status is not "running" or "removing".
+func (e *Docker) SoftStop(ctx context.Context, name string) {
+	timeout := 30 * time.Second
+	if err := e.client.ContainerStop(ctx, name, &timeout); err != nil {
+		logrus.WithField("container", name).WithField("error", err).Warnln("failed to stop the container")
+	}
+
+	// Before removing the container we want to be sure that it's in a healthy state to be removed.
+
+	containerStatus, err := e.client.ContainerInspect(ctx, name)
+
+	if err != nil {
+		logrus.WithField("container", name).WithField("error", err).Warnln("failed to retrieve container stats")
+	}
+
+	for {
+		if err != nil && containerStatus.State.Status == "removing" || containerStatus.State.Status == "running" {
+			time.Sleep(1 * time.Second)
+			containerStatus, err = e.client.ContainerInspect(ctx, name)
+			if err != nil {
+				logrus.WithField("container", name).WithField("error", err).Warnln("failed to retrieve container stats")
+			}
+		} else {
+			break
 		}
 	}
 }
