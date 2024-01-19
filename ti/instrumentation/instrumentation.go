@@ -7,10 +7,10 @@ package instrumentation
 import (
 	"context"
 	"fmt"
+	"github.com/sirupsen/logrus"
+	"path/filepath"
 	"runtime"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/internal/filesystem"
@@ -24,17 +24,20 @@ const (
 	classTimingTestSplitStrategy = testsplitter.SplitByClassTimeStr
 	countTestSplitStrategy       = testsplitter.SplitByTestCount
 	defaultTestSplitStrategy     = classTimingTestSplitStrategy
+	JavaAgentJar                 = "java-agent.jar"
+	AgentArg                     = "-javaagent:%s=%s"
 )
 
 func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTestConfig, fs filesystem.FileSystem,
-	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) ti.SelectTestsResp {
+	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) (ti.SelectTestsResp, []string) {
+	var moduleList []string
 	selection := ti.SelectTestsResp{}
 	log.Infoln("Aishwarya - testing lite engine VM setup.")
 	if isManual {
 		// Manual run
 		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger, running all the tests.")
 		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
-		return selection
+		return selection, moduleList
 	}
 	// Push+Manual/PR execution
 	var files []ti.File
@@ -44,31 +47,42 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		if commitErr != nil {
 			log.Infoln("Failed to get reference commit", "error", commitErr)
 			config.RunOnlySelectedTests = false // TI selected all the tests to be run
-			return selection
+			return selection, moduleList
 		}
 		if lastSuccessfulCommitID == "" {
 			log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
 			config.RunOnlySelectedTests = false // TI selected all the tests to be run
-			return selection
+			return selection, moduleList
 		}
 		log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
 		files, err = getChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
 		if err != nil {
 			log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
 			config.RunOnlySelectedTests = false
-			return selection
+			return selection, moduleList
 		}
 	} else {
 		files, err = getChangedFilesPR(ctx, workspace, log)
 		if err != nil || len(files) == 0 {
 			log.Errorln("Unable to get changed files list for PR. Running all the tests.", "error", err)
 			config.RunOnlySelectedTests = false
-			return selection
+			return selection, moduleList
 		}
 	}
 
-	//add src files listed in java target rules in the BUILD.bazel files if BUILD.bazel is changed
-	files, err = addBazelFilesToChangedFiles(ctx, workspace, log, files, fs)
+	//check ticonfig params to allow bazel optimization, and get threshold for max file count
+	tiConfigYaml, err := getTiConfig(workspace, fs)
+	if err != nil {
+		log.Infoln("Ti config parsing before selectTests fails")
+	}
+
+	//skip bazel src inspection if optimization in config not selected
+	if tiConfigYaml.Config.BazelOptimization {
+		//add src files listed in java target rules in the BUILD.bazel files if BUILD.bazel is changed
+		files, moduleList, err = addBazelFilesToChangedFiles(ctx, workspace, log, files, tiConfigYaml.Config.BazelFileCount)
+		log.Infoln("Changed file list is: ", files)
+		log.Infoln("Changed module list is: ", moduleList)
+	}
 
 	// Call TI svc only when there is a chance of running selected tests
 	filesWithPkg := runner.ReadPackages(workspace, files)
@@ -86,7 +100,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	} else {
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
 	}
-	return selection
+	return selection, moduleList
 }
 
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
@@ -185,13 +199,13 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	if err != nil {
 		return "", err
 	}
-
+	var modules []string
 	selection := ti.SelectTestsResp{}
 	var artifactDir, iniFilePath string
 	if !cfg.GetIgnoreInstr() {
-		// Get the tests that need to be run if we are running selected tests
-		selection = getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
 
+		// Get the tests and module test targets that need to be run if we are running selected tests
+		selection, modules = getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
 		// Install agent artifacts if not present
 		artifactDir, err = installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log, cfg)
 		if err != nil {
@@ -217,6 +231,20 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	}
 
 	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, cfg.GetIgnoreInstr(), !config.RunOnlySelectedTests)
+
+	if len(modules) != 0 && strings.Contains(testCmd, "bazel") {
+		moduleTestCmd := getTestTargets(modules)
+		//to add module test targets to test cmd (viz //332-ci-manager/...)
+		if len(selection.Tests) == 0 {
+			//when tests are empty but module exists, then create a bazel cmd
+			javaAgentPath := filepath.Join(artifactDir, JavaAgentJar)
+			agentArg := fmt.Sprintf(AgentArg, javaAgentPath, iniFilePath)
+			instrArg := fmt.Sprintf("--define=HARNESS_ARGS=%s", agentArg)
+			testCmd = fmt.Sprintf("%s %s %s ", bazelCmd, config.Args, instrArg)
+		}
+		testCmd = fmt.Sprintf("%s %s", testCmd, moduleTestCmd)
+		log.Infoln("Bazel testCmd is :", testCmd)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -227,6 +255,16 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
 	return command, nil
+}
+
+// get modules to add as test target to the bazel test command
+func getTestTargets(modules []string) string {
+	var testTargets string
+	for _, module := range modules {
+		testTarget := fmt.Sprintf("//%s/...", module)
+		testTargets = fmt.Sprintf("%s %s", testTargets, testTarget)
+	}
+	return testTargets
 }
 
 // InjectReportInformation add default test paths information to ruby and python when test runner is invoked without a value
