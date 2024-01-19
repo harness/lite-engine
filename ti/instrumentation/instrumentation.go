@@ -32,7 +32,6 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) (ti.SelectTestsResp, []string) {
 	var moduleList []string
 	selection := ti.SelectTestsResp{}
-	log.Infoln("Aishwarya - testing lite engine VM setup.")
 	if isManual {
 		// Manual run
 		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger, running all the tests.")
