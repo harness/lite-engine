@@ -47,7 +47,7 @@ func (m *rspecRunner) ReadPackages(workspace string, files []ti.File) []ti.File 
 }
 
 func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	testCmd := ""
 	tiFlag := "TI=1"
 	installReportCmd := ""

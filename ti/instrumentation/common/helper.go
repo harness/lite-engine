@@ -38,6 +38,11 @@ type Node struct {
 	Type   NodeType
 }
 
+// RunnerArgs to add additinal args for runner
+type RunnerArgs struct {
+	ModuleList []string
+}
+
 // GetFiles gets list of all file paths matching a provided regex
 func GetFiles(path string) ([]string, error) {
 	matches, err := zglob.Glob(path)

@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/mholt/archiver/v3"
 
@@ -48,7 +49,7 @@ func (b *nunitConsoleRunner) ReadPackages(workspace string, files []ti.File) []t
 }
 
 func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, //nolint:gocyclo
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	/*
 		i) Get the DLL list from the command (assume it runs at the root of the repository)
 		ii) Run the injector through all the DLLs

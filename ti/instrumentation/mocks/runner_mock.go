@@ -9,6 +9,7 @@ import (
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
+	common "github.com/harness/lite-engine/ti/instrumentation/common"
 	types "github.com/harness/ti-client/types"
 )
 
@@ -66,18 +67,18 @@ func (mr *MockTestRunnerMockRecorder) AutoDetectTests(ctx, workspace, testGlobs 
 }
 
 // GetCmd mocks base method.
-func (m *MockTestRunner) GetCmd(ctx context.Context, tests []types.RunnableTest, userArgs, workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+func (m *MockTestRunner) GetCmd(ctx context.Context, tests []types.RunnableTest, userArgs, workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetCmd", ctx, tests, userArgs, workspace, agentConfigPath, agentInstallDir, ignoreInstr, runAll)
+	ret := m.ctrl.Call(m, "GetCmd", ctx, tests, userArgs, workspace, agentConfigPath, agentInstallDir, ignoreInstr, runAll, runnerArgs)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetCmd indicates an expected call of GetCmd.
-func (mr *MockTestRunnerMockRecorder) GetCmd(ctx, tests, userArgs, workspace, agentConfigPath, agentInstallDir, ignoreInstr, runAll interface{}) *gomock.Call {
+func (mr *MockTestRunnerMockRecorder) GetCmd(ctx, tests, userArgs, workspace, agentConfigPath, agentInstallDir, ignoreInstr, runAll, runnerArgs interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCmd", reflect.TypeOf((*MockTestRunner)(nil).GetCmd), ctx, tests, userArgs, workspace, agentConfigPath, agentInstallDir, ignoreInstr, runAll)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCmd", reflect.TypeOf((*MockTestRunner)(nil).GetCmd), ctx, tests, userArgs, workspace, agentConfigPath, agentInstallDir, ignoreInstr, runAll, runnerArgs)
 }
 
 // ReadPackages mocks base method.

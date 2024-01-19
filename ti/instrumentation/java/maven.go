@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
@@ -54,7 +55,7 @@ func (m *mavenRunner) ReadPackages(workspace string, files []ti.File) []ti.File 
 }
 
 func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	// Agent arg
 	inputUserArgs := userArgs
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)

@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
@@ -129,7 +130,7 @@ func getBazelTestRules(ctx context.Context, log *logrus.Logger, tests []ti.Runna
 }
 
 func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, //nolint:funlen,gocyclo
-	workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	// Agent arg
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
 	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
@@ -143,7 +144,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		}
 		return defaultCmd, nil
 	}
-	if len(tests) == 0 {
+	if len(tests) == 0 && len(runnerArgs.ModuleList) == 0 {
 		return "echo \"Skipping test run, received no tests to execute\"", nil //nolint:goconst
 	}
 
@@ -227,8 +228,15 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			}
 		}
 	}
-	if len(rules) == 0 {
+	if len(rules) == 0 && len(runnerArgs.ModuleList) == 0 {
 		return "echo \"Could not find any relevant test rules. Skipping the run\"", nil
+	}
+	// Add test targets from module list to the rules
+	if len(runnerArgs.ModuleList) != 0 {
+		for _, module := range runnerArgs.ModuleList {
+			moduleRule := fmt.Sprintf("//%s/...", module)
+			rules = append(rules, moduleRule)
+		}
 	}
 	testList := strings.Join(rules, " ")
 	if ignoreInstr {

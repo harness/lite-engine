@@ -13,6 +13,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -106,7 +107,7 @@ func TestGetBazelCmd_TestsWithRules(t *testing.T) {
 	tests := []ti.RunnableTest{t1, t2, t3}
 	expectedCmd := "bazel  --define=HARNESS_ARGS=-javaagent:java-agent.jar=/test/tmp/config.ini //module1:pkg1.cls1 //module1:pkg1.cls2 //module1:pkg2/cls2"
 
-	cmd, _ := runner.GetCmd(ctx, tests, "", "", "/test/tmp/config.ini", "", false, false)
+	cmd, _ := runner.GetCmd(ctx, tests, "", "", "/test/tmp/config.ini", "", false, false, common.RunnerArgs{})
 	assert.Equal(t, expectedCmd, cmd)
 }
 

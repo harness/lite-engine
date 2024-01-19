@@ -7,6 +7,15 @@ package instrumentation
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+
 	"github.com/harness/lite-engine/internal/filesystem"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
@@ -19,14 +28,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
-	"io"
-	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
 var (
@@ -306,12 +307,12 @@ func addBazelFilesToChangedFiles(ctx context.Context, workspace string, log *log
 		directory := filepath.Join(workspace, "/", strings.Replace(file.Name, "/BUILD.bazel", "", -1))
 		//if no srcs present in the bazel build file, then select all files under this directory as changed
 		if count == 0 {
-			message := fmt.Sprintf("No src detected in Bazel %v, selecting all java files as changed files inside the directory %v", file.Name, directory )
+			message := fmt.Sprintf("No src detected in Bazel %v, selecting all java files as changed files inside the directory %v", file.Name, directory)
 			log.Infoln(message)
 			changedRes, err = getAllJavaFilesInsideDirectory(directory, changedRes, file, uniqueFiles)
 		} else if count >= threshold {
 			//if count of files changed due to bazel build file modification is over the limit set then update the module list with test target
-			message := fmt.Sprintf("%v Files changed after changing bazel file %v; crosses limit set for bazelFileCount", count, file.Name )
+			message := fmt.Sprintf("%v Files changed after changing bazel file %v; crosses limit set for bazelFileCount", count, file.Name)
 			log.Infoln(message)
 			if javaTestKindOutput != nil {
 				splitName := strings.Split(file.Name, "/")
@@ -358,19 +359,24 @@ func extractJavaFilesFromQueryOutput(bazelOutput []byte) []string {
 // takes file name, runs bazel queries extract src globs defined in java rules, viz java_library and java_test
 func getJavaRulesFromBazel(file string, workspace string, ctx context.Context) ([]byte, []byte, []byte, error) {
 	bazelQueryInput := strings.Replace(file, "/BUILD.bazel", "", -1)
+
 	//query to fetch test src globs from java rule
+	//eg of the query is: bazel query 'kind("java", 980-commons:*)' --output=build  | grep 'srcs ='
 	c1 := fmt.Sprintf("cd %s; %s query 'kind(\"java\", %s:*)' --output=build | grep 'srcs =' ", workspace, bazelCmd, bazelQueryInput)
 	cmdArgs1 := []string{"-c", c1}
 	javaKindOutput, err := execCmdCtx(ctx, "sh", cmdArgs1...).Output()
 	if err != nil {
 		fmt.Errorf("failed to run bazel query %v, encountered %v as %v has no java rule", c1, err, file)
 	}
+
 	//query to count the scr files in bazelQueryOutput
+	//eg of the query is: bazel query 'kind("java", 332-ci-manager/app:*)' --output=build  | grep 'srcs =' | grep -o '\.java' | wc -l
 	c2 := fmt.Sprintf("cd %s; %s query 'kind(\"java\", %s:*)' --output=build | grep 'srcs =' | grep -o '\\.java' | wc -l", workspace, bazelCmd, bazelQueryInput)
 	cmdArgs2 := []string{"-c", c2}
 	countQueryOutput, err := execCmdCtx(ctx, "sh", cmdArgs2...).Output()
 
 	//query to get test kind for module list
+	//eg of the query is: bazel query 'kind("java_library", 332-ci-manager/app:tests)' --output=build  | grep 'srcs ='
 	c3 := fmt.Sprintf("cd %s; %s query 'kind(\"java_library\", %s:tests)' --output=build | grep 'srcs =' ", workspace, bazelCmd, bazelQueryInput)
 	cmdArgs3 := []string{"-c", c3}
 	javaTestKindOutput, err := execCmdCtx(ctx, "sh", cmdArgs3...).Output()

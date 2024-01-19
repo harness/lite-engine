@@ -7,8 +7,6 @@ package instrumentation
 import (
 	"context"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -18,6 +16,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -69,18 +68,9 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		}
 	}
 
-	//check ticonfig params to allow bazel optimization, and get threshold for max file count
-	tiConfigYaml, err := getTiConfig(workspace, fs)
+	files, moduleList, err = checkForBazelOptimization(ctx, workspace, fs, log, files)
 	if err != nil {
-		log.Infoln("Ti config parsing before selectTests fails")
-	}
-
-	//skip bazel src inspection if optimization in config not selected
-	if tiConfigYaml.Config.BazelOptimization {
-		//add src files listed in java target rules in the BUILD.bazel files if BUILD.bazel is changed
-		files, moduleList, err = addBazelFilesToChangedFiles(ctx, workspace, log, files, tiConfigYaml.Config.BazelFileCount)
-		log.Infoln("Changed file list is: ", files)
-		log.Infoln("Changed module list is: ", moduleList)
+		log.Infoln(err)
 	}
 
 	// Call TI svc only when there is a chance of running selected tests
@@ -100,6 +90,28 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
 	}
 	return selection, moduleList
+}
+
+// check
+func checkForBazelOptimization(ctx context.Context, workspace string, fs filesystem.FileSystem, log *logrus.Logger, files []ti.File) ([]ti.File, []string, error) {
+	var moduleList []string
+	//check ticonfig params to allow bazel optimization, and get threshold for max file count
+	tiConfigYaml, err := getTiConfig(workspace, fs)
+	if err != nil {
+		log.Infoln("Ti config parsing before selectTests fails")
+	}
+
+	//skip bazel src inspection if optimization in config not selected
+	if tiConfigYaml.Config.BazelOptimization {
+		//add src files listed in java target rules in the BUILD.bazel files if BUILD.bazel is changed
+		files, moduleList, err = addBazelFilesToChangedFiles(ctx, workspace, log, files, tiConfigYaml.Config.BazelFileCount)
+		if err != nil {
+			return files, moduleList, fmt.Errorf("Bazel optimazation failed due to erre: %v ", err)
+		}
+		log.Infoln("Changed file list after bazel optimization: ", files)
+		log.Infoln("Changed module list after bazel optimization: ", moduleList)
+	}
+	return files, moduleList, err
 }
 
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
@@ -229,20 +241,12 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		computeSelectedTests(ctx, config, log, runner, &selection, workspace, envs, cfg)
 	}
 
-	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, cfg.GetIgnoreInstr(), !config.RunOnlySelectedTests)
-	if len(modules) != 0 && config.BuildTool == "bazel" {
-		moduleTestCmd := getTestTargets(modules)
-		//to add module test targets to test cmd (viz //332-ci-manager/...)
-		if len(selection.Tests) == 0 {
-			//when tests are empty but module exists, then create a bazel cmd
-			javaAgentPath := filepath.Join(artifactDir, JavaAgentJar)
-			agentArg := fmt.Sprintf(AgentArg, javaAgentPath, iniFilePath)
-			instrArg := fmt.Sprintf("--define=HARNESS_ARGS=%s", agentArg)
-			testCmd = fmt.Sprintf("%s %s %s ", bazelCmd, config.Args, instrArg)
-		}
-		testCmd = fmt.Sprintf("%s %s", testCmd, moduleTestCmd)
-		log.Infoln("Bazel testCmd is :", testCmd)
-	}
+	//set runnerArg for bazel runner
+	runnerArgs := common.RunnerArgs{}
+	runnerArgs.ModuleList = modules
+
+	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, cfg.GetIgnoreInstr(), !config.RunOnlySelectedTests, runnerArgs)
+	log.Infoln("Bazel testCmd is :", testCmd)
 	if err != nil {
 		return "", err
 	}
@@ -253,16 +257,6 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	command := fmt.Sprintf("%s\n%s\n%s", config.PreCommand, testCmd, config.PostCommand)
 	return command, nil
-}
-
-// get modules to add as test target to the bazel test command
-func getTestTargets(modules []string) string {
-	var testTargets string
-	for _, module := range modules {
-		testTarget := fmt.Sprintf("//%s/...", module)
-		testTargets = fmt.Sprintf("%s %s", testTargets, testTarget)
-	}
-	return testTargets
 }
 
 // InjectReportInformation add default test paths information to ruby and python when test runner is invoked without a value
