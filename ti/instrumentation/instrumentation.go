@@ -92,7 +92,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	return selection, moduleList
 }
 
-// check
+// check if bazel optimization is enabled and call function to add new changed files to list
 func checkForBazelOptimization(ctx context.Context, workspace string, fs filesystem.FileSystem, log *logrus.Logger, files []ti.File) ([]ti.File, []string, error) {
 	var moduleList []string
 	//check ticonfig params to allow bazel optimization, and get threshold for max file count
