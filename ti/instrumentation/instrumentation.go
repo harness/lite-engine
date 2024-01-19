@@ -230,8 +230,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	}
 
 	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, cfg.GetIgnoreInstr(), !config.RunOnlySelectedTests)
-
-	if len(modules) != 0 && strings.Contains(testCmd, "bazel") {
+	if len(modules) != 0 && config.BuildTool == "bazel" {
 		moduleTestCmd := getTestTargets(modules)
 		//to add module test targets to test cmd (viz //332-ci-manager/...)
 		if len(selection.Tests) == 0 {
