@@ -95,23 +95,24 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 // check if bazel optimization is enabled and call function to add new changed files to list
 func checkForBazelOptimization(ctx context.Context, workspace string, fs filesystem.FileSystem, log *logrus.Logger, files []ti.File) ([]ti.File, []string, error) {
 	var moduleList []string
-	//check ticonfig params to allow bazel optimization, and get threshold for max file count
+	var newFiles []ti.File
+	// check ticonfig params to allow bazel optimization, and get threshold for max file count
 	tiConfigYaml, err := getTiConfig(workspace, fs)
 	if err != nil {
 		log.Infoln("Ti config parsing before selectTests fails")
 	}
 
-	//skip bazel src inspection if optimization in config not selected
+	// skip bazel src inspection if optimization in config not selected
 	if tiConfigYaml.Config.BazelOptimization {
-		//add src files listed in java target rules in the BUILD.bazel files if BUILD.bazel is changed
-		files, moduleList, err = addBazelFilesToChangedFiles(ctx, workspace, log, files, tiConfigYaml.Config.BazelFileCount)
+		// add src files listed in java target rules in the BUILD.bazel files if BUILD.bazel is changed
+		newFiles, moduleList, err := addBazelFilesToChangedFiles(ctx, workspace, log, files, tiConfigYaml.Config.BazelFileCount)
 		if err != nil {
 			return files, moduleList, fmt.Errorf("Bazel optimazation failed due to erre: %v ", err)
 		}
-		log.Infoln("Changed file list after bazel optimization: ", files)
+		log.Infoln("Changed file list after bazel optimization: ", newFiles)
 		log.Infoln("Changed module list after bazel optimization: ", moduleList)
 	}
-	return files, moduleList, err
+	return newFiles, moduleList, err
 }
 
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
@@ -241,7 +242,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		computeSelectedTests(ctx, config, log, runner, &selection, workspace, envs, cfg)
 	}
 
-	//set runnerArg for bazel runner
+	// set runnerArg for bazel runner
 	runnerArgs := common.RunnerArgs{}
 	runnerArgs.ModuleList = modules
 
