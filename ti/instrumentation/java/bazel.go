@@ -147,7 +147,6 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	if len(tests) == 0 && len(runnerArgs.ModuleList) == 0 {
 		return "echo \"Skipping test run, received no tests to execute\"", nil //nolint:goconst
 	}
-
 	// Populate the test rules in tests
 	tests = getBazelTestRules(ctx, b.log, tests, workspace)
 
@@ -155,6 +154,14 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	rules := make([]string, 0) // List of unique bazel rules to be executed
 	rulesSet := make(map[string]bool)
 	classSet := make(map[string]bool)
+	// Add module test targets to rules, and filter out rules falling under these modules
+	if len(runnerArgs.ModuleList) != 0 {
+		for _, module := range runnerArgs.ModuleList {
+			moduleRule := fmt.Sprintf("//%s/...", module)
+			rules = append(rules, moduleRule)
+			rulesSet[moduleRule] = true
+		}
+	}
 	for _, test := range tests {
 		pkg := test.Pkg
 		cls := test.Class
@@ -170,6 +177,10 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		// If the rule is present in the test, use it and skip querying bazel to get the rule
 		if rule != "" {
 			if _, ok := rulesSet[rule]; !ok {
+				moduleForTest := getModuleFromRule(rule)
+				if _, ok := rulesSet[moduleForTest]; ok {
+					continue
+				}
 				rules = append(rules, rule)
 				rulesSet[rule] = true
 			}
@@ -223,6 +234,10 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			resp := []byte(t[2])
 			r := strings.TrimSuffix(string(resp), "\n")
 			if _, ok := rulesSet[r]; !ok {
+				moduleForTestR := getModuleFromRule(r)
+				if _, ok := rulesSet[moduleForTestR]; ok {
+					continue
+				}
 				rules = append(rules, r)
 				rulesSet[r] = true
 			}
@@ -231,16 +246,23 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	if len(rules) == 0 && len(runnerArgs.ModuleList) == 0 {
 		return "echo \"Could not find any relevant test rules. Skipping the run\"", nil
 	}
-	// Add test targets from module list to the rules
-	if len(runnerArgs.ModuleList) != 0 {
-		for _, module := range runnerArgs.ModuleList {
-			moduleRule := fmt.Sprintf("//%s/...", module)
-			rules = append(rules, moduleRule)
-		}
-	}
 	testList := strings.Join(rules, " ")
 	if ignoreInstr {
 		return fmt.Sprintf("%s %s %s", bazelCmd, userArgs, testList), nil
 	}
 	return fmt.Sprintf("%s %s %s %s", bazelCmd, userArgs, instrArg, testList), nil
+}
+
+// parse module name from rule
+func getModuleFromRule(rule string) string {
+	// parse the rule to extract module
+	splitRule := strings.Split(strings.TrimPrefix(rule, "//"), ":")
+	if strings.Contains(splitRule[0], "/"){
+		splitModule := strings.Split(splitRule[0], "/")
+		moduleRule := fmt.Sprintf("//%s/...", splitModule[0])
+		return moduleRule
+	}
+	moduleRule := fmt.Sprintf("//%s/...", splitRule[0])
+
+	return moduleRule
 }

@@ -308,7 +308,7 @@ func addBazelFilesToChangedFiles(ctx context.Context, workspace string, log *log
 		if err != nil {
 			count = 0
 		}
-		directory := filepath.Join(workspace, "/", strings.Replace(file.Name, "/BUILD.bazel", "", -1))
+		directory := filepath.Join(workspace, strings.Replace(file.Name, "/BUILD.bazel", "", -1))
 		// if no srcs present in the bazel build file, then select all files under this directory as changed
 		if count == 0 {
 			message := fmt.Sprintf("No src detected in Bazel %v, selecting all java files as changed files inside the directory %v", file.Name, directory)
@@ -327,7 +327,7 @@ func addBazelFilesToChangedFiles(ctx context.Context, workspace string, log *log
 			// get list of .java files from the output
 			javaFileNames := extractJavaFilesFromQueryOutput(allJavaSrcsOutput)
 			for _, name := range javaFileNames {
-				//to prevent duplicate files
+				// to prevent duplicate files
 				if _, exists := uniqueFiles[name]; !exists {
 					changedRes = append(changedRes, ti.File{Status: file.Status, Name: name})
 					uniqueFiles[name] = struct{}{}
@@ -353,7 +353,7 @@ func extractJavaFilesFromQueryOutput(bazelOutput []byte) []string {
 		matches := r2.FindAllString(section, -1)
 		for _, match := range matches {
 			srcFile := strings.Split(strings.Trim(match, `\"`), ":")
-			changedFile := filepath.Join(strings.TrimLeft(srcFile[0], "//"), "/", srcFile[1])
+			changedFile := filepath.Join(strings.TrimPrefix(srcFile[0], "//"), srcFile[1])
 			javaFileNames = append(javaFileNames, changedFile)
 		}
 	}
@@ -361,7 +361,7 @@ func extractJavaFilesFromQueryOutput(bazelOutput []byte) []string {
 }
 
 // takes file name, runs bazel queries extract src globs defined in java rules, viz java_library and java_test
-func getJavaRulesFromBazel(file string, workspace string, ctx context.Context) ([]byte, []byte, []byte, error) {
+func getJavaRulesFromBazel(file, workspace string, ctx context.Context) ([]byte, []byte, []byte, error) {
 	bazelQueryInput := strings.Replace(file, "/BUILD.bazel", "", -1)
 
 	// query to fetch test src globs from java rule

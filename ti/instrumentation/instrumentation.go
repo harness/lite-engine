@@ -105,9 +105,9 @@ func checkForBazelOptimization(ctx context.Context, workspace string, fs filesys
 	// skip bazel src inspection if optimization in config not selected
 	if tiConfigYaml.Config.BazelOptimization {
 		// add src files listed in java target rules in the BUILD.bazel files if BUILD.bazel is changed
-		newFiles, moduleList, err := addBazelFilesToChangedFiles(ctx, workspace, log, files, tiConfigYaml.Config.BazelFileCount)
+		newFiles, moduleList, err = addBazelFilesToChangedFiles(ctx, workspace, log, files, tiConfigYaml.Config.BazelFileCount)
 		if err != nil {
-			return files, moduleList, fmt.Errorf("Bazel optimazation failed due to erre: %v ", err)
+			return files, moduleList, fmt.Errorf("bazel optimazation failed due to erre: %v ", err)
 		}
 		log.Infoln("Changed file list after bazel optimization: ", newFiles)
 		log.Infoln("Changed module list after bazel optimization: ", moduleList)
