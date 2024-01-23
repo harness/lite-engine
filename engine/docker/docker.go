@@ -49,6 +49,8 @@ const (
 	directoryPermission       = 0700
 	filePermission            = 0600
 	windowsOS                 = "windows"
+	removing                  = "removing"
+	running                   = "running"
 )
 
 // Opts configures the Docker engine.
@@ -61,12 +63,12 @@ type Docker struct {
 	client     client.APIClient
 	hidePull   bool
 	mu         sync.Mutex
-	containers []Containers
+	containers []Container
 }
 
-type Containers struct {
-	id       string
-	softStop bool
+type Container struct {
+	ID       string
+	SoftStop bool
 }
 
 // New returns a new engine.
@@ -75,7 +77,7 @@ func New(client client.APIClient, opts Opts) *Docker {
 		client:     client,
 		hidePull:   opts.HidePull,
 		mu:         sync.Mutex{},
-		containers: make([]Containers, 0),
+		containers: make([]Container, 0),
 	}
 }
 
@@ -163,19 +165,19 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfi
 	e.mu.Unlock()
 
 	// stop all containers
-	for _, ctiner := range containers {
-		if ctiner.softStop {
-			e.SoftStop(ctx, ctiner.id)
+	for _, ctr := range containers {
+		if ctr.SoftStop {
+			e.softStop(ctx, ctr.ID)
 		} else {
-			if err := e.client.ContainerKill(ctx, ctiner.id, "9"); err != nil {
-				logrus.WithField("container", ctiner.id).WithField("error", err).Warnln("failed to kill container")
+			if err := e.client.ContainerKill(ctx, ctr.ID, "9"); err != nil {
+				logrus.WithField("container", ctr.ID).WithField("error", err).Warnln("failed to kill container")
 			}
 		}
 	}
 
 	// cleanup all containers
 	for _, ctiner := range containers {
-		if err := e.client.ContainerRemove(ctx, ctiner.id, removeOpts); err != nil {
+		if err := e.client.ContainerRemove(ctx, ctiner.ID, removeOpts); err != nil {
 			logrus.WithField("container", ctiner).WithField("error", err).Warnln("failed to remove container")
 		}
 	}
@@ -319,9 +321,9 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	}
 
 	e.mu.Lock()
-	e.containers = append(e.containers, Containers{
-		id:       step.ID,
-		softStop: step.SoftStop,
+	e.containers = append(e.containers, Container{
+		ID:       step.ID,
+		SoftStop: step.SoftStop,
 	})
 	e.mu.Unlock()
 
@@ -538,32 +540,31 @@ func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spe
 	}
 }
 
-// SoftStop stops the container giving them a 30 seconds grace period. The signal sent by ContainerStop is SIGTERM.
+// softStop stops the container giving them a 30 seconds grace period. The signal sent by ContainerStop is SIGTERM.
 // After the grace period, the container is killed with SIGKILL.
 // After all the containers are stopped, they are removed only when the status is not "running" or "removing".
-func (e *Docker) SoftStop(ctx context.Context, name string) {
+func (e *Docker) softStop(ctx context.Context, name string) {
 	timeout := 30 * time.Second
 	if err := e.client.ContainerStop(ctx, name, &timeout); err != nil {
 		logrus.WithField("container", name).WithField("error", err).Warnln("failed to stop the container")
 	}
 
 	// Before removing the container we want to be sure that it's in a healthy state to be removed.
-
-	containerStatus, err := e.client.ContainerInspect(ctx, name)
-
-	if err != nil {
-		logrus.WithField("container", name).WithField("error", err).Warnln("failed to retrieve container stats")
-	}
-
+	now := time.Now()
 	for {
-		if err != nil && containerStatus.State.Status == "removing" || containerStatus.State.Status == "running" {
-			time.Sleep(1 * time.Second)
-			containerStatus, err = e.client.ContainerInspect(ctx, name)
-			if err != nil {
-				logrus.WithField("container", name).WithField("error", err).Warnln("failed to retrieve container stats")
-			}
-		} else {
+		if time.Since(now) > timeout {
 			break
 		}
+		time.Sleep(1 * time.Second)
+		containerStatus, err := e.client.ContainerInspect(ctx, name)
+		if err != nil {
+			logrus.WithField("container", name).WithField("error", err).Warnln("failed to retrieve container stats")
+			continue
+		}
+		if containerStatus.State.Status == removing || containerStatus.State.Status == running {
+			continue
+		}
+		// everything has stopped
+		break
 	}
 }
