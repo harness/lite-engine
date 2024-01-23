@@ -294,7 +294,7 @@ func addBazelFilesToChangedFiles(ctx context.Context, workspace string, log *log
 			log.Infoln("Determined to run all tests /... : ")
 			return res, moduleList, nil
 		}
-		allJavaSrcsOutput, countAllJavaSrcs, javaTestKindOutput, err := getJavaRulesFromBazel(file.Name, workspace, ctx)
+		allJavaSrcsOutput, countAllJavaSrcs, javaTestKindOutput, err := getJavaRulesFromBazel(ctx, file.Name, workspace)
 		if err != nil {
 			if javaTestKindOutput == nil {
 				// if bazel queries fail then add module to the list to run module level tests
@@ -361,7 +361,7 @@ func extractJavaFilesFromQueryOutput(bazelOutput []byte) []string {
 }
 
 // takes file name, runs bazel queries extract src globs defined in java rules, viz java_library and java_test
-func getJavaRulesFromBazel(file, workspace string, ctx context.Context) ([]byte, []byte, []byte, error) {
+func getJavaRulesFromBazel(ctx context.Context, file, workspace string) (allSrcs, countAllSrcs, testSrcs []byte, err error) {
 	bazelQueryInput := strings.Replace(file, "/BUILD.bazel", "", -1)
 
 	// query to fetch test src globs from java rule

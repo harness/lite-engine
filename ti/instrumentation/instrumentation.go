@@ -28,8 +28,7 @@ const (
 )
 
 func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTestConfig, fs filesystem.FileSystem,
-	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) (ti.SelectTestsResp, []string) {
-	var moduleList []string
+	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) (testSelection ti.SelectTestsResp, moduleList []string) {
 	selection := ti.SelectTestsResp{}
 	if isManual {
 		// Manual run
@@ -215,7 +214,6 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	selection := ti.SelectTestsResp{}
 	var artifactDir, iniFilePath string
 	if !cfg.GetIgnoreInstr() {
-
 		// Get the tests and module test targets that need to be run if we are running selected tests
 		selection, modules = getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
 		// Install agent artifacts if not present
@@ -247,7 +245,6 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	runnerArgs.ModuleList = modules
 
 	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, cfg.GetIgnoreInstr(), !config.RunOnlySelectedTests, runnerArgs)
-	log.Infoln("Bazel testCmd is :", testCmd)
 	if err != nil {
 		return "", err
 	}

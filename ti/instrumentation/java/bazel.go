@@ -257,7 +257,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 func getModuleFromRule(rule string) string {
 	// parse the rule to extract module
 	splitRule := strings.Split(strings.TrimPrefix(rule, "//"), ":")
-	if strings.Contains(splitRule[0], "/"){
+	if strings.Contains(splitRule[0], "/") {
 		splitModule := strings.Split(splitRule[0], "/")
 		moduleRule := fmt.Sprintf("//%s/...", splitModule[0])
 		return moduleRule

@@ -122,16 +122,16 @@ func TestGetBazelCmd_TestsWithModuleRules(t *testing.T) {
 	runnerArg := common.RunnerArgs{}
 	runnerArg.ModuleList = []string{"module1", "module3"}
 
-	t1 := ti.RunnableTest{Pkg: "pkg1", Class: "cls1"}
-	t1.Autodetect.Rule = "//module1:pkg1.cls1"
-	t2 := ti.RunnableTest{Pkg: "pkg1", Class: "cls2"}
-	t2.Autodetect.Rule = "//module2:pkg1.cls2"
+	t1 := ti.RunnableTest{Pkg: "pkg2", Class: "cls1"}
+	t1.Autodetect.Rule = "//module1:pkg2.cls1"
+	t2 := ti.RunnableTest{Pkg: "pkg3", Class: "cls2"}
+	t2.Autodetect.Rule = "//module2:pkg3.cls2"
 	t3 := ti.RunnableTest{Pkg: "pkg2", Class: "cls3"}
 	t3.Autodetect.Rule = "//module2:pkg2/cls3"
-	t4 := ti.RunnableTest{Pkg: "pkg2", Class: "cls4"}
-	t4.Autodetect.Rule = "//module1:pkg2/cls4"
+	t4 := ti.RunnableTest{Pkg: "pkg3", Class: "cls4"}
+	t4.Autodetect.Rule = "//module1:pkg3/cls4"
 	tests := []ti.RunnableTest{t1, t2, t3, t4}
-	expectedCmd := "bazel  --define=HARNESS_ARGS=-javaagent:java-agent.jar=/test/tmp/config.ini //module1/... //module3/... //module2:pkg1.cls2 //module2:pkg2/cls3"
+	expectedCmd := "bazel  --define=HARNESS_ARGS=-javaagent:java-agent.jar=/test/tmp/config.ini //module1/... //module3/... //module2:pkg3.cls2 //module2:pkg2/cls3"
 
 	cmd, _ := runner.GetCmd(ctx, tests, "", "", "/test/tmp/config.ini", "", false, false, runnerArg)
 	assert.Equal(t, expectedCmd, cmd)
