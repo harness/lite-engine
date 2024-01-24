@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	defaultTestGlobs = []string{"test_*.py", "*_test.py"}
+	defaultTestGlobs = []string{"**/test_*.py", "**/*_test.py"}
 )
 
 func getPythonTestsFromPattern(workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
