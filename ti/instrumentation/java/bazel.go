@@ -155,13 +155,12 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	rulesSet := make(map[string]bool)
 	classSet := make(map[string]bool)
 	// Add module test targets to rules, and filter out rules falling under these modules
-	if len(runnerArgs.ModuleList) != 0 {
-		for _, module := range runnerArgs.ModuleList {
-			moduleRule := fmt.Sprintf("//%s/...", module)
-			rules = append(rules, moduleRule)
-			rulesSet[moduleRule] = true
-		}
+	for _, module := range runnerArgs.ModuleList {
+		moduleRule := fmt.Sprintf("//%s/...", module)
+		rules = append(rules, moduleRule)
+		rulesSet[moduleRule] = true
 	}
+
 	for _, test := range tests {
 		pkg := test.Pkg
 		cls := test.Class
@@ -177,8 +176,8 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		// If the rule is present in the test, use it and skip querying bazel to get the rule
 		if rule != "" {
 			if _, ok := rulesSet[rule]; !ok {
-				moduleForTest := getModuleFromRule(rule)
-				if _, ok := rulesSet[moduleForTest]; ok {
+				testModule := getModuleFromRule(rule)
+				if _, ok := rulesSet[testModule]; ok {
 					continue
 				}
 				rules = append(rules, rule)
@@ -234,8 +233,8 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			resp := []byte(t[2])
 			r := strings.TrimSuffix(string(resp), "\n")
 			if _, ok := rulesSet[r]; !ok {
-				moduleForTestR := getModuleFromRule(r)
-				if _, ok := rulesSet[moduleForTestR]; ok {
+				testModuleR := getModuleFromRule(r)
+				if _, ok := rulesSet[testModuleR]; ok {
 					continue
 				}
 				rules = append(rules, r)
@@ -253,16 +252,16 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	return fmt.Sprintf("%s %s %s %s", bazelCmd, userArgs, instrArg, testList), nil
 }
 
-// parse module name from rule
+// parse module name from rule,
+// eg - //332-ci-manager/app:src/test/java/io/harness/app/impl/CIManagerServiceTestModule.java, gives op -> //332-ci-manager/...
 func getModuleFromRule(rule string) string {
-	// parse the rule to extract module
 	splitRule := strings.Split(strings.TrimPrefix(rule, "//"), ":")
-	if strings.Contains(splitRule[0], "/") {
-		splitModule := strings.Split(splitRule[0], "/")
-		moduleRule := fmt.Sprintf("//%s/...", splitModule[0])
-		return moduleRule
+	if len(splitRule) != 0 {
+		if strings.Contains(splitRule[0], "/") {
+			splitModule := strings.Split(splitRule[0], "/")
+			return fmt.Sprintf("//%s/...", splitModule[0])
+		}
+		return fmt.Sprintf("//%s/...", splitRule[0])
 	}
-	moduleRule := fmt.Sprintf("//%s/...", splitRule[0])
-
-	return moduleRule
+	return ""
 }
