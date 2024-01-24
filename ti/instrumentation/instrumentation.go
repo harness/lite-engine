@@ -66,11 +66,14 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			return selection, moduleList
 		}
 	}
-
-	files, moduleList, err = checkForBazelOptimization(ctx, workspace, fs, log, files)
+	var newFiles []ti.File
+	newFiles, moduleList, err = checkForBazelOptimization(ctx, workspace, fs, log, files)
 	if err != nil {
-		log.Infoln(err)
+		// if bazel optimization fails, copy over original file list
+		newFiles = files
 	}
+	// update files to new changed file list obtained by scanning bazel builds
+	files = newFiles
 
 	// Call TI svc only when there is a chance of running selected tests
 	filesWithPkg := runner.ReadPackages(workspace, files)
@@ -98,20 +101,24 @@ func checkForBazelOptimization(ctx context.Context, workspace string, fs filesys
 	// check ticonfig params to allow bazel optimization, and get threshold for max file count
 	tiConfigYaml, err := getTiConfig(workspace, fs)
 	if err != nil {
-		log.Infoln("Ti config parsing before selectTests fails")
+		return files, moduleList, fmt.Errorf("failed to parse TI configuration file %v , skipping bazel optimization :", err)
 	}
 
 	// skip bazel src inspection if optimization in config not selected
 	if tiConfigYaml.Config.BazelOptimization {
-		// add src files listed in java target rules in the BUILD.bazel files if BUILD.bazel is changed
-		newFiles, moduleList, err = addBazelFilesToChangedFiles(ctx, workspace, log, files, tiConfigYaml.Config.BazelFileCount)
+		// Validate  BazelFileCountThreshold to integer
+		if tiConfigYaml.Config.BazelFileCountThreshold == 0 {
+			return files, moduleList, fmt.Errorf("bazelFileCount not set in ticonfig.yml : %v ", err)
+		}
+		newFiles, moduleList, err = addBazelFilesToChangedFiles(ctx, workspace, log, files, tiConfigYaml.Config.BazelFileCountThreshold)
 		if err != nil {
 			return files, moduleList, fmt.Errorf("bazel optimazation failed due to erre: %v ", err)
 		}
 		log.Infoln("Changed file list after bazel optimization: ", newFiles)
 		log.Infoln("Changed module list after bazel optimization: ", moduleList)
+		files = newFiles
 	}
-	return newFiles, moduleList, err
+	return files, moduleList, err
 }
 
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
