@@ -13,6 +13,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -106,7 +107,33 @@ func TestGetBazelCmd_TestsWithRules(t *testing.T) {
 	tests := []ti.RunnableTest{t1, t2, t3}
 	expectedCmd := "bazel  --define=HARNESS_ARGS=-javaagent:java-agent.jar=/test/tmp/config.ini //module1:pkg1.cls1 //module1:pkg1.cls2 //module1:pkg2/cls2"
 
-	cmd, _ := runner.GetCmd(ctx, tests, "", "", "/test/tmp/config.ini", "", false, false)
+	cmd, _ := runner.GetCmd(ctx, tests, "", "", "/test/tmp/config.ini", "", false, false, common.RunnerArgs{})
+	assert.Equal(t, expectedCmd, cmd)
+}
+
+func TestGetBazelCmd_TestsWithModuleRules(t *testing.T) {
+	ctrl, ctx := gomock.WithContext(context.Background(), t)
+	defer ctrl.Finish()
+
+	log := logrus.New()
+	fs := filesystem.NewMockFileSystem(ctrl)
+
+	runner := NewBazelRunner(log, fs)
+	runnerArg := common.RunnerArgs{}
+	runnerArg.ModuleList = []string{"module1", "module3"}
+
+	t1 := ti.RunnableTest{Pkg: "pkg2", Class: "cls1"}
+	t1.Autodetect.Rule = "//module1:pkg2.cls1"
+	t2 := ti.RunnableTest{Pkg: "pkg3", Class: "cls2"}
+	t2.Autodetect.Rule = "//module2:pkg3.cls2"
+	t3 := ti.RunnableTest{Pkg: "pkg2", Class: "cls3"}
+	t3.Autodetect.Rule = "//module2:pkg2/cls3"
+	t4 := ti.RunnableTest{Pkg: "pkg3", Class: "cls4"}
+	t4.Autodetect.Rule = "//module1:pkg3/cls4"
+	tests := []ti.RunnableTest{t1, t2, t3, t4}
+	expectedCmd := "bazel  --define=HARNESS_ARGS=-javaagent:java-agent.jar=/test/tmp/config.ini //module1/... //module3/... //module2:pkg3.cls2 //module2:pkg2/cls3"
+
+	cmd, _ := runner.GetCmd(ctx, tests, "", "", "/test/tmp/config.ini", "", false, false, runnerArg)
 	assert.Equal(t, expectedCmd, cmd)
 }
 

@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -32,6 +33,8 @@ import (
 var (
 	diffFilesCmdPR   = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
 	diffFilesCmdPush = []string{"diff", "--name-status", "--diff-filter=MADR"}
+	bazelCmd         = "bazel"
+	execCmdCtx       = exec.CommandContext
 )
 
 const (
@@ -262,6 +265,156 @@ func getChangedFiles(ctx context.Context, workspace string, log *logrus.Logger, 
 		}
 	}
 	return res, nil
+}
+
+// addBazelFilesToChangedFiles takes a list of files and removes bazel build files and adds java files listed in target src globs
+func addBazelFilesToChangedFiles(ctx context.Context, workspace string, log *logrus.Logger, oldChangedFiles []ti.File, bazelFileCountThreshold int) ([]ti.File, []string, error) {
+	var moduleList []string
+
+	// map to prevent duplicate files
+	uniqueFiles := make(map[string]struct{})
+
+	var newChangedFiles []ti.File
+	// BUILD.bazel is harness-core specific, to make it generic consider changing this
+	for _, file := range oldChangedFiles {
+		if !strings.HasSuffix(file.Name, "BUILD.bazel") {
+			// add non BUILD.bazel files to the changed files result directly and skip remainder
+			if _, exists := uniqueFiles[file.Name]; !exists {
+				newChangedFiles = append(newChangedFiles, file)
+				uniqueFiles[file.Name] = struct{}{}
+			}
+			continue
+		}
+		// If BUILD.Bazel at the root of harness-core is modified, run all tests /... by keeping BUILD.Bazel in changed files list
+		if strings.Replace(file.Name, "BUILD.bazel", "", -1) == "" {
+			log.Infoln("Changed file list is: ", oldChangedFiles)
+			log.Infoln("Determined to run all tests /... : ")
+			return oldChangedFiles, moduleList, nil
+		}
+		var moduleName string
+		splitName := strings.Split(file.Name, "/")
+		if len(splitName) != 0 {
+			moduleName = splitName[0]
+		}
+		allJavaSrcsOutput, countAllJavaSrcs, javaTestKindOutput, err := getJavaRulesFromBazel(ctx, file.Name, workspace)
+		if err != nil {
+			if javaTestKindOutput == nil {
+				// if bazel queries fail then fall back to run module level tests
+				moduleList = append(moduleList, moduleName)
+			}
+			continue
+		}
+		count, err := strconv.Atoi(strings.TrimSpace(string(countAllJavaSrcs)))
+		if err != nil {
+			count = 0
+		}
+		directory := filepath.Join(workspace, strings.Replace(file.Name, "/BUILD.bazel", "", -1))
+		// if no srcs present in the bazel build file, then select all files under this directory as changed
+		if count == 0 {
+			message := fmt.Sprintf("No src detected in Bazel %v, considering all java files as changed files inside this directory %v", file.Name, directory)
+			log.Infoln(message)
+			newChangedFiles, err = getAllJavaFilesInsideDirectory(directory, newChangedFiles, file, uniqueFiles)
+			if err != nil {
+				// if failure, then add module to the list to run module level tests
+				return oldChangedFiles, nil, fmt.Errorf("bazel optimazation failed %v ", err)
+			}
+		} else if count >= bazelFileCountThreshold {
+			// if count of files changed (on bazel build modification) is over the limit set then update the module list with test target
+			message := fmt.Sprintf("%v Files changed after changing bazel file %v; crosses limit set for bazelFileCount", count, file.Name)
+			log.Infoln(message)
+			if javaTestKindOutput != nil {
+				moduleList = append(moduleList, moduleName)
+			}
+		} else {
+			// get list of .java files from the output
+			javaFileNames := extractJavaFilesFromQueryOutput(allJavaSrcsOutput)
+			for _, name := range javaFileNames {
+				// to prevent duplicate files
+				if _, exists := uniqueFiles[name]; !exists {
+					newChangedFiles = append(newChangedFiles, ti.File{Status: file.Status, Name: name})
+					uniqueFiles[name] = struct{}{}
+				}
+			}
+		}
+	}
+	return newChangedFiles, moduleList, nil
+}
+
+// takes bazelQueryOutput string and parses it to extract .java files and returns in a list
+// sample input is "srcs = ["//module1:pkg1/pkg2/class1.java", //module1:pkg1/pkg2/class2.java"] , srcs = ["//module1:pkg1/pkg2/testclass1.java"]"
+func extractJavaFilesFromQueryOutput(bazelOutput []byte) []string {
+	var javaFileNames []string
+	// Outer Regex to extract only srcs
+	pattern1 := `srcs\s*=\s*\[[^\]]+\]`
+	r1 := regexp.MustCompile(pattern1)
+
+	sections := r1.FindAllString(string(bazelOutput), -1)
+	for _, section := range sections {
+		// Inner Regex to match only .java files inside each src
+		pattern2 := `"//[^"]+\.java"`
+		r2 := regexp.MustCompile(pattern2)
+		matches := r2.FindAllString(section, -1)
+		for _, match := range matches {
+			srcFile := strings.Split(strings.Trim(match, `\"`), ":")
+			if len(srcFile) > 1 {
+				changedFile := filepath.Join(strings.TrimPrefix(srcFile[0], "//"), srcFile[1])
+				javaFileNames = append(javaFileNames, changedFile)
+			}
+		}
+	}
+	return javaFileNames
+}
+
+// takes file name, runs bazel queries extract src globs defined in java rules, viz java_library and java_test
+func getJavaRulesFromBazel(ctx context.Context, file, workspace string) (allSrcs, countAllSrcs, testSrcs []byte, err error) {
+	bazelQueryInput := strings.Replace(file, "/BUILD.bazel", "", -1)
+
+	// query to fetch test src globs from java rule
+	// eg of the query is: bazel query 'kind("java", 980-commons:*)' --output=build  | grep 'srcs ='
+	c1 := fmt.Sprintf("cd %s; %s query 'kind(\"java\", %s:*)' --output=build | grep 'srcs =' ", workspace, bazelCmd, bazelQueryInput)
+	cmdArgs1 := []string{"-c", c1}
+	javaKindOutput, err := execCmdCtx(ctx, "sh", cmdArgs1...).Output()
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to run bazel query %v, encountered %v ", c1, err)
+	}
+
+	// query to count the scr files in bazelQueryOutput
+	// eg of the query is: bazel query 'kind("java", 332-ci-manager/app:*)' --output=build  | grep 'srcs =' | grep -o '\.java' | wc -l
+	c2 := fmt.Sprintf("cd %s; %s query 'kind(\"java\", %s:*)' --output=build | grep 'srcs =' | grep -o '\\.java' | wc -l", workspace, bazelCmd, bazelQueryInput)
+	cmdArgs2 := []string{"-c", c2}
+	countQueryOutput, err := execCmdCtx(ctx, "sh", cmdArgs2...).Output()
+	if err != nil {
+		return javaKindOutput, nil, nil, fmt.Errorf("failed to run bazel query %v, encountered %v ", c1, err)
+	}
+
+	// query to get test kind for module list
+	// eg of the query is: bazel query 'kind("java_library", 332-ci-manager/app:tests)' --output=build  | grep 'srcs ='
+	c3 := fmt.Sprintf("cd %s; %s query 'kind(\"java_library\", %s:tests)' --output=build | grep 'srcs =' ", workspace, bazelCmd, bazelQueryInput)
+	cmdArgs3 := []string{"-c", c3}
+	javaTestKindOutput, err := execCmdCtx(ctx, "sh", cmdArgs3...).Output()
+	if err != nil {
+		return javaKindOutput, countQueryOutput, nil, fmt.Errorf("failed to run bazel query %v, encountered %v ", c1, err)
+	}
+
+	return javaKindOutput, countQueryOutput, javaTestKindOutput, err
+}
+
+// takes a directory name and adds all java files within that module/package in changed file res
+func getAllJavaFilesInsideDirectory(directory string, changedFiles []ti.File, file ti.File, uniqueFiles map[string]struct{}) ([]ti.File, error) {
+	err := filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		// add only .java files to the list
+		if strings.HasSuffix(info.Name(), ".java") {
+			if _, exists := uniqueFiles[path]; !exists {
+				changedFiles = append(changedFiles, ti.File{Status: file.Status, Name: path})
+				uniqueFiles[path] = struct{}{}
+			}
+		}
+		return nil
+	})
+	return changedFiles, err
 }
 
 // selectTests takes a list of files which were changed as input and gets the tests

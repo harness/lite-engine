@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
@@ -129,7 +130,7 @@ func getBazelTestRules(ctx context.Context, log *logrus.Logger, tests []ti.Runna
 }
 
 func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, //nolint:funlen,gocyclo
-	workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	workspace, agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	// Agent arg
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
 	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)
@@ -143,10 +144,9 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		}
 		return defaultCmd, nil
 	}
-	if len(tests) == 0 {
+	if len(tests) == 0 && len(runnerArgs.ModuleList) == 0 {
 		return "echo \"Skipping test run, received no tests to execute\"", nil //nolint:goconst
 	}
-
 	// Populate the test rules in tests
 	tests = getBazelTestRules(ctx, b.log, tests, workspace)
 
@@ -154,6 +154,13 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	rules := make([]string, 0) // List of unique bazel rules to be executed
 	rulesSet := make(map[string]bool)
 	classSet := make(map[string]bool)
+	// Add module test targets to rules, and filter out rules falling under these modules
+	for _, module := range runnerArgs.ModuleList {
+		moduleRule := fmt.Sprintf("//%s/...", module)
+		rules = append(rules, moduleRule)
+		rulesSet[moduleRule] = true
+	}
+
 	for _, test := range tests {
 		pkg := test.Pkg
 		cls := test.Class
@@ -169,6 +176,10 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		// If the rule is present in the test, use it and skip querying bazel to get the rule
 		if rule != "" {
 			if _, ok := rulesSet[rule]; !ok {
+				testModule := getModuleFromRule(rule)
+				if _, ok := rulesSet[testModule]; ok {
+					continue
+				}
 				rules = append(rules, rule)
 				rulesSet[rule] = true
 			}
@@ -222,12 +233,16 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			resp := []byte(t[2])
 			r := strings.TrimSuffix(string(resp), "\n")
 			if _, ok := rulesSet[r]; !ok {
+				testModuleR := getModuleFromRule(r)
+				if _, ok := rulesSet[testModuleR]; ok {
+					continue
+				}
 				rules = append(rules, r)
 				rulesSet[r] = true
 			}
 		}
 	}
-	if len(rules) == 0 {
+	if len(rules) == 0 && len(runnerArgs.ModuleList) == 0 {
 		return "echo \"Could not find any relevant test rules. Skipping the run\"", nil
 	}
 	testList := strings.Join(rules, " ")
@@ -235,4 +250,18 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		return fmt.Sprintf("%s %s %s", bazelCmd, userArgs, testList), nil
 	}
 	return fmt.Sprintf("%s %s %s %s", bazelCmd, userArgs, instrArg, testList), nil
+}
+
+// parse module name from rule,
+// eg - //332-ci-manager/app:src/test/java/io/harness/app/impl/CIManagerServiceTestModule.java, gives op -> //332-ci-manager/...
+func getModuleFromRule(rule string) string {
+	splitRule := strings.Split(strings.TrimPrefix(rule, "//"), ":")
+	if len(splitRule) != 0 {
+		if strings.Contains(splitRule[0], "/") {
+			splitModule := strings.Split(splitRule[0], "/")
+			return fmt.Sprintf("//%s/...", splitModule[0])
+		}
+		return fmt.Sprintf("//%s/...", splitRule[0])
+	}
+	return ""
 }

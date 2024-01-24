@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
@@ -50,7 +51,7 @@ func (s *sbtRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
 }
 
 func (s *sbtRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	// Agent arg
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
 	agentArg := fmt.Sprintf(AgentArg, javaAgentPath, agentConfigPath)

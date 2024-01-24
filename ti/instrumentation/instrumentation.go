@@ -10,30 +10,31 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/internal/filesystem"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
+	"github.com/sirupsen/logrus"
 )
 
 const (
 	classTimingTestSplitStrategy = testsplitter.SplitByClassTimeStr
 	countTestSplitStrategy       = testsplitter.SplitByTestCount
 	defaultTestSplitStrategy     = classTimingTestSplitStrategy
+	JavaAgentJar                 = "java-agent.jar"
+	AgentArg                     = "-javaagent:%s=%s"
 )
 
 func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTestConfig, fs filesystem.FileSystem,
-	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) ti.SelectTestsResp {
+	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) (testSelection ti.SelectTestsResp, moduleList []string) {
 	selection := ti.SelectTestsResp{}
 	if isManual {
 		// Manual run
 		log.Infoln("Detected manual execution - for test intelligence to be configured the execution should be via a PR or Push trigger, running all the tests.")
 		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
-		return selection
+		return selection, moduleList
 	}
 	// Push+Manual/PR execution
 	var files []ti.File
@@ -43,28 +44,30 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		if commitErr != nil {
 			log.Infoln("Failed to get reference commit", "error", commitErr)
 			config.RunOnlySelectedTests = false // TI selected all the tests to be run
-			return selection
+			return selection, moduleList
 		}
 		if lastSuccessfulCommitID == "" {
 			log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
 			config.RunOnlySelectedTests = false // TI selected all the tests to be run
-			return selection
+			return selection, moduleList
 		}
 		log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
 		files, err = getChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
 		if err != nil {
 			log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
 			config.RunOnlySelectedTests = false
-			return selection
+			return selection, moduleList
 		}
 	} else {
 		files, err = getChangedFilesPR(ctx, workspace, log)
 		if err != nil || len(files) == 0 {
 			log.Errorln("Unable to get changed files list for PR. Running all the tests.", "error", err)
 			config.RunOnlySelectedTests = false
-			return selection
+			return selection, moduleList
 		}
 	}
+	files, moduleList, _ = checkForBazelOptimization(ctx, workspace, fs, log, files)
+
 	// Call TI svc only when there is a chance of running selected tests
 	filesWithPkg := runner.ReadPackages(workspace, files)
 	selection, err = selectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
@@ -81,7 +84,34 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	} else {
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
 	}
-	return selection
+	return selection, moduleList
+}
+
+// check if bazel optimization is enabled and call function to add new changed files to list
+func checkForBazelOptimization(ctx context.Context, workspace string, fs filesystem.FileSystem, log *logrus.Logger, files []ti.File) ([]ti.File, []string, error) {
+	var moduleList []string
+	var newFiles []ti.File
+	// check ticonfig params to allow bazel optimization, and get threshold for max file count
+	tiConfigYaml, err := getTiConfig(workspace, fs)
+	if err != nil {
+		return files, moduleList, fmt.Errorf("failed to parse TI configuration file %v , skipping bazel optimization ", err)
+	}
+
+	// skip bazel src inspection if optimization in config not selected
+	if tiConfigYaml.Config.BazelOptimization {
+		// Validate  BazelFileCountThreshold to integer
+		if tiConfigYaml.Config.BazelFileCountThreshold == 0 {
+			return files, moduleList, fmt.Errorf("bazelFileCount not set in ticonfig.yml %v", err)
+		}
+		newFiles, moduleList, err = addBazelFilesToChangedFiles(ctx, workspace, log, files, tiConfigYaml.Config.BazelFileCountThreshold)
+		if err != nil {
+			return files, moduleList, fmt.Errorf("bazel optimazation failed due to error %v", err)
+		}
+		log.Infoln("Changed file list after bazel optimization: ", newFiles)
+		log.Infoln("Changed module list after bazel optimization: ", moduleList)
+		files = newFiles
+	}
+	return files, moduleList, nil
 }
 
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
@@ -181,13 +211,12 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	if err != nil {
 		return "", err
 	}
-
+	var modules []string
 	selection := ti.SelectTestsResp{}
 	var artifactDir, iniFilePath string
 	if !cfg.GetIgnoreInstr() {
-		// Get the tests that need to be run if we are running selected tests
-		selection = getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
-
+		// Get the tests and module test targets that need to be run if we are running selected tests
+		selection, modules = getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
 		// Install agent artifacts if not present
 		artifactDir, err = installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log, cfg)
 		if err != nil {
@@ -212,7 +241,11 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		computeSelectedTests(ctx, config, log, runner, &selection, workspace, envs, cfg)
 	}
 
-	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, cfg.GetIgnoreInstr(), !config.RunOnlySelectedTests)
+	// set runnerArg for bazel runner
+	runnerArgs := common.RunnerArgs{}
+	runnerArgs.ModuleList = modules
+
+	testCmd, err := runner.GetCmd(ctx, selection.Tests, config.Args, workspace, iniFilePath, artifactDir, cfg.GetIgnoreInstr(), !config.RunOnlySelectedTests, runnerArgs)
 	if err != nil {
 		return "", err
 	}

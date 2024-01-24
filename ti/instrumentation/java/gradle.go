@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 )
 
@@ -79,7 +80,7 @@ The following needs to be added to a build.gradle to make it compatible with tes
 	}
 */
 func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool) (string, error) {
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	// Check if gradlew exists. If not, fallback to gradle
 	gc := gradleWrapperCmd
 	_, err := g.fs.Stat("gradlew")

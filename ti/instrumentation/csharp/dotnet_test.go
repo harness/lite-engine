@@ -11,6 +11,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -99,7 +100,7 @@ func TestDotNet_GetCmd(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/csharp/", false, !tc.runOnlySelectedTests)
+		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/csharp/", false, !tc.runOnlySelectedTests, common.RunnerArgs{})
 		if tc.expectedErr == (err == nil) {
 			t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
 		}
@@ -146,7 +147,7 @@ func TestGetDotnetCmd_Manual(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/csharp/", true, !tc.runOnlySelectedTests)
+		got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/csharp/", true, !tc.runOnlySelectedTests, common.RunnerArgs{})
 		if tc.expectedErr == (err == nil) {
 			t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
 		}

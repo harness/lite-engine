@@ -13,6 +13,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
@@ -153,7 +154,7 @@ func TestSBT_GetCmd(t *testing.T) { //nolint:funlen
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/java/", tc.ignoreInstr, !tc.runOnlySelectedTests)
+			got, err := runner.GetCmd(ctx, tc.tests, tc.args, "/path/to/workspace", "/test/tmp/config.ini", "/install/dir/java/", tc.ignoreInstr, !tc.runOnlySelectedTests, common.RunnerArgs{})
 			if tc.expectedErr == (err == nil) {
 				t.Fatalf("%s: expected error: %v, got: %v", tc.name, tc.expectedErr, got)
 			}

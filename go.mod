@@ -16,7 +16,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/harness/ti-client v0.0.0-20231018000842-d164bcf4f802
+	github.com/harness/ti-client v0.0.0-20240124010348-b71c85a2dd6c
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
@@ -25,7 +25,7 @@ require (
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.0
-	github.com/stretchr/testify v1.8.3
+	github.com/stretchr/testify v1.8.4
 	github.com/t-tomalak/logrus-easy-formatter v0.0.0-20190827215021-c074f06c5816
 	golang.org/x/sync v0.3.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
