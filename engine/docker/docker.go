@@ -176,9 +176,9 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfi
 	}
 
 	// cleanup all containers
-	for _, ctiner := range containers {
-		if err := e.client.ContainerRemove(ctx, ctiner.ID, removeOpts); err != nil {
-			logrus.WithField("container", ctiner).WithField("error", err).Warnln("failed to remove container")
+	for _, ctr := range containers {
+		if err := e.client.ContainerRemove(ctx, ctr.ID, removeOpts); err != nil {
+			logrus.WithField("container", ctr.ID).WithField("error", err).Warnln("failed to remove container")
 		}
 	}
 
