@@ -52,6 +52,7 @@ type (
 		Kind           StepType          `json:"kind,omitempty"`
 		Run            RunConfig         `json:"run,omitempty"`
 		RunTest        RunTestConfig     `json:"run_test,omitempty"`
+		SoftStop       bool              `json:"soft_stop,omitempty"`
 
 		OutputVars        []string    `json:"output_vars,omitempty"`
 		TestReport        TestReport  `json:"test_report,omitempty"`
