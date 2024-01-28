@@ -16,6 +16,7 @@ import (
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
+	"github.com/harness/lite-engine/ti/savings"
 	"github.com/sirupsen/logrus"
 )
 
@@ -59,6 +60,9 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 		logrus.WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
 		log.Errorf("Failed to upload report. Time taken: %s", time.Since(reportStart))
 	}
+
+	// Parse and upload savings to TI
+	savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, tiConfig)
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)

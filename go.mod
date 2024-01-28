@@ -16,7 +16,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/harness/ti-client v0.0.0-20240124010348-b71c85a2dd6c
+	github.com/harness/ti-client v0.0.0-20240128123722-206e524af180
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
@@ -36,6 +36,7 @@ require (
 	github.com/dgryski/go-lttb v0.0.0-20230207170358-f8fc36cdbff1
 	github.com/shirou/gopsutil/v3 v3.23.5
 	github.com/wings-software/dlite v1.0.0-rc.8
+	golang.org/x/net v0.17.0
 )
 
 require (
@@ -82,7 +83,6 @@ require (
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/exp v0.0.0-20220927162542-c76eaa363f9d // indirect
 	golang.org/x/mod v0.11.0 // indirect
-	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/tools v0.10.0 // indirect
 	google.golang.org/genproto v0.0.0-20230320184635-7606e756e683 // indirect

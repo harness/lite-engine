@@ -18,6 +18,7 @@ import (
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/harness/lite-engine/ti/report"
+	"github.com/harness/lite-engine/ti/savings"
 	"github.com/sirupsen/logrus"
 	easyFormatter "github.com/t-tomalak/logrus-easy-formatter"
 )
@@ -72,6 +73,9 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 		// Fail the step if run was successful but error during collection
 		err = collectionErr
 	}
+
+	// Parse and upload savings to TI
+	savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, tiConfig)
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
