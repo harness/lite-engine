@@ -59,6 +59,7 @@ type (
 		Timeout           int         `json:"timeout,omitempty"` // step timeout in seconds
 		MountDockerSocket *bool       `json:"mount_docker_socket"`
 		Outputs           []*OutputV2 `json:"outputs,omitempty"`
+		ParseSavings      bool        `json:"parse_savings,omitempty"`
 
 		// Valid only for steps running on docker container
 		Auth         *spec.Auth           `json:"auth,omitempty"`

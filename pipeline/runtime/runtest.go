@@ -75,7 +75,9 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	}
 
 	// Parse and upload savings to TI
-	savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, tiConfig)
+	if r.ParseSavings {
+		savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, tiConfig)
+	}
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
