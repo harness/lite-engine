@@ -50,7 +50,7 @@ func ParseSavings(workspace string, log *logrus.Logger, logErr bool) (types.Inte
 			foundProfile = true
 			totalBuildTime += buildTime
 			if strings.Contains(htmlContent, "FROM-CACHE") {
-				cacheState = types.CACHED
+				cacheState = types.OPTIMIZED
 			}
 		}
 	}

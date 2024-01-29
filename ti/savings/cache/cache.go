@@ -7,8 +7,7 @@ import (
 )
 
 func ParseCacheSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecutionState, int, error) {
-	// TODO: This assumes that savings data is only present for Gradle.
-	// 	Refactor when more cache options are available
+	// TODO: This assumes that savings data is only present for Gradle. Refactor when more cache options are available
 	cacheState, buildTime, err := gradle.ParseSavings(workspace, log, false)
 	if err != nil {
 		return cacheState, 0, err
