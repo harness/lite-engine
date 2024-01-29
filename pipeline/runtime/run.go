@@ -62,7 +62,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	}
 
 	// Parse and upload savings to TI
-	if r.ParseSavings {
+	if tiConfig.GetParseSavings() {
 		savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, tiConfig)
 	}
 
