@@ -3,7 +3,7 @@ package gradle
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -125,7 +125,7 @@ func getValueFromTBody(n *html.Node, description string) string {
 	return ""
 }
 
-func getTitleAndValueFromTR(n *html.Node) (string, string, bool) {
+func getTitleAndValueFromTR(n *html.Node) (string, string, bool) { //nolint:gocritic
 	if n == nil {
 		return "", "", false
 	}
@@ -138,7 +138,7 @@ func getTitleAndValueFromTR(n *html.Node) (string, string, bool) {
 			}
 		}
 	}
-	if len(values) == 2 {
+	if len(values) == 2 { //nolint:gomnd
 		return values[0], values[1], true
 	}
 	return "", "", false
@@ -163,7 +163,7 @@ func readHTMLFromFile(filePath string) (string, error) {
 	}
 	defer file.Close()
 
-	content, err := ioutil.ReadAll(file)
+	content, err := io.ReadAll(file)
 	if err != nil {
 		return "", err
 	}
@@ -243,7 +243,7 @@ func parseGradleVerseTimeMs(t string) int {
 		durationMs += minutes * 60 * 1000
 	}
 	if seconds, err := strconv.ParseFloat(secondStr, 64); err == nil {
-		durationMs += int(seconds * 1000)
+		durationMs += int(seconds * 1000) //nolint:gomnd
 	}
 	return durationMs
 }

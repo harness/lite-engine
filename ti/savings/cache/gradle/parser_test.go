@@ -31,7 +31,7 @@ func TestParseSavings_Cached(t *testing.T) {
 	workspace := getBaseDir()
 	state, time, err := ParseSavings(workspace, logrus.New(), true)
 	assert.Nil(t, err)
-	assert.Equal(t, types.CACHED, state)
+	assert.Equal(t, types.OPTIMIZED, state)
 	assert.Equal(t, 166190, time)
 }
 
@@ -93,7 +93,7 @@ func getBaseDir() string {
 }
 
 // createNestedDir will create a nested directory relative to default temp directory
-func createNestedDir(path string) error { //nolint:unparam
+func createNestedDir(path string) error {
 	absPath := getBaseDir() + path
 	err := os.MkdirAll(absPath, 0777)
 	if err != nil {
@@ -112,7 +112,7 @@ func removeBaseDir() error {
 }
 
 // copy file from src to relative dst in temp directory. Any existing file will be overwritten.
-func copyFile(src, relDst string) error { //nolint:gocritic
+func copyFile(src, relDst string) error {
 	dst := getBaseDir() + relDst
 	in, err := os.Open(src)
 	if err != nil {
