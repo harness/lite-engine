@@ -16,8 +16,8 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 	start := time.Now()
 	state, timeTaken, err := cache.ParseCacheSavings(workspace, log)
 	if err == nil {
-		log.Infof("Succesfully parsed savings with state %s and time %sms in %0.2f seconds",
-			string(state), strconv.Itoa(timeTaken), time.Since(start).Seconds())
+		log.Infof("Successfully parsed savings with state %s and time %sms in %0.2f seconds",
+			state, strconv.Itoa(timeTaken), time.Since(start).Seconds())
 
 		tiStart := time.Now()
 		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, state, int64(timeTaken))
