@@ -20,7 +20,7 @@ func Test_CollectRunTestData(t *testing.T) {
 	stepName := "RunTests"
 	tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
 		"", "", "", "", "", "", "", "",
-		"", false)
+		"", false, false)
 
 	tests := []struct {
 		name          string

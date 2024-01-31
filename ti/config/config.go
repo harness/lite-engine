@@ -9,10 +9,11 @@ type Cfg struct {
 	commitBranch string
 	dataDir      string
 	ignoreInstr  bool
+	parseSavings bool
 }
 
 func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink,
-	sourceBranch, targetBranch, commitBranch, dataDir string, skipVerify bool) Cfg {
+	sourceBranch, targetBranch, commitBranch, dataDir string, parseSavings, skipVerify bool) Cfg {
 	client := client.NewHTTPClient(
 		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify, "")
 	cfg := Cfg{
@@ -22,6 +23,7 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 		commitBranch: commitBranch,
 		dataDir:      dataDir,
 		ignoreInstr:  false,
+		parseSavings: parseSavings,
 	}
 	return cfg
 }
@@ -76,4 +78,8 @@ func (c *Cfg) SetIgnoreInstr(ignoreInstr bool) {
 
 func (c *Cfg) GetIgnoreInstr() bool {
 	return c.ignoreInstr
+}
+
+func (c *Cfg) GetParseSavings() bool {
+	return c.parseSavings
 }
