@@ -29,7 +29,7 @@ func TestParseSavings_Cached(t *testing.T) {
 	defer removeBaseDir() //nolint:errcheck
 
 	workspace := getBaseDir()
-	state, time, err := ParseSavings(workspace, logrus.New(), true)
+	state, time, err := ParseSavings(workspace, logrus.New())
 	assert.Nil(t, err)
 	assert.Equal(t, types.OPTIMIZED, state)
 	assert.Equal(t, 166190, time)
@@ -47,7 +47,7 @@ func TestParseSavings_FullRun(t *testing.T) {
 	defer removeBaseDir() //nolint:errcheck
 
 	workspace := getBaseDir()
-	state, time, err := ParseSavings(workspace, logrus.New(), true)
+	state, time, err := ParseSavings(workspace, logrus.New())
 	assert.Nil(t, err)
 	assert.Equal(t, types.FULL_RUN, state)
 	assert.Equal(t, 166190, time)
@@ -61,14 +61,14 @@ func TestParseSavings_NoProfile(t *testing.T) {
 	defer removeBaseDir() //nolint:errcheck
 
 	workspace := getBaseDir()
-	_, _, err = ParseSavings(workspace, logrus.New(), true)
+	_, _, err = ParseSavings(workspace, logrus.New())
 	assert.NotNil(t, err)
 	assert.Equal(t, fmt.Errorf("no profiles present"), err)
 }
 
 func TestParseSavings_NoBuildDir(t *testing.T) {
 	workspace := getBaseDir()
-	_, _, err := ParseSavings(workspace, logrus.New(), true)
+	_, _, err := ParseSavings(workspace, logrus.New())
 	assert.NotNil(t, err)
 	assert.Equal(t, fmt.Errorf("no profiles present"), err)
 }

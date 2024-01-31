@@ -14,20 +14,23 @@ import (
 	"golang.org/x/net/html"
 )
 
-func ParseSavings(workspace string, log *logrus.Logger, logErr bool) (types.IntelligenceExecutionState, int, error) {
+const (
+	gradleProfilePathRegex = "build/reports/profile/*.html"
+)
+
+func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecutionState, int, error) {
 	cacheState := types.FULL_RUN
 	totalBuildTime := 0
 
-	path := fmt.Sprintf("%s/build/reports/profile/*.html", workspace)
+	path := fmt.Sprintf("%s/%s", workspace, gradleProfilePathRegex)
 	files, err := zglob.Glob(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return cacheState, totalBuildTime, fmt.Errorf("no profiles present")
 		}
-		if logErr {
-			log.WithError(err).WithField("path", path).
-				Errorln("errored while trying to resolve path regex")
-		}
+		log.WithError(err).WithField("path", path).
+			Errorln("errored while trying to resolve path regex")
+
 		return cacheState, totalBuildTime, err
 	}
 	if len(files) == 0 {
@@ -79,13 +82,14 @@ func parseBuildTimeFromProfile(n *html.Node) (int, error) {
 	if summaryDiv == nil {
 		return 0, errors.New("no summary present")
 	}
-	buildTimeStr := extractValueFromTable(summaryDiv, "Total Build Time")
+	buildTimeStr := getValueFromTable(summaryDiv, "Total Build Time")
 	totalBuildTime := parseGradleVerseTimeMs(buildTimeStr)
 
 	return totalBuildTime, nil
 }
 
-func extractValueFromTable(n *html.Node, description string) (value string) {
+// getValueFromTable loops through all tables in the incoming node and gets value for a matching description
+func getValueFromTable(n *html.Node, description string) (value string) {
 	if n == nil {
 		return value
 	}
