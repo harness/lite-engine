@@ -11,21 +11,36 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, tiConfig *tiCfg.Cfg) {
+func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string,
+	cmdTimeTaken int64, tiConfig *tiCfg.Cfg) {
 	// Cache Savings
 	start := time.Now()
-	state, timeTaken, err := cache.ParseCacheSavings(workspace, log)
+	cacheState, timeTaken, err := cache.ParseCacheSavings(workspace, log)
 	if err == nil {
-		log.Infof("Successfully parsed savings with state %s and time %sms in %0.2f seconds",
-			state, strconv.Itoa(timeTaken), time.Since(start).Seconds())
+		log.Infof("Successfully parsed Build Cache savings with state %s and time %sms in %0.2f seconds",
+			cacheState, strconv.Itoa(timeTaken), time.Since(start).Seconds())
 
 		tiStart := time.Now()
-		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, state, int64(timeTaken))
+		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, cacheState, int64(timeTaken))
 		if tiErr == nil {
 			log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
 				types.BUILD_CACHE, time.Since(tiStart).Seconds())
 		}
 	}
+
+	// TI Savings
+	if tiState, err := tiConfig.GetSavingsState(stepID, types.TI); err == nil {
+		log.Infof("Successfully parsed Test Intelligence savings with state %s and time %dms",
+			tiState, cmdTimeTaken)
+
+		tiStart := time.Now()
+		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.TI, tiState, cmdTimeTaken)
+		if tiErr == nil {
+			log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
+				types.TI, time.Since(tiStart).Seconds())
+		}
+	}
+
 	// DLC Savings (Placeholder)
 	// Cache Intel savings (Placeholder)
 }

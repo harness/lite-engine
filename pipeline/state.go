@@ -36,7 +36,7 @@ type State struct {
 	logClient      logstream.Client
 }
 
-func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, collector *osstats.StatsCollector) {
+func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, collector *osstats.StatsCollector) { //nolint:gocritic
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.secrets = secrets

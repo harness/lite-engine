@@ -1,29 +1,48 @@
 package config
 
-import "github.com/harness/ti-client/client"
+import (
+	"errors"
+	"sync"
+
+	"github.com/harness/ti-client/client"
+	"github.com/harness/ti-client/types"
+)
+
+var (
+	ErrStateNotFound = errors.New("no state found")
+)
+
+type stepFeature struct {
+	feature types.SavingsFeature
+	stepID  string
+}
 
 type Cfg struct {
-	client       *client.HTTPClient
-	sourceBranch string
-	targetBranch string
-	commitBranch string
-	dataDir      string
-	ignoreInstr  bool
-	parseSavings bool
+	mu              *sync.Mutex
+	client          *client.HTTPClient
+	sourceBranch    string
+	targetBranch    string
+	commitBranch    string
+	dataDir         string
+	ignoreInstr     bool
+	parseSavings    bool
+	savingsStateMap map[stepFeature]types.IntelligenceExecutionState
 }
 
 func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink,
 	sourceBranch, targetBranch, commitBranch, dataDir string, parseSavings, skipVerify bool) Cfg {
-	client := client.NewHTTPClient(
+	tiClient := client.NewHTTPClient(
 		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify, "")
 	cfg := Cfg{
-		client:       client,
-		sourceBranch: sourceBranch,
-		targetBranch: targetBranch,
-		commitBranch: commitBranch,
-		dataDir:      dataDir,
-		ignoreInstr:  false,
-		parseSavings: parseSavings,
+		mu:              &sync.Mutex{},
+		client:          tiClient,
+		sourceBranch:    sourceBranch,
+		targetBranch:    targetBranch,
+		commitBranch:    commitBranch,
+		dataDir:         dataDir,
+		ignoreInstr:     false,
+		parseSavings:    parseSavings,
+		savingsStateMap: map[stepFeature]types.IntelligenceExecutionState{},
 	}
 	return cfg
 }
@@ -82,4 +101,21 @@ func (c *Cfg) GetIgnoreInstr() bool {
 
 func (c *Cfg) GetParseSavings() bool {
 	return c.parseSavings
+}
+
+func (c *Cfg) WriteSavingsState(stepID string, feature types.SavingsFeature, state types.IntelligenceExecutionState) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.savingsStateMap[stepFeature{feature: feature, stepID: stepID}] = state
+}
+
+func (c *Cfg) GetSavingsState(stepID string, feature types.SavingsFeature) (types.IntelligenceExecutionState, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if state, ok := c.savingsStateMap[stepFeature{feature: feature, stepID: stepID}]; ok {
+		return state, nil
+	}
+	return types.DISABLED, ErrStateNotFound
 }
