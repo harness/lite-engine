@@ -17,7 +17,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 	start := time.Now()
 	cacheState, timeTaken, err := cache.ParseCacheSavings(workspace, log)
 	if err == nil {
-		log.Infof("Successfully parsed Build Cache savings with state %s and time %sms in %0.2f seconds",
+		log.Infof("Computed build cache execution details with state %s and time %sms in %0.2f seconds",
 			cacheState, strconv.Itoa(timeTaken), time.Since(start).Seconds())
 
 		tiStart := time.Now()
@@ -30,7 +30,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 
 	// TI Savings
 	if tiState, err := tiConfig.GetSavingsState(stepID, types.TI); err == nil {
-		log.Infof("Successfully parsed Test Intelligence savings with state %s and time %dms",
+		log.Infof("Computed test intelligence execution details with state %s and time %dms",
 			tiState, cmdTimeTaken)
 
 		tiStart := time.Now()
