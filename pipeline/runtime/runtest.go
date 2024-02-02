@@ -68,6 +68,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
 	exited, err := engine.Run(ctx, step, out, false)
+	timeTakenMs := time.Since(start).Milliseconds()
 	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {
 		// Fail the step if run was successful but error during collection
@@ -76,7 +77,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
-		savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, tiConfig)
+		savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
 	}
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)

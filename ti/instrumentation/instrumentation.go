@@ -84,6 +84,16 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	} else {
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
 	}
+
+	if tiConfig.GetParseSavings() {
+		if config.RunOnlySelectedTests {
+			// TI selected subset of tests
+			tiConfig.WriteSavingsState(stepID, ti.TI, ti.OPTIMIZED)
+		} else {
+			// TI selected all tests or returned an error which resulted in full run
+			tiConfig.WriteSavingsState(stepID, ti.TI, ti.FULL_RUN)
+		}
+	}
 	return selection, moduleList
 }
 

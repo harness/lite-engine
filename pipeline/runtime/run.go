@@ -22,6 +22,7 @@ import (
 
 func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
 	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, error) {
+	start := time.Now()
 	step := toStep(r)
 	step.Command = r.Run.Command
 	step.Entrypoint = r.Run.Entrypoint
@@ -54,6 +55,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	log.Out = out
 
 	exited, err := engine.Run(ctx, step, out, r.LogDrone)
+	timeTakenMs := time.Since(start).Milliseconds()
 
 	reportStart := time.Now()
 	if rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, reportStart, tiConfig, r.Envs); rerr != nil {
@@ -63,7 +65,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
-		savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, tiConfig)
+		savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
 	}
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
