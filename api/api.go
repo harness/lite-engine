@@ -100,14 +100,15 @@ type (
 	}
 
 	PollStepResponse struct {
-		Exited    bool              `json:"exited,omitempty"`
-		ExitCode  int               `json:"exit_code,omitempty"`
-		Error     string            `json:"error,omitempty"`
-		OOMKilled bool              `json:"oom_killed,omitempty"`
-		Outputs   map[string]string `json:"outputs,omitempty"`
-		Envs      map[string]string `json:"envs,omitempty"` // Env variables exported by step
-		Artifact  []byte            `json:"artifact,omitempty"`
-		OutputV2  []*OutputV2       `json:"outputV2,omitempty"`
+		Exited       bool              `json:"exited,omitempty"`
+		ExitCode     int               `json:"exit_code,omitempty"`
+		Error        string            `json:"error,omitempty"`
+		OOMKilled    bool              `json:"oom_killed,omitempty"`
+		Outputs      map[string]string `json:"outputs,omitempty"`
+		Envs         map[string]string `json:"envs,omitempty"` // Env variables exported by step
+		Artifact     []byte            `json:"artifact,omitempty"`
+		OutputV2     []*OutputV2       `json:"outputV2,omitempty"`
+		SavingsState string            `json:"savings_state,omitempty"`
 	}
 
 	StreamOutputRequest struct {
@@ -183,6 +184,7 @@ type (
 		CommandExecutionStatus CommandExecutionStatus `json:"command_execution_status,omitempty"`
 		Artifact               []byte                 `json:"artifact,omitempty"`
 		Outputs                []*OutputV2            `json:"outputs,omitempty"`
+		SavingsState           string                 `json:"savings_state,omitempty"`
 	}
 )
 
