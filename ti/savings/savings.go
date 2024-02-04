@@ -11,9 +11,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string,
-	cmdTimeTaken int64, tiConfig *tiCfg.Cfg) types.IntelligenceExecutionState {
-
+func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, cmdTimeTaken int64,
+	tiConfig *tiCfg.Cfg) types.IntelligenceExecutionState {
 	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
 	start := time.Now()
@@ -58,6 +57,8 @@ func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceE
 			return s
 		case types.FULL_RUN:
 			state = s
+		case types.DISABLED:
+			continue
 		default:
 			continue
 		}

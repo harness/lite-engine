@@ -276,8 +276,8 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 	return runStep()
 }
 
-func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map[string]string,
-	map[string]string, []byte, []*api.OutputV2, string, error) { //nolint:gocritic
+func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map[string]string, //nolint:gocritic
+	map[string]string, []byte, []*api.OutputV2, string, error) {
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, nil, nil, "", err

@@ -7,7 +7,6 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"github.com/harness/ti-client/types"
 	"io"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
+	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	easyFormatter "github.com/t-tomalak/logrus-easy-formatter"
 )

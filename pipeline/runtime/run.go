@@ -7,7 +7,6 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"github.com/harness/ti-client/types"
 	"io"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
+	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
 
