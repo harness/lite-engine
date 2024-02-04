@@ -318,7 +318,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 		defer cancel()
 	}
 
-	exited, outputs, envs, artifact, outputV2, savingsState, err := e.run(ctx, e.engine, r, wr)
+	exited, outputs, envs, artifact, outputV2, optimizationState, err := e.run(ctx, e.engine, r, wr)
 	if err != nil {
 		result = multierror.Append(result, err)
 	}
@@ -352,7 +352,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 			logrus.WithField("id", r.ID).Infof("received exit code %d\n", exited.ExitCode)
 		}
 	}
-	return exited, outputs, envs, artifact, outputV2, savingsState, result
+	return exited, outputs, envs, artifact, outputV2, optimizationState, result
 }
 
 func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) ( //nolint:gocritic

@@ -31,7 +31,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 	}
 
 	// TI Savings
-	if tiState, err := tiConfig.GetSavingsState(stepID, types.TI); err == nil {
+	if tiState, err := tiConfig.GetFeatureState(stepID, types.TI); err == nil {
 		states = append(states, tiState)
 		log.Infof("Computed test intelligence execution details with state %s and time %dms",
 			tiState, cmdTimeTaken)

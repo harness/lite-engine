@@ -88,10 +88,10 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	if tiConfig.GetParseSavings() {
 		if config.RunOnlySelectedTests {
 			// TI selected subset of tests
-			tiConfig.WriteSavingsState(stepID, ti.TI, ti.OPTIMIZED)
+			tiConfig.WriteFeatureState(stepID, ti.TI, ti.OPTIMIZED)
 		} else {
 			// TI selected all tests or returned an error which resulted in full run
-			tiConfig.WriteSavingsState(stepID, ti.TI, ti.FULL_RUN)
+			tiConfig.WriteFeatureState(stepID, ti.TI, ti.FULL_RUN)
 		}
 	}
 	return selection, moduleList
