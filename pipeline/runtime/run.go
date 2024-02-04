@@ -29,12 +29,12 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	step.Entrypoint = r.Run.Entrypoint
 	setTiEnvVariables(step, tiConfig)
 
-	savingsState := types.DISABLED
+	optimizationState := types.DISABLED
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
-		return nil, nil, nil, nil, nil, string(savingsState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
+		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
 	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
@@ -67,7 +67,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
-		savingsState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
+		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
 	}
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
@@ -85,12 +85,12 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 					})
 				}
 			}
-			return exited, outputs, exportEnvs, artifact, outputsV2, string(savingsState), err
+			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
 		} else if len(r.OutputVars) > 0 {
 			// only return err when output vars are expected
-			return exited, outputs, exportEnvs, artifact, nil, string(savingsState), err
+			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
 		}
-		return exited, outputs, exportEnvs, artifact, nil, string(savingsState), nil
+		return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), nil
 	}
-	return exited, nil, exportEnvs, artifact, nil, string(savingsState), err
+	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
 }

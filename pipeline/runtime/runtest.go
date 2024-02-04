@@ -40,10 +40,10 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	}
 
 	start := time.Now()
-	savingsState := types.DISABLED
+	optimizationState := types.DISABLED
 	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs, tiConfig)
 	if err != nil {
-		return nil, nil, nil, nil, nil, string(savingsState), err
+		return nil, nil, nil, nil, nil, string(optimizationState), err
 	}
 
 	instrumentation.InjectReportInformation(r)
@@ -56,7 +56,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
-		return nil, nil, nil, nil, nil, string(savingsState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
+		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
 	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
@@ -79,7 +79,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
-		savingsState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
+		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
 	}
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
@@ -97,16 +97,16 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 					})
 				}
 			}
-			return exited, outputs, exportEnvs, artifact, outputsV2, string(savingsState), err
+			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
 		}
 	} else if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
 			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
-			return exited, outputs, exportEnvs, artifact, nil, string(savingsState), err
+			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
 		}
 	}
 
-	return exited, nil, exportEnvs, artifact, nil, string(savingsState), err
+	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step

@@ -30,14 +30,14 @@ import (
 type ExecutionStatus int
 
 type StepStatus struct {
-	Status       ExecutionStatus
-	State        *runtime.State
-	StepErr      error
-	Outputs      map[string]string
-	Envs         map[string]string
-	Artifact     []byte
-	OutputV2     []*api.OutputV2
-	SavingsState string
+	Status            ExecutionStatus
+	State             *runtime.State
+	StepErr           error
+	Outputs           map[string]string
+	Envs              map[string]string
+	Artifact          []byte
+	OutputV2          []*api.OutputV2
+	OptimizationState string
 }
 
 const (
@@ -82,9 +82,9 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.mu.Unlock()
 
 	go func() {
-		state, outputs, envs, artifact, outputV2, savingsState, stepErr := e.executeStep(r)
+		state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
-			Artifact: artifact, OutputV2: outputV2, SavingsState: savingsState}
+			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
 		e.mu.Lock()
 		e.stepStatus[r.ID] = status
 		channels := e.stepWaitCh[r.ID]
@@ -110,9 +110,9 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			if r.StageRuntimeID != "" && r.Image == "" {
 				setPrevStepExportEnvs(r)
 			}
-			state, outputs, envs, artifact, outputV2, savingsState, stepErr := e.executeStep(r)
+			state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
-				Artifact: artifact, OutputV2: outputV2, SavingsState: savingsState}
+				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
 			pollResponse := convertStatus(status)
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
@@ -397,12 +397,12 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 
 func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 	r := &api.PollStepResponse{
-		Exited:       true,
-		Outputs:      status.Outputs,
-		Envs:         status.Envs,
-		Artifact:     status.Artifact,
-		OutputV2:     status.OutputV2,
-		SavingsState: status.SavingsState,
+		Exited:            true,
+		Outputs:           status.Outputs,
+		Envs:              status.Envs,
+		Artifact:          status.Artifact,
+		OutputV2:          status.OutputV2,
+		OptimizationState: status.OptimizationState,
 	}
 
 	stepErr := status.StepErr
@@ -430,7 +430,7 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 
 func convertPollResponse(r *api.PollStepResponse) api.VMTaskExecutionResponse {
 	if r.Error == "" {
-		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact, Outputs: r.OutputV2, SavingsState: r.SavingsState}
+		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact, Outputs: r.OutputV2, OptimizationState: r.OptimizationState}
 	}
 	return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: r.Error}
 }
