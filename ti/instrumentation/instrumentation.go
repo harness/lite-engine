@@ -36,6 +36,19 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		config.RunOnlySelectedTests = false // run all the tests if it is a manual execution
 		return selection, moduleList
 	}
+	defer func(config *api.RunTestConfig) {
+		// Determine TI Feature state for Push / PR runs
+		if tiConfig.GetParseSavings() {
+			if config.RunOnlySelectedTests {
+				// TI selected subset of tests
+				tiConfig.WriteFeatureState(stepID, ti.TI, ti.OPTIMIZED)
+			} else {
+				// TI selected all tests or returned an error which resulted in full run
+				tiConfig.WriteFeatureState(stepID, ti.TI, ti.FULL_RUN)
+			}
+		}
+	}(config)
+
 	// Push+Manual/PR execution
 	var files []ti.File
 	var err error
@@ -83,16 +96,6 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 		config.RunOnlySelectedTests = false // TI selected all the tests to be run
 	} else {
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
-	}
-
-	if tiConfig.GetParseSavings() {
-		if config.RunOnlySelectedTests {
-			// TI selected subset of tests
-			tiConfig.WriteFeatureState(stepID, ti.TI, ti.OPTIMIZED)
-		} else {
-			// TI selected all tests or returned an error which resulted in full run
-			tiConfig.WriteFeatureState(stepID, ti.TI, ti.FULL_RUN)
-		}
 	}
 	return selection, moduleList
 }
