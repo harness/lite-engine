@@ -11,12 +11,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string,
-	cmdTimeTaken int64, tiConfig *tiCfg.Cfg) {
+func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, cmdTimeTaken int64,
+	tiConfig *tiCfg.Cfg) types.IntelligenceExecutionState {
+	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
 	start := time.Now()
 	cacheState, timeTaken, err := cache.ParseCacheSavings(workspace, log)
 	if err == nil {
+		states = append(states, cacheState)
 		log.Infof("Computed build cache execution details with state %s and time %sms in %0.2f seconds",
 			cacheState, strconv.Itoa(timeTaken), time.Since(start).Seconds())
 
@@ -29,7 +31,8 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 	}
 
 	// TI Savings
-	if tiState, err := tiConfig.GetSavingsState(stepID, types.TI); err == nil {
+	if tiState, err := tiConfig.GetFeatureState(stepID, types.TI); err == nil {
+		states = append(states, tiState)
 		log.Infof("Computed test intelligence execution details with state %s and time %dms",
 			tiState, cmdTimeTaken)
 
@@ -43,4 +46,22 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 
 	// DLC Savings (Placeholder)
 	// Cache Intel savings (Placeholder)
+	return getStepState(states)
+}
+
+func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceExecutionState {
+	state := types.DISABLED
+	for _, s := range states {
+		switch s {
+		case types.OPTIMIZED:
+			return s
+		case types.FULL_RUN:
+			state = s
+		case types.DISABLED:
+			continue
+		default:
+			continue
+		}
+	}
+	return state
 }

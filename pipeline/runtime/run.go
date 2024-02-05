@@ -17,22 +17,24 @@ import (
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
+	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
 
 func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
-	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, error) {
+	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
 	step := toStep(r)
 	step.Command = r.Run.Command
 	step.Entrypoint = r.Run.Entrypoint
 	setTiEnvVariables(step, tiConfig)
 
+	optimizationState := types.DISABLED
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
-		return nil, nil, nil, nil, nil, fmt.Errorf("output variable should not be set for unset entrypoint or command")
+		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
 	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
@@ -65,7 +67,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
-		savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
+		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
 	}
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
@@ -83,12 +85,12 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 					})
 				}
 			}
-			return exited, outputs, exportEnvs, artifact, outputsV2, err
+			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
 		} else if len(r.OutputVars) > 0 {
 			// only return err when output vars are expected
-			return exited, outputs, exportEnvs, artifact, nil, err
+			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
 		}
-		return exited, outputs, exportEnvs, artifact, nil, nil
+		return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), nil
 	}
-	return exited, nil, exportEnvs, artifact, nil, err
+	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
 }

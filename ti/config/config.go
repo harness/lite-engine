@@ -26,7 +26,7 @@ type Cfg struct {
 	dataDir         string
 	ignoreInstr     bool
 	parseSavings    bool
-	savingsStateMap map[stepFeature]types.IntelligenceExecutionState
+	featureStateMap map[stepFeature]types.IntelligenceExecutionState
 }
 
 func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink,
@@ -42,7 +42,7 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 		dataDir:         dataDir,
 		ignoreInstr:     false,
 		parseSavings:    parseSavings,
-		savingsStateMap: map[stepFeature]types.IntelligenceExecutionState{},
+		featureStateMap: map[stepFeature]types.IntelligenceExecutionState{},
 	}
 	return cfg
 }
@@ -103,18 +103,18 @@ func (c *Cfg) GetParseSavings() bool {
 	return c.parseSavings
 }
 
-func (c *Cfg) WriteSavingsState(stepID string, feature types.SavingsFeature, state types.IntelligenceExecutionState) {
+func (c *Cfg) WriteFeatureState(stepID string, feature types.SavingsFeature, state types.IntelligenceExecutionState) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.savingsStateMap[stepFeature{feature: feature, stepID: stepID}] = state
+	c.featureStateMap[stepFeature{feature: feature, stepID: stepID}] = state
 }
 
-func (c *Cfg) GetSavingsState(stepID string, feature types.SavingsFeature) (types.IntelligenceExecutionState, error) {
+func (c *Cfg) GetFeatureState(stepID string, feature types.SavingsFeature) (types.IntelligenceExecutionState, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if state, ok := c.savingsStateMap[stepFeature{feature: feature, stepID: stepID}]; ok {
+	if state, ok := c.featureStateMap[stepFeature{feature: feature, stepID: stepID}]; ok {
 		return state, nil
 	}
 	return types.DISABLED, ErrStateNotFound
