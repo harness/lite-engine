@@ -75,6 +75,14 @@ func (c *Cfg) GetPipelineID() string {
 	return c.client.PipelineID
 }
 
+func (c *Cfg) GetStageID() string {
+	return c.client.StageID
+}
+
+func (c *Cfg) GetBuildID() string {
+	return c.client.BuildID
+}
+
 func (c *Cfg) GetDataDir() string {
 	return c.dataDir
 }
