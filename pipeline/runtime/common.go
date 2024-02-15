@@ -151,6 +151,6 @@ func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 	envMap[ti.PipelineIDEnv] = config.GetPipelineID()
 	envMap[ti.StageIDEnv] = config.GetStageID()
 	envMap[ti.BuildIDEnv] = config.GetBuildID()
-	envMap[ti.StepIDEnv] = step.ID
+	envMap[ti.StepIDEnv] = step.Name
 	envMap[ti.InfraEnv] = ti.HarnessInfra
 }
