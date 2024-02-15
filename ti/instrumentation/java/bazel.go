@@ -247,7 +247,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			}
 		}
 	}
-	if len(rules) == 0 && len(runnerArgs.ModuleList) == 0 {
+	if len(rules) == 0 {
 		return "echo \"Could not find any relevant test rules. Skipping the run\"", nil
 	}
 	testList := strings.Join(rules, " ")
