@@ -130,7 +130,7 @@ func checkForBazelOptimization(ctx context.Context, workspace string, fs filesys
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
 // AutoDetectTests output and parallelism configuration
 func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *logrus.Logger, runner TestRunner,
-	selection *ti.SelectTestsResp, workspace string, envs map[string]string, tiConfig *tiCfg.Cfg) {
+	selection *ti.SelectTestsResp, stepID, workspace string, envs map[string]string, tiConfig *tiCfg.Cfg) {
 	if !config.ParallelizeTests {
 		log.Infoln("Skipping test splitting as requested")
 		return
@@ -187,11 +187,11 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	}
 
 	// Split the tests and send the split slice to the runner
-	splitTests, err := getSplitTests(ctx, log, tests, config.TestSplitStrategy, splitIdx, splitTotal, tiConfig)
+	splitTests, err := getSplitTests(ctx, log, tests, stepID, config.TestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	if err != nil {
 		// Error while splitting by input strategy, splitting tests equally
 		log.Errorln("Error occurred while splitting the tests by input strategy. Splitting tests equally")
-		splitTests, _ = getSplitTests(ctx, log, tests, countTestSplitStrategy, splitIdx, splitTotal, tiConfig)
+		splitTests, _ = getSplitTests(ctx, log, tests, stepID, countTestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	}
 	log.Infoln(fmt.Sprintf("Test split for this run: %s", formatTests(splitTests)))
 
@@ -251,7 +251,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 
 	// Test splitting: only when parallelism is enabled
 	if IsParallelismEnabled(envs) {
-		computeSelectedTests(ctx, config, log, runner, &selection, workspace, envs, cfg)
+		computeSelectedTests(ctx, config, log, runner, &selection, stepID, workspace, envs, cfg)
 	}
 
 	// set runnerArg for bazel runner

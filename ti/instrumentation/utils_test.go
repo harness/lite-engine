@@ -16,6 +16,8 @@ func Test_GetSplitTests(t *testing.T) {
 	ctrl, ctx := gomock.WithContext(context.Background(), t)
 	defer ctrl.Finish()
 
+	stepID := "RunTestStep"
+
 	tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
 		"", "", "", "", "", "", "", "",
 		"", false, false)
@@ -29,10 +31,10 @@ func Test_GetSplitTests(t *testing.T) {
 	}
 	splitStrategy := countTestSplitStrategy
 	splitTotal := 3
-	tests, _ := getSplitTests(ctx, log, testsToSplit, splitStrategy, 0, splitTotal, &tiConfig)
+	tests, _ := getSplitTests(ctx, log, testsToSplit, stepID, splitStrategy, 0, splitTotal, &tiConfig)
 	assert.Equal(t, len(tests), 2)
-	tests, _ = getSplitTests(ctx, log, testsToSplit, splitStrategy, 1, splitTotal, &tiConfig)
+	tests, _ = getSplitTests(ctx, log, testsToSplit, stepID, splitStrategy, 1, splitTotal, &tiConfig)
 	assert.Equal(t, len(tests), 2)
-	tests, _ = getSplitTests(ctx, log, testsToSplit, splitStrategy, 2, splitTotal, &tiConfig)
+	tests, _ = getSplitTests(ctx, log, testsToSplit, stepID, splitStrategy, 2, splitTotal, &tiConfig)
 	assert.Equal(t, len(tests), 1)
 }

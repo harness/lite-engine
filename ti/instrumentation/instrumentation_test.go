@@ -297,13 +297,15 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 				runner.EXPECT().AutoDetectTests(ctx, "", testGlobs).Return(tt.runnerAutodetectTestsVal, tt.runnerAutodetectTestsErr)
 			}
 
+			stepID := "RunTestsStep"
+
 			selectTestsResponse := ti.SelectTestsResp{}
 			selectTestsResponse.Tests = tt.runnableTests
 			tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
 				"", "", "", "", "", "", "", "",
 				"", false, false)
 
-			computeSelectedTests(ctx, config, log, runner, &selectTestsResponse, "", envs, &tiConfig)
+			computeSelectedTests(ctx, config, log, runner, &selectTestsResponse, stepID, "", envs, &tiConfig)
 
 			assert.Equal(t, config.RunOnlySelectedTests, tt.runOnlySelectedTests)
 			assert.Equal(t, selectTestsResponse.Tests, tt.selectTestsResponseTests)
