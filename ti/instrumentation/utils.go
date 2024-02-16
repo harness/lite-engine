@@ -179,7 +179,7 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 	switch splitStrategy {
 	case classTimingTestSplitStrategy:
 		// Call TI svc to get the test timing data
-		fileTimes, err = getTestTime(ctx, splitStrategy, stepID, tiConfig)
+		fileTimes, err = getTestTime(ctx, stepID, splitStrategy, tiConfig)
 		if err != nil {
 			return testsToSplit, err
 		}
