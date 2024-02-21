@@ -27,11 +27,12 @@ import (
 )
 
 const (
-	outDir          = "%s/ti/new/callgraph/" // path passed as outDir in the config.ini file
-	javaNewAgentArg = "-javaagent:/addon/bin/java-agent-trampoline-0.0.1-SNAPSHOT.jar=%s"
-	javaAgentPath   = "/java/new"
-	javaAgentUrl    = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar"
-	filterDir       = "ti/new/filter"
+	outDir           = "%s/ti/new/callgraph/" // path passed as outDir in the config.ini file
+	javaNewAgentArg  = "-javaagent:%s=%s"
+	javaNewAgentJar  = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
+	javaNewAgentPath = "/java/new/"
+	javaNewAgentUrl  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" //May be changed later
+	filterDir        = "ti/new/callgraph"
 )
 
 // Ignoring optimization state for now
@@ -41,9 +42,9 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 	fs := filesystem.New()
 	log := logrus.New()
 	log.Out = out
-	preCmd, err := getPreCmd(tmpFilePath, fs, log)
+	preCmd, err := getPreCmd(tmpFilePath, fs, log) // Setting up JAVA_TOOL_OPTIONS, configfile
 	if err != nil {
-		return nil, nil, nil, nil, nil, "", fmt.Errorf("could not set enviromnment variable to inject agent")
+		return nil, nil, nil, nil, nil, "", fmt.Errorf("failed to set config file or env variable to inject agent")
 	}
 
 	err = downloadJavaAgent(ctx, tmpFilePath, fs, log)
@@ -51,14 +52,13 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 		return nil, nil, nil, nil, nil, "", fmt.Errorf("failed to download Java agent")
 	}
 
-	commands := append([]string{preCmd}, r.Run.Command...)
+	commands := fmt.Sprintf("%s\n%s", preCmd, r.RunTestsV2.Command[0])
 	step := toStep(r)
-	step.Command = commands
-	step.Entrypoint = r.Run.Entrypoint
+	step.Command = []string{commands}
+	step.Entrypoint = r.RunTestsV2.Entrypoint
 	setTiEnvVariables(step, tiConfig)
 
-	isManualExecution := utils.IsManualExecution(tiConfig)
-	err = createFilterFile(ctx, fs, step.ID, r.WorkingDir, log, isManualExecution, tiConfig, tmpFilePath)
+	err = createFilterFile(ctx, fs, step.ID, r.WorkingDir, log, tiConfig, tmpFilePath)
 	if err != nil {
 		return nil, nil, nil, nil, nil, "", fmt.Errorf("error while creating filter file %s", err)
 	}
@@ -88,7 +88,6 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 	exited, err := engine.Run(ctx, step, out, r.LogDrone)
 	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {
-		// Fail the step if run was successful but error during collection
 		err = collectionErr
 	}
 
@@ -121,7 +120,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
 	cgStart := time.Now()
 
-	cgErr := callgraph.Upload(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig)
+	cgErr := callgraph.Upload(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
@@ -135,6 +134,8 @@ func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.Sta
 	return cgErr
 }
 
+// Second parameter in return type (bool) is will be used to decide whether the filter file should be created or not.
+// In case of running all the cases no filter file should be created.
 func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
 	isManual bool, tiConfig *tiCfg.Cfg) (types.SelectTestsResp, bool) {
 
@@ -184,7 +185,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 	selection, err = utils.SelectTests(ctx, workspace, filesWithpkg, RunOnlySelectedTests, stepID, fs, tiConfig)
 	if err != nil {
 		log.WithError(err).Errorln("There was some issue in trying to figure out tests to run. Running all the tests")
-		RunOnlySelectedTests = false // run all the tests if an error was encountered
+		RunOnlySelectedTests = false
 	} else {
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
 	}
@@ -201,11 +202,17 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 		return "", err
 	}
 
-	iniFile := fmt.Sprintf("%s/new/config.ini", tmpDir)
+	iniFileDir := fmt.Sprintf("%s/new", tmpDir)
+	err = fs.MkdirAll(iniFileDir, os.ModePerm)
+	if err != nil {
+		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", iniFileDir))
+		return "", err
+	}
+	iniFile := fmt.Sprintf("%s/config.ini", iniFileDir)
 	data := fmt.Sprintf(`outDir: %s
-	logLevel: 2
+	logLevel: 0 
 	logConsole: false
-	writeTo: COVERAGE_JSON
+	writeTo: JSON
 	packageInference: true`, dir)
 
 	log.Infof("Attempting to write to %s with config:\n%s", iniFile, data)
@@ -226,37 +233,48 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 }
 
 func getPreCmd(tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
-	preCmd := "set -xe\n"
+	var preCmd string
 	iniFilePath, err := createJavaConfigFile(tmpFilePath, fs, log)
 	if err != nil {
+		log.WithError(err).Errorln(fmt.Sprintf("could not create java agent config file in path %s", iniFilePath))
 		return "", err
 	}
 
-	err = writetoBazelrcFile(iniFilePath, log, fs)
+	err = writetoBazelrcFile(iniFilePath, log, fs, tmpFilePath)
 	if err != nil {
+		log.WithError(err).Errorln(fmt.Sprintf("failed to write in .bazelrc file"))
 		return "", err
 	}
-	agentArg := fmt.Sprintf(javaNewAgentArg, iniFilePath)
-	preCmd += fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
+	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaNewAgentPath, javaNewAgentJar)
+	agentArg := fmt.Sprintf(javaNewAgentArg, javaAgentPath, iniFilePath)
+	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
 	return preCmd, nil
 }
 
 func downloadJavaAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) error {
 
+	javaAgentPath := fmt.Sprintf("%s%s", javaNewAgentPath, javaNewAgentJar)
 	dir := filepath.Join(path, javaAgentPath)
-	err := utils.DownloadFile(ctx, dir, javaAgentUrl, fs)
+	err := utils.DownloadFile(ctx, dir, javaNewAgentUrl, fs)
 	if err != nil {
+		log.WithError(err).Errorln(fmt.Sprintf("could not download java agent"))
 		return err
 	}
 	return nil
 }
 
 func createFilterFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
-	isManual bool, tiConfig *tiCfg.Cfg, path string) error {
+	tiConfig *tiCfg.Cfg, path string) error {
 
-	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManual, tiConfig)
+	isManualExecution := utils.IsManualExecution(tiConfig)
+	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig)
 	dir := filepath.Join(path, filterDir)
-	err := populateItemInFilterFile(resp, dir, fs, isFilterFilePresent)
+	err := fs.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", dir))
+		return err
+	}
+	err = populateItemInFilterFile(resp, dir, fs, isFilterFilePresent)
 
 	if err != nil {
 		return err
@@ -264,30 +282,46 @@ func createFilterFile(ctx context.Context, fs filesystem.FileSystem, stepID, wor
 	return nil
 }
 
-func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.FileSystem) error {
+func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.FileSystem, tmpFilePath string) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Println("Could not get home directory", err)
 		return err
 	}
 
+	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaNewAgentPath, javaNewAgentJar)
+	agentArg := fmt.Sprintf(javaNewAgentArg, javaAgentPath, iniFilePath)
 	bazelrcFilePath := filepath.Join(homeDir, ".bazelrc")
-	agentArg := fmt.Sprintf(javaNewAgentArg, iniFilePath)
 	data := fmt.Sprintf("test --test_env JAVA_TOOL_OPTIONS=%s", agentArg)
-	// if _, err := os.Stat(bazelrcFilePath); os.IsNotExist(err) {
-	f, err := fs.Create(bazelrcFilePath)
-	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not create file %s", bazelrcFilePath))
-		return err
-	}
-	// }
 
-	log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
-	_, err = f.Write([]byte(data))
-	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
-		return err
-	}
+	// There might be possibility of .bazelrc being already present in homeDir so checking this condition as well
+	if _, err := os.Stat(bazelrcFilePath); os.IsNotExist(err) {
+		f, err := fs.Create(bazelrcFilePath)
+		if err != nil {
+			log.WithError(err).Errorln(fmt.Sprintf("could not create file %s", bazelrcFilePath))
+			return err
+		}
 
+		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
+		_, err = f.Write([]byte(data))
+		if err != nil {
+			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
+			return err
+		}
+	} else {
+		file, err := os.OpenFile(bazelrcFilePath, os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			log.WithError(err).Errorln(fmt.Sprintf("could not open the file in dir %s", bazelrcFilePath))
+			return err
+		}
+		defer file.Close()
+
+		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
+		_, err = file.WriteString(data)
+		if err != nil {
+			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
+			return err
+		}
+	}
 	return nil
 }

@@ -24,13 +24,13 @@ const (
 )
 
 // Upload method uploads the callgraph.
-func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg) error {
+func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string) error {
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
 		return nil
 	}
 
-	encCg, err := encodeCg(fmt.Sprintf(cgDir, cfg.GetDataDir()), log)
+	encCg, err := encodeCg(fmt.Sprintf(dir, cfg.GetDataDir()), log)
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
 	}

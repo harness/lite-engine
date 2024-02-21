@@ -421,6 +421,9 @@ func getAllJavaFilesInsideDirectory(directory string, changedFiles []ti.File, fi
 // to be run corresponding to that.
 func SelectTests(ctx context.Context, workspace string, files []ti.File, runSelected bool, stepID string,
 	fs filesystem.FileSystem, cfg *tiCfg.Cfg) (ti.SelectTestsResp, error) {
+
+	Log := logrus.New()                                           // Revert
+	Log.Infoln("We have reached there to see the test selection") //Revert
 	tiConfigYaml, err := getTiConfig(workspace, fs)
 	if err != nil {
 		return ti.SelectTestsResp{}, err
@@ -476,7 +479,6 @@ func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 		return err
 	}
 	defer out.Close()
-
 	// Get the data
 	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {

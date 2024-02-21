@@ -16,9 +16,11 @@ import (
 func populateItemInFilterFile(selectTestResp types.SelectTestsResp, filePath string, fs filesystem.FileSystem, isFilterFilePresent bool) error {
 
 	if !isFilterFilePresent { // If filter file is not present then we will simply run all the test cases
+		log.Println("We are here where no filter file is being created") //Revert
 		return nil
 	}
 
+	log.Println("Attempting to create filter file")
 	testResp := selectTestResp.Tests
 	filterFile := fmt.Sprintf("%s/filter", filePath)
 	f, err := fs.Create(filterFile)
