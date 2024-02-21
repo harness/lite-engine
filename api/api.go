@@ -52,6 +52,7 @@ type (
 		Kind           StepType          `json:"kind,omitempty"`
 		Run            RunConfig         `json:"run,omitempty"`
 		RunTest        RunTestConfig     `json:"run_test,omitempty"`
+		RunTestsV2     RunTestsV2Config  `json:"run_testV2,omitempty"`
 		SoftStop       bool              `json:"soft_stop,omitempty"`
 
 		OutputVars        []string    `json:"output_vars,omitempty"`
@@ -117,6 +118,11 @@ type (
 	}
 
 	RunConfig struct {
+		Command    []string `json:"commands,omitempty"`
+		Entrypoint []string `json:"entrypoint,omitempty"`
+	}
+
+	RunTestsV2Config struct { //same as Run
 		Command    []string `json:"commands,omitempty"`
 		Entrypoint []string `json:"entrypoint,omitempty"`
 	}

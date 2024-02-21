@@ -101,7 +101,7 @@ func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.F
 	return runner, useYaml, nil
 }
 
-func getCommitInfo(ctx context.Context, stepID string, cfg *tiCfg.Cfg) (string, error) {
+func GetCommitInfo(ctx context.Context, stepID string, cfg *tiCfg.Cfg) (string, error) {
 	c := cfg.GetClient()
 	branch := cfg.GetSourceBranch()
 
@@ -211,12 +211,12 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 }
 
 // getChangedFilesPR returns a list of files changed with their corresponding status for a PR.
-func getChangedFilesPR(ctx context.Context, workspace string, log *logrus.Logger) ([]ti.File, error) {
+func GetChangedFilesPR(ctx context.Context, workspace string, log *logrus.Logger) ([]ti.File, error) {
 	return getChangedFiles(ctx, workspace, log, diffFilesCmdPR)
 }
 
 // getChangedFilesPush returns a list of files changed with their corresponding status for push trigger/manual execution.
-func getChangedFilesPush(ctx context.Context, workspace, lastSuccessfulCommitID, currentCommitID string, log *logrus.Logger) ([]ti.File, error) {
+func GetChangedFilesPush(ctx context.Context, workspace, lastSuccessfulCommitID, currentCommitID string, log *logrus.Logger) ([]ti.File, error) {
 	diffFilesCmd := diffFilesCmdPush
 	diffFilesCmd = append(diffFilesCmd, lastSuccessfulCommitID, currentCommitID)
 	return getChangedFiles(ctx, workspace, log, diffFilesCmd)
@@ -419,7 +419,7 @@ func getAllJavaFilesInsideDirectory(directory string, changedFiles []ti.File, fi
 
 // selectTests takes a list of files which were changed as input and gets the tests
 // to be run corresponding to that.
-func selectTests(ctx context.Context, workspace string, files []ti.File, runSelected bool, stepID string,
+func SelectTests(ctx context.Context, workspace string, files []ti.File, runSelected bool, stepID string,
 	fs filesystem.FileSystem, cfg *tiCfg.Cfg) (ti.SelectTestsResp, error) {
 	tiConfigYaml, err := getTiConfig(workspace, fs)
 	if err != nil {
@@ -464,7 +464,7 @@ func formatTests(tests []ti.RunnableTest) string {
 	return strings.Join(testStrings, ", ")
 }
 
-func downloadFile(ctx context.Context, path, url string, fs filesystem.FileSystem) error {
+func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSystem) error {
 	// Create the nested directory if it doesn't exist
 	dir := filepath.Dir(path)
 	if err := fs.MkdirAll(dir, os.ModePerm); err != nil {
@@ -527,7 +527,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 		}
 		// TODO: (Vistaar) Add check for whether the path exists here. This can be implemented
 		// once we have a proper release process for agent artifacts.
-		err := downloadFile(ctx, absPath, l.URL, fs)
+		err := DownloadFile(ctx, absPath, l.URL, fs)
 		if err != nil {
 			log.WithError(err).Printf("could not download %s to path %s\n", l.URL, installDir)
 			return "", err

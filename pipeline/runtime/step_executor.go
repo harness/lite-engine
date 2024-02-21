@@ -361,6 +361,9 @@ func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.St
 	if r.Kind == api.Run {
 		return executeRunStep(ctx, engine, r, out, tiConfig)
 	}
+	if r.Kind == api.RunTestsV2 {
+		return executeRunTestsV2Step(ctx, engine, r, out, tiConfig)
+	}
 	return executeRunTestStep(ctx, engine, r, out, tiConfig)
 }
 

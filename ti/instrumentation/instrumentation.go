@@ -53,7 +53,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	var files []ti.File
 	var err error
 	if IsPushTriggerExecution(tiConfig) {
-		lastSuccessfulCommitID, commitErr := getCommitInfo(ctx, stepID, tiConfig)
+		lastSuccessfulCommitID, commitErr := GetCommitInfo(ctx, stepID, tiConfig)
 		if commitErr != nil {
 			log.Infoln("Failed to get reference commit", "error", commitErr)
 			config.RunOnlySelectedTests = false // TI selected all the tests to be run
@@ -65,14 +65,14 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			return selection, moduleList
 		}
 		log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
-		files, err = getChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
+		files, err = GetChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
 		if err != nil {
 			log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
 			config.RunOnlySelectedTests = false
 			return selection, moduleList
 		}
 	} else {
-		files, err = getChangedFilesPR(ctx, workspace, log)
+		files, err = GetChangedFilesPR(ctx, workspace, log)
 		if err != nil || len(files) == 0 {
 			log.Errorln("Unable to get changed files list for PR. Running all the tests.", "error", err)
 			config.RunOnlySelectedTests = false
@@ -83,7 +83,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 
 	// Call TI svc only when there is a chance of running selected tests
 	filesWithPkg := runner.ReadPackages(workspace, files)
-	selection, err = selectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
+	selection, err = SelectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
 	selection = filterTestsAfterSelection(selection, config.TestGlobs)
 	if err != nil {
 		log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
