@@ -89,7 +89,7 @@ type (
 	}
 	OutputV2 struct {
 		Key   string `json:"key,omitempty"`
-		Value string `json:"value,omitempty"`
+		Value string `json:"value"`
 		Type  string `json:"type,omitempty"`
 	}
 
