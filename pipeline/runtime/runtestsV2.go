@@ -186,6 +186,9 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 	if err != nil {
 		log.WithError(err).Errorln("There was some issue in trying to figure out tests to run. Running all the tests")
 		RunOnlySelectedTests = false
+	} else if selection.SelectAll {
+		log.Infoln("Test Intelligence determined to run all the tests")
+		RunOnlySelectedTests = false // TI selected all the tests to be run
 	} else {
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
 	}
