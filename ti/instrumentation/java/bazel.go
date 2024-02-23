@@ -154,8 +154,13 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	rules := make([]string, 0) // List of unique bazel rules to be executed
 	rulesSet := make(map[string]bool)
 	classSet := make(map[string]bool)
+
 	// Add module test targets to rules, and filter out rules falling under these modules
 	for _, module := range runnerArgs.ModuleList {
+		if !b.moduleContainsTestRules(ctx, workspace, module) {
+			b.log.Infof("Ignoring module %s since no test rules were found", module)
+			continue
+		}
 		moduleRule := fmt.Sprintf("//%s/...", module)
 		rules = append(rules, moduleRule)
 		rulesSet[moduleRule] = true
@@ -242,7 +247,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			}
 		}
 	}
-	if len(rules) == 0 && len(runnerArgs.ModuleList) == 0 {
+	if len(rules) == 0 {
 		return "echo \"Could not find any relevant test rules. Skipping the run\"", nil
 	}
 	testList := strings.Join(rules, " ")
@@ -264,4 +269,25 @@ func getModuleFromRule(rule string) string {
 		return fmt.Sprintf("//%s/...", splitRule[0])
 	}
 	return ""
+}
+
+func (b *bazelRunner) moduleContainsTestRules(ctx context.Context, workspace, module string) bool {
+	c := fmt.Sprintf("cd %s; %s query 'kind(.*, tests(//%s/...))'", workspace, bazelCmd, module)
+	cmdArgs := []string{"-c", c}
+	resp, err := execCmdCtx(ctx, "sh", cmdArgs...).Output()
+	if err != nil {
+		b.log.Errorf("Got an error while querying bazel for module test rules: %s", err)
+		return false
+	}
+	// Check if a valid test rule is found
+	for _, r := range strings.Split(string(resp), "\n") {
+		_, err = parseBazelTestRule(r)
+		if err != nil {
+			b.log.Errorf("Error parsing bazel test rule for module %s: %s", module, err)
+			continue
+		}
+		// found a valid test rule
+		return true
+	}
+	return false
 }
