@@ -87,7 +87,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 
 	exited, err := engine.Run(ctx, step, out, r.LogDrone)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := CollectRunTestData(ctx, log, r, start, step.Name, tiConfig)
+	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {
 		err = collectionErr
 	}
@@ -312,4 +312,21 @@ func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.Fi
 		}
 	}
 	return nil
+}
+
+func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
+	cgStart := time.Now()
+
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir)
+	if cgErr != nil {
+		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
+		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
+	}
+
+	reportStart := time.Now()
+	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, r.Envs)
+	if crErr != nil {
+		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
+	}
+	return cgErr
 }

@@ -75,7 +75,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 
 	exited, err := engine.Run(ctx, step, out, false)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := CollectRunTestData(ctx, log, r, start, step.Name, tiConfig)
+	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {
 		// Fail the step if run was successful but error during collection
 		err = collectionErr
@@ -114,7 +114,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step
-func CollectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
+func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
 	cgStart := time.Now()
 	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, cgDir)
 	if cgErr != nil {
