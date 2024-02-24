@@ -3,7 +3,7 @@
 // that can be found in the licenses directory at the root of this repository, also available at
 // https://polyformproject.org/wp-content/uploads/2020/05/PolyForm-Free-Trial-1.0.0.txt.
 
-package runtime
+package testsfilteration
 
 import (
 	"fmt"
@@ -13,14 +13,13 @@ import (
 	"github.com/harness/ti-client/types"
 )
 
-func populateItemInFilterFile(selectTestResp types.SelectTestsResp, filePath string, fs filesystem.FileSystem, isFilterFilePresent bool) error {
+func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filePath string, fs filesystem.FileSystem, isFilterFilePresent bool) error {
 
 	if !isFilterFilePresent { // If filter file is not present then we will simply run all the test cases
-		log.Println("We are here where no filter file is being created") //Revert
 		return nil
 	}
 
-	log.Println("Attempting to create filter file")
+	log.Println("Creating filter file......")
 	testResp := selectTestResp.Tests
 	filterFile := fmt.Sprintf("%s/filter", filePath)
 	f, err := fs.Create(filterFile)
@@ -38,6 +37,8 @@ func populateItemInFilterFile(selectTestResp types.SelectTestsResp, filePath str
 			data += fmt.Sprintf("%s.%s\n", test.Pkg, test.Class)
 		} else if test.Pkg != "" {
 			data += fmt.Sprintf("%s\n", test.Pkg)
+		} else if test.Class != "" {
+			data += fmt.Sprintf("%s\n", test.Class)
 		}
 	}
 
