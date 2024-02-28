@@ -18,6 +18,7 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/harness/lite-engine/ti/instrumentation"
 	utils "github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/savings"
@@ -32,7 +33,8 @@ const (
 	javaAgentV2Jar  = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
 	javaAgentV2Path = "/java/v2/"
 	javaAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" //May be changed later
-	filterDir       = "ti/v2/callgraph"
+	filterV2Dir     = "%s/ti/v2/filter"
+	configV2Dir     = "%s/ti/v2/config"
 )
 
 // Ignoring optimization state for now
@@ -43,7 +45,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 	log := logrus.New()
 	log.Out = out
 	optimizationState := types.DISABLED
-	preCmd, err := getPreCmd(tmpFilePath, fs, log)
+	preCmd, filterfilePath, err := getPreCmd(tmpFilePath, fs, log, r.Envs, &r.RunTestsV2)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent")
 	}
@@ -58,7 +60,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 	step.Command = []string{commands}
 	step.Entrypoint = r.RunTestsV2.Entrypoint
 	setTiEnvVariables(step, tiConfig)
-	err = createSelectedTestFile(ctx, fs, step.ID, r.WorkingDir, log, tiConfig, tmpFilePath)
+	err = createSelectedTestFile(ctx, fs, step.ID, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error while creating filter file %s", err)
 	}
@@ -125,7 +127,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 // Second parameter in return type (bool) is will be used to decide whether the filter file should be created or not.
 // In case of running all the cases no filter file should be created.
 func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
-	isManual bool, tiConfig *tiCfg.Cfg) (types.SelectTestsResp, bool) {
+	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config) (types.SelectTestsResp, bool) {
 
 	selection := types.SelectTestsResp{}
 
@@ -176,66 +178,93 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
 	}
 
+	// Test splitting: only when parallelism is enabled
+	if instrumentation.IsParallelismEnabled(envs) {
+		instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, tiConfig)
+	}
+
 	return selection, true
 }
 
-func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger, splitIdx int) (string, string, error) {
 
-	dir := fmt.Sprintf(outDir, tmpDir)
-	err := fs.MkdirAll(dir, os.ModePerm)
+	outDir := fmt.Sprintf(outDir, tmpDir)
+	err := fs.MkdirAll(outDir, os.ModePerm)
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", dir))
-		return "", err
+		log.WithError(err).Errorln(fmt.Sprintf("could not create nested Output directory %s", outDir))
+		return "", "", err
 	}
 
-	iniFileDir := fmt.Sprintf("%s/new", tmpDir)
+	iniFileDir := fmt.Sprintf(configV2Dir, tmpDir)
 	err = fs.MkdirAll(iniFileDir, os.ModePerm)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", iniFileDir))
-		return "", err
+		return "", "", err
 	}
-	iniFile := fmt.Sprintf("%s/config.ini", iniFileDir)
+
+	//create file paths with splitidx for splitting
+	iniFile := fmt.Sprintf("%s/config_%d.ini", iniFileDir, splitIdx)
+
+	filterFileDir := fmt.Sprintf(filterV2Dir, tmpDir)
+
+	//filterfilePath will look like /tmp/engine/ti/v2/filter/filter_1...
+	filterfilePath := fmt.Sprintf("%s/filter_%d", filterFileDir, splitIdx)
+
 	data := fmt.Sprintf(`outDir: %s
 	logLevel: 0 
 	logConsole: false
 	writeTo: JSON
-	packageInference: true`, dir)
+	packageInference: true
+	filterFile: %s`, outDir, filterfilePath)
 
 	log.Infof("Writing to %s with config:\n%s", iniFile, data)
 	f, err := fs.Create(iniFile)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create config file %s", iniFile))
-		return "", err
+		return "", "", err
 	}
 
 	_, err = f.WriteString(data)
 	defer f.Close()
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not write %s to config file %s", data, iniFile))
-		return "", err
+		return "", "", err
 	}
 
-	return iniFile, nil //path of config.ini file
+	return iniFile, filterfilePath, nil //path of config.ini file
 }
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
-func getPreCmd(tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+func getPreCmd(tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string, runV2Config *api.RunTestsV2Config) (string, string, error) {
 	var preCmd string
-	iniFilePath, err := createJavaConfigFile(tmpFilePath, fs, log)
+
+	splitIdx := 0
+	if instrumentation.IsParallelismEnabled(envs) {
+
+		//TODO:V2 - Add all logic inside this if once we have the specs
+		// if runV2Config.ParallelizeTests {
+		// }
+
+		log.Infoln("Initializing settings for test splitting and parallelism")
+		splitIdx, _ = instrumentation.GetSplitIdxAndTotal(envs)
+
+	}
+
+	iniFilePath, filterFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, splitIdx)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create java agent config file in path %s", iniFilePath))
-		return "", err
+		return "", "", err
 	}
 
 	err = writetoBazelrcFile(iniFilePath, log, fs, tmpFilePath)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("failed to write in .bazelrc file"))
-		return "", err
+		return "", "", err
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
 	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
-	return preCmd, nil
+	return preCmd, filterFilePath, nil
 }
 
 func downloadJavaAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) error {
@@ -252,17 +281,19 @@ func downloadJavaAgent(ctx context.Context, path string, fs filesystem.FileSyste
 
 // This is nothing but filterfile where all the tests selected will be stored
 func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
-	tiConfig *tiCfg.Cfg, path string) error {
+	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string) error {
 
 	isManualExecution := utils.IsManualExecution(tiConfig)
-	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig)
-	dir := filepath.Join(path, filterDir)
-	err := fs.MkdirAll(dir, os.ModePerm)
+	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig, envs, runV2Config)
+
+	filterFileDir := fmt.Sprintf(filterV2Dir, tmpFilepath)
+
+	err := fs.MkdirAll(filterFileDir, os.ModePerm)
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", dir))
+		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", filterFileDir))
 		return err
 	}
-	err = filter.PopulateItemInFilterFile(resp, dir, fs, isFilterFilePresent)
+	err = filter.PopulateItemInFilterFile(resp, filterFilePath, fs, isFilterFilePresent)
 
 	if err != nil {
 		return err
