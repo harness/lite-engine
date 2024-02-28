@@ -15,7 +15,9 @@ import (
 
 func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filePath string, fs filesystem.FileSystem, isFilterFilePresent bool) error {
 
+	fmt.Println("Entry: PopulateItemInFilterFile")
 	if !isFilterFilePresent { // If filter file is not present then we will simply run all the test cases
+		log.Println("Filter File not present running all the tests")
 		return nil
 	}
 
