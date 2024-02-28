@@ -40,7 +40,7 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	cmd.Stdout = output
 
 	startTime := time.Now()
-	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on host for step %s", step.ID))
+	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on host for step %s %s", step.ID, step.Name))
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}

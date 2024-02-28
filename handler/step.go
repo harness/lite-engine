@@ -53,6 +53,7 @@ func HandleStartStep(e *pruntime.StepExecutor) http.HandlerFunc {
 		logger.FromRequest(r).
 			WithField("latency", time.Since(st)).
 			WithField("time", time.Now().Format(time.RFC3339)).
+			WithField("name", s.Name).
 			Infoln("api: successfully started the step")
 	}
 }
