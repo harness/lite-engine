@@ -421,9 +421,8 @@ func getAllJavaFilesInsideDirectory(directory string, changedFiles []ti.File, fi
 // to be run corresponding to that.
 func SelectTests(ctx context.Context, workspace string, files []ti.File, runSelected bool, stepID string,
 	fs filesystem.FileSystem, cfg *tiCfg.Cfg) (ti.SelectTestsResp, error) {
-
-	Log := logrus.New()                                           // Revert
-	Log.Infoln("We have reached there to see the test selection") //Revert
+	Log := logrus.New() // Revert
+	Log.Infoln("Info: starting test selection")
 	tiConfigYaml, err := getTiConfig(workspace, fs)
 	if err != nil {
 		return ti.SelectTestsResp{}, err
@@ -734,4 +733,23 @@ func IsStageParallelismEnabled(envs map[string]string) bool {
 
 func IsParallelismEnabled(envs map[string]string) bool {
 	return IsStepParallelismEnabled(envs) || IsStageParallelismEnabled(envs)
+}
+
+// GetSplitIdxAndTotal returns splitIdx and SplitTotal based on step envs
+func GetSplitIdxAndTotal(envs map[string]string) (int, int) {
+	stepIdx, _ := GetStepStrategyIteration(envs)
+	stepTotal, _ := GetStepStrategyIterations(envs)
+	if !IsStepParallelismEnabled(envs) {
+		stepIdx = 0
+		stepTotal = 1
+	}
+	stageIdx, _ := GetStageStrategyIteration(envs)
+	stageTotal, _ := GetStageStrategyIterations(envs)
+	if !IsStageParallelismEnabled(envs) {
+		stageIdx = 0
+		stageTotal = 1
+	}
+	splitIdx := stepTotal*stageIdx + stepIdx
+	splitTotal := stepTotal * stageTotal
+	return splitIdx, splitTotal
 }

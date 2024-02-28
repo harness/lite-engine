@@ -122,7 +122,7 @@ type (
 		Entrypoint []string `json:"entrypoint,omitempty"`
 	}
 
-	RunTestsV2Config struct { //same as Run
+	RunTestsV2Config struct {
 		Command    []string `json:"commands,omitempty"`
 		Entrypoint []string `json:"entrypoint,omitempty"`
 	}

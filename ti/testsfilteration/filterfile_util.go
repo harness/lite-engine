@@ -13,18 +13,18 @@ import (
 	"github.com/harness/ti-client/types"
 )
 
-func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filePath string, fs filesystem.FileSystem, isFilterFilePresent bool) error {
-
+func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filterFilePath string, fs filesystem.FileSystem, isFilterFilePresent bool) error {
+	fmt.Println("Entry: PopulateItemInFilterFile")
 	if !isFilterFilePresent { // If filter file is not present then we will simply run all the test cases
+		log.Println("Filter File not present running all the tests")
 		return nil
 	}
-
 	log.Println("Creating filter file......")
 	testResp := selectTestResp.Tests
-	filterFile := fmt.Sprintf("%s/filter", filePath)
-	f, err := fs.Create(filterFile)
+
+	f, err := fs.Create(filterFilePath)
 	if err != nil {
-		log.Println(fmt.Sprintf("could not create file %s", filterFile), err)
+		log.Println(fmt.Sprintf("could not create file %s", filterFilePath), err)
 		return err
 	}
 
@@ -44,7 +44,7 @@ func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filePath str
 
 	_, err = f.Write([]byte(data))
 	if err != nil {
-		log.Println(fmt.Sprintf("could not write %s to file %s", data, filterFile), err)
+		log.Println(fmt.Sprintf("could not write %s to file %s", data, filterFilePath), err)
 		return err
 	}
 
