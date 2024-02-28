@@ -192,6 +192,9 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 		log.Infoln("Assigning all tests equal weight for splitting as default strategy")
 	}
 
+	log.Info("current testset==", currentTestSet)
+	log.Info("current testsetmap==", currentTestMap)
+
 	// Assign weights to the current test set if present, else average. If there are no
 	// weights for taking average, set the weight as 1 to all the tests
 	testsplitter.ProcessFiles(fileTimes, currentTestSet, float64(1))
@@ -199,6 +202,7 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 	// Split tests into buckets and return tests from the current node's bucket
 	testsToRun := make([]ti.RunnableTest, 0)
 	buckets, _ := testsplitter.SplitFiles(fileTimes, splitTotal)
+	log.Println("Buckets to see==", buckets)
 	for _, id := range buckets[splitIdx] {
 		if _, ok := currentTestMap[id]; !ok {
 			// This should not happen
@@ -734,4 +738,22 @@ func IsStageParallelismEnabled(envs map[string]string) bool {
 
 func IsParallelismEnabled(envs map[string]string) bool {
 	return IsStepParallelismEnabled(envs) || IsStageParallelismEnabled(envs)
+}
+
+func GetSplitIdxAndTotal(envs map[string]string) (int, int) {
+	stepIdx, _ := GetStepStrategyIteration(envs)
+	stepTotal, _ := GetStepStrategyIterations(envs)
+	if !IsStepParallelismEnabled(envs) {
+		stepIdx = 0
+		stepTotal = 1
+	}
+	stageIdx, _ := GetStageStrategyIteration(envs)
+	stageTotal, _ := GetStageStrategyIterations(envs)
+	if !IsStageParallelismEnabled(envs) {
+		stageIdx = 0
+		stageTotal = 1
+	}
+	splitIdx := stepTotal*stageIdx + stepIdx
+	splitTotal := stepTotal * stageTotal
+	return splitIdx, splitTotal
 }
