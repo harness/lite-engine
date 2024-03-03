@@ -53,7 +53,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	var files []ti.File
 	var err error
 	if IsPushTriggerExecution(tiConfig) {
-		lastSuccessfulCommitID, commitErr := getCommitInfo(ctx, stepID, tiConfig)
+		lastSuccessfulCommitID, commitErr := GetCommitInfo(ctx, stepID, tiConfig)
 		if commitErr != nil {
 			log.Infoln("Failed to get reference commit", "error", commitErr)
 			config.RunOnlySelectedTests = false // TI selected all the tests to be run
@@ -65,14 +65,14 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			return selection, moduleList
 		}
 		log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
-		files, err = getChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
+		files, err = GetChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
 		if err != nil {
 			log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
 			config.RunOnlySelectedTests = false
 			return selection, moduleList
 		}
 	} else {
-		files, err = getChangedFilesPR(ctx, workspace, log)
+		files, err = GetChangedFilesPR(ctx, workspace, log)
 		if err != nil || len(files) == 0 {
 			log.Errorln("Unable to get changed files list for PR. Running all the tests.", "error", err)
 			config.RunOnlySelectedTests = false
@@ -83,7 +83,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 
 	// Call TI svc only when there is a chance of running selected tests
 	filesWithPkg := runner.ReadPackages(workspace, files)
-	selection, err = selectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
+	selection, err = SelectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
 	selection = filterTestsAfterSelection(selection, config.TestGlobs)
 	if err != nil {
 		log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
@@ -127,6 +127,58 @@ func checkForBazelOptimization(ctx context.Context, workspace string, fs filesys
 	return files, moduleList, nil
 }
 
+// ComputeSelectedTestsV2 updates TI selection depending on the split strategy
+// AutoDetectTests output and parallelism configuration
+func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Config, log *logrus.Logger,
+	selection *ti.SelectTestsResp, stepID, workspace string, envs map[string]string, tiConfig *tiCfg.Cfg) {
+	//TODO:V2 - need to add in spec
+	// if !runConfigV2.ParallelizeTests {
+	// 	log.Infoln("Skipping test splitting as requested")
+	// 	return
+	// }
+
+	// if runConfigV2.RunOnlySelectedTests && len(selection.Tests) == 0 {
+	// 	// TI returned zero test cases to run. Skip parallelism as
+	// 	// there are no tests to run
+	// 	return
+	// }
+
+	// Adding only this remove this condition later when we have complete specs
+	if len(selection.Tests) == 0 {
+		// TI returned zero test cases to run. Skip parallelism as
+		// there are no tests to run
+		return
+	}
+	splitIdx, splitTotal := GetSplitIdxAndTotal(envs)
+	tests := make([]ti.RunnableTest, 0)
+
+	//TODO:V2 - add after we have specs
+	// if !runConfigV2.RunOnlySelectedTests {
+	// 	//Add Autodetect logic for full run
+	// }
+
+	if len(selection.Tests) > 0 {
+		// In case of intelligent runs, split the tests from TI SelectTests API response
+		tests = selection.Tests
+	}
+
+	// Split the tests and send the split slice to the runner
+	splitTests, err := getSplitTests(ctx, log, tests, stepID, defaultTestSplitStrategy, splitIdx, splitTotal, tiConfig)
+	if err != nil {
+		// Error while splitting by input strategy, splitting tests equally
+		log.Errorln("Error occurred while splitting the tests by default split strategy. Splitting tests equally")
+		splitTests, _ = getSplitTests(ctx, log, tests, stepID, countTestSplitStrategy, splitIdx, splitTotal, tiConfig)
+	}
+	log.Infoln(fmt.Sprintf("Test split for this run: %s", formatTests(splitTests)))
+
+	// Modify selections to run only selected tests
+	selection.Tests = splitTests
+
+	//TODO:V2
+	// config.RunOnlySelectedTests = true
+
+}
+
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
 // AutoDetectTests output and parallelism configuration
 func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *logrus.Logger, runner TestRunner,
@@ -142,20 +194,7 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	}
 	log.Infoln("Splitting the tests as parallelism is enabled")
 
-	stepIdx, _ := GetStepStrategyIteration(envs)
-	stepTotal, _ := GetStepStrategyIterations(envs)
-	if !IsStepParallelismEnabled(envs) {
-		stepIdx = 0
-		stepTotal = 1
-	}
-	stageIdx, _ := GetStageStrategyIteration(envs)
-	stageTotal, _ := GetStageStrategyIterations(envs)
-	if !IsStageParallelismEnabled(envs) {
-		stageIdx = 0
-		stageTotal = 1
-	}
-	splitIdx := stepTotal*stageIdx + stepIdx
-	splitTotal := stepTotal * stageTotal
+	splitIdx, splitTotal := GetSplitIdxAndTotal(envs)
 
 	tests := make([]ti.RunnableTest, 0)
 	if !config.RunOnlySelectedTests {

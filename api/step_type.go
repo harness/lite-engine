@@ -16,6 +16,7 @@ type StepType int
 const (
 	Run StepType = iota
 	RunTest
+	RunTestsV2
 )
 
 func (s StepType) String() string {
@@ -23,14 +24,16 @@ func (s StepType) String() string {
 }
 
 var stepTypeID = map[StepType]string{
-	Run:     "Run",
-	RunTest: "RunTest",
+	Run:        "Run",
+	RunTest:    "RunTest",
+	RunTestsV2: "RunTestsV2",
 }
 
 var stepTypeName = map[string]StepType{
-	"":        Run,
-	"Run":     Run,
-	"RunTest": RunTest,
+	"":           Run,
+	"Run":        Run,
+	"RunTest":    RunTest,
+	"RunTestsV2": RunTestsV2,
 }
 
 // MarshalJSON marshals the string representation of the

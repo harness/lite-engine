@@ -24,6 +24,10 @@ import (
 	easyFormatter "github.com/t-tomalak/logrus-easy-formatter"
 )
 
+const (
+	cgDir = "%s/ti/callgraph/" // path where callgraph files will be generated
+)
+
 var (
 	collectCgFn          = callgraph.Upload
 	collectTestReportsFn = report.ParseAndUploadTests
@@ -112,7 +116,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 // collectRunTestData collects callgraph and test reports after executing the step
 func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
 	cgStart := time.Now()
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig)
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, cgDir)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
