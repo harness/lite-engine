@@ -270,7 +270,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		// Get the tests and module test targets that need to be run if we are running selected tests
 		selection, modules = getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
 		// Install agent artifacts if not present
-		artifactDir, err = installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log, cfg)
+		artifactDir, err = InstallAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log, cfg)
 		if err != nil {
 			return "", err
 		}

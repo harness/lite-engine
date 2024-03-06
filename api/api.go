@@ -125,6 +125,8 @@ type (
 	RunTestsV2Config struct {
 		Command    []string `json:"commands,omitempty"`
 		Entrypoint []string `json:"entrypoint,omitempty"`
+		Language   string   `json:"language,omitempty"`
+		TestGlobs  string   `json:"test_globs,omitempty"`
 	}
 
 	RunTestConfig struct {

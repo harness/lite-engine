@@ -505,7 +505,7 @@ func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 
 // installAgents checks if the required artifacts are installed for the language
 // and if not, installs them. It returns back the directory where all the agents are installed.
-func installAgents(ctx context.Context, baseDir, language, os, arch, framework string,
+func InstallAgents(ctx context.Context, baseDir, language, os, arch, framework string,
 	fs filesystem.FileSystem, log *logrus.Logger, config *tiCfg.Cfg) (string, error) {
 	// Get download links from TI service
 	c := config.GetClient()
