@@ -31,7 +31,7 @@ const (
 	javaAgentV2Arg  = "-javaagent:%s=%s"
 	javaAgentV2Jar  = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
 	javaAgentV2Path = "/java/v2/"
-	javaAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/2c00846e51ec6af9a200e0bb4a540d7eef03b6fb/java-agent-trampoline-0.0.1-SNAPSHOT-latest.jar" // Will be changed later
+	javaAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/b5fc50e9d73eec05910098a469927114be8ffad5/java-agent-trampoline-0.0.1-SNAPSHOT-latest.jar" // Will be changed later
 	filterV2Dir     = "%s/ti/v2/filter"
 	configV2Dir     = "%s/ti/v2/config"
 	bazelrcV2Dir    = "%s/ti/v2/bazelrc_%d"
