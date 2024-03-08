@@ -74,7 +74,7 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	if runAll {
 		rspecGlob := ""
 		if len(m.testGlobs) > 0 {
-			rspecGlob = strings.Join(m.testGlobs, " ")
+			rspecGlob = "--pattern " + strings.Join(m.testGlobs, " ")
 		}
 		if ignoreInstr {
 			return strings.TrimSpace(fmt.Sprintf("%s %s %s %s", installReportCmd, rspecCmd, userArgs, rspecGlob)), nil
