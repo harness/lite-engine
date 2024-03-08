@@ -33,7 +33,7 @@ const (
 	javaAgentV2Jar  = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
 	javaAgentV2Path = "/java/v2/"
 	javaAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" // Will be changed later
-	rubyAgentV2Url  = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip" // Will be changed later
+	rubyAgentV2Url  = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"                                                                          // Will be changed later
 	filterV2Dir     = "%s/ti/v2/filter"
 	configV2Dir     = "%s/ti/v2/java/config"
 	bazelrcV2Dir    = "%s/ti/v2/bazelrc_%d"
@@ -204,7 +204,7 @@ func createOutDir(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger) (
 	return outDir, nil
 }
 
-func getFilterFilePath(tmpDir string , splitIdx int) (string) {
+func getFilterFilePath(tmpDir string, splitIdx int) string {
 	filterFileDir := fmt.Sprintf(filterV2Dir, tmpDir)
 
 	//filterfilePath will look like /tmp/engine/ti/v2/filter/filter_1...
@@ -222,7 +222,6 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 	}
 	//create file paths with splitidx for splitting
 	iniFile := fmt.Sprintf("%s/config_%d.ini", iniFileDir, splitIdx)
-
 
 	data := fmt.Sprintf(`outDir: %s
 	logLevel: 0
@@ -287,7 +286,6 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
 	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s export BAZEL_SYSTEM_BAZELRC_PATH=%s", agentArg, bazelfilepath)
 
-	
 	// Ruby
 	envs["TI_OUTPUT_PATH"] = outDir
 	envs["TI"] = "1"
