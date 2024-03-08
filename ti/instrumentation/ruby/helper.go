@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
@@ -19,11 +20,7 @@ import (
 )
 
 var (
-<<<<<<< Updated upstream
 	defaultTestGlobs = []string{"spec/**{,/*/**}/*_spec.rb"}
-=======
-	defaultTestGlobs = []string{"**/spec/**{,/*/**}/*_spec.rb", "**/spec/**{,/*/**}/*_spec.rb"}
->>>>>>> Stashed changes
 )
 
 func getRubyTestsFromPattern(workspace string, testGlobs []string, log *logrus.Logger) []ti.RunnableTest {
@@ -31,7 +28,10 @@ func getRubyTestsFromPattern(workspace string, testGlobs []string, log *logrus.L
 	// iterate over all the test globs
 	for _, testGlob := range testGlobs {
 		// find all the files matching the glob
-		matches, err := zglob.Glob(filepath.Join(workspace, testGlob))
+		if !strings.HasPrefix(testGlob, "**") && !strings.HasPrefix(testGlob, "/") {
+			testGlob = filepath.Join(workspace, testGlob)
+		}
+		matches, err := zglob.Glob(testGlob)
 		if err != nil {
 			log.Info(fmt.Sprintf("could not find ruby tests using %s: %s", testGlob, err))
 		}
