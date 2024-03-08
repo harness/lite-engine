@@ -77,9 +77,9 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			rspecGlob = strings.Join(m.testGlobs, " ")
 		}
 		if ignoreInstr {
-			return strings.TrimSpace(fmt.Sprintf("%s %s %s %s", installReportCmd, rspecCmd, userArgs, rspecGlob)), nil
+			return strings.TrimSpace(fmt.Sprintf("%s %s %s --pattern %s", installReportCmd, rspecCmd, userArgs, rspecGlob)), nil
 		}
-		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s %s",
+		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s --pattern %s",
 			installReportCmd, installAgentCmd, tiFlag, rspecCmd, userArgs, rspecGlob))
 		return testCmd, nil
 	}

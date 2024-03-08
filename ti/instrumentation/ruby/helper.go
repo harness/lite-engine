@@ -19,7 +19,11 @@ import (
 )
 
 var (
+<<<<<<< Updated upstream
 	defaultTestGlobs = []string{"spec/**{,/*/**}/*_spec.rb"}
+=======
+	defaultTestGlobs = []string{"**/spec/**{,/*/**}/*_spec.rb", "**/spec/**{,/*/**}/*_spec.rb"}
+>>>>>>> Stashed changes
 )
 
 func getRubyTestsFromPattern(workspace string, testGlobs []string, log *logrus.Logger) []ti.RunnableTest {
