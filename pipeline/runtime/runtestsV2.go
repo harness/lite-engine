@@ -287,9 +287,9 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s export BAZEL_SYSTEM_BAZELRC_PATH=%s", agentArg, bazelfilepath)
 
 	// Ruby
-	envs["TI_OUTPUT_PATH"] = outDir
 	envs["TI"] = "1"
 	envs["TI_V2"] = "1"
+	envs["TI_OUTPUT_PATH"] = outDir
 	envs["TI_FILTER_FILE_PATH"] = filterFilePath
 
 	repoPath, err := ruby.UnzipAndGetTestInfo(artifactDir, log)
