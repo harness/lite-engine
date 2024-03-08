@@ -35,7 +35,7 @@ const (
 	javaAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" // Will be changed later
 	rubyAgentV2Url  = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip" // Will be changed later
 	filterV2Dir     = "%s/ti/v2/filter"
-	configV2Dir     = "%s/ti/v2/config"
+	configV2Dir     = "%s/ti/v2/java/config"
 	bazelrcV2Dir    = "%s/ti/v2/bazelrc_%d"
 )
 
@@ -204,29 +204,25 @@ func createOutDir(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger) (
 	return outDir, nil
 }
 
-func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger, splitIdx int) (string, string, error) {
-
-	outDir := fmt.Sprintf(outDir, tmpDir)
-	err := fs.MkdirAll(outDir, os.ModePerm)
-	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not create nested Output directory %s", outDir))
-		return "", "", err
-	}
-
-	iniFileDir := fmt.Sprintf(configV2Dir, tmpDir)
-	err = fs.MkdirAll(iniFileDir, os.ModePerm)
-	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", iniFileDir))
-		return "", "", err
-	}
-
-	//create file paths with splitidx for splitting
-	iniFile := fmt.Sprintf("%s/config_%d.ini", iniFileDir, splitIdx)
-
+func getFilterFilePath(tmpDir string , splitIdx int) (string) {
 	filterFileDir := fmt.Sprintf(filterV2Dir, tmpDir)
 
 	//filterfilePath will look like /tmp/engine/ti/v2/filter/filter_1...
 	filterfilePath := fmt.Sprintf("%s/filter_%d", filterFileDir, splitIdx)
+
+	return filterfilePath
+}
+
+func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger, filterfilePath, outDir string, splitIdx int) (string, error) {
+	iniFileDir := fmt.Sprintf(configV2Dir, tmpDir)
+	err := fs.MkdirAll(iniFileDir, os.ModePerm)
+	if err != nil {
+		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", iniFileDir))
+		return "", err
+	}
+	//create file paths with splitidx for splitting
+	iniFile := fmt.Sprintf("%s/config_%d.ini", iniFileDir, splitIdx)
+
 
 	data := fmt.Sprintf(`outDir: %s
 	logLevel: 0
@@ -239,17 +235,17 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 	f, err := fs.Create(iniFile)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create config file %s", iniFile))
-		return "", "", err
+		return "", err
 	}
 
 	_, err = f.WriteString(data)
 	defer f.Close()
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not write %s to config file %s", data, iniFile))
-		return "", "", err
+		return "", err
 	}
 
-	return iniFile, filterfilePath, nil //path of config.ini file
+	return iniFile, nil //path of config.ini file
 }
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
@@ -268,8 +264,15 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 
 	}
 
+	outDir, err := createOutDir(tmpFilePath, fs, log)
+	if err != nil {
+		return "", "", err
+	}
+
+	filterFilePath := getFilterFilePath(tmpFilePath, splitIdx)
+
 	// Java
-	iniFilePath, filterFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, splitIdx)
+	iniFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create java agent config file in path %s", iniFilePath))
 		return "", "", err
@@ -286,12 +289,6 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 
 	
 	// Ruby
-	outDir, err := createOutDir(tmpFilePath, fs, log)
-	if err != nil {
-		return "", "", err
-	}
-
-
 	envs["TI_OUTPUT_PATH"] = outDir
 	envs["TI"] = "1"
 	envs["TI_V2"] = "1"
