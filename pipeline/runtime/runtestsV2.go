@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
-	pipelineRuntime "github.com/drone/runner-go/pipeline/runtime"
+	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/internal/filesystem"
@@ -40,7 +40,7 @@ const (
 )
 
 // Ignoring optimization state for now
-func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) (*pipelineRuntime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
+func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
 	tmpFilePath := tiConfig.GetDataDir()
 	fs := filesystem.New()
