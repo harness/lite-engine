@@ -124,11 +124,13 @@ func Test_downloadJavaAgent(t *testing.T) {
 
 func Test_getPreCmd(t *testing.T) {
 	type args struct {
+		workspace   string
 		tmpFilePath string
 		fs          filesystem.FileSystem
 		log         *logrus.Logger
 		envs        map[string]string
 		runV2Config *api.RunTestsV2Config
+		artifactDir string
 	}
 	tests := []struct {
 		name    string
@@ -141,7 +143,7 @@ func Test_getPreCmd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := getPreCmd(tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.runV2Config)
+			got, got1, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.runV2Config, tt.args.artifactDir)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getPreCmd() error = %v, wantErr %v", err, tt.wantErr)
 				return

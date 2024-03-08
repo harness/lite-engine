@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-	"runtime"
 
 	pipelineRuntime "github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
@@ -34,7 +33,7 @@ const (
 	javaAgentV2Jar  = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
 	javaAgentV2Path = "/java/v2/"
 	javaAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" // Will be changed later
-	rubyAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" // Will be changed later
+	rubyAgentV2Url  = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip" // Will be changed later
 	filterV2Dir     = "%s/ti/v2/filter"
 	configV2Dir     = "%s/ti/v2/config"
 	bazelrcV2Dir    = "%s/ti/v2/bazelrc_%d"
@@ -49,30 +48,19 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 	log.Out = out
 	optimizationState := types.DISABLED
 
-	if r.RunTestsV2.Language == "" {
-		majorityLang, err := detectMajorityLanguage(r.WorkingDir)
-		if err != nil || majorityLang == "" {
-			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to find language for RunTest. Use RunStep instead")
-		}
-		r.RunTestsV2.Language = majorityLang
-	}
-
 	err := downloadJavaAgent(ctx, tmpFilePath, fs, log)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Java agent")
 	}
 
 	artifactDir, err := downloadRubyAgent(ctx, tmpFilePath, fs, log)
-
-	// artifactDir, err := instrumentation.InstallAgents(ctx, tmpFilePath, r.RunTestsV2.Language, runtime.GOOS, runtime.GOARCH, "", fs, log, tiConfig)
-	// if err != nil {
-	// 	return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to install agent for %s", r.RunTestsV2.Language)
-	// }
-
+	if err != nil {
+		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Ruby agent")
+	}
 
 	preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, &r.RunTestsV2, artifactDir)
 	if err != nil {
-		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent")
+		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 	}
 
 	commands := fmt.Sprintf("%s\n%s", preCmd, r.RunTestsV2.Command[0])
@@ -185,12 +173,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 			return selection, false // TI selected all the tests to be run
 		}
 	}
-	var filesWithpkg []types.File
-	if runV2Config.Language == "java" {
-		filesWithpkg = java.ReadPkgs(log, fs, workspace, files)
-	} else if runV2Config.Language == "ruby" {
-		filesWithpkg = files
-	}
+	filesWithpkg := java.ReadPkgs(log, fs, workspace, files)
 	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, true, stepID, fs, tiConfig)
 	if err != nil {
 		log.WithError(err).Errorln("An unexpected error occurred during test selection. Running all tests.")
@@ -285,50 +268,46 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 
 	}
 
-	if runV2Config.Language == "java" {
-		iniFilePath, filterFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, splitIdx)
-		if err != nil {
-			log.WithError(err).Errorln(fmt.Sprintf("could not create java agent config file in path %s", iniFilePath))
-			return "", "", err
-		}
-	
-		bazelfilepath, err := writetoBazelrcFile(iniFilePath, log, fs, tmpFilePath, splitIdx)
-		if err != nil {
-			log.WithError(err).Errorln("failed to write in .bazelrc file")
-			return "", "", err
-		}
-		javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
-		agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-		preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s export BAZEL_SYSTEM_BAZELRC_PATH=%s", agentArg, bazelfilepath)
-		return preCmd, filterFilePath, nil
-	} else if runV2Config.Language == "ruby" {
-
-		outDir, err := createOutDir(tmpFilePath, fs, log)
-		if err != nil {
-			return "", "", err
-		}
-		filterFileDir := fmt.Sprintf(filterV2Dir, tmpFilePath)
-		//filterfilePath will look like /tmp/engine/ti/v2/filter/filter_1...
-		filterfilePath := fmt.Sprintf("%s/filter_%d", filterFileDir, splitIdx)
-
-		envs["TI_OUTPUT_PATH"] = outDir
-		envs["TI"] = "1"
-		envs["TI_V2"] = "1"
-		envs["TI_FILTER_FILE_PATH"] = filterfilePath
-
-		repoPath, err := ruby.UnzipAndGetTestInfo(artifactDir, log)
-		if err != nil {
-			return "", "", err
-		}
-		preCmd = fmt.Sprintf("bundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
-		err = ruby.WriteRspecFile(workspace, repoPath)
-		if err != nil {
-			log.Errorln("Unable to write rspec-local file automatically", err)
-			return "", "", err
-		}
+	// Java
+	iniFilePath, filterFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, splitIdx)
+	if err != nil {
+		log.WithError(err).Errorln(fmt.Sprintf("could not create java agent config file in path %s", iniFilePath))
+		return "", "", err
 	}
 
-	return "", "", fmt.Errorf("Language %s not supported", runV2Config.Language)
+	bazelfilepath, err := writetoBazelrcFile(iniFilePath, log, fs, tmpFilePath, splitIdx)
+	if err != nil {
+		log.WithError(err).Errorln("failed to write in .bazelrc file")
+		return "", "", err
+	}
+	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
+	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
+	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s export BAZEL_SYSTEM_BAZELRC_PATH=%s", agentArg, bazelfilepath)
+
+	
+	// Ruby
+	outDir, err := createOutDir(tmpFilePath, fs, log)
+	if err != nil {
+		return "", "", err
+	}
+
+
+	envs["TI_OUTPUT_PATH"] = outDir
+	envs["TI"] = "1"
+	envs["TI_V2"] = "1"
+	envs["TI_FILTER_FILE_PATH"] = filterFilePath
+
+	repoPath, err := ruby.UnzipAndGetTestInfo(artifactDir, log)
+	if err != nil {
+		return "", "", err
+	}
+	preCmd = preCmd + fmt.Sprintf("\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
+	err = ruby.WriteRspecFile(workspace, repoPath)
+	if err != nil {
+		log.Errorln("Unable to write rspec-local file automatically", err)
+		return "", "", err
+	}
+	return preCmd, filterFilePath, nil
 }
 
 func downloadJavaAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) error {
@@ -434,59 +413,15 @@ func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.Sta
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
 	}
 
+	if len(r.TestReport.Junit.Paths) == 0 {
+		// If there are no paths specified, set Paths[0] to include all XML files
+		r.TestReport.Junit.Paths = []string{"**/*.xml"}
+	}
+
 	reportStart := time.Now()
 	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, r.Envs)
 	if crErr != nil {
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
 	}
 	return cgErr
-}
-
-func detectMajorityLanguage(rootDir string) (string, error) {
-	extensionCounts := make(map[string]int)
-
-	err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		extension := filepath.Ext(path)
-		if extension == ".scala" || extension == ".kt" {
-			extension = ".java"
-		}
-		extensionCounts[extension]++
-
-		return nil
-	})
-
-	if err != nil {
-		return "", err
-	}
-
-	// Find the extension with the highest count
-	majorityExtension := ""
-	maxCount := 0
-	for ext, count := range extensionCounts {
-		if count > maxCount {
-			majorityExtension = ext
-			maxCount = count
-		}
-	}
-
-	// Return the language associated with the majority extension
-	return getLanguage(majorityExtension), nil
-}
-
-func getLanguage(extension string) string {
-	extensionToLang := map[string]string{
-		".java": "java",
-		".cs":   "charp",
-		".py":   "python",
-		".rb":   "ruby",
-	}
-	return extensionToLang[extension]
 }
