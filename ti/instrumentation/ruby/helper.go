@@ -118,7 +118,7 @@ func WriteRspecFile(workspace, repoPath string) error {
 	defer file.Close()
 
 	// Write the required line to the file
-	if _, err := file.WriteString(fmt.Sprintf("--require \"%s\"\n", scriptPath)); err != nil {
+	if _, err := file.WriteString(fmt.Sprintf("--require %q\n", scriptPath)); err != nil {
 		return fmt.Errorf("failed to write to .rspec-local file: %v", err)
 	}
 	return nil
