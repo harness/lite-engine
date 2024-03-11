@@ -43,6 +43,14 @@ func fakeExecCommand2(ctx context.Context, command string, args ...string) *exec
 	return cmd
 }
 
+func fakeExecCommand3(ctx context.Context, command string, args ...string) *exec.Cmd {
+	cs := []string{"-test.run=TestHelperProcess3", "--", command}
+	cs = append(cs, args...)
+	cmd := exec.CommandContext(ctx, os.Args[0], cs...) //nolint:gosec
+	cmd.Env = []string{"GO_WANT_HELPER_PROCESS=1"}
+	return cmd
+}
+
 func TestHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
@@ -56,6 +64,14 @@ func TestHelperProcess2(_ *testing.T) {
 		return
 	}
 	fmt.Fprintf(os.Stdout, bazelQuery) //nolint:staticcheck
+	os.Exit(0)
+}
+
+func TestHelperProcess3(_ *testing.T) {
+	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
+		return
+	}
+	fmt.Fprintf(os.Stdout, "//module1:io.harness.SomeTest") //nolint:staticcheck
 	os.Exit(0)
 }
 
@@ -121,6 +137,10 @@ func TestGetBazelCmd_TestsWithModuleRules(t *testing.T) {
 	runner := NewBazelRunner(log, fs)
 	runnerArg := common.RunnerArgs{}
 	runnerArg.ModuleList = []string{"module1", "module3"}
+	execCmdCtx = fakeExecCommand3
+	defer func() {
+		execCmdCtx = exec.CommandContext
+	}()
 
 	t1 := ti.RunnableTest{Pkg: "pkg2", Class: "cls1"}
 	t1.Autodetect.Rule = "//module1:pkg2.cls1"
