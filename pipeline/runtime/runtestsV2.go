@@ -246,8 +246,7 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 }
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string,
-	runV2Config *api.RunTestsV2Config, artifactDir string) (preCmd, filterFilePath string, err error) {
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string, artifactDir string) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
