@@ -40,7 +40,8 @@ const (
 )
 
 // Ignoring optimization state for now
-func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) { //nolint:funlen,gocritic,gocyclo
+func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer,
+	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) { //nolint:funlen,gocritic,gocyclo
 	start := time.Now()
 	tmpFilePath := tiConfig.GetDataDir()
 	fs := filesystem.New()
