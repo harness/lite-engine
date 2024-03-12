@@ -296,7 +296,6 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 }
 
 func downloadJavaAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) error {
-
 	javaAgentPath := fmt.Sprintf("%s%s", javaAgentV2Path, javaAgentV2Jar)
 	dir := filepath.Join(path, javaAgentPath)
 	err := instrumentation.DownloadFile(ctx, dir, javaAgentV2Url, fs)
