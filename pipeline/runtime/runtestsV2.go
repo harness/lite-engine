@@ -58,7 +58,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Ruby agent")
 	}
 
-	preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, &r.RunTestsV2, artifactDir)
+	preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, artifactDir)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 	}
@@ -286,7 +286,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	if err != nil {
 		return "", "", err
 	}
-	preCmd += fmt.Sprintf("\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
+	preCmd += fmt.Sprintf("\nbundle add harness_ruby_agent --path %q --version %q 2>/dev/null || true;", repoPath, "0.0.1")
 	err = ruby.WriteRspecFile(workspace, repoPath)
 	if err != nil {
 		log.Errorln("Unable to write rspec-local file automatically", err)

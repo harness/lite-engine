@@ -138,7 +138,6 @@ func Test_getPreCmd(t *testing.T) {
 		fs          filesystem.FileSystem
 		log         *logrus.Logger
 		envs        map[string]string
-		runV2Config *api.RunTestsV2Config
 		artifactDir string
 	}
 	tests := []struct {
@@ -152,7 +151,7 @@ func Test_getPreCmd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.runV2Config, tt.args.artifactDir)
+			got, got1, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.artifactDir)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getPreCmd() error = %v, wantErr %v", err, tt.wantErr)
 				return
