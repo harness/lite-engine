@@ -92,7 +92,6 @@ func Test_createSelectedTestFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			//nolint:gocritic
 			if err := createSelectedTestFile(tt.args.ctx, 
 				tt.args.fs, 
 				tt.args.stepID, 
