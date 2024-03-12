@@ -40,9 +40,7 @@ const (
 )
 
 // Ignoring optimization state for now
-//
-//nolint:gocritic
-func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
+func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) { //nolint:funlen,gocritic,gocyclo
 	start := time.Now()
 	tmpFilePath := tiConfig.GetDataDir()
 	fs := filesystem.New()
@@ -248,7 +246,8 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 }
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string, runV2Config *api.RunTestsV2Config, artifactDir string) (preCmd, filterFilePath string, err error) {
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string,
+	runV2Config *api.RunTestsV2Config, artifactDir string) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
