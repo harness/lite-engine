@@ -92,7 +92,16 @@ func Test_createSelectedTestFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := createSelectedTestFile(tt.args.ctx, tt.args.fs, tt.args.stepID, tt.args.workspace, tt.args.log, tt.args.tiConfig, tt.args.tmpFilepath, tt.args.envs, tt.args.runV2Config, tt.args.filterFilePath); (err != nil) != tt.wantErr {
+			if err := createSelectedTestFile(tt.args.ctx,
+				tt.args.fs,
+				tt.args.stepID,
+				tt.args.workspace,
+				tt.args.log,
+				tt.args.tiConfig,
+				tt.args.tmpFilepath,
+				tt.args.envs,
+				tt.args.runV2Config,
+				tt.args.filterFilePath); (err != nil) != tt.wantErr {
 				t.Errorf("createSelectedTestFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -124,11 +133,12 @@ func Test_downloadJavaAgent(t *testing.T) {
 
 func Test_getPreCmd(t *testing.T) {
 	type args struct {
+		workspace   string
 		tmpFilePath string
 		fs          filesystem.FileSystem
 		log         *logrus.Logger
 		envs        map[string]string
-		runV2Config *api.RunTestsV2Config
+		artifactDir string
 	}
 	tests := []struct {
 		name    string
@@ -141,7 +151,7 @@ func Test_getPreCmd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := getPreCmd(tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.runV2Config)
+			got, got1, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.artifactDir)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getPreCmd() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -158,10 +168,12 @@ func Test_getPreCmd(t *testing.T) {
 
 func Test_createJavaConfigFile(t *testing.T) {
 	type args struct {
-		tmpDir   string
-		fs       filesystem.FileSystem
-		log      *logrus.Logger
-		splitIdx int
+		tmpDir         string
+		fs             filesystem.FileSystem
+		filterFilePath string
+		outDir         string
+		log            *logrus.Logger
+		splitIdx       int
 	}
 	tests := []struct {
 		name    string
@@ -174,16 +186,13 @@ func Test_createJavaConfigFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := createJavaConfigFile(tt.args.tmpDir, tt.args.fs, tt.args.log, tt.args.splitIdx)
+			got, err := createJavaConfigFile(tt.args.tmpDir, tt.args.fs, tt.args.log, tt.args.filterFilePath, tt.args.outDir, tt.args.splitIdx)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("createJavaConfigFile() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
 				t.Errorf("createJavaConfigFile() got = %v, want %v", got, tt.want)
-			}
-			if got1 != tt.want1 {
-				t.Errorf("createJavaConfigFile() got1 = %v, want %v", got1, tt.want1)
 			}
 		})
 	}

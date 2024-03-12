@@ -131,18 +131,6 @@ func checkForBazelOptimization(ctx context.Context, workspace string, fs filesys
 // AutoDetectTests output and parallelism configuration
 func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Config, log *logrus.Logger,
 	selection *ti.SelectTestsResp, stepID, workspace string, envs map[string]string, tiConfig *tiCfg.Cfg) {
-	//TODO:V2 - need to add in spec
-	// if !runConfigV2.ParallelizeTests {
-	// 	log.Infoln("Skipping test splitting as requested")
-	// 	return
-	// }
-
-	// if runConfigV2.RunOnlySelectedTests && len(selection.Tests) == 0 {
-	// 	// TI returned zero test cases to run. Skip parallelism as
-	// 	// there are no tests to run
-	// 	return
-	// }
-
 	// Adding only this remove this condition later when we have complete specs
 	if len(selection.Tests) == 0 {
 		// TI returned zero test cases to run. Skip parallelism as
@@ -152,10 +140,7 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 	splitIdx, splitTotal := GetSplitIdxAndTotal(envs)
 	tests := make([]ti.RunnableTest, 0)
 
-	//TODO:V2 - add after we have specs
-	// if !runConfigV2.RunOnlySelectedTests {
-	// 	//Add Autodetect logic for full run
-	// }
+	//TODO:V2 Autodetection
 
 	if len(selection.Tests) > 0 {
 		// In case of intelligent runs, split the tests from TI SelectTests API response
@@ -173,10 +158,6 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 
 	// Modify selections to run only selected tests
 	selection.Tests = splitTests
-
-	//TODO:V2
-	// config.RunOnlySelectedTests = true
-
 }
 
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the

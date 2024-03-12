@@ -14,7 +14,6 @@ import (
 )
 
 func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filterFilePath string, fs filesystem.FileSystem, isFilterFilePresent bool) error {
-	fmt.Println("Entry: PopulateItemInFilterFile")
 	if !isFilterFilePresent { // If filter file is not present then we will simply run all the test cases
 		log.Println("Filter File not present running all the tests")
 		return nil
@@ -42,7 +41,7 @@ func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filterFilePa
 		}
 	}
 
-	_, err = f.Write([]byte(data))
+	_, err = f.WriteString(data)
 	if err != nil {
 		log.Println(fmt.Sprintf("could not write %s to file %s", data, filterFilePath), err)
 		return err

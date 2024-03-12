@@ -109,6 +109,25 @@ func WriteHelperFile(workspace, repoPath string) error {
 	return nil
 }
 
+// WriteRspecFile writes to the .rspec-local file
+func WriteRspecFile(workspace, repoPath string) error {
+	scriptPath := filepath.Join(repoPath, "test_intelligence.rb")
+	rspecLocalPath := filepath.Join(workspace, ".rspec-local")
+
+	// Open or create the .rspec-local file
+	file, err := os.OpenFile(rspecLocalPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, os.ModeAppend)
+	if err != nil {
+		return fmt.Errorf("failed to open .rspec-local file: %v", err)
+	}
+	defer file.Close()
+
+	// Write the required line to the file
+	if _, err := file.WriteString(fmt.Sprintf("--require %q\n", scriptPath)); err != nil {
+		return fmt.Errorf("failed to write to .rspec-local file: %v", err)
+	}
+	return nil
+}
+
 // prepend adds line in front of a file
 func prepend(lineToAdd, fileName string) error {
 	fileData, err := os.ReadFile(fileName)
