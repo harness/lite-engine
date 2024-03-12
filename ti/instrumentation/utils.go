@@ -736,7 +736,7 @@ func IsParallelismEnabled(envs map[string]string) bool {
 }
 
 // GetSplitIdxAndTotal returns splitIdx and SplitTotal based on step envs
-func GetSplitIdxAndTotal(envs map[string]string) (splitIdx int, splitTotal int) {
+func GetSplitIdxAndTotal(envs map[string]string) (splitIdx, splitTotal int) {
 	stepIdx, _ := GetStepStrategyIteration(envs)
 	stepTotal, _ := GetStepStrategyIterations(envs)
 	if !IsStepParallelismEnabled(envs) {

@@ -71,7 +71,7 @@ func TestHelperProcess3(_ *testing.T) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
-	fmt.Fprintf(os.Stdout, "//module1:io.harness.SomeTest") //nolint:staticcheck
+	fmt.Fprintf(os.Stdout, "//module1:io.harness.SomeTest")
 	os.Exit(0)
 }
 

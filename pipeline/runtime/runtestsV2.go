@@ -136,7 +136,6 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 // In case of running all the cases no filter file should be created.
 func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
 	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config) (types.SelectTestsResp, bool) {
-
 	selection := types.SelectTestsResp{}
 
 	if isManual {
@@ -194,7 +193,6 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 }
 
 func createOutDir(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
-
 	outDir := fmt.Sprintf(outDir, tmpDir)
 	err := fs.MkdirAll(outDir, os.ModePerm)
 	if err != nil {
@@ -207,7 +205,7 @@ func createOutDir(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger) (
 func getFilterFilePath(tmpDir string, splitIdx int) string {
 	filterFileDir := fmt.Sprintf(filterV2Dir, tmpDir)
 
-	//filterfilePath will look like /tmp/engine/ti/v2/filter/filter_1...
+	// filterfilePath will look like /tmp/engine/ti/v2/filter/filter_1...
 	filterfilePath := fmt.Sprintf("%s/filter_%d", filterFileDir, splitIdx)
 
 	return filterfilePath
@@ -220,7 +218,7 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", iniFileDir))
 		return "", err
 	}
-	//create file paths with splitidx for splitting
+	// create file paths with splitidx for splitting
 	iniFile := fmt.Sprintf("%s/config_%d.ini", iniFileDir, splitIdx)
 
 	data := fmt.Sprintf(`outDir: %s
@@ -244,23 +242,15 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 		return "", err
 	}
 
-	return iniFile, nil //path of config.ini file
+	return iniFile, nil // path of config.ini file
 }
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string, runV2Config *api.RunTestsV2Config, artifactDir string) (string, string, error) {
-	var preCmd string
-
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string, runV2Config *api.RunTestsV2Config, artifactDir string) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
-
-		//TODO:V2 - Add all logic inside this if once we have the specs
-		// if runV2Config.ParallelizeTests {
-		// }
-
 		log.Infoln("Initializing settings for test splitting and parallelism")
 		splitIdx, _ = instrumentation.GetSplitIdxAndTotal(envs)
-
 	}
 
 	outDir, err := createOutDir(tmpFilePath, fs, log)
@@ -268,7 +258,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		return "", "", err
 	}
 
-	filterFilePath := getFilterFilePath(tmpFilePath, splitIdx)
+	filterFilePath = getFilterFilePath(tmpFilePath, splitIdx)
 
 	// Java
 	iniFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
@@ -296,7 +286,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	if err != nil {
 		return "", "", err
 	}
-	preCmd = preCmd + fmt.Sprintf("\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
+	preCmd += fmt.Sprintf("\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
 	err = ruby.WriteRspecFile(workspace, repoPath)
 	if err != nil {
 		log.Errorln("Unable to write rspec-local file automatically", err)
@@ -311,18 +301,18 @@ func downloadJavaAgent(ctx context.Context, path string, fs filesystem.FileSyste
 	dir := filepath.Join(path, javaAgentPath)
 	err := instrumentation.DownloadFile(ctx, dir, javaAgentV2Url, fs)
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not download java agent"))
+		log.WithError(err).Errorln("could not download java agent")
 		return err
 	}
 	return nil
 }
 
 func downloadRubyAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
-	dir := filepath.Join(path, "ruby/ruby-agent.zip")
+	dir := filepath.Join(path, "ruby", "ruby-agent.zip")
 	installDir := filepath.Dir(dir)
 	err := instrumentation.DownloadFile(ctx, dir, rubyAgentV2Url, fs)
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not download ruby agent"))
+		log.WithError(err).Errorln("could not download ruby agent")
 		return "", err
 	}
 	return installDir, nil
@@ -351,8 +341,6 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 }
 
 func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.FileSystem, tmpFilePath string, splitIdx int) (string, error) {
-
-	// homeDir, err := os.UserHomeDir()
 	bazelrcDir := fmt.Sprintf(bazelrcV2Dir, tmpFilePath, splitIdx)
 
 	err := fs.MkdirAll(bazelrcDir, os.ModePerm)
@@ -363,7 +351,7 @@ func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.Fi
 
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-	// bazelrcFilePath := filepath.Join(homeDir, ".bazelrc")
+
 	bazelrcFilePath := filepath.Join(bazelrcDir, ".bazelrc")
 	data := fmt.Sprintf("test --test_env JAVA_TOOL_OPTIONS=%s", agentArg)
 
@@ -376,7 +364,7 @@ func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.Fi
 		}
 
 		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
-		_, err = f.Write([]byte(data))
+		_, err = f.WriteString(data)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
 			return "", err
