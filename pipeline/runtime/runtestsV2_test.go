@@ -93,7 +93,16 @@ func Test_createSelectedTestFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			//nolint:gocritic
-			if err := createSelectedTestFile(tt.args.ctx, tt.args.fs, tt.args.stepID, tt.args.workspace, tt.args.log, tt.args.tiConfig, tt.args.tmpFilepath, tt.args.envs, tt.args.runV2Config, tt.args.filterFilePath); (err != nil) != tt.wantErr {
+			if err := createSelectedTestFile(tt.args.ctx, 
+				tt.args.fs, 
+				tt.args.stepID, 
+				tt.args.workspace, 
+				tt.args.log, 
+				tt.args.tiConfig, 
+				tt.args.tmpFilepath, 
+				tt.args.envs, 
+				tt.args.runV2Config, 
+				tt.args.filterFilePath); (err != nil) != tt.wantErr {
 				t.Errorf("createSelectedTestFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
