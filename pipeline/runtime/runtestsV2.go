@@ -40,6 +40,8 @@ const (
 )
 
 // Ignoring optimization state for now
+//
+//nolint:funlen
 func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer,
 	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
