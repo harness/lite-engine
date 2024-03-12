@@ -287,7 +287,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	if err != nil {
 		return "", "", err
 	}
-	preCmd += fmt.Sprintf("\nbundle add harness_ruby_agent --path %q --version %q 2>/dev/null || true;", repoPath, "0.0.1")
+	preCmd += fmt.Sprintf("\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
 	err = ruby.WriteRspecFile(workspace, repoPath)
 	if err != nil {
 		log.Errorln("Unable to write rspec-local file automatically", err)
