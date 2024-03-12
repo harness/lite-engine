@@ -40,7 +40,8 @@ const (
 )
 
 // Ignoring optimization state for now
-func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) { //nolint:gocritic,gocyclo
+// nolint:gocritic
+func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
 	tmpFilePath := tiConfig.GetDataDir()
 	fs := filesystem.New()
@@ -320,7 +321,6 @@ func downloadRubyAgent(ctx context.Context, path string, fs filesystem.FileSyste
 // This is nothing but filterfile where all the tests selected will be stored
 func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
 	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string) error {
-
 	isManualExecution := instrumentation.IsManualExecution(tiConfig)
 	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig, envs, runV2Config)
 
@@ -369,7 +369,7 @@ func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.Fi
 			return "", err
 		}
 	} else {
-		file, err := os.OpenFile(bazelrcFilePath, os.O_APPEND|os.O_WRONLY, 0644)
+		file, err := os.OpenFile(bazelrcFilePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not open the file in dir %s", bazelrcFilePath))
 			return "", err
