@@ -157,16 +157,13 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 			return selection, false // TI selected all the tests to be run
 		}
 
-		if lastSuccessfulCommitID == "" {
-			log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
-			return selection, false // TI selected all the tests to be run
-		}
-
-		log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
-		files, err = instrumentation.GetChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
-		if err != nil {
-			log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
-			return selection, false // TI selected all the tests to be run
+		if lastSuccessfulCommitID != "" {
+			log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
+			files, err = instrumentation.GetChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
+			if err != nil {
+				log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
+				return selection, false
+			}
 		}
 	} else {
 		files, err = instrumentation.GetChangedFilesPR(ctx, workspace, log)

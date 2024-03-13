@@ -59,17 +59,14 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			config.RunOnlySelectedTests = false // TI selected all the tests to be run
 			return selection, moduleList
 		}
-		if lastSuccessfulCommitID == "" {
-			log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
-			config.RunOnlySelectedTests = false // TI selected all the tests to be run
-			return selection, moduleList
-		}
-		log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
-		files, err = GetChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
-		if err != nil {
-			log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
-			config.RunOnlySelectedTests = false
-			return selection, moduleList
+		if lastSuccessfulCommitID != "" {
+			log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
+			files, err = GetChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
+			if err != nil {
+				log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
+				config.RunOnlySelectedTests = false
+				return selection, moduleList
+			}
 		}
 	} else {
 		files, err = GetChangedFilesPR(ctx, workspace, log)
