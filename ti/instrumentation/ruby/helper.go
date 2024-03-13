@@ -151,7 +151,7 @@ func WriteRspecFile(workspace, repoPath string, splitIdx int) error {
 	defer file.Close()
 
 	// Write the required line to the file
-	if _, err := file.WriteString(fmt.Sprintf("--require %q\n", scriptPath)); err != nil {
+	if _, err = file.WriteString(fmt.Sprintf("--require %q\n", scriptPath)); err != nil {
 		return fmt.Errorf("failed to write to agent path to .rspec-local file: %v", err)
 	}
 
@@ -166,7 +166,7 @@ func WriteRspecFile(workspace, repoPath string, splitIdx int) error {
 
 	if !existsInRspec && !existsInRspecLocal {
 		// Write the required line to the file
-		if _, err := file.WriteString(fmt.Sprintf("--format %s --out %s\n", rspecJuintFormatterString, juintPath)); err != nil {
+		if _, err = file.WriteString(fmt.Sprintf("--format %s --out %s\n", rspecJuintFormatterString, juintPath)); err != nil {
 			return fmt.Errorf("failed to write xml formatter to .rspec-local file: %v", err)
 		}
 	}
