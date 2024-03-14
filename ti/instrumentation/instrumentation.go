@@ -67,6 +67,9 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 				config.RunOnlySelectedTests = false
 				return selection, moduleList
 			}
+		} else {
+			// select all tests. It should still go to ti-service to update stats. This is full run bootstrap case
+			config.RunOnlySelectedTests = false
 		}
 	} else {
 		files, err = GetChangedFilesPR(ctx, workspace, log)
