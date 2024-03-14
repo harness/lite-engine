@@ -6,8 +6,9 @@ steps:
   - name: go vet and unit tests
     image: golang:1.19
     commands:
-      - echo "hey"
-      - exit 2
-      - echo "done"
+      - touch a.sh
+      - echo "exit 2" >> a.sh
+      - chmod +x a.sh
+      - ./a.sh
     depends_on:
       - clone
