@@ -12,6 +12,7 @@ steps:
       - chmod +x a.sh
       - . ./a.sh
       - echo "done"
-      - echo $?
+      - script_exit_status=$?
+      - if [ $script_exit_status -eq 2 ]; then exit 1; fi
     depends_on:
       - clone
