@@ -1,18 +1,35 @@
 kind: pipeline
 type: docker
-name: unit tests
+name: change-exit-status
 
 steps:
-  - name: go vet and unit tests
-    image: golang:1.19
+  - name: generate-script
+    image: alpine
     commands:
-      - echo "hey"
-      - touch a.sh
-      - echo "exit 2" >> a.sh
-      - chmod +x a.sh
-      - . ./a.sh
+      - echo '#!/bin/sh' > custom_script.sh
+      - echo 'exit 2' >> custom_script.sh
+      # Make the script executable
+      - chmod +x custom_script.sh
+
+  - name: execute-script
+    image: alpine
+    commands:
+      - echo "custom script"
+      - . ./custom_script.sh
       - echo "done"
+      # Capture the exit status of the script
       - script_exit_status=$?
+
+  - name: change-exit-status
+    image: alpine
+    commands:
       - if [ $script_exit_status -eq 2 ]; then exit 1; fi
-    depends_on:
-      - clone
+    when:
+      condition: always
+  
+  - name: change-exit-status
+    image: alpine
+    commands:
+      - if [ $script_exit_status -eq 2 ]; then exit 1; fi
+    when:
+      condition: always
