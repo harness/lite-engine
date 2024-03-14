@@ -149,6 +149,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 	// Question : Here i can see feature state is being defined in Runtest but here we don't have runOnlySelected tests so should we always defined as optimized state
 	var files []types.File
 	var err error
+	runOnlySelectedTests := true
 
 	if instrumentation.IsPushTriggerExecution(tiConfig) {
 		lastSuccessfulCommitID, commitErr := instrumentation.GetCommitInfo(ctx, stepID, tiConfig)
@@ -157,16 +158,16 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 			return selection, false // TI selected all the tests to be run
 		}
 
-		if lastSuccessfulCommitID == "" {
-			log.Infoln("Test Intelligence determined to run all the tests to bootstrap")
-			return selection, false // TI selected all the tests to be run
-		}
-
-		log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
-		files, err = instrumentation.GetChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
-		if err != nil {
-			log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
-			return selection, false // TI selected all the tests to be run
+		if lastSuccessfulCommitID != "" {
+			log.Infoln("Using reference commit: ", lastSuccessfulCommitID)
+			files, err = instrumentation.GetChangedFilesPush(ctx, workspace, lastSuccessfulCommitID, tiConfig.GetSha(), log)
+			if err != nil {
+				log.Errorln("Unable to get changed files list. Running all the tests.", "error", err)
+				return selection, false
+			}
+		} else {
+			log.Infoln("No reference commit found")
+			runOnlySelectedTests = false
 		}
 	} else {
 		files, err = instrumentation.GetChangedFilesPR(ctx, workspace, log)
@@ -176,7 +177,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 		}
 	}
 	filesWithpkg := java.ReadPkgs(log, fs, workspace, files)
-	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, true, stepID, fs, tiConfig)
+	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, fs, tiConfig)
 	if err != nil {
 		log.WithError(err).Errorln("An unexpected error occurred during test selection. Running all tests.")
 		return selection, false
