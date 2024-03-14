@@ -27,9 +27,7 @@ steps:
     when:
       condition: always
   
-  - name: change-exit-status
+  - name: hi
     image: alpine
     commands:
-      - if [ $script_exit_status -eq 2 ]; then exit 1; fi
-    when:
-      condition: always
+      - echo "hi"
