@@ -10,5 +10,6 @@ steps:
       - echo "exit 2" >> a.sh
       - chmod +x a.sh
       - ./a.sh
+      - echo "done"
     depends_on:
       - clone
