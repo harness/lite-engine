@@ -166,6 +166,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 				return selection, false
 			}
 		} else {
+			log.Infoln("No reference commit found")
 			runSelectedTests = false
 		}
 	} else {

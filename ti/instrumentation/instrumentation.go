@@ -69,6 +69,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 			}
 		} else {
 			// select all tests. It should still go to ti-service to update stats. This is full run bootstrap case
+			log.Infoln("No reference commit found")
 			config.RunOnlySelectedTests = false
 		}
 	} else {
