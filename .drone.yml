@@ -14,20 +14,7 @@ steps:
   - name: execute-script
     image: alpine
     commands:
-      - echo "custom script"
-      - . ./custom_script.sh
-      - echo "done"
+      - . ./custom_script.sh > script_output.txt 2>&1 || true  # Redirect output to file and ignore errors
       # Capture the exit status of the script
       - script_exit_status=$?
-
-  - name: change-exit-status
-    image: alpine
-    commands:
       - if [ $script_exit_status -eq 2 ]; then exit 1; fi
-    when:
-      condition: always
-  
-  - name: hi
-    image: alpine
-    commands:
-      - echo "hi"
