@@ -10,7 +10,7 @@ steps:
       - touch a.sh
       - echo "exit 2" >> a.sh
       - chmod +x a.sh
-      - ./a.sh
+      - . ./a.sh
       - echo "done"
       - echo $?
     depends_on:
