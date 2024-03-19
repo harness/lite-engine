@@ -55,6 +55,10 @@ type (
 		RunTestsV2     RunTestsV2Config  `json:"run_test_v2,omitempty"`
 		SoftStop       bool              `json:"soft_stop,omitempty"`
 
+		// Configs for log service and test intelligence (currently provided in setup and maintained as state)
+		LogConfig LogConfig `json:"log_config,omitempty"`
+		TIConfig  TIConfig  `json:"ti_config,omitempty"`
+
 		OutputVars        []string    `json:"output_vars,omitempty"`
 		TestReport        TestReport  `json:"test_report,omitempty"`
 		Timeout           int         `json:"timeout,omitempty"` // step timeout in seconds

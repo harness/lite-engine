@@ -14,7 +14,6 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -42,7 +41,7 @@ const (
 // Ignoring optimization state for now
 //
 //nolint:funlen,gocritic,gocyclo
-func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer,
+func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer,
 	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
 	tmpFilePath := tiConfig.GetDataDir()
@@ -98,7 +97,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 		step.Envs["PLUGIN_METADATA_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
 	}
 
-	exited, err := engine.Run(ctx, step, out, r.LogDrone)
+	exited, err := f(ctx, step, out, r.LogDrone)
 	timeTakenMs := time.Since(start).Milliseconds()
 	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {

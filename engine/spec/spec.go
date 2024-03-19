@@ -113,6 +113,8 @@ type (
 		ID       string            `json:"id,omitempty"`
 		Name     string            `json:"name,omitempty"`
 		Path     string            `json:"path,omitempty"`
+		Create   bool              `json:"create,omitempty"`
+		Remove   bool              `json:"remove,omitempty"`
 		Labels   map[string]string `json:"labels,omitempty"`
 		ReadOnly bool              `json:"read_only,omitempty"`
 	}

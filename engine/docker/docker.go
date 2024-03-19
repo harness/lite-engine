@@ -26,6 +26,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
@@ -63,7 +64,7 @@ type Docker struct {
 	client     client.APIClient
 	hidePull   bool
 	mu         sync.Mutex
-	containers []Container
+	containers []Container // We should refactor this out and make this stateless
 }
 
 type Container struct {
@@ -153,16 +154,44 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	return errors.TrimExtraInfo(err)
 }
 
-// Destroy the pipeline environment.
-func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+func (e *Docker) DestroyContainersByLabel(
+	ctx context.Context,
+	pipelineConfig *spec.PipelineConfig,
+	labelKey string,
+	labelValue string,
+) error {
+	args := filters.NewArgs()
+	args.Add("label", fmt.Sprintf("%s=%s", labelKey, labelValue))
+	ctrs, err := e.client.ContainerList(ctx, types.ContainerListOptions{
+		Filters: args,
+	})
+	if err != nil {
+		return err
+	}
+	var containers []Container
+	for _, ctr := range ctrs {
+		containers = append(containers, Container{
+			ID: ctr.ID,
+		})
+	}
+	return e.destroyContainers(ctx, pipelineConfig, containers)
+}
+
+// destroyContainers is a method which takes in a list of containers and a pipeline environment
+// to destroy. It should be used in favor of the old Destroy() which is stateful.
+// The Docker engine should just be a simple wrapper around docker which is stateless and does
+// not keep track of the containers it creates.
+func (e *Docker) destroyContainers(
+	ctx context.Context,
+	pipelineConfig *spec.PipelineConfig,
+	containers []Container,
+) error {
+	fmt.Printf("containers: %+v", containers)
 	removeOpts := types.ContainerRemoveOptions{
 		Force:         true,
 		RemoveLinks:   false,
 		RemoveVolumes: true,
 	}
-	e.mu.Lock()
-	containers := e.containers
-	e.mu.Unlock()
 
 	// stop all containers
 	for _, ctr := range containers {
@@ -207,6 +236,16 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfi
 	// and instead ask the system admin to periodically run
 	// `docker prune` commands.
 	return nil
+
+}
+
+// Destroy the pipeline environment.
+func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+	e.mu.Lock()
+	containers := e.containers
+	e.mu.Unlock()
+
+	return e.destroyContainers(ctx, pipelineConfig, containers)
 }
 
 // Run runs the pipeline step.
@@ -543,7 +582,10 @@ func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spe
 // softStop stops the container giving them a 30 seconds grace period. The signal sent by ContainerStop is SIGTERM.
 // After the grace period, the container is killed with SIGKILL.
 // After all the containers are stopped, they are removed only when the status is not "running" or "removing".
-func (e *Docker) softStop(ctx context.Context, name string) {
+func (e *Docker) softStop(
+	ctx context.Context,
+	name string,
+) {
 	timeout := 30 * time.Second
 	if err := e.client.ContainerStop(ctx, name, &timeout); err != nil {
 		logrus.WithField("container", name).WithField("error", err).Warnln("failed to stop the container")

@@ -359,12 +359,12 @@ func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.St
 	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	tiConfig := pipeline.GetState().GetTIConfig()
 	if r.Kind == api.Run {
-		return executeRunStep(ctx, engine, r, out, tiConfig)
+		return executeRunStep(ctx, engine.Run, r, out, tiConfig)
 	}
 	if r.Kind == api.RunTestsV2 {
-		return executeRunTestsV2Step(ctx, engine, r, out, tiConfig)
+		return executeRunTestsV2Step(ctx, engine.Run, r, out, tiConfig)
 	}
-	return executeRunTestStep(ctx, engine, r, out, tiConfig)
+	return executeRunTestStep(ctx, engine.Run, r, out, tiConfig)
 }
 
 // This is used for Github Actions to set the envs from prev step.
