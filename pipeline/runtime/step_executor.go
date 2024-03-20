@@ -14,6 +14,7 @@ import (
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
+	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
@@ -29,6 +30,8 @@ import (
 )
 
 type ExecutionStatus int
+
+type RunFunc func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error)
 
 type StepStatus struct {
 	Status            ExecutionStatus

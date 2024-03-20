@@ -24,8 +24,6 @@ import (
 	tiCfg "github.com/harness/lite-engine/ti/config"
 )
 
-type RunFunc func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error)
-
 type StepExecutorStateless struct {
 	mu         sync.Mutex
 	stepStatus StepStatus
