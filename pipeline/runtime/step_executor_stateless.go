@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
@@ -25,20 +24,16 @@ import (
 )
 
 type StepExecutorStateless struct {
-	mu         sync.Mutex
 	stepStatus StepStatus
 }
 
 func NewStepExecutorStateless() *StepExecutorStateless {
 	return &StepExecutorStateless{
-		mu:         sync.Mutex{},
 		stepStatus: StepStatus{},
 	}
 }
 
 func (e *StepExecutorStateless) Status() StepStatus {
-	e.mu.Lock()
-	defer e.mu.Unlock()
 	return e.stepStatus
 }
 
@@ -47,18 +42,13 @@ func (e *StepExecutorStateless) Run(ctx context.Context, r *api.StartStepRequest
 		return &api.PollStepResponse{}, &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 
-	e.mu.Lock()
 	e.stepStatus = StepStatus{Status: Running}
-	e.mu.Unlock()
 
 	state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r, cfg)
-	status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
+	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
-	e.mu.Lock()
-	e.stepStatus = status
-	e.mu.Unlock()
 
-	return convertStatus(status), nil
+	return convertStatus(e.stepStatus), nil
 }
 
 func getLogServiceClient(cfg api.LogConfig) logstream.Client {
