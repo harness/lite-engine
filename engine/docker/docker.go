@@ -582,10 +582,7 @@ func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spe
 // softStop stops the container giving them a 30 seconds grace period. The signal sent by ContainerStop is SIGTERM.
 // After the grace period, the container is killed with SIGKILL.
 // After all the containers are stopped, they are removed only when the status is not "running" or "removing".
-func (e *Docker) softStop(
-	ctx context.Context,
-	name string,
-) {
+func (e *Docker) softStop(ctx context.Context, name string) {
 	timeout := 30 * time.Second
 	if err := e.client.ContainerStop(ctx, name, &timeout); err != nil {
 		logrus.WithField("container", name).WithField("error", err).Warnln("failed to stop the container")

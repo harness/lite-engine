@@ -31,11 +31,12 @@ func SetupPipeline(
 	if err != nil {
 		return err
 	}
-	// create global files and folders
-	if err := createFiles(pipelineConfig.Files); err != nil {
-		return errors.Wrap(err,
-			fmt.Sprintf("failed to create files/folders for pipeline %v", pipelineConfig.Files))
-	}
+	// NOT USED
+	// // create global files and folders
+	// if err := createFiles(pipelineConfig.Files); err != nil {
+	// 	return errors.Wrap(err,
+	// 		fmt.Sprintf("failed to create files/folders for pipeline %v", pipelineConfig.Files))
+	// }
 	// create volumes
 	for _, vol := range pipelineConfig.Volumes {
 		if vol == nil || vol.HostPath == nil {

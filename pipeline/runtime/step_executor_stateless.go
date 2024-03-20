@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"time"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
@@ -23,9 +22,6 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	tiCfg "github.com/harness/lite-engine/ti/config"
-
-	"github.com/hashicorp/go-multierror"
-	"github.com/sirupsen/logrus"
 )
 
 type RunFunc func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error)
@@ -92,78 +88,7 @@ func (e *StepExecutorStateless) executeStep(r *api.StartStepRequest, cfg *spec.P
 
 	tiConfig := getTiCfg(&r.TIConfig)
 
-	// if the step is configured as a daemon, it is detached
-	// from the main process and executed separately.
-	// We do here only for non-container step.
-	if r.Detach && r.Image == "" {
-		go func() {
-			ctx := context.Background()
-			var cancel context.CancelFunc
-			if r.Timeout > 0 {
-				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
-				defer cancel()
-			}
-			e.run(ctx, runFunc, r, wr, &tiConfig) //nolint:errcheck
-			wr.Close()
-		}()
-		return &runtime.State{Exited: false}, nil, nil, nil, nil, "", nil
-	}
-
-	var result error
-
-	ctx := context.Background()
-	var cancel context.CancelFunc
-	if r.Timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
-		defer cancel()
-	}
-
-	exited, outputs, envs, artifact, outputV2, optimizationState, err := e.run(ctx, runFunc, r, wr, &tiConfig)
-	if err != nil {
-		result = multierror.Append(result, err)
-	}
-
-	// if err is not nill or it's not a detach step then always close the stream
-	if err != nil || !r.Detach {
-		// close the stream. If the session is a remote session, the
-		// full log buffer is uploaded to the remote server.
-		if err = wr.Close(); err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-
-	// if the context was canceled and returns a canceled or
-	// DeadlineExceeded error this indicates the step was timed out.
-	switch ctx.Err() {
-	case context.Canceled, context.DeadlineExceeded:
-		return nil, nil, nil, nil, nil, "", ctx.Err()
-	}
-
-	if exited != nil {
-		if exited.ExitCode != 0 {
-			if wc.Error() != nil {
-				result = multierror.Append(result, err)
-			}
-		}
-
-		if exited.OOMKilled {
-			logrus.WithField("id", r.ID).Infoln("received oom kill.")
-		} else {
-			logrus.WithField("id", r.ID).Infof("received exit code %d\n", exited.ExitCode)
-		}
-	}
-	return exited, outputs, envs, artifact, outputV2, optimizationState, result
-}
-
-func (e *StepExecutorStateless) run(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
-	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
-	if r.Kind == api.Run {
-		return executeRunStep(ctx, f, r, out, tiConfig)
-	}
-	if r.Kind == api.RunTestsV2 {
-		return executeRunTestsV2Step(ctx, f, r, out, tiConfig)
-	}
-	return executeRunTestStep(ctx, f, r, out, tiConfig)
+	return executeStepHelper(r, runFunc, wc, wr, &tiConfig)
 }
 
 func getTiCfg(t *api.TIConfig) tiCfg.Cfg {
