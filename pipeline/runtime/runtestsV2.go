@@ -351,11 +351,8 @@ func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.Fi
 		return "", err
 	}
 
-	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
-	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-
 	bazelrcFilePath := filepath.Join(bazelrcDir, ".bazelrc")
-	data := fmt.Sprintf("test --test_env JAVA_TOOL_OPTIONS=%s", agentArg)
+	data := fmt.Sprintf("test --test_env=JAVA_TOOL_OPTIONS")
 
 	// There might be possibility of .bazelrc being already present in homeDir so checking this condition as well
 	if _, err := os.Stat(bazelrcFilePath); os.IsNotExist(err) {
