@@ -46,7 +46,6 @@ func (e *StepExecutorStateless) Run(ctx context.Context, r *api.StartStepRequest
 	state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r, cfg)
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
-
 	pollResponse := convertStatus(e.stepStatus)
 	return convertPollResponse(pollResponse), nil
 }
