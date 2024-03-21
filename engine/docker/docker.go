@@ -186,7 +186,6 @@ func (e *Docker) destroyContainers(
 	pipelineConfig *spec.PipelineConfig,
 	containers []Container,
 ) error {
-	fmt.Printf("containers: %+v", containers)
 	removeOpts := types.ContainerRemoveOptions{
 		Force:         true,
 		RemoveLinks:   false,

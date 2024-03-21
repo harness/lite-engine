@@ -6,7 +6,6 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/harness/lite-engine/api"
@@ -55,7 +54,6 @@ func getLogServiceClient(cfg api.LogConfig) logstream.Client {
 	if cfg.URL != "" {
 		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false)
 	} else {
-		fmt.Println("creating a filestore client...")
 		return filestore.New(pipeline.SharedVolPath)
 	}
 }
@@ -68,7 +66,6 @@ func (e *StepExecutorStateless) executeStep(r *api.StartStepRequest, cfg *spec.P
 	}
 
 	// Create a log stream for step logs
-	// TODO (VISTAAR): Create a new log streaming client here.
 	client := getLogServiceClient(r.LogConfig)
 	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false)
 	wr := logstream.NewReplacer(wc, r.Secrets)
