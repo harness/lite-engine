@@ -36,9 +36,9 @@ func (e *StepExecutorStateless) Status() StepStatus {
 	return e.stepStatus
 }
 
-func (e *StepExecutorStateless) Run(ctx context.Context, r *api.StartStepRequest, cfg *spec.PipelineConfig) (*api.PollStepResponse, error) {
+func (e *StepExecutorStateless) Run(ctx context.Context, r *api.StartStepRequest, cfg *spec.PipelineConfig) (api.VMTaskExecutionResponse, error) {
 	if r.ID == "" {
-		return &api.PollStepResponse{}, &errors.BadRequestError{Msg: "ID needs to be set"}
+		return api.VMTaskExecutionResponse{}, &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 
 	e.stepStatus = StepStatus{Status: Running}
@@ -47,7 +47,8 @@ func (e *StepExecutorStateless) Run(ctx context.Context, r *api.StartStepRequest
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
 
-	return convertStatus(e.stepStatus), nil
+	pollResponse := convertStatus(e.stepStatus)
+	return convertPollResponse(pollResponse), nil
 }
 
 func getLogServiceClient(cfg api.LogConfig) logstream.Client {
