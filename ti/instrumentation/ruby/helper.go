@@ -137,7 +137,7 @@ func CheckFileForString(filePath, targetString string) (bool, error) {
 }
 
 // WriteRspecFile writes to the .rspec-local file
-func WriteRspecFile(workspace, repoPath string, splitIdx int) error {
+func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJuintInstrumentation bool) error {
 	scriptPath := filepath.Join(repoPath, "test_intelligence.rb")
 	rspecLocalPath := filepath.Join(workspace, ".rspec-local")
 	rspecPath := filepath.Join(workspace, ".rspec")
@@ -155,19 +155,21 @@ func WriteRspecFile(workspace, repoPath string, splitIdx int) error {
 		return fmt.Errorf("failed to write to agent path to .rspec-local file: %v", err)
 	}
 
-	existsInRspec, err := CheckFileForString(rspecPath, rspecJuintFormatterString)
-	if err != nil {
-		return fmt.Errorf("failed to check .rspec file for RspecJunitFormatter: %v", err)
-	}
-	existsInRspecLocal, err := CheckFileForString(rspecLocalPath, rspecJuintFormatterString)
-	if err != nil {
-		return fmt.Errorf("failed to check .rspec-local file for RspecJunitFormatter: %v", err)
-	}
-
-	if !existsInRspec && !existsInRspecLocal {
-		// Write the required line to the file
-		if _, err = file.WriteString(fmt.Sprintf("--format %s --out %s\n", rspecJuintFormatterString, juintPath)); err != nil {
-			return fmt.Errorf("failed to write xml formatter to .rspec-local file: %v", err)
+	if !disableJuintInstrumentation {
+		existsInRspec, err := CheckFileForString(rspecPath, rspecJuintFormatterString)
+		if err != nil {
+			return fmt.Errorf("failed to check .rspec file for RspecJunitFormatter: %v", err)
+		}
+		existsInRspecLocal, err := CheckFileForString(rspecLocalPath, rspecJuintFormatterString)
+		if err != nil {
+			return fmt.Errorf("failed to check .rspec-local file for RspecJunitFormatter: %v", err)
+		}
+	
+		if !existsInRspec && !existsInRspecLocal {
+			// Write the required line to the file
+			if _, err = file.WriteString(fmt.Sprintf("--format %s --out %s\n", rspecJuintFormatterString, juintPath)); err != nil {
+				return fmt.Errorf("failed to write xml formatter to .rspec-local file: %v", err)
+			}
 		}
 	}
 
