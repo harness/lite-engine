@@ -14,8 +14,8 @@ import (
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
-	"github.com/harness/lite-engine/logstream/filestore"
 	"github.com/harness/lite-engine/logstream/remote"
+	"github.com/harness/lite-engine/logstream/stdout"
 	"github.com/harness/lite-engine/pipeline"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -54,7 +54,7 @@ func getLogServiceClient(cfg api.LogConfig) logstream.Client {
 	if cfg.URL != "" {
 		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false)
 	} else {
-		return filestore.New(pipeline.SharedVolPath)
+		return stdout.New()
 	}
 }
 
