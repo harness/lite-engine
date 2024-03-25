@@ -292,7 +292,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 	preCmd += fmt.Sprintf("\nbundle add rspec_junit_formatter || true;\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
 
-	disableJuintVarName := "TI_DISABLE_JUINT_INSTRUMENTATION"
+	disableJuintVarName := "TI_DISABLE_JUNIT_INSTRUMENTATION"
 	disableJuintInstrumentation := false
 	if _, ok := envs[disableJuintVarName]; ok {
 		disableJuintInstrumentation = true
