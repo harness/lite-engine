@@ -164,7 +164,7 @@ func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJuintInstru
 		if err != nil {
 			return fmt.Errorf("failed to check .rspec-local file for RspecJunitFormatter: %v", err)
 		}
-	
+
 		if !existsInRspec && !existsInRspecLocal {
 			// Write the required line to the file
 			if _, err = file.WriteString(fmt.Sprintf("--format %s --out %s\n", rspecJuintFormatterString, juintPath)); err != nil {
