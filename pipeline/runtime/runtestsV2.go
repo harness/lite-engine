@@ -28,15 +28,16 @@ import (
 )
 
 const (
-	outDir          = "%s/ti/v2/callgraph/" // path passed as outDir in the config.ini file
-	javaAgentV2Arg  = "-javaagent:%s=%s"
-	javaAgentV2Jar  = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
-	javaAgentV2Path = "/java/v2/"
-	javaAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" // Will be changed later
-	rubyAgentV2Url  = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"                                                                          // Will be changed later
-	filterV2Dir     = "%s/ti/v2/filter"
-	configV2Dir     = "%s/ti/v2/java/config"
-	bazelrcV2Dir    = "%s/ti/v2/bazelrc_%d"
+	outDir           = "%s/ti/v2/callgraph/" // path passed as outDir in the config.ini file
+	javaAgentV2Arg   = "-javaagent:%s=%s"
+	javaAgentV2Jar   = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
+	javaAgentV2Path  = "/java/v2/"
+	javaAgentV2Url   = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" // Will be changed later
+	rubyAgentV2Url   = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"
+	pythonAgentV2Url = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/harness_ti_pytest_plugin-0.1-py3-none-any.whl" // Will be changed later
+	filterV2Dir      = "%s/ti/v2/filter"
+	configV2Dir      = "%s/ti/v2/java/config"
+	bazelrcV2Dir     = "%s/ti/v2/bazelrc_%d"
 )
 
 // Ignoring optimization state for now
@@ -56,12 +57,17 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Java agent")
 	}
 
-	artifactDir, err := downloadRubyAgent(ctx, tmpFilePath, fs, log)
+	rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, fs, log)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Ruby agent")
 	}
 
-	preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, artifactDir)
+	pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, fs, log)
+	if err != nil {
+		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Python agent")
+	}
+
+	preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, rubyArtifactDir, pythonArtifactDir)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 	}
@@ -250,7 +256,7 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 }
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string, artifactDir string) (preCmd, filterFilePath string, err error) {
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string, rubyArtifactDir, pythonArtifactPath string) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
@@ -263,6 +269,11 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	filterFilePath = getFilterFilePath(tmpFilePath, splitIdx)
+
+	envs["TI"] = "1"
+	envs["TI_V2"] = "1"
+	envs["TI_OUTPUT_PATH"] = outDir
+	envs["TI_FILTER_FILE_PATH"] = filterFilePath
 
 	// Java
 	iniFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
@@ -281,12 +292,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s export BAZEL_SYSTEM_BAZELRC_PATH=%s", agentArg, bazelfilepath)
 
 	// Ruby
-	envs["TI"] = "1"
-	envs["TI_V2"] = "1"
-	envs["TI_OUTPUT_PATH"] = outDir
-	envs["TI_FILTER_FILE_PATH"] = filterFilePath
-
-	repoPath, err := ruby.UnzipAndGetTestInfo(artifactDir, log)
+	repoPath, err := ruby.UnzipAndGetTestInfo(rubyArtifactDir, log)
 	if err != nil {
 		return "", "", err
 	}
@@ -296,6 +302,10 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		log.Errorln("Unable to write rspec-local file automatically", err)
 		return "", "", err
 	}
+
+	// Python
+	preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", pythonArtifactPath)
+
 	return preCmd, filterFilePath, nil
 }
 
@@ -319,6 +329,16 @@ func downloadRubyAgent(ctx context.Context, path string, fs filesystem.FileSyste
 		return "", err
 	}
 	return installDir, nil
+}
+
+func downloadPythonAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+	dir := filepath.Join(path, "python", "harness_ti_pytest_plugin-0.1-py3-none-any.whl")
+	err := instrumentation.DownloadFile(ctx, dir, pythonAgentV2Url, fs)
+	if err != nil {
+		log.WithError(err).Errorln("could not download python agent")
+		return "", err
+	}
+	return dir, nil
 }
 
 // This is nothing but filterfile where all the tests selected will be stored
