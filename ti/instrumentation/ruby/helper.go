@@ -137,7 +137,7 @@ func CheckFileForString(filePath, targetString string) (bool, error) {
 }
 
 // WriteRspecFile writes to the .rspec-local file
-func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJuintInstrumentation bool) error {
+func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJunitInstrumentation bool) error {
 	scriptPath := filepath.Join(repoPath, "test_intelligence.rb")
 	rspecLocalPath := filepath.Join(workspace, ".rspec-local")
 	rspecPath := filepath.Join(workspace, ".rspec")
@@ -155,7 +155,7 @@ func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJuintInstru
 		return fmt.Errorf("failed to write to agent path to .rspec-local file: %v", err)
 	}
 
-	if !disableJuintInstrumentation {
+	if !disableJunitInstrumentation {
 		existsInRspec, err := CheckFileForString(rspecPath, rspecJuintFormatterString)
 		if err != nil {
 			return fmt.Errorf("failed to check .rspec file for RspecJunitFormatter: %v", err)
