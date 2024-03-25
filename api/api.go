@@ -56,6 +56,7 @@ type (
 		SoftStop       bool              `json:"soft_stop,omitempty"`
 
 		// Configs for log service and test intelligence (currently provided in setup and maintained as state)
+		// TODO (Vistaar): LogConfig might be moved out from here.
 		LogConfig LogConfig `json:"log_config,omitempty"`
 		TIConfig  TIConfig  `json:"ti_config,omitempty"`
 

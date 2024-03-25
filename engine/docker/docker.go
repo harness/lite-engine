@@ -61,10 +61,13 @@ type Opts struct {
 
 // Docker implements a Docker pipeline engine.
 type Docker struct {
-	client     client.APIClient
-	hidePull   bool
-	mu         sync.Mutex
-	containers []Container // We should refactor this out and make this stateless
+	client   client.APIClient
+	hidePull bool
+	mu       sync.Mutex
+	// We should refactor this out to upper layers and make this stateless.
+	// The Docker engine should just be a simple wrapper around docker which does
+	// not keep track of the containers it creates.
+	containers []Container
 }
 
 type Container struct {
@@ -154,6 +157,8 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	return errors.TrimExtraInfo(err)
 }
 
+// DestroyContainersByLabel destroys a pipeline config and cleans up all containers with
+// a if specified. This should be used in favor of the old Destroy() which is stateful.
 func (e *Docker) DestroyContainersByLabel(
 	ctx context.Context,
 	pipelineConfig *spec.PipelineConfig,
@@ -161,7 +166,9 @@ func (e *Docker) DestroyContainersByLabel(
 	labelValue string,
 ) error {
 	args := filters.NewArgs()
-	args.Add("label", fmt.Sprintf("%s=%s", labelKey, labelValue))
+	if labelKey != "" {
+		args.Add("label", fmt.Sprintf("%s=%s", labelKey, labelValue))
+	}
 	ctrs, err := e.client.ContainerList(ctx, types.ContainerListOptions{
 		Filters: args,
 	})
@@ -178,9 +185,7 @@ func (e *Docker) DestroyContainersByLabel(
 }
 
 // destroyContainers is a method which takes in a list of containers and a pipeline environment
-// to destroy. It should be used in favor of the old Destroy() which is stateful.
-// The Docker engine should just be a simple wrapper around docker which is stateless and does
-// not keep track of the containers it creates.
+// to destroy.
 func (e *Docker) destroyContainers(
 	ctx context.Context,
 	pipelineConfig *spec.PipelineConfig,

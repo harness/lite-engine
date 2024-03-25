@@ -15,7 +15,7 @@ func New() *StdoutLogger {
 	return &StdoutLogger{}
 }
 
-// StdoutLogger provides a logging abstraction which writes logs to stdout.
+// StdoutLogger provides a logging implementation which simply writes to stdout.
 type StdoutLogger struct {
 }
 
@@ -23,12 +23,10 @@ func (f *StdoutLogger) Upload(_ context.Context, key string, lines []*logstream.
 	return nil
 }
 
-// Open opens the data stream.
 func (f *StdoutLogger) Open(_ context.Context, key string) error {
 	return nil
 }
 
-// Close closes the data stream.
 func (f *StdoutLogger) Close(_ context.Context, key string) error {
 	return nil
 }

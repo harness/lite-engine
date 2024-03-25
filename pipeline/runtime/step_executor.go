@@ -300,7 +300,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 
 }
 
-// executeStepHelper is a helper function which is used by both this step executor as well as the
+// executeStepHelper is a helper function which is used both by this step executor as well as the
 // stateless step executor. This is done so as to not duplicate logic across multiple implementations.
 // Eventually, we should deprecate this step executor in favor of the stateless executor.
 func executeStepHelper(

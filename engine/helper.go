@@ -18,6 +18,7 @@ type Opts struct {
 	docker.Opts
 }
 
+// SetupPipeline is a helper function to setup a pipeline given a pipeline configuration.
 func SetupPipeline(
 	ctx context.Context,
 	opts Opts,
@@ -38,6 +39,8 @@ func SetupPipeline(
 	return nil
 }
 
+// DestroyPipeline is a helper function to destroy a pipeline given a pipeline configuration.
+// The labelKey and labelValue are used to identify the containers to destroy.
 func DestroyPipeline(
 	ctx context.Context,
 	opts Opts,
@@ -52,6 +55,9 @@ func DestroyPipeline(
 	return d.DestroyContainersByLabel(ctx, cfg, labelKey, labelValue)
 }
 
+// RunStep executes a step in a pipeline. It takes a pipeline configuration and a step configuration
+// as input. The pipeline configuration is used today for things like looking up volumes and using
+// pipeline-level environment variables.
 func RunStep(
 	ctx context.Context,
 	opts Opts,
