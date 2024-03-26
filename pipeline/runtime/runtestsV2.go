@@ -71,7 +71,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 	step.Command = []string{commands}
 	step.Entrypoint = r.RunTestsV2.Entrypoint
 	setTiEnvVariables(step, tiConfig)
-	err = createSelectedTestFile(ctx, fs, step.ID, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
+	err = createSelectedTestFile(ctx, fs, step.Name, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error while creating filter file %s", err)
 	}
@@ -100,7 +100,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 
 	exited, err := engine.Run(ctx, step, out, r.LogDrone)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.ID, tiConfig)
+	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {
 		err = collectionErr
 	}
