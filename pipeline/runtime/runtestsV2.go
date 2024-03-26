@@ -30,10 +30,10 @@ import (
 const (
 	outDir          = "%s/ti/v2/callgraph/" // path passed as outDir in the config.ini file
 	javaAgentV2Arg  = "-javaagent:%s=%s"
-	javaAgentV2Jar  = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
+	javaAgentV2Jar  = "java-agent-trampoline-0.0.1-SNAPSHOT-gradle.jar"
 	javaAgentV2Path = "/java/v2/"
-	javaAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" // Will be changed later
-	rubyAgentV2Url  = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"                                                                          // Will be changed later
+	javaAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/e5b1bfa3a6625f191057215d0c21a61c4a9cb7a7/java-agent-trampoline-0.0.1-SNAPSHOT-gradle.jar" // Will be changed later
+	rubyAgentV2Url  = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"                                                                                 // Will be changed later
 	filterV2Dir     = "%s/ti/v2/filter"
 	configV2Dir     = "%s/ti/v2/java/config"
 	bazelrcV2Dir    = "%s/ti/v2/bazelrc_%d"
@@ -71,7 +71,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 	step.Command = []string{commands}
 	step.Entrypoint = r.RunTestsV2.Entrypoint
 	setTiEnvVariables(step, tiConfig)
-	err = createSelectedTestFile(ctx, fs, step.Name, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
+	err = createSelectedTestFile(ctx, fs, step.ID, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error while creating filter file %s", err)
 	}
@@ -100,7 +100,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 
 	exited, err := engine.Run(ctx, step, out, r.LogDrone)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig)
+	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.ID, tiConfig)
 	if err == nil {
 		err = collectionErr
 	}
@@ -358,11 +358,8 @@ func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.Fi
 		return "", err
 	}
 
-	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
-	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-
 	bazelrcFilePath := filepath.Join(bazelrcDir, ".bazelrc")
-	data := fmt.Sprintf("test --test_env JAVA_TOOL_OPTIONS=%s", agentArg)
+	data := fmt.Sprintf("test --test_env=JAVA_TOOL_OPTIONS")
 
 	// There might be possibility of .bazelrc being already present in homeDir so checking this condition as well
 	if _, err := os.Stat(bazelrcFilePath); os.IsNotExist(err) {
