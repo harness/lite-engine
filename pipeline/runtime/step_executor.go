@@ -302,13 +302,13 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 // executeStepHelper is a helper function which is used both by this step executor as well as the
 // stateless step executor. This is done so as to not duplicate logic across multiple implementations.
 // Eventually, we should deprecate this step executor in favor of the stateless executor.
-func executeStepHelper(
+func executeStepHelper( //nolint:gocritic
 	r *api.StartStepRequest,
 	f RunFunc,
 	wc *livelog.Writer,
 	wr logstream.Writer,
 	tiCfg *tiCfg.Cfg) (*runtime.State, map[string]string,
-	map[string]string, []byte, []*api.OutputV2, string, error) { //nolint:gocritic
+	map[string]string, []byte, []*api.OutputV2, string, error) {
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
 	// We do here only for non-container step.
