@@ -53,14 +53,12 @@ func (e *StepExecutorStateless) Run(ctx context.Context, r *api.StartStepRequest
 func getLogServiceClient(cfg api.LogConfig) logstream.Client {
 	if cfg.URL != "" {
 		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false)
-	} else {
-		return stdout.New()
 	}
+	return stdout.New()
 }
 
 func (e *StepExecutorStateless) executeStep(r *api.StartStepRequest, cfg *spec.PipelineConfig) (*runtime.State, map[string]string, //nolint:gocritic
 	map[string]string, []byte, []*api.OutputV2, string, error) {
-
 	runFunc := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error) {
 		return engine.RunStep(ctx, engine.Opts{}, step, output, cfg, isDrone)
 	}

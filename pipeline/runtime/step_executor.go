@@ -297,7 +297,6 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 	go wr.Open() //nolint:errcheck
 
 	return executeStepHelper(r, e.engine.Run, wc, wr, pipeline.GetState().GetTIConfig())
-
 }
 
 // executeStepHelper is a helper function which is used both by this step executor as well as the
@@ -308,8 +307,8 @@ func executeStepHelper(
 	f RunFunc,
 	wc *livelog.Writer,
 	wr logstream.Writer,
-	tiCfg *tiCfg.Cfg) (*runtime.State, map[string]string, //nolint:gocritic
-	map[string]string, []byte, []*api.OutputV2, string, error) {
+	tiCfg *tiCfg.Cfg) (*runtime.State, map[string]string,
+	map[string]string, []byte, []*api.OutputV2, string, error) { //nolint:gocritic
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
 	// We do here only for non-container step.

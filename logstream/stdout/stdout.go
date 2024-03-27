@@ -11,28 +11,28 @@ import (
 	"github.com/harness/lite-engine/logstream"
 )
 
-func New() *StdoutLogger {
-	return &StdoutLogger{}
+func New() *Logger {
+	return &Logger{}
 }
 
-// StdoutLogger provides a logging implementation which simply writes to stdout.
-type StdoutLogger struct {
+// Logger provides a logging implementation which simply writes to stdout.
+type Logger struct {
 }
 
-func (f *StdoutLogger) Upload(_ context.Context, key string, lines []*logstream.Line) error {
+func (f *Logger) Upload(_ context.Context, key string, lines []*logstream.Line) error {
 	return nil
 }
 
-func (f *StdoutLogger) Open(_ context.Context, key string) error {
+func (f *Logger) Open(_ context.Context, key string) error {
 	return nil
 }
 
-func (f *StdoutLogger) Close(_ context.Context, key string) error {
+func (f *Logger) Close(_ context.Context, key string) error {
 	return nil
 }
 
 // Write writes logs to stdout
-func (f *StdoutLogger) Write(_ context.Context, key string, lines []*logstream.Line) error {
+func (f *Logger) Write(_ context.Context, key string, lines []*logstream.Line) error {
 	for _, line := range lines {
 		fmt.Printf("level=%s time=%s log=%s \n", line.Level, line.Timestamp, line.Message)
 	}

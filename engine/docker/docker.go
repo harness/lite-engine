@@ -176,9 +176,9 @@ func (e *Docker) DestroyContainersByLabel(
 		return err
 	}
 	var containers []Container
-	for _, ctr := range ctrs {
+	for i := range ctrs {
 		containers = append(containers, Container{
-			ID: ctr.ID,
+			ID: ctrs[i].ID,
 		})
 	}
 	return e.destroyContainers(ctx, pipelineConfig, containers)
@@ -240,7 +240,6 @@ func (e *Docker) destroyContainers(
 	// and instead ask the system admin to periodically run
 	// `docker prune` commands.
 	return nil
-
 }
 
 // Destroy the pipeline environment.
