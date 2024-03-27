@@ -12,7 +12,6 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti/callgraph"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -33,7 +32,7 @@ var (
 	collectTestReportsFn = report.ParseAndUploadTests
 )
 
-func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
+func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
 	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	log := &logrus.Logger{
 		Out:   out,
@@ -73,7 +72,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
-	exited, err := engine.Run(ctx, step, out, false)
+	exited, err := f(ctx, step, out, false)
 	timeTakenMs := time.Since(start).Milliseconds()
 	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {

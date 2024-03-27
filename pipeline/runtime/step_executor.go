@@ -14,10 +14,12 @@ import (
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
+	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/wings-software/dlite/client"
@@ -28,6 +30,8 @@ import (
 )
 
 type ExecutionStatus int
+
+type RunFunc func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error)
 
 type StepStatus struct {
 	Status            ExecutionStatus
@@ -245,7 +249,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 
 		r.Kind = api.Run // only this kind is supported
 
-		exited, _, _, _, _, _, err := e.run(ctx, e.engine, r, stepLog)
+		exited, _, _, _, _, _, err := run(ctx, e.engine.Run, r, stepLog, pipeline.GetState().GetTIConfig())
 		if ctx.Err() == context.Canceled || ctx.Err() == context.DeadlineExceeded {
 			logr.WithError(err).Warnln("step execution canceled")
 			return nil, ctx.Err()
@@ -292,6 +296,19 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 	wr := logstream.NewReplacer(wc, secrets)
 	go wr.Open() //nolint:errcheck
 
+	return executeStepHelper(r, e.engine.Run, wc, wr, pipeline.GetState().GetTIConfig())
+}
+
+// executeStepHelper is a helper function which is used both by this step executor as well as the
+// stateless step executor. This is done so as to not duplicate logic across multiple implementations.
+// Eventually, we should deprecate this step executor in favor of the stateless executor.
+func executeStepHelper( //nolint:gocritic
+	r *api.StartStepRequest,
+	f RunFunc,
+	wc *livelog.Writer,
+	wr logstream.Writer,
+	tiCfg *tiCfg.Cfg) (*runtime.State, map[string]string,
+	map[string]string, []byte, []*api.OutputV2, string, error) {
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
 	// We do here only for non-container step.
@@ -303,7 +320,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
 				defer cancel()
 			}
-			e.run(ctx, e.engine, r, wr) //nolint:errcheck
+			run(ctx, f, r, wr, tiCfg) //nolint:errcheck
 			wr.Close()
 		}()
 		return &runtime.State{Exited: false}, nil, nil, nil, nil, "", nil
@@ -318,7 +335,8 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 		defer cancel()
 	}
 
-	exited, outputs, envs, artifact, outputV2, optimizationState, err := e.run(ctx, e.engine, r, wr)
+	exited, outputs, envs, artifact, outputV2, optimizationState, err :=
+		run(ctx, f, r, wr, tiCfg)
 	if err != nil {
 		result = multierror.Append(result, err)
 	}
@@ -355,16 +373,15 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 	return exited, outputs, envs, artifact, outputV2, optimizationState, result
 }
 
-func (e *StepExecutor) run(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer) ( //nolint:gocritic
+func run(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
 	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
-	tiConfig := pipeline.GetState().GetTIConfig()
 	if r.Kind == api.Run {
-		return executeRunStep(ctx, engine, r, out, tiConfig)
+		return executeRunStep(ctx, f, r, out, tiConfig)
 	}
 	if r.Kind == api.RunTestsV2 {
-		return executeRunTestsV2Step(ctx, engine, r, out, tiConfig)
+		return executeRunTestsV2Step(ctx, f, r, out, tiConfig)
 	}
-	return executeRunTestStep(ctx, engine, r, out, tiConfig)
+	return executeRunTestStep(ctx, f, r, out, tiConfig)
 }
 
 // This is used for Github Actions to set the envs from prev step.

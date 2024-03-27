@@ -12,7 +12,6 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
@@ -21,7 +20,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
+func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
 	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
 	step := toStep(r)
@@ -56,7 +55,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	log := logrus.New()
 	log.Out = out
 
-	exited, err := engine.Run(ctx, step, out, r.LogDrone)
+	exited, err := f(ctx, step, out, r.LogDrone)
 	timeTakenMs := time.Since(start).Milliseconds()
 
 	reportStart := time.Now()

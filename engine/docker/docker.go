@@ -26,6 +26,7 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
@@ -60,9 +61,12 @@ type Opts struct {
 
 // Docker implements a Docker pipeline engine.
 type Docker struct {
-	client     client.APIClient
-	hidePull   bool
-	mu         sync.Mutex
+	client   client.APIClient
+	hidePull bool
+	mu       sync.Mutex
+	// We should refactor this out to upper layers and make this stateless.
+	// The Docker engine should just be a simple wrapper around docker which does
+	// not keep track of the containers it creates.
 	containers []Container
 }
 
@@ -153,16 +157,45 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	return errors.TrimExtraInfo(err)
 }
 
-// Destroy the pipeline environment.
-func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+// DestroyContainersByLabel destroys a pipeline config and cleans up all containers with
+// a if specified. This should be used in favor of the old Destroy() which is stateful.
+func (e *Docker) DestroyContainersByLabel(
+	ctx context.Context,
+	pipelineConfig *spec.PipelineConfig,
+	labelKey string,
+	labelValue string,
+) error {
+	args := filters.NewArgs()
+	if labelKey != "" {
+		args.Add("label", fmt.Sprintf("%s=%s", labelKey, labelValue))
+	}
+	ctrs, err := e.client.ContainerList(ctx, types.ContainerListOptions{
+		Filters: args,
+	})
+	if err != nil {
+		return err
+	}
+	var containers []Container
+	for i := range ctrs {
+		containers = append(containers, Container{
+			ID: ctrs[i].ID,
+		})
+	}
+	return e.destroyContainers(ctx, pipelineConfig, containers)
+}
+
+// destroyContainers is a method which takes in a list of containers and a pipeline environment
+// to destroy.
+func (e *Docker) destroyContainers(
+	ctx context.Context,
+	pipelineConfig *spec.PipelineConfig,
+	containers []Container,
+) error {
 	removeOpts := types.ContainerRemoveOptions{
 		Force:         true,
 		RemoveLinks:   false,
 		RemoveVolumes: true,
 	}
-	e.mu.Lock()
-	containers := e.containers
-	e.mu.Unlock()
 
 	// stop all containers
 	for _, ctr := range containers {
@@ -207,6 +240,15 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfi
 	// and instead ask the system admin to periodically run
 	// `docker prune` commands.
 	return nil
+}
+
+// Destroy the pipeline environment.
+func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+	e.mu.Lock()
+	containers := e.containers
+	e.mu.Unlock()
+
+	return e.destroyContainers(ctx, pipelineConfig, containers)
 }
 
 // Run runs the pipeline step.
