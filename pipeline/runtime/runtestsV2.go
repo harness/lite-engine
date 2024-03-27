@@ -71,7 +71,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 	step.Command = []string{commands}
 	step.Entrypoint = r.RunTestsV2.Entrypoint
 	setTiEnvVariables(step, tiConfig)
-	err = createSelectedTestFile(ctx, fs, step.ID, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
+	err = createSelectedTestFile(ctx, fs, step.Name, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error while creating filter file %s", err)
 	}
@@ -100,7 +100,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 
 	exited, err := engine.Run(ctx, step, out, r.LogDrone)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.ID, tiConfig)
+	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {
 		err = collectionErr
 	}
@@ -271,7 +271,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		return "", "", err
 	}
 
-	bazelfilepath, err := writetoBazelrcFile(iniFilePath, log, fs, tmpFilePath, splitIdx)
+	bazelfilepath, err := writetoBazelrcFile(log, fs, tmpFilePath, splitIdx)
 	if err != nil {
 		log.WithError(err).Errorln("failed to write in .bazelrc file")
 		return "", "", err
@@ -349,7 +349,7 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	return nil
 }
 
-func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.FileSystem, tmpFilePath string, splitIdx int) (string, error) {
+func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, tmpFilePath string, splitIdx int) (string, error) {
 	bazelrcDir := fmt.Sprintf(bazelrcV2Dir, tmpFilePath, splitIdx)
 
 	err := fs.MkdirAll(bazelrcDir, os.ModePerm)
@@ -359,7 +359,7 @@ func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.Fi
 	}
 
 	bazelrcFilePath := filepath.Join(bazelrcDir, ".bazelrc")
-	data := fmt.Sprintf("test --test_env=JAVA_TOOL_OPTIONS")
+	data := "test --test_env=JAVA_TOOL_OPTIONS"
 
 	// There might be possibility of .bazelrc being already present in homeDir so checking this condition as well
 	if _, err := os.Stat(bazelrcFilePath); os.IsNotExist(err) {

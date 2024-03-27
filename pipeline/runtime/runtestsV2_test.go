@@ -232,9 +232,8 @@ func Test_getTestsSelection(t *testing.T) {
 }
 
 func Test_writetoBazelrcFile(t *testing.T) {
-
 	t.Run("testPath", func(t *testing.T) {
-		got, err := writetoBazelrcFile("/tmp/config.ini", logrus.New(), filesystem.New(), "/tmp", 2)
+		got, err := writetoBazelrcFile(logrus.New(), filesystem.New(), "/tmp", 2)
 		if err != nil {
 			t.Errorf("writetoBazelrcFile() error = %v, wantErr %v", err, "/tmp/ti/v2/bazelrc_2/.bazelrc")
 			return
@@ -243,5 +242,4 @@ func Test_writetoBazelrcFile(t *testing.T) {
 			t.Errorf("writetoBazelrcFile() = %v, want %v", got, "/tmp/ti/v2/bazelrc_2/.bazelrc")
 		}
 	})
-
 }
