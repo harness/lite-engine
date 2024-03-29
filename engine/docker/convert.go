@@ -36,7 +36,7 @@ func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *container.C
 	}
 
 	if len(step.Envs) != 0 {
-		config.Env = toEnv(step.Envs)
+		config.Env = spec.ToEnv(step.Envs)
 	}
 	for _, sec := range step.Secrets {
 		config.Env = append(config.Env, sec.Env+"="+string(sec.Data))
@@ -275,19 +275,6 @@ func toVolumeType(from *spec.Volume) mount.Type {
 	default:
 		return mount.TypeBind
 	}
-}
-
-// helper function that converts a key value map of
-// environment variables to a string slice in key=value
-// format.
-func toEnv(env map[string]string) []string {
-	var envs []string
-	for k, v := range env {
-		if v != "" {
-			envs = append(envs, k+"="+v)
-		}
-	}
-	return envs
 }
 
 // returns true if the container has no resource limits.
