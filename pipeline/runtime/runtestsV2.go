@@ -35,7 +35,6 @@ const (
 	rubyAgentV2Url  = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"                                                                                 // Will be changed later
 	filterV2Dir     = "%s/ti/v2/filter"
 	configV2Dir     = "%s/ti/v2/java/config"
-	bazelrcV2Dir    = "%s/ti/v2/bazelrc_%d"
 )
 
 // Ignoring optimization state for now
@@ -349,15 +348,13 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 }
 
 func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, tmpFilePath string, splitIdx int) (string, error) {
-	bazelrcDir := fmt.Sprintf(bazelrcV2Dir, tmpFilePath, splitIdx)
-
-	err := fs.MkdirAll(bazelrcDir, os.ModePerm)
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", bazelrcDir))
+		log.WithError(err).Errorln(fmt.Sprintf("could not read home directory"))
 		return "", err
 	}
 
-	bazelrcFilePath := filepath.Join(bazelrcDir, ".bazelrc")
+	bazelrcFilePath := filepath.Join(homeDir, ".bazelrc")
 	data := "test --test_env=JAVA_TOOL_OPTIONS"
 
 	// There might be possibility of .bazelrc being already present in homeDir so checking this condition as well
