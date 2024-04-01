@@ -56,7 +56,7 @@ func (g *gradleRunner) ReadPackages(workspace string, files []ti.File) []ti.File
 	return ReadPkgs(g.log, g.fs, workspace, files)
 }
 
-func (g *gradleRunner) GetTestGlobs() (testGlobs []string, excludeGlobs []string) {
+func (g *gradleRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 	return make([]string, 0), make([]string, 0)
 }
 

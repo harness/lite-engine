@@ -59,7 +59,7 @@ func GetPythonTests(workspace string, testGlobs []string) []ti.RunnableTest {
 }
 
 // GetPythonGlobs returns the globs if user specified, return default globs if not specified.
-func GetPythonGlobs(testGlobs []string) ([]string, []string) {
+func GetPythonGlobs(testGlobs []string) (includeGlobs, excludeGlobs []string) {
 	if len(testGlobs) == 0 {
 		testGlobs = defaultTestGlobs
 	}

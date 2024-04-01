@@ -50,7 +50,7 @@ func (s *sbtRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
 	return ReadPkgs(s.log, s.fs, workspace, files)
 }
 
-func (s *sbtRunner) GetTestGlobs() ([]string, []string) {
+func (s *sbtRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 	return make([]string, 0), make([]string, 0)
 }
 

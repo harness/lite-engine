@@ -51,7 +51,7 @@ func (m *pytestRunner) ReadPackages(workspace string, files []ti.File) []ti.File
 	return files
 }
 
-func (m *pytestRunner) GetTestGlobs() ([]string, []string) {
+func (m *pytestRunner) GetTestGlobs() (includeGlobs, excludeGlobs []string) {
 	return GetPythonGlobs(m.testGlobs)
 }
 

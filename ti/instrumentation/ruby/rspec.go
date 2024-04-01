@@ -50,7 +50,7 @@ func (m *rspecRunner) ReadPackages(workspace string, files []ti.File) []ti.File 
 	return files
 }
 
-func (m *rspecRunner) GetTestGlobs() ([]string, []string) {
+func (m *rspecRunner) GetTestGlobs() (includeGlobs, excludeGlobs []string) {
 	return GetRubyGlobs(m.testGlobs, m.envs)
 }
 

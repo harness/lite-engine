@@ -178,11 +178,11 @@ func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJunitInstru
 }
 
 // GetRubyGlobs returns the globs if user specified, return default globs if not specified.
-func GetRubyGlobs(testGlobs []string, envs map[string]string) ([]string, []string) {
+func GetRubyGlobs(testGlobs []string, envs map[string]string) (includeGlobs, excludeGlobs []string) {
 	if len(testGlobs) == 0 {
 		testGlobs = defaultTestGlobs
 	}
-	excludeGlobs := make([]string, 0)
+	excludeGlobs = make([]string, 0)
 	if envs["TI_SKIP_EXCLUDE_VENDOR"] == "true" {
 		excludeGlobs = filterExcludeGlobs
 	}
