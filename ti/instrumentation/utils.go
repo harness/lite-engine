@@ -31,10 +31,11 @@ import (
 )
 
 var (
-	diffFilesCmdPR   = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
-	diffFilesCmdPush = []string{"diff", "--name-status", "--diff-filter=MADR"}
-	bazelCmd         = "bazel"
-	execCmdCtx       = exec.CommandContext
+	diffFilesCmdPR     = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
+	diffFilesCmdPush   = []string{"diff", "--name-status", "--diff-filter=MADR"}
+	filterExcludeGlobs = []string{"**/vendor/**/*.rb"}
+	bazelCmd           = "bazel"
+	execCmdCtx         = exec.CommandContext
 )
 
 const (
@@ -441,7 +442,9 @@ func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string) t
 	for _, test := range selection.Tests {
 		for _, glob := range testGlobSlice {
 			if matched, _ := zglob.Match(glob, test.Class); matched {
-				filteredTests = append(filteredTests, test)
+				if !isExcluded(test.Class) {
+					filteredTests = append(filteredTests, test)
+				}
 				break
 			}
 		}
@@ -449,6 +452,18 @@ func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string) t
 	selection.SelectedTests = len(filteredTests)
 	selection.Tests = filteredTests
 	return selection
+}
+
+func isExcluded(class string) bool {
+	if os.Getenv("TI_SKIP_EXCLUDE_VENDOR") == "true" {
+		return false
+	}
+	for _, excludeGlob := range filterExcludeGlobs {
+		if matchedExclude, _ := zglob.Match(excludeGlob, class); matchedExclude {
+			return true
+		}
+	}
+	return false
 }
 
 func formatTests(tests []ti.RunnableTest) string {
