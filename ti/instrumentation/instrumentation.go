@@ -85,7 +85,7 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	// Call TI svc only when there is a chance of running selected tests
 	filesWithPkg := runner.ReadPackages(workspace, files)
 	selection, err = SelectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
-	selection = filterTestsAfterSelection(selection, config.TestGlobs)
+	selection = filterTestsAfterSelection(selection, config.TestGlobs, envs)
 	if err != nil {
 		log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
 		config.RunOnlySelectedTests = false // run all the tests if an error was encountered

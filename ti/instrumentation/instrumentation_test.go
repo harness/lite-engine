@@ -343,7 +343,7 @@ func TestFilterSelection(t *testing.T) {
 		Tests:         rts2,
 	}
 
-	filteredTests := filterTestsAfterSelection(selection, testGlob)
+	filteredTests := filterTestsAfterSelection(selection, testGlob, make(map[string]string))
 	assert.Equal(t, filteredTests.Tests, rts2)
 
 	testGlob = "abc"
@@ -357,7 +357,7 @@ func TestFilterSelection(t *testing.T) {
 		Tests:         rts2,
 	}
 
-	filteredTests = filterTestsAfterSelection(selection, testGlob)
+	filteredTests = filterTestsAfterSelection(selection, testGlob, make(map[string]string))
 	assert.Equal(t, filteredTests.Tests, rts2)
 
 	testGlob = "c1"
@@ -371,7 +371,7 @@ func TestFilterSelection(t *testing.T) {
 		Tests:         rts2,
 	}
 
-	filteredTests = filterTestsAfterSelection(selection, testGlob)
+	filteredTests = filterTestsAfterSelection(selection, testGlob, make(map[string]string))
 	assert.Equal(t, filteredTests.Tests, []ti.RunnableTest{rts[0]})
 
 	testGlob = "c*"
@@ -385,7 +385,7 @@ func TestFilterSelection(t *testing.T) {
 		Tests:         rts2,
 	}
 
-	filteredTests = filterTestsAfterSelection(selection, testGlob)
+	filteredTests = filterTestsAfterSelection(selection, testGlob, make(map[string]string))
 	assert.Equal(t, filteredTests.Tests, rts)
 
 	testGlob = "**/*"
@@ -400,6 +400,6 @@ func TestFilterSelection(t *testing.T) {
 	}
 
 	fmt.Println(rts2)
-	filteredTests = filterTestsAfterSelection(selection, testGlob)
+	filteredTests = filterTestsAfterSelection(selection, testGlob, make(map[string]string))
 	assert.Equal(t, filteredTests.Tests, rts)
 }
