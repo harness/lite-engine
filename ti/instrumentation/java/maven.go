@@ -54,7 +54,7 @@ func (m *mavenRunner) ReadPackages(workspace string, files []ti.File) []ti.File 
 	return ReadPkgs(m.log, m.fs, workspace, files)
 }
 
-func (m *mavenRunner) GetTestGlobs() ([]string, []string) {
+func (m *mavenRunner) GetTestGlobs() (testGlobs []string, excludeGlobs []string) {
 	return make([]string, 0), make([]string, 0)
 }
 

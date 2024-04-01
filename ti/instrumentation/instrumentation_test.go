@@ -332,7 +332,7 @@ func TestFilterSelection(t *testing.T) {
 		Pkg:   "package",
 		Class: "harness/vendor/test.rb",
 	}
-	rts2 := append(rts, rt)
+	rts2 := append(rts, rt) //nolint:gocritic
 	rts2 = append(rts2, rt2)
 	selection := ti.SelectTestsResp{
 		TotalTests:    20,
