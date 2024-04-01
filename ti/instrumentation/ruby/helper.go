@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	defaultTestGlobs = []string{"**/spec/**{,/*/**}/*_spec.rb"}
+	defaultTestGlobs = []string{"**/spec/**/*_spec.rb"}
 )
 
 const rspecJuintFormatterString string = "RspecJunitFormatter"
