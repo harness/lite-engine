@@ -49,7 +49,7 @@ func (m *unittestRunner) ReadPackages(workspace string, files []ti.File) []ti.Fi
 	return files
 }
 
-func (m *unittestRunner) GetTestGlobs() ([]string, []string) {
+func (m *unittestRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 	return GetPythonGlobs(m.testGlobs)
 }
 

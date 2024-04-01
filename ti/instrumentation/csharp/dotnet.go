@@ -53,7 +53,7 @@ func (b *dotnetRunner) ReadPackages(workspace string, files []ti.File) []ti.File
 	return files
 }
 
-func (b *dotnetRunner) GetTestGlobs() ([]string, []string) {
+func (b *dotnetRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 	return make([]string, 0), make([]string, 0)
 }
 

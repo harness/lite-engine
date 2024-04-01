@@ -48,7 +48,7 @@ func (b *nunitConsoleRunner) ReadPackages(workspace string, files []ti.File) []t
 	return files
 }
 
-func (b *nunitConsoleRunner) GetTestGlobs() ([]string, []string) {
+func (b *nunitConsoleRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 	return make([]string, 0), make([]string, 0)
 }
 
