@@ -269,7 +269,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		return "", "", err
 	}
 
-	_, err = writetoBazelrcFile(log, fs, tmpFilePath, splitIdx)
+	err = writetoBazelrcFile(log, fs, tmpFilePath, splitIdx)
 	if err != nil {
 		log.WithError(err).Errorln("failed to write in .bazelrc file")
 		return "", "", err
@@ -347,11 +347,11 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	return nil
 }
 
-func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, tmpFilePath string, splitIdx int) (string, error) {
+func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, tmpFilePath string, splitIdx int) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not read home directory"))
-		return "", err
+		return err
 	}
 
 	bazelrcFilePath := filepath.Join(homeDir, ".bazelrc")
@@ -362,20 +362,20 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, tmpFilePat
 		f, err := fs.Create(bazelrcFilePath)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not create file %s", bazelrcFilePath))
-			return "", err
+			return err
 		}
 
 		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
 		_, err = f.WriteString(data)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
-			return "", err
+			return err
 		}
 	} else {
 		file, err := os.OpenFile(bazelrcFilePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not open the file in dir %s", bazelrcFilePath))
-			return "", err
+			return err
 		}
 		defer file.Close()
 
@@ -383,10 +383,10 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, tmpFilePat
 		_, err = file.WriteString("\n" + data)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
-			return "", err
+			return err
 		}
 	}
-	return bazelrcFilePath, nil
+	return nil
 }
 
 func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
