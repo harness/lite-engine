@@ -433,7 +433,7 @@ func SelectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
 }
 
-func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string) ti.SelectTestsResp {
+func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string, envs map[string]string) ti.SelectTestsResp {
 	if selection.SelectAll || testGlobs == "" {
 		return selection
 	}
@@ -442,7 +442,7 @@ func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string) t
 	for _, test := range selection.Tests {
 		for _, glob := range testGlobSlice {
 			if matched, _ := zglob.Match(glob, test.Class); matched {
-				if !isExcluded(test.Class) {
+				if !isExcluded(test.Class, envs) {
 					filteredTests = append(filteredTests, test)
 				}
 				break
@@ -454,8 +454,8 @@ func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string) t
 	return selection
 }
 
-func isExcluded(class string) bool {
-	if os.Getenv("TI_SKIP_EXCLUDE_VENDOR") == "true" {
+func isExcluded(class string, envs map[string]string) bool {
+	if envs["TI_SKIP_EXCLUDE_VENDOR"] == "true" {
 		return false
 	}
 	for _, excludeGlob := range filterExcludeGlobs {
