@@ -323,6 +323,16 @@ func TestFilterSelection(t *testing.T) {
 		}
 		rts = append(rts, rt)
 	}
+	rt := ti.RunnableTest{
+		Pkg:   "package",
+		Class: "vendor/test.rb",
+	}
+	rt2 := ti.RunnableTest{
+		Pkg:   "package",
+		Class: "harness/vendor/test.rb",
+	}
+	rts2 := append(rts, rt)
+	rts2 = append(rts2, rt2)
 	selection := ti.SelectTestsResp{
 		TotalTests:    20,
 		SelectedTests: 12,
@@ -330,11 +340,11 @@ func TestFilterSelection(t *testing.T) {
 		UpdatedTests:  12,
 		SrcCodeTests:  12,
 		SelectAll:     false,
-		Tests:         rts,
+		Tests:         rts2,
 	}
 
 	filteredTests := filterTestsAfterSelection(selection, testGlob)
-	assert.Equal(t, filteredTests.Tests, rts)
+	assert.Equal(t, filteredTests.Tests, rts2)
 
 	testGlob = "abc"
 	selection = ti.SelectTestsResp{
@@ -344,11 +354,11 @@ func TestFilterSelection(t *testing.T) {
 		UpdatedTests:  12,
 		SrcCodeTests:  12,
 		SelectAll:     true,
-		Tests:         rts,
+		Tests:         rts2,
 	}
 
 	filteredTests = filterTestsAfterSelection(selection, testGlob)
-	assert.Equal(t, filteredTests.Tests, rts)
+	assert.Equal(t, filteredTests.Tests, rts2)
 
 	testGlob = "c1"
 	selection = ti.SelectTestsResp{
@@ -358,7 +368,7 @@ func TestFilterSelection(t *testing.T) {
 		UpdatedTests:  12,
 		SrcCodeTests:  12,
 		SelectAll:     false,
-		Tests:         rts,
+		Tests:         rts2,
 	}
 
 	filteredTests = filterTestsAfterSelection(selection, testGlob)
@@ -372,9 +382,24 @@ func TestFilterSelection(t *testing.T) {
 		UpdatedTests:  12,
 		SrcCodeTests:  12,
 		SelectAll:     false,
-		Tests:         rts,
+		Tests:         rts2,
 	}
 
+	filteredTests = filterTestsAfterSelection(selection, testGlob)
+	assert.Equal(t, filteredTests.Tests, rts)
+
+	testGlob = "**/*"
+	selection = ti.SelectTestsResp{
+		TotalTests:    20,
+		SelectedTests: 12,
+		NewTests:      0,
+		UpdatedTests:  12,
+		SrcCodeTests:  12,
+		SelectAll:     false,
+		Tests:         rts2,
+	}
+
+	fmt.Println(rts2)
 	filteredTests = filterTestsAfterSelection(selection, testGlob)
 	assert.Equal(t, filteredTests.Tests, rts)
 }
