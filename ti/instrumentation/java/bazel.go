@@ -67,7 +67,7 @@ func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string, tes
 	return tests, nil
 }
 
-func (b *bazelRunner) GetTestGlobs() ([]string, []string) {
+func (b *bazelRunner) GetTestGlobs() (testGlobs []string, excludeGlobs []string) {
 	return make([]string, 0), make([]string, 0)
 }
 
