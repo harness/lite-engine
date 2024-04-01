@@ -269,14 +269,14 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		return "", "", err
 	}
 
-	bazelfilepath, err := writetoBazelrcFile(log, fs, tmpFilePath, splitIdx)
+	_, err = writetoBazelrcFile(log, fs, tmpFilePath, splitIdx)
 	if err != nil {
 		log.WithError(err).Errorln("failed to write in .bazelrc file")
 		return "", "", err
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s export BAZEL_SYSTEM_BAZELRC_PATH=%s", agentArg, bazelfilepath)
+	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
 
 	// Ruby
 	envs["TI"] = "1"
