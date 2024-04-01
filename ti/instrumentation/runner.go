@@ -36,4 +36,8 @@ type TestRunner interface {
 	// ReadPackages reads and populates the package of each file.
 	// Return the same list if it's unimplemented.
 	ReadPackages(workspace string, files []ti.File) []ti.File
+
+	// GetTestGlobs gets the include and exclude glob.
+	// Return Include and exclude globs
+	GetTestGlobs() ([]string, []string)
 }

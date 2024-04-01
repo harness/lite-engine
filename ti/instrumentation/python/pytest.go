@@ -51,6 +51,10 @@ func (m *pytestRunner) ReadPackages(workspace string, files []ti.File) []ti.File
 	return files
 }
 
+func (m *pytestRunner) GetTestGlobs() ([]string, []string) {
+	return GetPythonGlobs(m.testGlobs)
+}
+
 func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	if userArgs == "" {

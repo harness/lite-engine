@@ -53,6 +53,10 @@ func (b *dotnetRunner) ReadPackages(workspace string, files []ti.File) []ti.File
 	return files
 }
 
+func (b *dotnetRunner) GetTestGlobs() ([]string, []string) {
+	return make([]string, 0), make([]string, 0)
+}
+
 func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, agentConfigPath,
 	agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	// Move config.ini to Config.yaml manually for now. Later, we will use the same format for both

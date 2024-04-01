@@ -54,6 +54,10 @@ func (m *mavenRunner) ReadPackages(workspace string, files []ti.File) []ti.File 
 	return ReadPkgs(m.log, m.fs, workspace, files)
 }
 
+func (m *mavenRunner) GetTestGlobs() ([]string, []string) {
+	return make([]string, 0), make([]string, 0)
+}
+
 func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	// Agent arg

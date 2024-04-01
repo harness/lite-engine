@@ -49,15 +49,21 @@ func getPythonTestsFromPattern(workspace string, testGlobs []string) ([]ti.Runna
 // GetPythonTests returns list of RunnableTests in the workspace with python extension.
 // In case of errors, return empty list
 func GetPythonTests(workspace string, testGlobs []string) []ti.RunnableTest {
-	if len(testGlobs) == 0 {
-		testGlobs = defaultTestGlobs
-	}
+	testGlobs, _ = GetPythonGlobs(testGlobs)
 	tests, err := getPythonTestsFromPattern(workspace, testGlobs)
 	if err != nil {
 		return tests
 	}
 
 	return tests
+}
+
+// GetPythonGlobs returns the globs if user specified, return default globs if not specified.
+func GetPythonGlobs(testGlobs []string) ([]string, []string) {
+	if len(testGlobs) == 0 {
+		testGlobs = defaultTestGlobs
+	}
+	return testGlobs, make([]string, 0)
 }
 
 // UnzipAndGetTestInfo unzips the Python agent zip file, and return a pair of

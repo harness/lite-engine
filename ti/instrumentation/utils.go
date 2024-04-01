@@ -31,11 +31,10 @@ import (
 )
 
 var (
-	diffFilesCmdPR     = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
-	diffFilesCmdPush   = []string{"diff", "--name-status", "--diff-filter=MADR"}
-	filterExcludeGlobs = []string{"**/vendor/**/*.rb"}
-	bazelCmd           = "bazel"
-	execCmdCtx         = exec.CommandContext
+	diffFilesCmdPR   = []string{"diff", "--name-status", "--diff-filter=MADR", "HEAD@{1}", "HEAD", "-1"}
+	diffFilesCmdPush = []string{"diff", "--name-status", "--diff-filter=MADR"}
+	bazelCmd         = "bazel"
+	execCmdCtx       = exec.CommandContext
 )
 
 const (
@@ -49,7 +48,7 @@ const (
 	harnessStageTotal = "HARNESS_STAGE_TOTAL"
 )
 
-func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string) (TestRunner, bool, error) {
+func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) (TestRunner, bool, error) {
 	var runner TestRunner
 	var useYaml bool
 	switch strings.ToLower(language) {
@@ -92,7 +91,7 @@ func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.F
 	case "ruby":
 		switch buildTool {
 		case "rspec":
-			runner = ruby.NewRubyRunner(log, fs, testGlobs)
+			runner = ruby.NewRubyRunner(log, fs, testGlobs, envs)
 		default:
 			return runner, useYaml, fmt.Errorf("could not figure out the build tool: %s", buildTool)
 		}
@@ -433,20 +432,14 @@ func SelectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
 }
 
-func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string, envs map[string]string) ti.SelectTestsResp {
-	if selection.SelectAll || testGlobs == "" {
+func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs, excludeGlobs []string) ti.SelectTestsResp {
+	if selection.SelectAll || len(testGlobs) == 0 {
 		return selection
 	}
-	testGlobSlice := strings.Split(testGlobs, ",")
 	filteredTests := []ti.RunnableTest{}
 	for _, test := range selection.Tests {
-		for _, glob := range testGlobSlice {
-			if matched, _ := zglob.Match(glob, test.Class); matched {
-				if !isExcluded(test.Class, envs) {
-					filteredTests = append(filteredTests, test)
-				}
-				break
-			}
+		if matchedAny(test.Class, testGlobs) && !matchedAny(test.Class, excludeGlobs) {
+			filteredTests = append(filteredTests, test)
 		}
 	}
 	selection.SelectedTests = len(filteredTests)
@@ -454,12 +447,9 @@ func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs string, e
 	return selection
 }
 
-func isExcluded(class string, envs map[string]string) bool {
-	if envs["TI_SKIP_EXCLUDE_VENDOR"] == "true" {
-		return false
-	}
-	for _, excludeGlob := range filterExcludeGlobs {
-		if matchedExclude, _ := zglob.Match(excludeGlob, class); matchedExclude {
+func matchedAny(class string, globs []string) bool {
+	for _, glob := range globs {
+		if matchedExclude, _ := zglob.Match(glob, class); matchedExclude {
 			return true
 		}
 	}
