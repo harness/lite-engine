@@ -380,7 +380,7 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, tmpFilePat
 		defer file.Close()
 
 		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
-		_, err = file.WriteString(data)
+		_, err = file.WriteString("\n" + data)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
 			return "", err
