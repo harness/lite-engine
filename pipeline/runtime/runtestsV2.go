@@ -367,10 +367,10 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	return nil
 }
 
-func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, splitIdx int) error {
+func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not read home directory"))
+		log.WithError(err).Errorln("could not read home directory")
 		return err
 	}
 
