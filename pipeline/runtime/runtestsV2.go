@@ -280,7 +280,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		return "", "", err
 	}
 
-	err = writetoBazelrcFile(log, fs, splitIdx)
+	err = writetoBazelrcFile(log, fs)
 	if err != nil {
 		log.WithError(err).Errorln("failed to write in .bazelrc file")
 		return "", "", err
