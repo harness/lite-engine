@@ -35,7 +35,6 @@ const (
 	rubyAgentV2Url  = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"                                                                                 // Will be changed later
 	filterV2Dir     = "%s/ti/v2/filter"
 	configV2Dir     = "%s/ti/v2/java/config"
-	bazelrcV2Dir    = "%s/ti/v2/bazelrc_%d"
 )
 
 // Ignoring optimization state for now
@@ -270,14 +269,14 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		return "", "", err
 	}
 
-	bazelfilepath, err := writetoBazelrcFile(log, fs, tmpFilePath, splitIdx)
+	err = writetoBazelrcFile(log, fs, splitIdx)
 	if err != nil {
 		log.WithError(err).Errorln("failed to write in .bazelrc file")
 		return "", "", err
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s export BAZEL_SYSTEM_BAZELRC_PATH=%s", agentArg, bazelfilepath)
+	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
 
 	// Ruby
 	envs["TI"] = "1"
@@ -348,16 +347,14 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	return nil
 }
 
-func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, tmpFilePath string, splitIdx int) (string, error) {
-	bazelrcDir := fmt.Sprintf(bazelrcV2Dir, tmpFilePath, splitIdx)
-
-	err := fs.MkdirAll(bazelrcDir, os.ModePerm)
+func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, splitIdx int) error {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", bazelrcDir))
-		return "", err
+		log.WithError(err).Errorln(fmt.Sprintf("could not read home directory"))
+		return err
 	}
 
-	bazelrcFilePath := filepath.Join(bazelrcDir, ".bazelrc")
+	bazelrcFilePath := filepath.Join(homeDir, ".bazelrc")
 	data := "test --test_env=JAVA_TOOL_OPTIONS"
 
 	// There might be possibility of .bazelrc being already present in homeDir so checking this condition as well
@@ -365,31 +362,31 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, tmpFilePat
 		f, err := fs.Create(bazelrcFilePath)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not create file %s", bazelrcFilePath))
-			return "", err
+			return err
 		}
 
 		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
 		_, err = f.WriteString(data)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
-			return "", err
+			return err
 		}
 	} else {
 		file, err := os.OpenFile(bazelrcFilePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not open the file in dir %s", bazelrcFilePath))
-			return "", err
+			return err
 		}
 		defer file.Close()
 
 		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
-		_, err = file.WriteString(data)
+		_, err = file.WriteString("\n" + data)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
-			return "", err
+			return err
 		}
 	}
-	return bazelrcFilePath, nil
+	return nil
 }
 
 func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
