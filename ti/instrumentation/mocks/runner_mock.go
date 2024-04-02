@@ -98,7 +98,6 @@ func (m *MockTestRunner) GetTestGlobs() ([]string, []string) {
 	return ret0, ret1
 }
 
-
 // ReadPackages indicates an expected call of ReadPackages.
 func (mr *MockTestRunnerMockRecorder) ReadPackages(workspace, files interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
