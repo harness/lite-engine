@@ -239,7 +239,7 @@ func Test_writetoBazelrcFile(t *testing.T) {
 		return
 	}
 	t.Run("testPath", func(t *testing.T) {
-		err := writetoBazelrcFile(logrus.New(), filesystem.New(), 2)
+		err := writetoBazelrcFile(logrus.New(), filesystem.New())
 		if err != nil {
 			t.Errorf("writetoBazelrcFile() error = %v, wantErr %v", err, homeDir+"/.bazelrc")
 			return
