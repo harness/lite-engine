@@ -46,7 +46,7 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 	}, nil
 }
 
-func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 	// create global files and folders
 	if err := createFiles(pipelineConfig.Files); err != nil {
 		return errors.Wrap(err,
@@ -71,7 +71,13 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 		}
 		_ = os.Chmod(path, permissions)
 	}
+	return nil
+}
 
+func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+	if err := setupHelper(pipelineConfig); err != nil {
+		return err
+	}
 	e.mu.Lock()
 	e.pipelineConfig = pipelineConfig
 	e.mu.Unlock()
@@ -95,6 +101,22 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
 
+	if err := runHelper(cfg, step); err != nil {
+		return nil, err
+	}
+
+	if !isDrone && len(step.Command) > 0 {
+		printCommand(step, output)
+	}
+
+	if step.Image != "" {
+		return e.docker.Run(ctx, cfg, step, output, isDrone)
+	}
+
+	return exec.Run(ctx, step, output)
+}
+
+func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 	envs := make(map[string]string)
 	if step.Image == "" {
 		// Set parent process envs in case step is executed directly on the VM.
@@ -116,21 +138,13 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 
 	// create files or folders specific to the step
 	if err := createFiles(step.Files); err != nil {
-		return nil, err
+		return err
 	}
 
 	for _, vol := range step.Volumes {
 		vol.Path = pathConverter(vol.Path)
 	}
-
-	if !isDrone && len(step.Command) > 0 {
-		printCommand(step, output)
-	}
-	if step.Image != "" {
-		return e.docker.Run(ctx, cfg, step, output, isDrone)
-	}
-
-	return exec.Run(ctx, step, output)
+	return nil
 }
 
 func printCommand(step *spec.Step, output io.Writer) {

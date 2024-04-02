@@ -48,6 +48,10 @@ func (b *nunitConsoleRunner) ReadPackages(workspace string, files []ti.File) []t
 	return files
 }
 
+func (b *nunitConsoleRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
+	return make([]string, 0), make([]string, 0)
+}
+
 func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, //nolint:gocyclo
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	/*

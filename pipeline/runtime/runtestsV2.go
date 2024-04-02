@@ -14,7 +14,6 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -37,13 +36,12 @@ const (
 	pythonAgentV2Url = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/harness_ti_pytest_plugin-0.1-py3-none-any.whl" // Will be changed later
 	filterV2Dir      = "%s/ti/v2/filter"
 	configV2Dir      = "%s/ti/v2/java/config"
-	bazelrcV2Dir     = "%s/ti/v2/bazelrc_%d"
 )
 
 // Ignoring optimization state for now
 //
 //nolint:funlen,gocritic,gocyclo
-func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.StartStepRequest, out io.Writer,
+func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer,
 	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
 	tmpFilePath := tiConfig.GetDataDir()
@@ -104,7 +102,7 @@ func executeRunTestsV2Step(ctx context.Context, engine *engine.Engine, r *api.St
 		step.Envs["PLUGIN_METADATA_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
 	}
 
-	exited, err := engine.Run(ctx, step, out, r.LogDrone)
+	exited, err := f(ctx, step, out, r.LogDrone)
 	timeTakenMs := time.Since(start).Milliseconds()
 	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {
@@ -282,22 +280,29 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		return "", "", err
 	}
 
-	bazelfilepath, err := writetoBazelrcFile(iniFilePath, log, fs, tmpFilePath, splitIdx)
+	err = writetoBazelrcFile(log, fs, splitIdx)
 	if err != nil {
 		log.WithError(err).Errorln("failed to write in .bazelrc file")
 		return "", "", err
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s export BAZEL_SYSTEM_BAZELRC_PATH=%s", agentArg, bazelfilepath)
+	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
 
 	// Ruby
 	repoPath, err := ruby.UnzipAndGetTestInfo(rubyArtifactDir, log)
 	if err != nil {
 		return "", "", err
 	}
-	preCmd += fmt.Sprintf("\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
-	err = ruby.WriteRspecFile(workspace, repoPath)
+	preCmd += fmt.Sprintf("\nbundle add rspec_junit_formatter || true;\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
+
+	disableJunitVarName := "TI_DISABLE_JUNIT_INSTRUMENTATION"
+	disableJunitInstrumentation := false
+	if _, ok := envs[disableJunitVarName]; ok {
+		disableJunitInstrumentation = true
+	}
+
+	err = ruby.WriteRspecFile(workspace, repoPath, splitIdx, disableJunitInstrumentation)
 	if err != nil {
 		log.Errorln("Unable to write rspec-local file automatically", err)
 		return "", "", err
@@ -362,51 +367,46 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	return nil
 }
 
-func writetoBazelrcFile(iniFilePath string, log *logrus.Logger, fs filesystem.FileSystem, tmpFilePath string, splitIdx int) (string, error) {
-	bazelrcDir := fmt.Sprintf(bazelrcV2Dir, tmpFilePath, splitIdx)
-
-	err := fs.MkdirAll(bazelrcDir, os.ModePerm)
+func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, splitIdx int) error {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", bazelrcDir))
-		return "", err
+		log.WithError(err).Errorln(fmt.Sprintf("could not read home directory"))
+		return err
 	}
 
-	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
-	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-
-	bazelrcFilePath := filepath.Join(bazelrcDir, ".bazelrc")
-	data := fmt.Sprintf("test --test_env JAVA_TOOL_OPTIONS=%s", agentArg)
+	bazelrcFilePath := filepath.Join(homeDir, ".bazelrc")
+	data := "test --test_env=JAVA_TOOL_OPTIONS"
 
 	// There might be possibility of .bazelrc being already present in homeDir so checking this condition as well
 	if _, err := os.Stat(bazelrcFilePath); os.IsNotExist(err) {
 		f, err := fs.Create(bazelrcFilePath)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not create file %s", bazelrcFilePath))
-			return "", err
+			return err
 		}
 
 		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
 		_, err = f.WriteString(data)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
-			return "", err
+			return err
 		}
 	} else {
 		file, err := os.OpenFile(bazelrcFilePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not open the file in dir %s", bazelrcFilePath))
-			return "", err
+			return err
 		}
 		defer file.Close()
 
 		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
-		_, err = file.WriteString(data)
+		_, err = file.WriteString("\n" + data)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
-			return "", err
+			return err
 		}
 	}
-	return bazelrcFilePath, nil
+	return nil
 }
 
 func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {

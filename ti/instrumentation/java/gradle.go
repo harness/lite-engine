@@ -56,6 +56,10 @@ func (g *gradleRunner) ReadPackages(workspace string, files []ti.File) []ti.File
 	return ReadPkgs(g.log, g.fs, workspace, files)
 }
 
+func (g *gradleRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
+	return make([]string, 0), make([]string, 0)
+}
+
 /*
 The following needs to be added to a build.gradle to make it compatible with test intelligence:
 // This adds HARNESS_JAVA_AGENT to the testing command if it's provided through the command line.

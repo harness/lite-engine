@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -229,4 +230,18 @@ func Test_getTestsSelection(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_writetoBazelrcFile(t *testing.T) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	t.Run("testPath", func(t *testing.T) {
+		err := writetoBazelrcFile(logrus.New(), filesystem.New(), 2)
+		if err != nil {
+			t.Errorf("writetoBazelrcFile() error = %v, wantErr %v", err, homeDir+"/.bazelrc")
+			return
+		}
+	})
 }

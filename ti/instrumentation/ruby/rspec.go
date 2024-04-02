@@ -25,13 +25,15 @@ type rspecRunner struct {
 	fs        filesystem.FileSystem
 	log       *logrus.Logger
 	testGlobs []string
+	envs      map[string]string
 }
 
-func NewRubyRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string) *rspecRunner { //nolint:revive
+func NewRubyRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) *rspecRunner { //nolint:revive
 	return &rspecRunner{
 		fs:        fs,
 		log:       log,
 		testGlobs: testGlobs,
+		envs:      envs,
 	}
 }
 
@@ -46,6 +48,10 @@ func (m *rspecRunner) AutoDetectTests(ctx context.Context, workspace string, tes
 
 func (m *rspecRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
 	return files
+}
+
+func (m *rspecRunner) GetTestGlobs() (includeGlobs, excludeGlobs []string) {
+	return GetRubyGlobs(m.testGlobs, m.envs)
 }
 
 func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,

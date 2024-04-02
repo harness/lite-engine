@@ -314,7 +314,8 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 }
 
 func TestFilterSelection(t *testing.T) {
-	testGlob := ""
+	testGlobStr := ""
+	testGlob := sanitizeTestGlob(testGlobStr)
 	rts := make([]ti.RunnableTest, 0)
 	for i := 1; i <= 12; i++ {
 		rt := ti.RunnableTest{
@@ -323,6 +324,16 @@ func TestFilterSelection(t *testing.T) {
 		}
 		rts = append(rts, rt)
 	}
+	rt := ti.RunnableTest{
+		Pkg:   "package",
+		Class: "vendor/test.rb",
+	}
+	rt2 := ti.RunnableTest{
+		Pkg:   "package",
+		Class: "harness/vendor/test.rb",
+	}
+	rts2 := append(rts, rt) //nolint:gocritic
+	rts2 = append(rts2, rt2)
 	selection := ti.SelectTestsResp{
 		TotalTests:    20,
 		SelectedTests: 12,
@@ -330,13 +341,13 @@ func TestFilterSelection(t *testing.T) {
 		UpdatedTests:  12,
 		SrcCodeTests:  12,
 		SelectAll:     false,
-		Tests:         rts,
+		Tests:         rts2,
 	}
 
-	filteredTests := filterTestsAfterSelection(selection, testGlob)
-	assert.Equal(t, filteredTests.Tests, rts)
+	filteredTests := filterTestsAfterSelection(selection, testGlob, make([]string, 0))
+	assert.Equal(t, filteredTests.Tests, rts2)
 
-	testGlob = "abc"
+	testGlob = []string{"abc"}
 	selection = ti.SelectTestsResp{
 		TotalTests:    20,
 		SelectedTests: 12,
@@ -344,13 +355,13 @@ func TestFilterSelection(t *testing.T) {
 		UpdatedTests:  12,
 		SrcCodeTests:  12,
 		SelectAll:     true,
-		Tests:         rts,
+		Tests:         rts2,
 	}
 
-	filteredTests = filterTestsAfterSelection(selection, testGlob)
-	assert.Equal(t, filteredTests.Tests, rts)
+	filteredTests = filterTestsAfterSelection(selection, testGlob, make([]string, 0))
+	assert.Equal(t, filteredTests.Tests, rts2)
 
-	testGlob = "c1"
+	testGlob = []string{"c1"}
 	selection = ti.SelectTestsResp{
 		TotalTests:    20,
 		SelectedTests: 12,
@@ -358,13 +369,13 @@ func TestFilterSelection(t *testing.T) {
 		UpdatedTests:  12,
 		SrcCodeTests:  12,
 		SelectAll:     false,
-		Tests:         rts,
+		Tests:         rts2,
 	}
 
-	filteredTests = filterTestsAfterSelection(selection, testGlob)
+	filteredTests = filterTestsAfterSelection(selection, testGlob, make([]string, 0))
 	assert.Equal(t, filteredTests.Tests, []ti.RunnableTest{rts[0]})
 
-	testGlob = "c*"
+	testGlob = []string{"c*"}
 	selection = ti.SelectTestsResp{
 		TotalTests:    20,
 		SelectedTests: 12,
@@ -372,9 +383,22 @@ func TestFilterSelection(t *testing.T) {
 		UpdatedTests:  12,
 		SrcCodeTests:  12,
 		SelectAll:     false,
-		Tests:         rts,
+		Tests:         rts2,
+	}
+	filteredTests = filterTestsAfterSelection(selection, testGlob, make([]string, 0))
+	assert.Equal(t, filteredTests.Tests, rts)
+
+	testGlob = []string{"**/*"}
+	selection = ti.SelectTestsResp{
+		TotalTests:    20,
+		SelectedTests: 12,
+		NewTests:      0,
+		UpdatedTests:  12,
+		SrcCodeTests:  12,
+		SelectAll:     false,
+		Tests:         rts2,
 	}
 
-	filteredTests = filterTestsAfterSelection(selection, testGlob)
+	filteredTests = filterTestsAfterSelection(selection, testGlob, []string{"**/vendor/**/*.rb"})
 	assert.Equal(t, filteredTests.Tests, rts)
 }

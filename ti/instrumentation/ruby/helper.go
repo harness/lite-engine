@@ -6,6 +6,7 @@
 package ruby
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -20,8 +21,11 @@ import (
 )
 
 var (
-	defaultTestGlobs = []string{"**/spec/**{,/*/**}/*_spec.rb"}
+	defaultTestGlobs   = []string{"**/spec/**/*_spec.rb"}
+	filterExcludeGlobs = []string{"**/vendor/**/*.rb"}
 )
+
+const rspecJuintFormatterString string = "RspecJunitFormatter"
 
 func getRubyTestsFromPattern(workspace string, testGlobs []string, log *logrus.Logger) []ti.RunnableTest {
 	tests := make([]ti.RunnableTest, 0)
@@ -109,10 +113,36 @@ func WriteHelperFile(workspace, repoPath string) error {
 	return nil
 }
 
+// CheckFileForString checks if a file exists and contains a specific string
+func CheckFileForString(filePath, targetString string) (bool, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil // File doesn't exist
+		}
+		return false, err // Other error occurred
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, targetString) {
+			return true, nil // Target string found in the file
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return false, err // Error occurred while scanning the file
+	}
+	return false, nil // Target string not found in the file
+}
+
 // WriteRspecFile writes to the .rspec-local file
-func WriteRspecFile(workspace, repoPath string) error {
+func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJunitInstrumentation bool) error {
 	scriptPath := filepath.Join(repoPath, "test_intelligence.rb")
 	rspecLocalPath := filepath.Join(workspace, ".rspec-local")
+	rspecPath := filepath.Join(workspace, ".rspec")
+	juintPath := filepath.Join(workspace, fmt.Sprintf("rspec_%d.xml", splitIdx))
 
 	// Open or create the .rspec-local file
 	file, err := os.OpenFile(rspecLocalPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, os.ModeAppend)
@@ -122,10 +152,41 @@ func WriteRspecFile(workspace, repoPath string) error {
 	defer file.Close()
 
 	// Write the required line to the file
-	if _, err := file.WriteString(fmt.Sprintf("--require %q\n", scriptPath)); err != nil {
-		return fmt.Errorf("failed to write to .rspec-local file: %v", err)
+	if _, err = file.WriteString(fmt.Sprintf("--require %q\n", scriptPath)); err != nil {
+		return fmt.Errorf("failed to write to agent path to .rspec-local file: %v", err)
 	}
+
+	if !disableJunitInstrumentation {
+		existsInRspec, err := CheckFileForString(rspecPath, rspecJuintFormatterString)
+		if err != nil {
+			return fmt.Errorf("failed to check .rspec file for RspecJunitFormatter: %v", err)
+		}
+		existsInRspecLocal, err := CheckFileForString(rspecLocalPath, rspecJuintFormatterString)
+		if err != nil {
+			return fmt.Errorf("failed to check .rspec-local file for RspecJunitFormatter: %v", err)
+		}
+
+		if !existsInRspec && !existsInRspecLocal {
+			// Write the required line to the file
+			if _, err = file.WriteString(fmt.Sprintf("--format %s --out %s\n", rspecJuintFormatterString, juintPath)); err != nil {
+				return fmt.Errorf("failed to write xml formatter to .rspec-local file: %v", err)
+			}
+		}
+	}
+
 	return nil
+}
+
+// GetRubyGlobs returns the globs if user specified, return default globs if not specified.
+func GetRubyGlobs(testGlobs []string, envs map[string]string) (includeGlobs, excludeGlobs []string) {
+	if len(testGlobs) == 0 {
+		testGlobs = defaultTestGlobs
+	}
+	excludeGlobs = make([]string, 0)
+	if envs["TI_SKIP_EXCLUDE_VENDOR"] == "true" {
+		excludeGlobs = filterExcludeGlobs
+	}
+	return testGlobs, excludeGlobs
 }
 
 // prepend adds line in front of a file

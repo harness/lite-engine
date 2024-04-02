@@ -110,9 +110,20 @@ type (
 	// VolumeHostPath mounts a file or directory from the
 	// host node's filesystem into your container.
 	VolumeHostPath struct {
-		ID       string            `json:"id,omitempty"`
-		Name     string            `json:"name,omitempty"`
-		Path     string            `json:"path,omitempty"`
+		ID   string `json:"id,omitempty"`
+		Name string `json:"name,omitempty"`
+		Path string `json:"path,omitempty"`
+		// Create indicates the host volume should be created
+		// before pipeline execution starts.
+		//
+		// Remove indicates the host volume should be deleted
+		// after pipeline execution.
+		//
+		// These values shoud be true when mounting a temporary
+		// host machine volume for the purpose of executing step
+		// commands directly on the host machine.
+		Create   bool              `json:"create,omitempty"`
+		Remove   bool              `json:"remove,omitempty"`
 		Labels   map[string]string `json:"labels,omitempty"`
 		ReadOnly bool              `json:"read_only,omitempty"`
 	}

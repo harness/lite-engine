@@ -35,7 +35,7 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	}
 
 	cmd.Dir = step.WorkingDir
-	cmd.Env = toEnv(step.Envs)
+	cmd.Env = spec.ToEnv(step.Envs)
 	cmd.Stderr = output
 	cmd.Stdout = output
 
@@ -55,17 +55,4 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 		return &runtime.State{ExitCode: exitErr.ExitCode(), Exited: true}, nil
 	}
 	return nil, err
-}
-
-// helper function that converts a key value map of
-// environment variables to a string slice in key=value
-// format.
-func toEnv(env map[string]string) []string {
-	var envs []string
-	for k, v := range env {
-		if v != "" {
-			envs = append(envs, k+"="+v)
-		}
-	}
-	return envs
 }
