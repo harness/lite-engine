@@ -89,6 +89,16 @@ func (m *MockTestRunner) ReadPackages(workspace string, files []types.File) []ty
 	return ret0
 }
 
+// GetTestGlobs mocks base method.
+func (m *MockTestRunner) GetTestGlobs() ([]string, []string) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTestGlobs")
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].([]string)
+	return ret0, ret1
+}
+
+
 // ReadPackages indicates an expected call of ReadPackages.
 func (mr *MockTestRunnerMockRecorder) ReadPackages(workspace, files interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()

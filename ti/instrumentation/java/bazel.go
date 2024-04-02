@@ -67,6 +67,10 @@ func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string, tes
 	return tests, nil
 }
 
+func (b *bazelRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
+	return make([]string, 0), make([]string, 0)
+}
+
 func (b *bazelRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
 	return ReadPkgs(b.log, b.fs, workspace, files)
 }

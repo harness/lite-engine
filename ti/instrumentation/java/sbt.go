@@ -50,6 +50,10 @@ func (s *sbtRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
 	return ReadPkgs(s.log, s.fs, workspace, files)
 }
 
+func (s *sbtRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
+	return make([]string, 0), make([]string, 0)
+}
+
 func (s *sbtRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	// Agent arg

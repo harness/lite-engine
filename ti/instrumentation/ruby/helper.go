@@ -21,7 +21,8 @@ import (
 )
 
 var (
-	defaultTestGlobs = []string{"**/spec/**{,/*/**}/*_spec.rb"}
+	defaultTestGlobs   = []string{"**/spec/**/*_spec.rb"}
+	filterExcludeGlobs = []string{"**/vendor/**/*.rb"}
 )
 
 const rspecJuintFormatterString string = "RspecJunitFormatter"
@@ -174,6 +175,18 @@ func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJunitInstru
 	}
 
 	return nil
+}
+
+// GetRubyGlobs returns the globs if user specified, return default globs if not specified.
+func GetRubyGlobs(testGlobs []string, envs map[string]string) (includeGlobs, excludeGlobs []string) {
+	if len(testGlobs) == 0 {
+		testGlobs = defaultTestGlobs
+	}
+	excludeGlobs = make([]string, 0)
+	if envs["TI_SKIP_EXCLUDE_VENDOR"] == "true" {
+		excludeGlobs = filterExcludeGlobs
+	}
+	return testGlobs, excludeGlobs
 }
 
 // prepend adds line in front of a file
