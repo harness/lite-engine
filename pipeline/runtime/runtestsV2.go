@@ -49,6 +49,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	log := logrus.New()
 	log.Out = out
 	optimizationState := types.DISABLED
+	agentPaths := make(map[string]string)
 
 	err := downloadJavaAgent(ctx, tmpFilePath, fs, log)
 	if err != nil {
@@ -56,17 +57,19 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	}
 
 	rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, fs, log)
-	if err != nil {
+	if err != nil || rubyArtifactDir == "" {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Ruby agent")
 	}
+	agentPaths["ruby"] = rubyArtifactDir
 
 	pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, fs, log)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Python agent")
 	}
+	agentPaths["python"] = pythonArtifactDir
 
-	preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, rubyArtifactDir, pythonArtifactDir)
-	if err != nil {
+	preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths)
+	if err != nil || pythonArtifactDir == "" {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 	}
 
@@ -254,7 +257,7 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 }
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string, rubyArtifactDir, pythonArtifactPath string) (preCmd, filterFilePath string, err error) {
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
@@ -290,7 +293,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
 
 	// Ruby
-	repoPath, err := ruby.UnzipAndGetTestInfo(rubyArtifactDir, log)
+	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 	if err != nil {
 		return "", "", err
 	}
@@ -309,7 +312,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	// Python
-	preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", pythonArtifactPath)
+	preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", agentPaths["python"])
 
 	return preCmd, filterFilePath, nil
 }
