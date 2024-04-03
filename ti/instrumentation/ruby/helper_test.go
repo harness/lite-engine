@@ -11,11 +11,12 @@ import (
 func TestGetRubyTestsFromPatternNegative(t *testing.T) {
 	// Mock input values
 	workspace := "/path/to/workspace"
-	testGlobs := []string{"spec/**{,/*/**}/*_spec.rb"}
+	testGlobs := []string{"spec/**/*_spec.rb"}
+	filterExcludeGlobs := []string{"**/vendor/**/*.rb"}
 	log := logrus.New()
 
 	// Call the function
-	tests := getRubyTestsFromPattern(workspace, testGlobs, log)
+	tests := getRubyTestsFromPattern(workspace, testGlobs, filterExcludeGlobs, log)
 
 	// Assert the results
 	assert.Len(t, tests, 0)
@@ -24,14 +25,30 @@ func TestGetRubyTestsFromPatternNegative(t *testing.T) {
 
 func TestGetRubyTestsFromPatternPositive(t *testing.T) {
 	workspace := "."
-	testGlobs := []string{"spec/**{,/*/**}/*_spec.rb"}
+	testGlobs := []string{"spec/**/*_spec.rb"}
+	filterExcludeGlobs := []string{"**/vendor/**/*.rb"}
 	log := logrus.New()
 
 	// Call the function
-	tests := getRubyTestsFromPattern(workspace, testGlobs, log)
+	tests := getRubyTestsFromPattern(workspace, testGlobs, filterExcludeGlobs, log)
 
 	// Assert the results
 	assert.NotNil(t, tests)
-	assert.Len(t, tests, 1)
+	assert.Len(t, tests, 2)
+	assert.IsType(t, []ti.RunnableTest{}, tests)
+}
+
+func TestGetRubyTestsFromPatternPositiveNoVendorIgnore(t *testing.T) {
+	workspace := "."
+	testGlobs := []string{"spec/**/*_spec.rb"}
+	filterExcludeGlobs := []string{}
+	log := logrus.New()
+
+	// Call the function
+	tests := getRubyTestsFromPattern(workspace, testGlobs, filterExcludeGlobs, log)
+
+	// Assert the results
+	assert.NotNil(t, tests)
+	assert.Len(t, tests, 3)
 	assert.IsType(t, []ti.RunnableTest{}, tests)
 }
