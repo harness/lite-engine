@@ -42,7 +42,7 @@ func getRubyTestsFromPattern(workspace string, testGlobs []string, log *logrus.L
 		// iterate over all the matches
 		for _, match := range matches {
 			// append a new RunnableTest to the tests slice if its a file
-			if info, err := os.Stat(match); err == nil && !info.IsDir() {
+			if info, err := os.Stat(match); err == nil && !info.IsDir() &&  !matchedAny(match, filterExcludeGlobs) {
 				tests = append(tests, ti.RunnableTest{
 					Class: match,
 				})
@@ -51,6 +51,15 @@ func getRubyTestsFromPattern(workspace string, testGlobs []string, log *logrus.L
 	}
 
 	return tests
+}
+
+func matchedAny(class string, globs []string) bool {
+	for _, glob := range globs {
+		if matchedExclude, _ := zglob.Match(glob, class); matchedExclude {
+			return true
+		}
+	}
+	return false
 }
 
 // GetRubyTests returns list of RunnableTests in the workspace with python extension.
