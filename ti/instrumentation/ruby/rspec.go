@@ -42,7 +42,8 @@ func (m *rspecRunner) AutoDetectPackages(workspace string) ([]string, error) {
 }
 
 func (m *rspecRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
-	rubyTests, err := GetRubyTests(workspace, testGlobs, m.log)
+	testGlobs, excludeGlobs := GetRubyGlobs(testGlobs, m.envs)
+	rubyTests, err := GetRubyTests(workspace, testGlobs, excludeGlobs, m.log)
 	return rubyTests, err
 }
 
