@@ -139,7 +139,7 @@ func Test_getPreCmd(t *testing.T) {
 		fs          filesystem.FileSystem
 		log         *logrus.Logger
 		envs        map[string]string
-		artifactDir string
+		agentPaths  map[string]string
 	}
 	tests := []struct {
 		name    string
@@ -152,7 +152,7 @@ func Test_getPreCmd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.artifactDir)
+			got, got1, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.agentPaths)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getPreCmd() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -238,7 +238,7 @@ func Test_writetoBazelrcFile(t *testing.T) {
 		return
 	}
 	t.Run("testPath", func(t *testing.T) {
-		err := writetoBazelrcFile(logrus.New(), filesystem.New(), 2)
+		err := writetoBazelrcFile(logrus.New(), filesystem.New())
 		if err != nil {
 			t.Errorf("writetoBazelrcFile() error = %v, wantErr %v", err, homeDir+"/.bazelrc")
 			return

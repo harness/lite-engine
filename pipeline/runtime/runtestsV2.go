@@ -27,14 +27,15 @@ import (
 )
 
 const (
-	outDir          = "%s/ti/v2/callgraph/" // path passed as outDir in the config.ini file
-	javaAgentV2Arg  = "-javaagent:%s=%s"
-	javaAgentV2Jar  = "java-agent-trampoline-0.0.1-SNAPSHOT-gradle.jar"
-	javaAgentV2Path = "/java/v2/"
-	javaAgentV2Url  = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/e5b1bfa3a6625f191057215d0c21a61c4a9cb7a7/java-agent-trampoline-0.0.1-SNAPSHOT-gradle.jar" // Will be changed later
-	rubyAgentV2Url  = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"                                                                                 // Will be changed later
-	filterV2Dir     = "%s/ti/v2/filter"
-	configV2Dir     = "%s/ti/v2/java/config"
+	outDir           = "%s/ti/v2/callgraph/" // path passed as outDir in the config.ini file
+	javaAgentV2Arg   = "-javaagent:%s=%s"
+	javaAgentV2Jar   = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
+	javaAgentV2Path  = "/java/v2/"
+	javaAgentV2Url   = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" // Will be changed later
+	rubyAgentV2Url   = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"
+	pythonAgentV2Url = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/harness_ti_pytest_plugin-0.1-py3-none-any.whl" // Will be changed later
+	filterV2Dir      = "%s/ti/v2/filter"
+	configV2Dir      = "%s/ti/v2/java/config"
 )
 
 // Ignoring optimization state for now
@@ -48,19 +49,27 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	log := logrus.New()
 	log.Out = out
 	optimizationState := types.DISABLED
+	agentPaths := make(map[string]string)
 
 	err := downloadJavaAgent(ctx, tmpFilePath, fs, log)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Java agent")
 	}
 
-	artifactDir, err := downloadRubyAgent(ctx, tmpFilePath, fs, log)
-	if err != nil {
+	rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, fs, log)
+	if err != nil || rubyArtifactDir == "" {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Ruby agent")
 	}
+	agentPaths["ruby"] = rubyArtifactDir
 
-	preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, artifactDir)
+	pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, fs, log)
 	if err != nil {
+		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Python agent")
+	}
+	agentPaths["python"] = pythonArtifactDir
+
+	preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths)
+	if err != nil || pythonArtifactDir == "" {
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 	}
 
@@ -248,7 +257,7 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 }
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs map[string]string, artifactDir string) (preCmd, filterFilePath string, err error) {
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
@@ -262,6 +271,11 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 
 	filterFilePath = getFilterFilePath(tmpFilePath, splitIdx)
 
+	envs["TI"] = "1"
+	envs["TI_V2"] = "1"
+	envs["TI_OUTPUT_PATH"] = outDir
+	envs["TI_FILTER_FILE_PATH"] = filterFilePath
+
 	// Java
 	iniFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
 	if err != nil {
@@ -269,7 +283,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		return "", "", err
 	}
 
-	err = writetoBazelrcFile(log, fs, splitIdx)
+	err = writetoBazelrcFile(log, fs)
 	if err != nil {
 		log.WithError(err).Errorln("failed to write in .bazelrc file")
 		return "", "", err
@@ -279,12 +293,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
 
 	// Ruby
-	envs["TI"] = "1"
-	envs["TI_V2"] = "1"
-	envs["TI_OUTPUT_PATH"] = outDir
-	envs["TI_FILTER_FILE_PATH"] = filterFilePath
-
-	repoPath, err := ruby.UnzipAndGetTestInfo(artifactDir, log)
+	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 	if err != nil {
 		return "", "", err
 	}
@@ -301,6 +310,10 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		log.Errorln("Unable to write rspec-local file automatically", err)
 		return "", "", err
 	}
+
+	// Python
+	preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", agentPaths["python"])
+
 	return preCmd, filterFilePath, nil
 }
 
@@ -326,6 +339,16 @@ func downloadRubyAgent(ctx context.Context, path string, fs filesystem.FileSyste
 	return installDir, nil
 }
 
+func downloadPythonAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+	dir := filepath.Join(path, "python", "harness_ti_pytest_plugin-0.1-py3-none-any.whl")
+	err := instrumentation.DownloadFile(ctx, dir, pythonAgentV2Url, fs)
+	if err != nil {
+		log.WithError(err).Errorln("could not download python agent")
+		return "", err
+	}
+	return dir, nil
+}
+
 // This is nothing but filterfile where all the tests selected will be stored
 func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
 	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string) error {
@@ -347,10 +370,10 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	return nil
 }
 
-func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem, splitIdx int) error {
+func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not read home directory"))
+		log.WithError(err).Errorln("could not read home directory")
 		return err
 	}
 
