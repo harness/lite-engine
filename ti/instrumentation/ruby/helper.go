@@ -27,7 +27,7 @@ var (
 
 const rspecJuintFormatterString string = "RspecJunitFormatter"
 
-func getRubyTestsFromPattern(workspace string, testGlobs []string, log *logrus.Logger) []ti.RunnableTest {
+func getRubyTestsFromPattern(workspace string, testGlobs []string, excludeGlobs []string, log *logrus.Logger) []ti.RunnableTest {
 	tests := make([]ti.RunnableTest, 0)
 	// iterate over all the test globs
 	for _, testGlob := range testGlobs {
@@ -42,7 +42,7 @@ func getRubyTestsFromPattern(workspace string, testGlobs []string, log *logrus.L
 		// iterate over all the matches
 		for _, match := range matches {
 			// append a new RunnableTest to the tests slice if its a file
-			if info, err := os.Stat(match); err == nil && !info.IsDir() {
+			if info, err := os.Stat(match); err == nil && !info.IsDir() && !matchedAny(match, excludeGlobs) {
 				tests = append(tests, ti.RunnableTest{
 					Class: match,
 				})
@@ -53,14 +53,23 @@ func getRubyTestsFromPattern(workspace string, testGlobs []string, log *logrus.L
 	return tests
 }
 
+func matchedAny(class string, globs []string) bool {
+	for _, glob := range globs {
+		if matchedExclude, _ := zglob.Match(glob, class); matchedExclude {
+			return true
+		}
+	}
+	return false
+}
+
 // GetRubyTests returns list of RunnableTests in the workspace with python extension.
 // In case of errors, return empty list
-func GetRubyTests(workspace string, testGlobs []string, log *logrus.Logger) ([]ti.RunnableTest, error) {
+func GetRubyTests(workspace string, testGlobs []string, excludeGlobs []string, log *logrus.Logger) ([]ti.RunnableTest, error) {
 	if len(testGlobs) == 0 {
 		testGlobs = defaultTestGlobs
 	}
 	log.Infoln(fmt.Sprintf("testGlobs: %v", testGlobs))
-	tests := getRubyTestsFromPattern(workspace, testGlobs, log)
+	tests := getRubyTestsFromPattern(workspace, testGlobs, excludeGlobs, log)
 
 	if len(tests) == 0 {
 		return tests, fmt.Errorf("no ruby tests found with the given patterns %v", testGlobs)
@@ -182,9 +191,9 @@ func GetRubyGlobs(testGlobs []string, envs map[string]string) (includeGlobs, exc
 	if len(testGlobs) == 0 {
 		testGlobs = defaultTestGlobs
 	}
-	excludeGlobs = make([]string, 0)
+	excludeGlobs = filterExcludeGlobs
 	if envs["TI_SKIP_EXCLUDE_VENDOR"] == "true" {
-		excludeGlobs = filterExcludeGlobs
+		excludeGlobs = make([]string, 0)
 	}
 	return testGlobs, excludeGlobs
 }
