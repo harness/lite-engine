@@ -6,6 +6,7 @@ package java
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -357,4 +358,16 @@ func parseBazelTestRule(r string) (ti.RunnableTest, error) {
 	test := ti.RunnableTest{Pkg: pkg, Class: cls}
 	test.Autodetect.Rule = r
 	return test, nil
+}
+
+func AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+	tests := make([]ti.RunnableTest, 0)
+	javaTests := GetJavaTests(workspace, testGlobs)
+	scalaTests := GetScalaTests(workspace, testGlobs)
+	kotlinTests := GetKotlinTests(workspace, testGlobs)
+
+	tests = append(tests, javaTests...)
+	tests = append(tests, scalaTests...)
+	tests = append(tests, kotlinTests...)
+	return tests, nil
 }

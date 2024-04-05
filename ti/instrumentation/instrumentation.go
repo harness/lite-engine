@@ -14,6 +14,9 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation/common"
+	"github.com/harness/lite-engine/ti/instrumentation/java"
+	"github.com/harness/lite-engine/ti/instrumentation/python"
+	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
@@ -132,9 +135,9 @@ func checkForBazelOptimization(ctx context.Context, workspace string, fs filesys
 // ComputeSelectedTestsV2 updates TI selection depending on the split strategy
 // AutoDetectTests output and parallelism configuration
 func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Config, log *logrus.Logger,
-	selection *ti.SelectTestsResp, stepID, workspace string, envs map[string]string, tiConfig *tiCfg.Cfg) {
+	selection *ti.SelectTestsResp, stepID, workspace string, envs map[string]string, tiConfig *tiCfg.Cfg, runOnlySelectedTests bool, fs filesystem.FileSystem) {
 	// Adding only this remove this condition later when we have complete specs
-	if len(selection.Tests) == 0 {
+	if runOnlySelectedTests && len(selection.Tests) == 0 {
 		// TI returned zero test cases to run. Skip parallelism as
 		// there are no tests to run
 		return
@@ -142,9 +145,30 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 	splitIdx, splitTotal := GetSplitIdxAndTotal(envs)
 	tests := make([]ti.RunnableTest, 0)
 
-	//TODO:V2 Autodetection
+	//Autodetection
+	if runOnlySelectedTests {
+		var err error
+		testGlobs := sanitizeTestGlob(runConfigV2.TestGlobs)
+		tests, err = AutoDetectTests(ctx, workspace, testGlobs, log, envs, fs)
+		if err != nil || len(tests) == 0 {
+			// AutoDetectTests output should be same across all the parallel steps. If one of the step
+			// receives error / no tests to run, all the other steps should have the same output
+			if splitIdx == 0 {
+				// Error while auto-detecting, run all tests for parallel step 0
+				runOnlySelectedTests = false
+				log.Errorln("Error in auto-detecting tests for splitting, running all tests")
+			} else {
+				// Error while auto-detecting, no tests for other parallel steps
+				selection.Tests = []ti.RunnableTest{}
+				runOnlySelectedTests = true
+				log.WithError(err).Errorln("Error in auto-detecting tests for splitting, running all tests in parallel step 0")
+			}
+			return
+		}
+		// Auto-detected tests successfully
+		log.Infoln(fmt.Sprintf("Autodetected tests: %s", formatTests(tests)))
 
-	if len(selection.Tests) > 0 {
+	} else if len(selection.Tests) > 0 {
 		// In case of intelligent runs, split the tests from TI SelectTests API response
 		tests = selection.Tests
 	}
@@ -310,4 +334,29 @@ func sanitizeTestGlob(globString string) []string {
 		return make([]string, 0)
 	}
 	return strings.Split(globString, ",")
+}
+
+func AutoDetectTests(ctx context.Context, workspace string, testGlobs []string, log *logrus.Logger, envs map[string]string, fs filesystem.FileSystem) ([]ti.RunnableTest, error) {
+
+	tests, err := java.AutoDetectTests(ctx, workspace, testGlobs)
+	if err != nil {
+		log.Errorln("Error in auto-detecting java tests")
+		return tests, err
+	}
+	rubyRunner := ruby.NewRubyRunner(log, fs, testGlobs, envs)
+	rubyTests, err := rubyRunner.AutoDetectTests(ctx, workspace, testGlobs)
+	if err != nil {
+		log.Errorln("Error in auto-detecting ruby tests")
+		return tests, err
+	}
+	tests = append(tests, rubyTests...)
+
+	pyRunner := python.NewPytestRunner(log, fs, testGlobs)
+	pyTests, err := pyRunner.AutoDetectTests(ctx, workspace, testGlobs)
+	if err != nil {
+		log.Errorln("Error in auto-detecting python tests")
+		return tests, err
+	}
+	tests = append(tests, pyTests...)
+	return tests, nil
 }

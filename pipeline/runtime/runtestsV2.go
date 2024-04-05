@@ -187,17 +187,18 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, fs, tiConfig)
 	if err != nil {
 		log.WithError(err).Errorln("An unexpected error occurred during test selection. Running all tests.")
-		return selection, false
+		runOnlySelectedTests = false
 	} else if selection.SelectAll {
 		log.Infoln("Test Intelligence determined to run all the tests")
-		return selection, false
+		runOnlySelectedTests = false
 	} else {
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
+		runOnlySelectedTests = true
 	}
 
 	// Test splitting: only when parallelism is enabled
 	if instrumentation.IsParallelismEnabled(envs) {
-		instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, tiConfig)
+		instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, tiConfig, runOnlySelectedTests, fs)
 	}
 
 	return selection, true
