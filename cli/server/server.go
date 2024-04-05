@@ -20,7 +20,7 @@ import (
 	"github.com/harness/lite-engine/server"
 	"github.com/harness/lite-engine/setup"
 
-	"github.com/joho/godotenv"
+	"github.com/harness/godotenv/v3"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
 )

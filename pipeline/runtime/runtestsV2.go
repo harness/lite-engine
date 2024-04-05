@@ -116,11 +116,16 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
 	}
 
-	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
+	useCiNewGodotEnvVersion := false
+	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == "true" {
+		useCiNewGodotEnvVersion = true
+	}
+
+	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCiNewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 
 	if exited != nil && exited.Exited && exited.ExitCode == 0 {
-		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
+		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCiNewGodotEnvVersion) //nolint:govet
 		if len(r.Outputs) > 0 {
 			outputsV2 := []*api.OutputV2{}
 			for _, output := range r.Outputs {

@@ -18,7 +18,6 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/harness/ti-client v0.0.0-20240216043745-fe05f3995dfb
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/linkedin/goavro/v2 v2.12.0
 	github.com/mattn/go-zglob v0.0.4
@@ -34,6 +33,8 @@ require (
 
 require (
 	github.com/dgryski/go-lttb v0.0.0-20230207170358-f8fc36cdbff1
+	github.com/harness/godotenv/v2 v2.0.0
+	github.com/harness/godotenv/v3 v3.0.0
 	github.com/shirou/gopsutil/v3 v3.23.5
 	github.com/wings-software/dlite v1.0.0-rc.9
 	golang.org/x/net v0.17.0

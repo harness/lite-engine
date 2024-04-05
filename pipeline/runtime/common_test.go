@@ -32,7 +32,7 @@ func TestFetchExportedVars(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			envMap, err := fetchExportedVarsFromEnvFile(tc.OutputFile, os.Stdout)
+			envMap, err := fetchExportedVarsFromEnvFile(tc.OutputFile, os.Stdout, true)
 			assert.Equal(t, tc.EnvMap, envMap)
 			assert.Equal(t, tc.Error, err)
 		})
