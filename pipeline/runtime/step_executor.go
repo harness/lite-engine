@@ -127,6 +127,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 
 		select {
 		case resp = <-done:
+			logrus.WithField("id", r.ID).Infof("Sending step status")
 			e.sendStepStatus(r, &resp)
 			return
 		case <-time.After(defaultStepTimeout):
@@ -402,6 +403,7 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 		logrus.WithField("id", r.ID).Errorln("Error marshaling struct:", err)
 		return
 	}
+	logrus.WithField("id", r.ID).Infoln("Step Status Data", r.StepStatus)
 	delegateClient := delegate.NewFromToken(r.StepStatus.Endpoint, r.StepStatus.AccountID, r.StepStatus.Token, true, "")
 	taskResponse := &client.TaskResponse{
 		Data: json.RawMessage(jsonData),

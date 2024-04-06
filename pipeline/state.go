@@ -66,7 +66,7 @@ func (s *State) GetLogStreamClient() logstream.Client {
 	if s.logClient == nil {
 		if s.logConfig.URL != "" {
 			s.logClient = remote.NewHTTPClient(s.logConfig.URL, s.logConfig.AccountID,
-				s.logConfig.Token, s.logConfig.IndirectUpload, false)
+				s.logConfig.Token, s.logConfig.IndirectUpload, true)
 		} else {
 			s.logClient = filestore.New(SharedVolPath)
 		}

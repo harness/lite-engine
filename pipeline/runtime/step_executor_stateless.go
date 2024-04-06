@@ -52,7 +52,7 @@ func (e *StepExecutorStateless) Run(ctx context.Context, r *api.StartStepRequest
 
 func getLogServiceClient(cfg api.LogConfig) logstream.Client {
 	if cfg.URL != "" {
-		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false)
+		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, true)
 	}
 	return stdout.New()
 }
