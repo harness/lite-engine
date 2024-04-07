@@ -99,7 +99,7 @@ func isPython(entrypoint []string) bool {
 }
 
 // Fetches variable in env file exported by the step.
-func fetchExportedVarsFromEnvFile(envFile string, out io.Writer, useCiNewGodotEnvVersion bool) (map[string]string, error) {
+func fetchExportedVarsFromEnvFile(envFile string, out io.Writer, useCINewGodotEnvVersion bool) (map[string]string, error) {
 	log := logrus.New()
 	log.Out = out
 
@@ -112,7 +112,7 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer, useCiNewGodotEn
 		err error
 	)
 
-	if useCiNewGodotEnvVersion {
+	if useCINewGodotEnvVersion {
 		env, err = v3.Read(envFile)
 	} else {
 		env, err = v2.Read(envFile)
