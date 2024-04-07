@@ -267,6 +267,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 
 	outDir, err := createOutDir(tmpFilePath, fs, log)
 	if err != nil {
+		log.WithError(err).Errorln("failed to create outDir")
 		return "", "", err
 	}
 
@@ -296,6 +297,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	// Ruby
 	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 	if err != nil {
+		log.WithError(err).Errorln("failed to unzip and get test info")
 		return "", "", err
 	}
 	preCmd += fmt.Sprintf("\nbundle add rspec_junit_formatter || true;\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
@@ -366,6 +368,7 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	err = filter.PopulateItemInFilterFile(resp, filterFilePath, fs, isFilterFilePresent)
 
 	if err != nil {
+		log.WithError(err).Errorln("failed to populate items in filterfile")
 		return err
 	}
 	return nil
