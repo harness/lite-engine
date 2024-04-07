@@ -285,6 +285,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 
 	outDir, err := createOutDir(tmpFilePath, fs, log)
 	if err != nil {
+		log.WithError(err).Errorln("failed to create outDir")
 		return "", "", err
 	}
 
@@ -313,6 +314,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	// Ruby
 	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 	if err != nil {
+		log.WithError(err).Errorln("failed to unzip and get test info")
 		return "", "", err
 	}
 
@@ -417,6 +419,7 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	err = filter.PopulateItemInFilterFile(resp, filterFilePath, fs, isFilterFilePresent)
 
 	if err != nil {
+		log.WithError(err).Errorln("failed to populate items in filterfile")
 		return err
 	}
 	return nil
