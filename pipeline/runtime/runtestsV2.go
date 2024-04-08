@@ -312,10 +312,29 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
 	envs["JAVA_TOOL_OPTIONS"] = agentArg
 	// Ruby
-	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
-	if err != nil {
-		log.WithError(err).Errorln("failed to unzip and get test info")
-		return "", "", err
+	repoPath := ""
+	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
+	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
+	var statusFilePath = filepath.Join(tmpFilePath, "unzip.done")
+	if shouldWait {
+		err = waitForFileWithTimeout(10*time.Second, statusFilePath, fs) // Wait for up to 10 seconds
+		if err != nil {
+			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
+			return "", "", err
+		}
+	} else {
+		repoPath, err = ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
+		if err != nil {
+			log.WithError(err).Errorln("failed to unzip and get test info")
+			return "", "", err
+		}
+
+		// Create a marker file indicating completion of unzip operation.
+		out, err := fs.Create(statusFilePath)
+		if err != nil {
+			return "", "", err
+		}
+		out.Close()
 	}
 
 	if !isPsh {
