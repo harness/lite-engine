@@ -3,50 +3,68 @@ package gradle
 import (
 	"bytes"
 	"fmt"
-	"github.com/harness/ti-client/types"
+	gradleTypes "github.com/harness/ti-client/types/cache/gradle"
 	"golang.org/x/net/html"
+	"strconv"
 	"strings"
 )
 
-type Task struct {
-	Name   string
-	TimeMs int64
-	State  string
+func parseGradleVerseTimeMs(t string) int {
+	var dayStr, hourStr, minStr, secondStr string
+	if strings.Contains(t, "d") {
+		split := strings.Split(t, "d")
+		dayStr = strings.TrimSpace(split[0])
+		t = split[1]
+	}
+	if strings.Contains(t, "h") {
+		split := strings.Split(t, "h")
+		hourStr = strings.TrimSpace(split[0])
+		t = split[1]
+	}
+	if strings.Contains(t, "m") {
+		split := strings.Split(t, "m")
+		minStr = strings.TrimSpace(split[0])
+		t = split[1]
+	}
+	if strings.Contains(t, "s") {
+		split := strings.Split(t, "s")
+		secondStr = strings.TrimSpace(split[0])
+	}
+	durationMs := 0
+	if days, err := strconv.Atoi(dayStr); err == nil {
+		durationMs += days * 24 * 60 * 60 * 1000
+	}
+	if hours, err := strconv.Atoi(hourStr); err == nil {
+		durationMs += hours * 60 * 60 * 1000
+	}
+	if minutes, err := strconv.Atoi(minStr); err == nil {
+		durationMs += minutes * 60 * 1000
+	}
+	if seconds, err := strconv.ParseFloat(secondStr, 64); err == nil {
+		durationMs += int(seconds * 1000) //nolint:gomnd
+	}
+	return durationMs
 }
 
-type Goal struct {
-	Name   string
-	TimeMs int64
-	Tasks  []Task
-}
-
-type Profile struct {
-	Goals               []Goal
-	Cmd                 string
-	BuildTimeMs         int64
-	TaskExecutionTimeMs int64
-	BuildState          types.IntelligenceExecutionState
-}
-
-func parseProfileFromHtml(n *html.Node) (Profile, error) {
-	profile := Profile{}
+func parseProfileFromHtml(n *html.Node) (gradleTypes.Profile, bool, error) {
+	profile := gradleTypes.Profile{}
 	rootNode := JsonNode{}
 	rootNode.populateFrom(n)
 	if len(rootNode.Elements) != 1 {
-		return profile, fmt.Errorf("invalid profile html")
+		return profile, false, fmt.Errorf("invalid profile html")
 	} else if rootNode.Elements[0].Name != "html" {
-		return profile, fmt.Errorf("profile does not have html element")
+		return profile, false, fmt.Errorf("profile does not have html element")
 	}
 
 	htmlNode := rootNode.Elements[0]
 	if len(htmlNode.Elements) != 2 || htmlNode.Elements[1].Name != "body" {
-		return profile, fmt.Errorf("profile html does not have expected number of elements")
+		return profile, false, fmt.Errorf("profile html does not have expected number of elements")
 	}
 
 	_ = htmlNode.Elements[0]     // head
 	body := htmlNode.Elements[1] // body
 	if len(body.Elements) != 1 || body.Elements[0].Name != "div" || body.Elements[0].Id != "content" {
-		return profile, fmt.Errorf("html body does not have valid div")
+		return profile, false, fmt.Errorf("html body does not have valid div")
 	}
 	contentDiv := body.Elements[0]
 
@@ -67,20 +85,20 @@ func parseProfileFromHtml(n *html.Node) (Profile, error) {
 		}
 	}
 
-	goals, err := parseGoalsFromContentDiv(contentDiv)
+	projects, err := parseProjectsFromContentDiv(contentDiv)
 	if err == nil {
-		profile.Goals = goals
+		profile.Projects = projects
 	}
 
-	profile.BuildState = types.FULL_RUN
-	for _, g := range goals {
+	cached := false
+	for _, g := range projects {
 		for _, t := range g.Tasks {
 			if t.State == "FROM-CACHE" {
-				profile.BuildState = types.OPTIMIZED
+				cached = true
 			}
 		}
 	}
-	return profile, nil
+	return profile, cached, nil
 }
 
 func parseCmdFromContentDiv(contentDiv JsonNode) (string, error) {
@@ -131,8 +149,8 @@ func parseBuildTimeFromContentDiv(contentDiv JsonNode) (int64, int64, error) {
 	return int64(buildTimeMs), int64(taskExecutionTimeMs), nil
 }
 
-func parseGoalsFromContentDiv(contentDiv JsonNode) ([]Goal, error) {
-	goals := make([]Goal, 0)
+func parseProjectsFromContentDiv(contentDiv JsonNode) ([]gradleTypes.Project, error) {
+	goals := make([]gradleTypes.Project, 0)
 
 	tabs := contentDiv.Elements[2]
 	if len(tabs.Elements) < 5 || tabs.Elements[5].Id != "tab4" {
@@ -149,7 +167,7 @@ func parseGoalsFromContentDiv(contentDiv JsonNode) ([]Goal, error) {
 		return goals, fmt.Errorf("taskTable does not have a list of tasks")
 	}
 
-	var goal Goal
+	var goal gradleTypes.Project
 	tBody := taskTable.Elements[1]
 	for _, taskObj := range tBody.Elements {
 		if len(taskObj.Elements) != 3 {
@@ -162,92 +180,14 @@ func parseGoalsFromContentDiv(contentDiv JsonNode) ([]Goal, error) {
 		if state == "(total)" {
 			// start of a new task
 			goals = append(goals, goal)
-			goal = Goal{
+			goal = gradleTypes.Project{
 				Name:   name,
 				TimeMs: int64(parseGradleVerseTimeMs(duration)),
-				Tasks:  make([]Task, 0),
+				Tasks:  make([]gradleTypes.Task, 0),
 			}
 			continue
 		}
-		task := Task{
-			Name:   name,
-			TimeMs: int64(parseGradleVerseTimeMs(duration)),
-			State:  state,
-		}
-		goal.Tasks = append(goal.Tasks, task)
-	}
-	goals = append(goals, goal)
-	return goals[1:], nil
-}
-
-// ConvertHtmlToJson the given HTML nodes into JSON content where each
-// HTML node is represented by the JsonNode structure.
-func ConvertHtmlToJson(n *html.Node) ([]Goal, error) {
-	rootNode := JsonNode{}
-	rootNode.populateFrom(n)
-	goals := make([]Goal, 0)
-
-	s, _ := parseProfileFromHtml(n)
-	fmt.Print(s)
-
-	if len(rootNode.Elements) != 1 {
-		return goals, fmt.Errorf("invalid profile html")
-	} else if rootNode.Elements[0].Name != "html" {
-		return goals, fmt.Errorf("profile does not have html element")
-	}
-
-	htmlNode := rootNode.Elements[0]
-	if len(htmlNode.Elements) != 2 || htmlNode.Elements[1].Name != "body" {
-		return goals, fmt.Errorf("profile html does not have expected number of elements")
-	}
-
-	_ = htmlNode.Elements[0]     // head
-	body := htmlNode.Elements[1] // body
-	if len(body.Elements) != 1 || body.Elements[0].Name != "div" || body.Elements[0].Id != "content" {
-		return goals, fmt.Errorf("html body does not have valid div")
-	}
-
-	div := body.Elements[0]
-	if len(div.Elements) < 3 || div.Elements[2].Id != "tabs" {
-		return goals, fmt.Errorf("body div does not have tabs")
-	}
-
-	tabs := div.Elements[2]
-	if len(tabs.Elements) < 5 || tabs.Elements[5].Id != "tab4" {
-		return goals, fmt.Errorf("tabs element does not have tab4")
-	}
-
-	tab4 := tabs.Elements[5]
-	if len(tab4.Elements) < 2 || tab4.Elements[1].Name != "table" {
-		return goals, fmt.Errorf("tab4 does not have a table")
-	}
-
-	taskTable := tab4.Elements[1]
-	if len(taskTable.Elements) < 2 {
-		return goals, fmt.Errorf("taskTable does not have a list of tasks")
-	}
-
-	var goal Goal
-	tBody := taskTable.Elements[1]
-	for _, taskObj := range tBody.Elements {
-		if len(taskObj.Elements) != 3 {
-			continue
-		}
-		name := taskObj.Elements[0].Text
-		duration := taskObj.Elements[1].Text
-		state := taskObj.Elements[2].Text
-
-		if state == "(total)" {
-			// start of a new task
-			goals = append(goals, goal)
-			goal = Goal{
-				Name:   name,
-				TimeMs: int64(parseGradleVerseTimeMs(duration)),
-				Tasks:  make([]Task, 0),
-			}
-			continue
-		}
-		task := Task{
+		task := gradleTypes.Task{
 			Name:   name,
 			TimeMs: int64(parseGradleVerseTimeMs(duration)),
 			State:  state,
