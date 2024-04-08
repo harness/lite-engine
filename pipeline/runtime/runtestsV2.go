@@ -198,10 +198,10 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 
 	// Test splitting: only when parallelism is enabled
 	if instrumentation.IsParallelismEnabled(envs) {
-		instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, tiConfig, runOnlySelectedTests, fs)
+		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, tiConfig, runOnlySelectedTests, fs)
 	}
 
-	return selection, true
+	return selection, runOnlySelectedTests
 }
 
 func createOutDir(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
