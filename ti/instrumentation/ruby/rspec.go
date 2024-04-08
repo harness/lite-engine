@@ -47,6 +47,12 @@ func (m *rspecRunner) AutoDetectTests(ctx context.Context, workspace string, tes
 	return rubyTests, err
 }
 
+func (m *rspecRunner) AutoDetectTestsV2(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+	testGlobs, excludeGlobs := GetRubyGlobs(testGlobs, m.envs)
+	rubyTests, err := GetRubyTestsV2(workspace, testGlobs, excludeGlobs, m.log)
+	return rubyTests, err
+}
+
 func (m *rspecRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
 	return files
 }
