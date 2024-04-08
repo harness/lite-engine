@@ -11,9 +11,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/logstream"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	ti "github.com/harness/ti-client/types"
@@ -153,4 +155,20 @@ func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 	envMap[ti.BuildIDEnv] = config.GetBuildID()
 	envMap[ti.StepIDEnv] = step.Name
 	envMap[ti.InfraEnv] = ti.HarnessInfra
+}
+
+func waitForFileWithTimeout(timeout time.Duration, filename string, fs filesystem.FileSystem) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		_, err := fs.Stat(filename)
+		if err == nil {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for agent download")
+		}
+
+		time.Sleep(time.Millisecond * 100)
+	}
 }

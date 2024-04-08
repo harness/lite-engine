@@ -295,11 +295,31 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
 
 	// Ruby
-	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
-	if err != nil {
-		log.WithError(err).Errorln("failed to unzip and get test info")
-		return "", "", err
+	repoPath := ""
+	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
+	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
+	var statusFilePath = filepath.Join(tmpFilePath, "unzip.done")
+	if shouldWait {
+		err = waitForFileWithTimeout(10*time.Second, statusFilePath, fs) // Wait for up to 10 seconds
+		if err != nil {
+			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
+			return "", "", err
+		}
+	} else {
+		repoPath, err = ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
+		if err != nil {
+			log.WithError(err).Errorln("failed to unzip and get test info")
+			return "", "", err
+		}
+
+		// Create a marker file indicating completion of unzip operation.
+		out, err := fs.Create(statusFilePath)
+		if err != nil {
+			return "", "", err
+		}
+		out.Close()
 	}
+
 	preCmd += fmt.Sprintf("\nbundle add rspec_junit_formatter || true;\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
 
 	disableJunitVarName := "TI_DISABLE_JUNIT_INSTRUMENTATION"
