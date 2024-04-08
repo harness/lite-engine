@@ -53,6 +53,30 @@ func getRubyTestsFromPattern(workspace string, testGlobs []string, excludeGlobs 
 	return tests
 }
 
+func getRubyTestsFromPatternV2(workspace string, testGlobs []string, excludeGlobs []string, log *logrus.Logger) []ti.RunnableTest {
+	tests := make([]ti.RunnableTest, 0)
+	// iterate over all the test globs
+	for _, testGlob := range testGlobs {
+		// find all the files matching the glob
+		testGlob = filepath.Join(workspace, testGlob)
+		matches, err := zglob.Glob(testGlob)
+		if err != nil {
+			log.Info(fmt.Sprintf("could not find ruby tests using %s: %s", testGlob, err))
+		}
+		// iterate over all the matches
+		for _, match := range matches {
+			// append a new RunnableTest to the tests slice if its a file
+			if info, err := os.Stat(match); err == nil && !info.IsDir() && !matchedAny(match, excludeGlobs) {
+				tests = append(tests, ti.RunnableTest{
+					Class: match,
+				})
+			}
+		}
+	}
+
+	return tests
+}
+
 func matchedAny(class string, globs []string) bool {
 	for _, glob := range globs {
 		if matchedExclude, _ := zglob.Match(glob, class); matchedExclude {
@@ -72,6 +96,23 @@ func GetRubyTests(workspace string, testGlobs []string, excludeGlobs []string, l
 	log.Infoln(fmt.Sprintf("workspace: %v", workspace))
 
 	tests := getRubyTestsFromPattern(workspace, testGlobs, excludeGlobs, log)
+
+	if len(tests) == 0 {
+		return tests, fmt.Errorf("no ruby tests found with the given patterns %v", testGlobs)
+	}
+	return tests, nil
+}
+
+// GetRubyTests returns list of RunnableTests in the workspace with python extension.
+// In case of errors, return empty list
+func GetRubyTestsV2(workspace string, testGlobs []string, excludeGlobs []string, log *logrus.Logger) ([]ti.RunnableTest, error) {
+	if len(testGlobs) == 0 {
+		testGlobs = defaultTestGlobs
+	}
+	log.Infoln(fmt.Sprintf("testGlobs: %v", testGlobs))
+	log.Infoln(fmt.Sprintf("workspace: %v", workspace))
+
+	tests := getRubyTestsFromPatternV2(workspace, testGlobs, excludeGlobs, log)
 
 	if len(tests) == 0 {
 		return tests, fmt.Errorf("no ruby tests found with the given patterns %v", testGlobs)

@@ -346,7 +346,7 @@ func AutoDetectTests(ctx context.Context, workspace string, testGlobs []string, 
 		return tests, err
 	}
 	rubyRunner := ruby.NewRubyRunner(log, fs, testGlobs, envs)
-	rubyTests, err := rubyRunner.AutoDetectTests(ctx, workspace, testGlobs)
+	rubyTests, err := rubyRunner.AutoDetectTestsV2(ctx, workspace, testGlobs)
 	if err != nil {
 		log.Errorln("Error in auto-detecting ruby tests")
 		return tests, err
