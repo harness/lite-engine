@@ -69,6 +69,8 @@ func GetRubyTests(workspace string, testGlobs, excludeGlobs []string, log *logru
 		testGlobs = defaultTestGlobs
 	}
 	log.Infoln(fmt.Sprintf("testGlobs: %v", testGlobs))
+	log.Infoln(fmt.Sprintf("workspace: %v", workspace))
+
 	tests := getRubyTestsFromPattern(workspace, testGlobs, excludeGlobs, log)
 
 	if len(tests) == 0 {
