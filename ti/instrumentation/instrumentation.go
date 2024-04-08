@@ -135,12 +135,12 @@ func checkForBazelOptimization(ctx context.Context, workspace string, fs filesys
 // ComputeSelectedTestsV2 updates TI selection depending on the split strategy
 // AutoDetectTests output and parallelism configuration
 func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Config, log *logrus.Logger,
-	selection *ti.SelectTestsResp, stepID, workspace string, envs map[string]string, tiConfig *tiCfg.Cfg, runOnlySelectedTests bool, fs filesystem.FileSystem) {
+	selection *ti.SelectTestsResp, stepID, workspace string, envs map[string]string, tiConfig *tiCfg.Cfg, runOnlySelectedTests bool, fs filesystem.FileSystem) bool {
 	// Adding only this remove this condition later when we have complete specs
 	if runOnlySelectedTests && len(selection.Tests) == 0 {
 		// TI returned zero test cases to run. Skip parallelism as
 		// there are no tests to run
-		return
+		return runOnlySelectedTests
 	}
 	splitIdx, splitTotal := GetSplitIdxAndTotal(envs)
 	tests := make([]ti.RunnableTest, 0)
@@ -165,7 +165,7 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 				runOnlySelectedTests = true
 				log.WithError(err).Errorln("Error in auto-detecting tests for splitting, running all tests in parallel step 0")
 			}
-			return
+			return runOnlySelectedTests
 		}
 		// Auto-detected tests successfully
 		log.Infoln(fmt.Sprintf("Autodetected tests: %s", formatTests(tests)))
@@ -186,6 +186,7 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 
 	// Modify selections to run only selected tests
 	selection.Tests = splitTests
+	return runOnlySelectedTests
 }
 
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
@@ -342,22 +343,19 @@ func AutoDetectTests(ctx context.Context, workspace string, testGlobs []string, 
 
 	tests, err := java.AutoDetectTests(ctx, workspace, testGlobs)
 	if err != nil {
-		log.Errorln("Error in auto-detecting java tests")
-		return tests, err
+		log.WithError(err).Errorln("Error in auto-detecting java tests")
 	}
 	rubyRunner := ruby.NewRubyRunner(log, fs, testGlobs, envs)
 	rubyTests, err := rubyRunner.AutoDetectTestsV2(ctx, workspace, testGlobs)
 	if err != nil {
-		log.Errorln("Error in auto-detecting ruby tests")
-		return tests, err
+		log.WithError(err).Errorln("Error in auto-detecting ruby tests")
 	}
 	tests = append(tests, rubyTests...)
 
 	pyRunner := python.NewPytestRunner(log, fs, testGlobs)
 	pyTests, err := pyRunner.AutoDetectTests(ctx, workspace, testGlobs)
 	if err != nil {
-		log.Errorln("Error in auto-detecting python tests")
-		return tests, err
+		log.WithError(err).Errorln("Error in auto-detecting python tests")
 	}
 	tests = append(tests, pyTests...)
 	return tests, nil
