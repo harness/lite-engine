@@ -20,6 +20,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	trueValue = "true"
+)
+
 func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
 	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
@@ -70,7 +74,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	}
 
 	useCINewGodotEnvVersion := false
-	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == "true" {
+	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == trueValue {
 		useCINewGodotEnvVersion = true
 	}
 
