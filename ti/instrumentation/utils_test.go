@@ -17,6 +17,7 @@ func Test_GetSplitTests(t *testing.T) {
 	defer ctrl.Finish()
 
 	stepID := "RunTestStep"
+	prevBuildId := ""
 
 	tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
 		"", "", "", "", "", "", "", "",
@@ -31,10 +32,10 @@ func Test_GetSplitTests(t *testing.T) {
 	}
 	splitStrategy := countTestSplitStrategy
 	splitTotal := 3
-	tests, _ := getSplitTests(ctx, log, testsToSplit, stepID, splitStrategy, 0, splitTotal, &tiConfig)
+	tests, _ := getSplitTests(ctx, log, testsToSplit, stepID, prevBuildId, splitStrategy, 0, splitTotal, &tiConfig)
 	assert.Equal(t, len(tests), 2)
-	tests, _ = getSplitTests(ctx, log, testsToSplit, stepID, splitStrategy, 1, splitTotal, &tiConfig)
+	tests, _ = getSplitTests(ctx, log, testsToSplit, stepID, prevBuildId, splitStrategy, 1, splitTotal, &tiConfig)
 	assert.Equal(t, len(tests), 2)
-	tests, _ = getSplitTests(ctx, log, testsToSplit, stepID, splitStrategy, 2, splitTotal, &tiConfig)
+	tests, _ = getSplitTests(ctx, log, testsToSplit, stepID, prevBuildId, splitStrategy, 2, splitTotal, &tiConfig)
 	assert.Equal(t, len(tests), 1)
 }
