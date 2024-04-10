@@ -13,11 +13,11 @@ func TestGetRubyTestsFromPatternNegative(t *testing.T) {
 	// Mock input values
 	workspace := "/path/to/workspace"
 	testGlobs := []string{"spec/**/*_spec.rb"}
-	filterExcludeGlobs := []string{"**/vendor/**/*.rb"}
+	filterExcludeGlobsLocal := []string{"**/vendor/**/*.rb"}
 	log := logrus.New()
 
 	// Call the function
-	tests := getRubyTestsFromPattern(workspace, testGlobs, filterExcludeGlobs, log)
+	tests := getRubyTestsFromPattern(workspace, testGlobs, filterExcludeGlobsLocal, log)
 
 	// Assert the results
 	assert.Len(t, tests, 0)
@@ -27,11 +27,11 @@ func TestGetRubyTestsFromPatternNegative(t *testing.T) {
 func TestGetRubyTestsFromPatternPositive(t *testing.T) {
 	workspace := "."
 	testGlobs := []string{"spec/**/*_spec.rb"}
-	filterExcludeGlobs := []string{"**/vendor/**/*.rb"}
+	filterExcludeGlobsLocal := []string{"**/vendor/**/*.rb"}
 	log := logrus.New()
 
 	// Call the function
-	tests := getRubyTestsFromPattern(workspace, testGlobs, filterExcludeGlobs, log)
+	tests := getRubyTestsFromPattern(workspace, testGlobs, filterExcludeGlobsLocal, log)
 
 	// Assert the results
 	assert.NotNil(t, tests)
@@ -42,11 +42,11 @@ func TestGetRubyTestsFromPatternPositive(t *testing.T) {
 func TestGetRubyTestsFromPatternPositiveNoVendorIgnore(t *testing.T) {
 	workspace := "."
 	testGlobs := []string{"spec/**/*_spec.rb"}
-	filterExcludeGlobs := []string{}
+	filterExcludeGlobsLocal := []string{}
 	log := logrus.New()
 
 	// Call the function
-	tests := getRubyTestsFromPattern(workspace, testGlobs, filterExcludeGlobs, log)
+	tests := getRubyTestsFromPattern(workspace, testGlobs, filterExcludeGlobsLocal, log)
 
 	// Assert the results
 	assert.NotNil(t, tests)

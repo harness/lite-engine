@@ -27,7 +27,7 @@ var (
 
 const rspecJuintFormatterString string = "RspecJunitFormatter"
 
-func getRubyTestsFromPattern(workspace string, testGlobs []string, excludeGlobs []string, log *logrus.Logger) []ti.RunnableTest {
+func getRubyTestsFromPattern(workspace string, testGlobs, excludeGlobs []string, log *logrus.Logger) []ti.RunnableTest {
 	tests := make([]ti.RunnableTest, 0)
 	// iterate over all the test globs
 	for _, testGlob := range testGlobs {
@@ -64,7 +64,7 @@ func matchedAny(class string, globs []string) bool {
 
 // GetRubyTests returns list of RunnableTests in the workspace with python extension.
 // In case of errors, return empty list
-func GetRubyTests(workspace string, testGlobs []string, excludeGlobs []string, log *logrus.Logger) ([]ti.RunnableTest, error) {
+func GetRubyTests(workspace string, testGlobs, excludeGlobs []string, log *logrus.Logger) ([]ti.RunnableTest, error) {
 	if len(testGlobs) == 0 {
 		testGlobs = defaultTestGlobs
 	}
