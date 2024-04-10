@@ -46,7 +46,7 @@ const (
 	harnessStepTotal       = "HARNESS_STEP_TOTAL"
 	harnessStageIndex      = "HARNESS_STAGE_INDEX"
 	harnessStageTotal      = "HARNESS_STAGE_TOTAL"
-	harnessPreviousBuildId = "HARNESS_PREVIOUS_CI_BUILD_ID"
+	harnessPreviousBuildID = "HARNESS_PREVIOUS_CI_BUILD_ID"
 )
 
 func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) (TestRunner, bool, error) {
@@ -114,7 +114,7 @@ func GetCommitInfo(ctx context.Context, stepID string, cfg *tiCfg.Cfg) (string, 
 }
 
 // getTestTime gets the the timing data from TI service based on the split strategy
-func getTestTime(ctx context.Context, stepID, prevBuildId, splitStrategy string, cfg *tiCfg.Cfg) (map[string]float64, error) {
+func getTestTime(ctx context.Context, stepID, prevBuildID, splitStrategy string, cfg *tiCfg.Cfg) (map[string]float64, error) {
 	fileTimesMap := map[string]float64{}
 	if cfg == nil {
 		return fileTimesMap, fmt.Errorf("TI config is not provided in setup")
@@ -127,19 +127,19 @@ func getTestTime(ctx context.Context, stepID, prevBuildId, splitStrategy string,
 	switch splitStrategy {
 	case testsplitter.SplitByFileTimeStr:
 		req.IncludeFilename = true
-		res, err = c.GetTestTimes(ctx, stepID, prevBuildId, &req)
+		res, err = c.GetTestTimes(ctx, stepID, prevBuildID, &req)
 		fileTimesMap = testsplitter.ConvertMap(res.FileTimeMap)
 	case testsplitter.SplitByClassTimeStr:
 		req.IncludeClassname = true
-		res, err = c.GetTestTimes(ctx, stepID, prevBuildId, &req)
+		res, err = c.GetTestTimes(ctx, stepID, prevBuildID, &req)
 		fileTimesMap = testsplitter.ConvertMap(res.ClassTimeMap)
 	case testsplitter.SplitByTestcaseTimeStr:
 		req.IncludeTestCase = true
-		res, err = c.GetTestTimes(ctx, stepID, prevBuildId, &req)
+		res, err = c.GetTestTimes(ctx, stepID, prevBuildID, &req)
 		fileTimesMap = testsplitter.ConvertMap(res.TestTimeMap)
 	case testsplitter.SplitByTestSuiteTimeStr:
 		req.IncludeTestSuite = true
-		res, err = c.GetTestTimes(ctx, stepID, prevBuildId, &req)
+		res, err = c.GetTestTimes(ctx, stepID, prevBuildID, &req)
 		fileTimesMap = testsplitter.ConvertMap(res.SuiteTimeMap)
 	case testsplitter.SplitByFileSizeStr:
 		return map[string]float64{}, nil
@@ -154,7 +154,7 @@ func getTestTime(ctx context.Context, stepID, prevBuildId, splitStrategy string,
 
 // getSplitTests takes a list of tests as input and returns the slice of tests to run depending on
 // the test split strategy and index
-func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.RunnableTest, stepID, prevBuildId, splitStrategy string, splitIdx, splitTotal int, tiConfig *tiCfg.Cfg) ([]ti.RunnableTest, error) {
+func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.RunnableTest, stepID, prevBuildID, splitStrategy string, splitIdx, splitTotal int, tiConfig *tiCfg.Cfg) ([]ti.RunnableTest, error) {
 	if len(testsToSplit) == 0 {
 		return testsToSplit, nil
 	}
@@ -180,7 +180,7 @@ func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.Ru
 	switch splitStrategy {
 	case classTimingTestSplitStrategy:
 		// Call TI svc to get the test timing data
-		fileTimes, err = getTestTime(ctx, stepID, prevBuildId, splitStrategy, tiConfig)
+		fileTimes, err = getTestTime(ctx, stepID, prevBuildID, splitStrategy, tiConfig)
 		if err != nil {
 			return testsToSplit, err
 		}
@@ -761,10 +761,10 @@ func GetSplitIdxAndTotal(envs map[string]string) (splitIdx, splitTotal int) {
 }
 
 // GetSplitIdxAndTotal returns splitIdx and SplitTotal based on step envs
-func GetPreviousBuildId(envs map[string]string) (string, error) {
-	prevBuildId, ok := envs[harnessPreviousBuildId]
+func GetPreviousBuildID(envs map[string]string) (string, error) {
+	prevBuildID, ok := envs[harnessPreviousBuildID]
 	if !ok {
-		return prevBuildId, fmt.Errorf("prevBuildId variable not set %s", harnessPreviousBuildId)
+		return prevBuildID, fmt.Errorf("prevBuildId variable not set %s", harnessPreviousBuildID)
 	}
-	return prevBuildId, nil
+	return prevBuildID, nil
 }

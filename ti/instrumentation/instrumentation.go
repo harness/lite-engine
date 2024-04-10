@@ -149,14 +149,14 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 		tests = selection.Tests
 	}
 
-	prevBuildId, _ := GetPreviousBuildId(envs)
+	prevBuildID, _ := GetPreviousBuildID(envs)
 
 	// Split the tests and send the split slice to the runner
-	splitTests, err := getSplitTests(ctx, log, tests, stepID, prevBuildId, defaultTestSplitStrategy, splitIdx, splitTotal, tiConfig)
+	splitTests, err := getSplitTests(ctx, log, tests, stepID, prevBuildID, defaultTestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	if err != nil {
 		// Error while splitting by input strategy, splitting tests equally
 		log.Errorln("Error occurred while splitting the tests by default split strategy. Splitting tests equally")
-		splitTests, _ = getSplitTests(ctx, log, tests, stepID, prevBuildId, countTestSplitStrategy, splitIdx, splitTotal, tiConfig)
+		splitTests, _ = getSplitTests(ctx, log, tests, stepID, prevBuildID, countTestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	}
 	log.Infoln(fmt.Sprintf("Test split for this run: %s", formatTests(splitTests)))
 
@@ -210,14 +210,14 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 		tests = selection.Tests
 	}
 
-	prevBuildId, _ := GetPreviousBuildId(envs)
+	prevBuildID, _ := GetPreviousBuildID(envs)
 
 	// Split the tests and send the split slice to the runner
-	splitTests, err := getSplitTests(ctx, log, tests, stepID, prevBuildId, config.TestSplitStrategy, splitIdx, splitTotal, tiConfig)
+	splitTests, err := getSplitTests(ctx, log, tests, stepID, prevBuildID, config.TestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	if err != nil {
 		// Error while splitting by input strategy, splitting tests equally
 		log.Errorln("Error occurred while splitting the tests by input strategy. Splitting tests equally")
-		splitTests, _ = getSplitTests(ctx, log, tests, stepID, prevBuildId, countTestSplitStrategy, splitIdx, splitTotal, tiConfig)
+		splitTests, _ = getSplitTests(ctx, log, tests, stepID, prevBuildID, countTestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	}
 	log.Infoln(fmt.Sprintf("Test split for this run: %s", formatTests(splitTests)))
 
