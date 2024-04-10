@@ -85,11 +85,15 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
 	}
 
-	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out)
+	useCINewGodotEnvVersion := false
+	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == "true" {
+		useCINewGodotEnvVersion = true
+	}
+	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 	if len(r.Outputs) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
+			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
 			outputsV2 := []*api.OutputV2{}
 			for _, output := range r.Outputs {
 				if _, ok := outputs[output.Key]; ok {
@@ -104,7 +108,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 		}
 	} else if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out) //nolint:govet
+			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
 			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
 		}
 	}

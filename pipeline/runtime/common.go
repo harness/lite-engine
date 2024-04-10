@@ -12,13 +12,18 @@ import (
 	"io"
 	"os"
 
+	v2 "github.com/harness/godotenv/v2"
+	v3 "github.com/harness/godotenv/v3"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logstream"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	ti "github.com/harness/ti-client/types"
-	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	ciNewVersionGodotEnv = "CI_NEW_VERSION_GODOTENV"
 )
 
 func getNudges() []logstream.Nudge {
@@ -94,7 +99,7 @@ func isPython(entrypoint []string) bool {
 }
 
 // Fetches variable in env file exported by the step.
-func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) (map[string]string, error) {
+func fetchExportedVarsFromEnvFile(envFile string, out io.Writer, useCINewGodotEnvVersion bool) (map[string]string, error) {
 	log := logrus.New()
 	log.Out = out
 
@@ -102,7 +107,17 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer) (map[string]str
 		return nil, err
 	}
 
-	env, err := godotenv.Read(envFile)
+	var (
+		env map[string]string
+		err error
+	)
+
+	if useCINewGodotEnvVersion {
+		env, err = v3.Read(envFile)
+	} else {
+		env, err = v2.Read(envFile)
+	}
+
 	if err != nil {
 		content, ferr := os.ReadFile(envFile)
 		if ferr != nil {

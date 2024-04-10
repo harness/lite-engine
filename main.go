@@ -7,7 +7,7 @@ package main
 import (
 	"github.com/harness/lite-engine/cli"
 
-	_ "github.com/joho/godotenv/autoload"
+	_ "github.com/harness/godotenv/v3"
 )
 
 func main() {
