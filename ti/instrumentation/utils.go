@@ -154,7 +154,7 @@ func getTestTime(ctx context.Context, stepID, prevBuildID, splitStrategy string,
 
 // getSplitTests takes a list of tests as input and returns the slice of tests to run depending on
 // the test split strategy and index
-func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.RunnableTest, stepID, prevBuildID, splitStrategy string, splitIdx, splitTotal int, tiConfig *tiCfg.Cfg) ([]ti.RunnableTest, error) {
+func getSplitTests(ctx context.Context, log *logrus.Logger, testsToSplit []ti.RunnableTest, stepID, prevBuildID, splitStrategy string, splitIdx, splitTotal int, tiConfig *tiCfg.Cfg) ([]ti.RunnableTest, error) { //nolint:lll
 	if len(testsToSplit) == 0 {
 		return testsToSplit, nil
 	}
