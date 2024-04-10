@@ -117,7 +117,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	}
 
 	useCINewGodotEnvVersion := false
-	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == "true" {
+	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == trueValue {
 		useCINewGodotEnvVersion = true
 	}
 

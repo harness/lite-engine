@@ -86,7 +86,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	}
 
 	useCINewGodotEnvVersion := false
-	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == "true" {
+	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == trueValue {
 		useCINewGodotEnvVersion = true
 	}
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
