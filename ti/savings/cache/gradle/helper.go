@@ -67,6 +67,9 @@ func parseProfileFromHtml(n *html.Node) (gradleTypes.Profile, bool, error) {
 		return profile, false, fmt.Errorf("html body does not have valid div")
 	}
 	contentDiv := body.Elements[0]
+	if len(contentDiv.Elements) != 4 {
+		return profile, false, fmt.Errorf("invalid content div")
+	}
 
 	// Parse Cmd
 	cmd, err := parseCmdFromContentDiv(contentDiv)
@@ -103,9 +106,13 @@ func parseProfileFromHtml(n *html.Node) (gradleTypes.Profile, bool, error) {
 
 func parseCmdFromContentDiv(contentDiv JsonNode) (string, error) {
 	header := contentDiv.Elements[1]
+	if len(header.Elements) != 1 {
+		return "", fmt.Errorf("invalid header for command")
+	}
 	cmdP := header.Elements[0]
 	if strings.HasPrefix(cmdP.Text, "Profiled build:") {
 		cmd, _ := strings.CutPrefix(cmdP.Text, "Profiled build:")
+		cmd = strings.TrimSpace(cmd)
 		cmd = strings.TrimSpace(cmd)
 		return cmd, nil
 	}
@@ -115,12 +122,12 @@ func parseCmdFromContentDiv(contentDiv JsonNode) (string, error) {
 func parseBuildTimeFromContentDiv(contentDiv JsonNode) (int64, int64, error) {
 	tabs := contentDiv.Elements[2]
 	if len(tabs.Elements) < 5 || tabs.Elements[1].Id != "tab0" {
-		return -1, -1, fmt.Errorf("tabs element does not have tab4")
+		return -1, -1, fmt.Errorf("tabs element does not have tab0")
 	}
 
 	tab0 := tabs.Elements[1]
 	if len(tab0.Elements) < 2 || tab0.Elements[1].Name != "table" {
-		return -1, -1, fmt.Errorf("tab4 does not have a table")
+		return -1, -1, fmt.Errorf("tab0 does not have a table")
 	}
 
 	table := tab0.Elements[1]
@@ -129,7 +136,6 @@ func parseBuildTimeFromContentDiv(contentDiv JsonNode) (int64, int64, error) {
 	}
 
 	tableBody := table.Elements[1]
-
 	buildTimeMs := -1
 	taskExecutionTimeMs := -1
 	for _, n := range tableBody.Elements {
@@ -164,7 +170,7 @@ func parseProjectsFromContentDiv(contentDiv JsonNode) ([]gradleTypes.Project, er
 
 	taskTable := tab4.Elements[1]
 	if len(taskTable.Elements) < 2 {
-		return goals, fmt.Errorf("taskTable does not have a list of tasks")
+		return goals, fmt.Errorf("task table does not have a list of tasks")
 	}
 
 	var goal gradleTypes.Project
@@ -217,6 +223,9 @@ type JsonNode struct {
 }
 
 func (n *JsonNode) populateFrom(htmlNode *html.Node) *JsonNode {
+	if htmlNode == nil {
+		return &JsonNode{}
+	}
 	switch htmlNode.Type {
 	case html.ElementNode:
 		n.Name = htmlNode.Data
