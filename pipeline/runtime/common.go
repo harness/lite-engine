@@ -54,7 +54,7 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 		} else if isPython {
 			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
 		} else {
-			cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o, o, outputFile)
+			cmd += fmt.Sprintf("\necho \"%s=\"$%s\"\" >> %s", o, o, outputFile)
 		}
 	}
 
