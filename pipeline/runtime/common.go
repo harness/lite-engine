@@ -39,6 +39,8 @@ func getNudges() []logstream.Nudge {
 }
 
 func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string {
+	log := logrus.New()
+	log.Info("getOutputVarCmd")
 	isPsh := isPowershell(entrypoint)
 	isPython := isPython(entrypoint)
 
@@ -62,6 +64,8 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 }
 
 func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile string) string {
+	log := logrus.New()
+	log.Info("getOutputsCmd")
 	isPsh := isPowershell(entrypoint)
 	isPython := isPython(entrypoint)
 
@@ -77,7 +81,7 @@ func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile s
 		} else if isPython {
 			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o.Key, o.Value)
 		} else {
-			cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o.Key, o.Value, outputFile)
+			cmd += fmt.Sprintf("\necho \"%s=\"$%s\"\" >> %s", o.Key, o.Value, outputFile)
 		}
 	}
 
