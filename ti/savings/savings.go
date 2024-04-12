@@ -16,14 +16,14 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
 	start := time.Now()
-	cacheState, timeTaken, err := cache.ParseCacheSavings(workspace, log)
+	cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log)
 	if err == nil {
 		states = append(states, cacheState)
 		log.Infof("Computed build cache execution details with state %s and time %sms in %0.2f seconds",
 			cacheState, strconv.Itoa(timeTaken), time.Since(start).Seconds())
 
 		tiStart := time.Now()
-		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, cacheState, int64(timeTaken))
+		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, cacheState, int64(timeTaken), savingsRequest)
 		if tiErr == nil {
 			log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
 				types.BUILD_CACHE, time.Since(tiStart).Seconds())
@@ -37,7 +37,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			tiState, cmdTimeTaken)
 
 		tiStart := time.Now()
-		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.TI, tiState, cmdTimeTaken)
+		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.TI, tiState, cmdTimeTaken, types.SavingsRequest{})
 		if tiErr == nil {
 			log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
 				types.TI, time.Since(tiStart).Seconds())
