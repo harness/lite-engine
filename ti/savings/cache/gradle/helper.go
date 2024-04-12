@@ -106,13 +106,12 @@ func parseProfileFromHtml(n *html.Node) (gradleTypes.Profile, bool, error) {
 
 func parseCmdFromContentDiv(contentDiv JsonNode) (string, error) {
 	header := contentDiv.Elements[1]
-	if len(header.Elements) != 1 {
+	if len(header.Elements) < 1 {
 		return "", fmt.Errorf("invalid header for command")
 	}
 	cmdP := header.Elements[0]
 	if strings.HasPrefix(cmdP.Text, "Profiled build:") {
 		cmd, _ := strings.CutPrefix(cmdP.Text, "Profiled build:")
-		cmd = strings.TrimSpace(cmd)
 		cmd = strings.TrimSpace(cmd)
 		return cmd, nil
 	}
