@@ -12,10 +12,7 @@ import (
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
-	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
-	"github.com/harness/lite-engine/logstream/remote"
-	"github.com/harness/lite-engine/logstream/stdout"
 	"github.com/harness/lite-engine/pipeline"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -36,42 +33,38 @@ func (e *StepExecutorStateless) Status() StepStatus {
 	return e.stepStatus
 }
 
-func (e *StepExecutorStateless) Run(ctx context.Context, r *api.StartStepRequest, cfg *spec.PipelineConfig) (api.VMTaskExecutionResponse, error) {
+func (e *StepExecutorStateless) Run(
+	ctx context.Context,
+	r *api.StartStepRequest,
+	cfg *spec.PipelineConfig,
+	writer logstream.Writer,
+) (api.VMTaskExecutionResponse, error) {
 	if r.ID == "" {
 		return api.VMTaskExecutionResponse{}, &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 
 	e.stepStatus = StepStatus{Status: Running}
 
-	state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r, cfg)
+	state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r, cfg, writer)
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
 	pollResponse := convertStatus(e.stepStatus)
 	return convertPollResponse(pollResponse), nil
 }
 
-func getLogServiceClient(cfg api.LogConfig) logstream.Client {
-	if cfg.URL != "" {
-		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false)
-	}
-	return stdout.New()
-}
-
-func (e *StepExecutorStateless) executeStep(r *api.StartStepRequest, cfg *spec.PipelineConfig) (*runtime.State, map[string]string, //nolint:gocritic
+func (e *StepExecutorStateless) executeStep( //nolint:gocritic
+	r *api.StartStepRequest,
+	cfg *spec.PipelineConfig,
+	writer logstream.Writer,
+) (*runtime.State, map[string]string,
 	map[string]string, []byte, []*api.OutputV2, string, error) {
 	runFunc := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error) {
 		return engine.RunStep(ctx, engine.Opts{}, step, output, cfg, isDrone)
 	}
-
-	// Create a log stream for step logs
-	client := getLogServiceClient(r.LogConfig)
-	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false)
-	wr := logstream.NewReplacer(wc, r.Secrets)
-	go wr.Open() //nolint:errcheck
-
+	// Temporary: this should be removed once we have a better way of handling test intelligence.
 	tiConfig := getTiCfg(&r.TIConfig)
 
-	return executeStepHelper(r, runFunc, wc, wr, &tiConfig)
+	return executeStepHelper(r, runFunc, writer, &tiConfig)
 }
 
 func getTiCfg(t *api.TIConfig) tiCfg.Cfg {
