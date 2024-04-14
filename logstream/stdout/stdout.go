@@ -12,6 +12,7 @@ import (
 )
 
 func New() *Logger {
+	fmt.Printf("initializing a new stdout logger\n")
 	return &Logger{}
 }
 

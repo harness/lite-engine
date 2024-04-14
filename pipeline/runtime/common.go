@@ -16,7 +16,10 @@ import (
 	v3 "github.com/harness/godotenv/v3"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
+	"github.com/harness/lite-engine/logstream/remote"
+	"github.com/harness/lite-engine/logstream/stdout"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
@@ -168,4 +171,21 @@ func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 	envMap[ti.BuildIDEnv] = config.GetBuildID()
 	envMap[ti.StepIDEnv] = step.Name
 	envMap[ti.InfraEnv] = ti.HarnessInfra
+}
+
+func getLogServiceClient(cfg api.LogConfig) logstream.Client {
+	if cfg.URL != "" {
+		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false)
+	}
+	return stdout.New()
+}
+
+// Used to create a log service client which handles secrets
+// If the URL is not set, it will write to stdout instead.
+func GetReplacer(
+	cfg api.LogConfig, logKey, name string, secrets []string,
+) logstream.Writer {
+	client := getLogServiceClient(cfg)
+	wc := livelog.New(client, logKey, name, []logstream.Nudge{}, false)
+	return logstream.NewReplacer(wc, secrets)
 }

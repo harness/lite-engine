@@ -296,7 +296,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 	wr := logstream.NewReplacer(wc, secrets)
 	go wr.Open() //nolint:errcheck
 
-	return executeStepHelper(r, e.engine.Run, wc, wr, pipeline.GetState().GetTIConfig())
+	return executeStepHelper(r, e.engine.Run, wr, pipeline.GetState().GetTIConfig())
 }
 
 // executeStepHelper is a helper function which is used both by this step executor as well as the
@@ -305,7 +305,6 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 func executeStepHelper( //nolint:gocritic
 	r *api.StartStepRequest,
 	f RunFunc,
-	wc *livelog.Writer,
 	wr logstream.Writer,
 	tiCfg *tiCfg.Cfg) (*runtime.State, map[string]string,
 	map[string]string, []byte, []*api.OutputV2, string, error) {
@@ -359,7 +358,7 @@ func executeStepHelper( //nolint:gocritic
 
 	if exited != nil {
 		if exited.ExitCode != 0 {
-			if wc.Error() != nil {
+			if wr.Error() != nil {
 				result = multierror.Append(result, err)
 			}
 		}
