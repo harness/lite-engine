@@ -61,20 +61,20 @@ func TestParseSavings_NoProfile(t *testing.T) {
 	defer removeBaseDir() //nolint:errcheck
 
 	workspace := getBaseDir()
-	_, _, _, err = ParseSavings(workspace, logrus.New())
+	_, _, _, err = ParseSavings(workspace, logrus.New()) //nolint:dogsled
 	assert.NotNil(t, err)
 	assert.Equal(t, fmt.Errorf("no profiles present"), err)
 }
 
 func TestParseSavings_NoBuildDir(t *testing.T) {
 	workspace := getBaseDir()
-	_, _, _, err := ParseSavings(workspace, logrus.New())
+	_, _, _, err := ParseSavings(workspace, logrus.New()) //nolint:dogsled
 	assert.NotNil(t, err)
 	assert.Equal(t, fmt.Errorf("no profiles present"), err)
 }
 
 func TestParseGradleVerseTimeMs(t *testing.T) {
-	timeMap := map[string]int{
+	timeMap := map[string]int64{
 		"1d2h4m6.123s": 93846123,
 		"2h4m6s":       7446000,
 		"4m23.012s":    263012,
