@@ -4,7 +4,7 @@ name: unit tests
 
 steps:
   - name: go vet and unit tests
-    image: golang:1.20
+    image: golang:1.19
     commands:
       - go vet ./...
       - go test -cover ./...
@@ -38,7 +38,7 @@ pool:
 
 steps:
   - name: build
-    image: golang:1.20
+    image: golang:1.19
     commands:
       - go build -o lite-engine
   - name: server
@@ -108,7 +108,7 @@ pool:
 
 steps:
   - name: build
-    image: golang:1.20
+    image: golang:1.19
     commands:
       - go build -o lite-engine
   - name: server
@@ -143,7 +143,7 @@ pool:
 
 steps:
   - name: build
-    image: golang:1.20
+    image: golang:1.19
     commands:
       - go build -o lite-engine.exe
   - name: server
@@ -174,7 +174,7 @@ name: release artifacts
 
 steps:
   - name: build
-    image: golang:1.20
+    image: golang:1.19
     commands:
       - GOOS=linux   GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-amd64
       - GOOS=linux   GOARCH=arm64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-arm64
