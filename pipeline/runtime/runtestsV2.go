@@ -50,10 +50,9 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	log.Out = out
 	optimizationState := types.DISABLED
 	step := toStep(r)
+	setTiEnvVariables(step, tiConfig)
 	agentPaths := make(map[string]string)
-
 	if r.RunTestsV2.IntelligenceMode {
-
 		err := downloadJavaAgent(ctx, tmpFilePath, fs, log)
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Java agent")
@@ -79,12 +78,10 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		commands := fmt.Sprintf("%s\n%s", preCmd, r.RunTestsV2.Command[0])
 		step.Command = []string{commands}
 
-		setTiEnvVariables(step, tiConfig)
 		err = createSelectedTestFile(ctx, fs, step.Name, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error while creating filter file %s", err)
 		}
-
 	} else {
 		step.Command = []string{r.RunTestsV2.Command[0]}
 	}
