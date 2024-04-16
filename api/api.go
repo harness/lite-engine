@@ -66,6 +66,10 @@ type (
 		MountDockerSocket *bool       `json:"mount_docker_socket"`
 		Outputs           []*OutputV2 `json:"outputs,omitempty"`
 
+		// File to read from to fetch output variables. Note: If this is set, we ignore
+		// output_vars and instead read directly from the file to fetch output variables.
+		OutputVarFile string `json:"output_var_file,omitempty"`
+
 		// Valid only for steps running on docker container
 		Auth         *spec.Auth           `json:"auth,omitempty"`
 		CPUPeriod    int64                `json:"cpu_period,omitempty"`
