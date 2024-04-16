@@ -49,39 +49,43 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	log := logrus.New()
 	log.Out = out
 	optimizationState := types.DISABLED
-	agentPaths := make(map[string]string)
-
-	err := downloadJavaAgent(ctx, tmpFilePath, fs, log)
-	if err != nil {
-		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Java agent")
-	}
-
-	rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, fs, log)
-	if err != nil || rubyArtifactDir == "" {
-		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Ruby agent")
-	}
-	agentPaths["ruby"] = rubyArtifactDir
-
-	pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, fs, log)
-	if err != nil {
-		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Python agent")
-	}
-	agentPaths["python"] = pythonArtifactDir
-
-	preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths)
-	if err != nil || pythonArtifactDir == "" {
-		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
-	}
-
-	commands := fmt.Sprintf("%s\n%s", preCmd, r.RunTestsV2.Command[0])
 	step := toStep(r)
-	step.Command = []string{commands}
-	step.Entrypoint = r.RunTestsV2.Entrypoint
 	setTiEnvVariables(step, tiConfig)
-	err = createSelectedTestFile(ctx, fs, step.Name, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
-	if err != nil {
-		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error while creating filter file %s", err)
+	agentPaths := make(map[string]string)
+	if r.RunTestsV2.IntelligenceMode {
+		err := downloadJavaAgent(ctx, tmpFilePath, fs, log)
+		if err != nil {
+			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Java agent")
+		}
+
+		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, fs, log)
+		if err != nil || rubyArtifactDir == "" {
+			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Ruby agent")
+		}
+		agentPaths["ruby"] = rubyArtifactDir
+
+		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, fs, log)
+		if err != nil {
+			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Python agent")
+		}
+		agentPaths["python"] = pythonArtifactDir
+
+		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths)
+		if err != nil || pythonArtifactDir == "" {
+			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
+		}
+
+		commands := fmt.Sprintf("%s\n%s", preCmd, r.RunTestsV2.Command[0])
+		step.Command = []string{commands}
+
+		err = createSelectedTestFile(ctx, fs, step.Name, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
+		if err != nil {
+			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error while creating filter file %s", err)
+		}
+	} else {
+		step.Command = []string{r.RunTestsV2.Command[0]}
 	}
+	step.Entrypoint = r.RunTestsV2.Entrypoint
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 

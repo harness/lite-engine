@@ -132,9 +132,10 @@ type (
 	}
 
 	RunTestsV2Config struct {
-		Command    []string `json:"commands,omitempty"`
-		Entrypoint []string `json:"entrypoint,omitempty"`
-		TestGlobs  string   `json:"test_globs,omitempty"`
+		Command          []string `json:"commands,omitempty"`
+		Entrypoint       []string `json:"entrypoint,omitempty"`
+		TestGlobs        []string `json:"test_globs,omitempty"`
+		IntelligenceMode bool     `json:"intelligence_mode,omitempty"`
 	}
 
 	RunTestConfig struct {
