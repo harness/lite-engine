@@ -92,6 +92,7 @@ func (e *Engine) Destroy(ctx context.Context) error {
 	e.mu.Lock()
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
+	destroyHelper(cfg)
 
 	return e.docker.Destroy(ctx, cfg)
 }
@@ -114,6 +115,21 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 	}
 
 	return exec.Run(ctx, step, output)
+}
+
+func destroyHelper(cfg *spec.PipelineConfig) {
+	for _, vol := range cfg.Volumes {
+		if vol == nil || vol.HostPath == nil {
+			continue
+		}
+		if !vol.HostPath.Remove {
+			continue
+		}
+
+		// TODO: Add logging
+		path := vol.HostPath.Path
+		os.RemoveAll(path)
+	}
 }
 
 func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {

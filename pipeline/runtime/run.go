@@ -40,13 +40,24 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
-	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
-	step.Envs["DRONE_OUTPUT"] = outputFile
+	// If the output variable file is set, it means we use the file directly to get the output variables
+	// instead of explicitly modifying the input command.
+	var outputFile string
+	if r.OutputVarFile != "" {
+		// Plugins can use HARNESS_OUTPUT_FILE to write the output variables to a file.
+		step.Envs["HARNESS_OUTPUT_FILE"] = r.OutputVarFile
+		outputFile = r.OutputVarFile
+	} else {
+		// If output variable file is not set, we auto append the run command to write output
+		// variables.
+		outputFile = fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
+		step.Envs["DRONE_OUTPUT"] = outputFile
 
-	if len(r.Outputs) > 0 {
-		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile)
-	} else if len(r.OutputVars) > 0 {
-		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
+		if len(r.Outputs) > 0 {
+			step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile)
+		} else if len(r.OutputVars) > 0 {
+			step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
+		}
 	}
 
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)

@@ -52,6 +52,7 @@ func DestroyPipeline(
 	if err != nil {
 		return err
 	}
+	destroyHelper(cfg)
 	return d.DestroyContainersByLabel(ctx, cfg, labelKey, labelValue)
 }
 

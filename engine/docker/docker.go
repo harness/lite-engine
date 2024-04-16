@@ -171,6 +171,7 @@ func (e *Docker) DestroyContainersByLabel(
 	}
 	ctrs, err := e.client.ContainerList(ctx, types.ContainerListOptions{
 		Filters: args,
+		All:     true,
 	})
 	if err != nil {
 		return err
