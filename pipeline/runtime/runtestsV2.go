@@ -300,18 +300,18 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-	if !isPsh {
-		preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
-	} else {
-		preCmd = fmt.Sprintf("set JAVA_TOOL_OPTIONS=%s", agentArg)
-	}
-
+	envs["JAVA_TOOL_OPTIONS"] = agentArg
 	// Ruby
 	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 	if err != nil {
 		return "", "", err
 	}
-	preCmd += fmt.Sprintf("\nbundle add rspec_junit_formatter || true;\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
+
+	if !isPsh {
+		preCmd = fmt.Sprintf("\nbundle add rspec_junit_formatter || true;\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
+	} else {
+		preCmd = fmt.Sprintf("\ntry { bundle add rspec_junit_formatter } catch { $null };\ntry { bundle add harness_ruby_agent --path %q --version %q } catch { $null };", repoPath, "0.0.1")
+	}
 
 	disableJunitVarName := "TI_DISABLE_JUNIT_INSTRUMENTATION"
 	disableJunitInstrumentation := false
@@ -326,7 +326,11 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	// Python
-	preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", agentPaths["python"])
+	if !isPsh {
+		preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", agentPaths["python"])
+	} else {
+		preCmd += fmt.Sprintf("\ntry { python3 -m pip install %s } catch { $null };", agentPaths["python"])
+	}
 
 	return preCmd, filterFilePath, nil
 }
