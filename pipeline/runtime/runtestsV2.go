@@ -53,7 +53,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step := toStep(r)
 	setTiEnvVariables(step, tiConfig)
 	agentPaths := make(map[string]string)
-	if true {
+	if r.RunTestsV2.IntelligenceMode {
 		err := downloadJavaAgent(ctx, tmpFilePath, fs, log)
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Java agent")
@@ -64,8 +64,6 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Ruby agent")
 		}
 		agentPaths["ruby"] = rubyArtifactDir
-
-		log.Info("BEFORE PYTHON DOWNLOAD")
 
 		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, fs, log)
 		if err != nil {
@@ -322,8 +320,6 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		log.Errorln("Unable to write rspec-local file automatically", err)
 		return "", "", err
 	}
-
-	log.Info("BEFORE PYTHON PRECMD")
 
 	// Python
 	repoPath, err = python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
