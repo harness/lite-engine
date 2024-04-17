@@ -18,7 +18,6 @@ func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filterFilePa
 		log.Println("Filter File not present running all the tests")
 		return nil
 	}
-	log.Println("Creating filter file......")
 	testResp := selectTestResp.Tests
 
 	f, err := fs.Create(filterFilePath)

@@ -70,7 +70,8 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		}
 		agentPaths["python"] = pythonArtifactDir
 
-		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths)
+		isPsh := IsPowershell(step.Entrypoint)
+		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths, isPsh)
 		if err != nil || pythonArtifactDir == "" {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 		}
@@ -266,7 +267,7 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 }
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string) (preCmd, filterFilePath string, err error) {
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
@@ -299,7 +300,11 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
+	if !isPsh {
+		preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
+	} else {
+		preCmd = fmt.Sprintf("set JAVA_TOOL_OPTIONS=%s", agentArg)
+	}
 
 	// Ruby
 	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
