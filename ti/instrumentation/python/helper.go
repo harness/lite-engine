@@ -7,6 +7,7 @@ package python
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -90,4 +91,39 @@ func UnzipAndGetTestInfo(agentInstallDir string, ignoreInstr bool, testHarness s
 		log.Infoln(fmt.Sprintf("testHarnessCmd: %s", testHarnessCmd))
 	}
 	return scriptPath, testHarnessCmd, nil
+}
+
+// UnzipAndGetTestInfo unzips the Python agent zip file, and return a pair of
+// string for script path and test harness command as test information.
+// In case of errors, return a pair of empty string as test information.
+func UnzipAndGetTestInfoV2(agentInstallDir string, log *logrus.Logger) (scriptPath string, err error) {
+	zip := archiver.Zip{
+		OverwriteExisting: true,
+	}
+	// Unzip everything at agentInstallDir/ruby-agent.zip
+	err = zip.Unarchive(filepath.Join(agentInstallDir, "python-agent-v2.zip"), agentInstallDir)
+	if err != nil {
+		log.WithError(err).Println("could not unzip the python agent")
+		return "", err
+	}
+
+	scriptPath = filepath.Join(agentInstallDir, "harness", "python-agent-v2")
+	log.Infoln(fmt.Sprintf("scriptPath: %s", scriptPath))
+
+	return scriptPath, nil
+}
+
+func FindWhlFile(folderPath string) (string, error) {
+	files, err := os.ReadDir(folderPath)
+	if err != nil {
+		return "", err
+	}
+
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(strings.ToLower(file.Name()), ".whl") {
+			return filepath.Join(folderPath, file.Name()), nil
+		}
+	}
+
+	return "", fmt.Errorf("no .whl file found in the folder")
 }
