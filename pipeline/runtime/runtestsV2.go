@@ -28,15 +28,12 @@ import (
 )
 
 const (
-	outDir           = "%s/ti/v2/callgraph/" // path passed as outDir in the config.ini file
-	javaAgentV2Arg   = "-javaagent:%s=%s"
-	javaAgentV2Jar   = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
-	javaAgentV2Path  = "/java/v2/"
-	javaAgentV2Url   = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" // Will be changed later
-	rubyAgentV2Url   = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"                                                                          // Will be changed later
-	pythonAgentV2Url = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/python-agent-v2.zip"                                                                     // Will be changed later
-	filterV2Dir      = "%s/ti/v2/filter"
-	configV2Dir      = "%s/ti/v2/java/config"
+	outDir          = "%s/ti/v2/callgraph/cg/" // path passed as outDir in the config.ini file
+	javaAgentV2Arg  = "-javaagent:%s=%s"
+	javaAgentV2Jar  = "java-agent.jar"
+	javaAgentV2Path = "/java/v2/"
+	filterV2Dir     = "%s/ti/v2/filter"
+	configV2Dir     = "%s/ti/v2/java/config"
 )
 
 // Ignoring optimization state for now
@@ -54,18 +51,24 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	setTiEnvVariables(step, tiConfig)
 	agentPaths := make(map[string]string)
 	if r.RunTestsV2.IntelligenceMode {
-		err := downloadJavaAgent(ctx, tmpFilePath, fs, log)
+
+		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig)
+		if err != nil {
+			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to get AgentV2 URL from TI")
+		}
+
+		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log)
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Java agent")
 		}
 
-		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, fs, log)
+		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log)
 		if err != nil || rubyArtifactDir == "" {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Ruby agent")
 		}
 		agentPaths["ruby"] = rubyArtifactDir
 
-		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, fs, log)
+		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log)
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Python agent")
 		}
@@ -347,7 +350,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	return preCmd, filterFilePath, nil
 }
 
-func downloadJavaAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) error {
+func downloadJavaAgent(ctx context.Context, path, javaAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger) error {
 	javaAgentPath := fmt.Sprintf("%s%s", javaAgentV2Path, javaAgentV2Jar)
 	dir := filepath.Join(path, javaAgentPath)
 	err := instrumentation.DownloadFile(ctx, dir, javaAgentV2Url, fs)
@@ -358,7 +361,7 @@ func downloadJavaAgent(ctx context.Context, path string, fs filesystem.FileSyste
 	return nil
 }
 
-func downloadRubyAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+func downloadRubyAgent(ctx context.Context, path, rubyAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
 	dir := filepath.Join(path, "ruby", "ruby-agent.zip")
 	installDir := filepath.Dir(dir)
 	err := instrumentation.DownloadFile(ctx, dir, rubyAgentV2Url, fs)
@@ -369,7 +372,7 @@ func downloadRubyAgent(ctx context.Context, path string, fs filesystem.FileSyste
 	return installDir, nil
 }
 
-func downloadPythonAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+func downloadPythonAgent(ctx context.Context, path, pythonAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
 	dir := filepath.Join(path, "python", "python-agent-v2.zip")
 	installDir := filepath.Dir(dir)
 	err := instrumentation.DownloadFile(ctx, dir, pythonAgentV2Url, fs)

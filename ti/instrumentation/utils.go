@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
+	"github.com/harness/ti-client/types"
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
@@ -506,6 +508,15 @@ func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	}
 
 	return nil
+}
+
+func GetV2AgentDownloadLinks(ctx context.Context, config *tiCfg.Cfg) ([]types.DownloadLink, error) {
+	c := config.GetClient()
+	links, err := c.DownloadLink(ctx, "RunTestV2", runtime.GOOS, runtime.GOOS, "", "", "")
+	if err != nil {
+		return links, err
+	}
+	return links, nil
 }
 
 // installAgents checks if the required artifacts are installed for the language
