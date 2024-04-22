@@ -42,7 +42,7 @@ func getNudges() []logstream.Nudge {
 }
 
 func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string {
-	isPsh := isPowershell(entrypoint)
+	isPsh := IsPowershell(entrypoint)
 	isPython := isPython(entrypoint)
 
 	cmd := ""
@@ -65,7 +65,7 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 }
 
 func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile string) string {
-	isPsh := isPowershell(entrypoint)
+	isPsh := IsPowershell(entrypoint)
 	isPython := isPython(entrypoint)
 
 	cmd := ""
@@ -87,7 +87,7 @@ func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile s
 	return cmd
 }
 
-func isPowershell(entrypoint []string) bool {
+func IsPowershell(entrypoint []string) bool {
 	if len(entrypoint) > 0 && (entrypoint[0] == "powershell" || entrypoint[0] == "pwsh") {
 		return true
 	}

@@ -53,6 +53,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step := toStep(r)
 	setTiEnvVariables(step, tiConfig)
 	agentPaths := make(map[string]string)
+	step.Entrypoint = r.RunTestsV2.Entrypoint
 	if r.RunTestsV2.IntelligenceMode {
 		err := downloadJavaAgent(ctx, tmpFilePath, fs, log)
 		if err != nil {
@@ -71,7 +72,8 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		}
 		agentPaths["python"] = pythonArtifactDir
 
-		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths)
+		isPsh := IsPowershell(step.Entrypoint)
+		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths, isPsh)
 		if err != nil || pythonArtifactDir == "" {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 		}
@@ -86,7 +88,6 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	} else {
 		step.Command = []string{r.RunTestsV2.Command[0]}
 	}
-	step.Entrypoint = r.RunTestsV2.Entrypoint
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
@@ -267,7 +268,9 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 }
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string) (preCmd, filterFilePath string, err error) {
+//
+//nolint:funlen
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
@@ -300,14 +303,18 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-	preCmd = fmt.Sprintf("export JAVA_TOOL_OPTIONS=%s", agentArg)
-
+	envs["JAVA_TOOL_OPTIONS"] = agentArg
 	// Ruby
 	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 	if err != nil {
 		return "", "", err
 	}
-	preCmd += fmt.Sprintf("\nbundle add rspec_junit_formatter || true;\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
+
+	if !isPsh {
+		preCmd = fmt.Sprintf("\nbundle add rspec_junit_formatter || true;\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
+	} else {
+		preCmd = fmt.Sprintf("\ntry { bundle add rspec_junit_formatter } catch { $null };\ntry { bundle add harness_ruby_agent --path %q --version %q } catch { $null };", repoPath, "0.0.1")
+	}
 
 	disableJunitVarName := "TI_DISABLE_JUNIT_INSTRUMENTATION"
 	disableJunitInstrumentation := false
@@ -337,11 +344,19 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		disablePythonV2CodeModification = true
 	}
 
-	preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", whlFilePath)
+	if !isPsh {
+		preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", whlFilePath)
+	} else {
+		preCmd += fmt.Sprintf("\ntry { python3 -m pip install %s } catch { $null };", whlFilePath)
+	}
 
 	if !disablePythonV2CodeModification {
 		modifyToxFileName := filepath.Join(repoPath, "modifytox.py")
-		preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
+		if !isPsh {
+			preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
+		} else {
+			preCmd += fmt.Sprintf("\ntry { python3 %s %s %s } catch { $null };", modifyToxFileName, workspace, whlFilePath)
+		}
 	}
 
 	return preCmd, filterFilePath, nil
