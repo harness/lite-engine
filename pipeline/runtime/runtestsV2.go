@@ -301,7 +301,6 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
-	log.Infoln("We have taken JAVA_TOOL_OPTIONS as env var by map ------------> YESSSS!!!!!")
 	envs["JAVA_TOOL_OPTIONS"] = agentArg
 	// Ruby
 	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
