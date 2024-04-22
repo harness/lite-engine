@@ -111,10 +111,11 @@ func Test_createSelectedTestFile(t *testing.T) {
 
 func Test_downloadJavaAgent(t *testing.T) {
 	type args struct {
-		ctx  context.Context
-		path string
-		fs   filesystem.FileSystem
-		log  *logrus.Logger
+		ctx      context.Context
+		path     string
+		agentURL string
+		fs       filesystem.FileSystem
+		log      *logrus.Logger
 	}
 	tests := []struct {
 		name    string
@@ -125,7 +126,7 @@ func Test_downloadJavaAgent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := downloadJavaAgent(tt.args.ctx, tt.args.path, tt.args.fs, tt.args.log); (err != nil) != tt.wantErr {
+			if err := downloadJavaAgent(tt.args.ctx, tt.args.path, tt.args.agentURL, tt.args.fs, tt.args.log); (err != nil) != tt.wantErr {
 				t.Errorf("downloadJavaAgent() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

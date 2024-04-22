@@ -51,7 +51,6 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	setTiEnvVariables(step, tiConfig)
 	agentPaths := make(map[string]string)
 	if r.RunTestsV2.IntelligenceMode {
-
 		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig)
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to get AgentV2 URL from TI")
