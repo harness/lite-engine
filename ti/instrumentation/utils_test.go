@@ -7,7 +7,6 @@ import (
 
 	"github.com/golang/mock/gomock"
 	tiCfg "github.com/harness/lite-engine/ti/config"
-	"github.com/harness/ti-client/types"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -49,7 +48,7 @@ func TestGetV2AgentDownloadLinks(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []types.DownloadLink
+		want    []ti.DownloadLink
 		wantErr bool
 	}{
 		// TODO: Add test cases.

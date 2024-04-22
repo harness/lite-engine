@@ -55,6 +55,9 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to get AgentV2 URL from TI")
 		}
+		if len(links) < 3 {
+			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("Error: Could not get agent V2 links from TI")
+		}
 
 		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log)
 		if err != nil {
