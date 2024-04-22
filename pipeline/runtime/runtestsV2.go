@@ -19,6 +19,7 @@ import (
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
+	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/savings"
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
@@ -32,8 +33,8 @@ const (
 	javaAgentV2Jar   = "java-agent-trampoline-0.0.1-SNAPSHOT.jar"
 	javaAgentV2Path  = "/java/v2/"
 	javaAgentV2Url   = "https://raw.githubusercontent.com/ShobhitSingh11/google-api-php-client/4494215f58677113656f80d975d08027439af5a7/java-agent-trampoline-0.0.1-SNAPSHOT.jar" // Will be changed later
-	rubyAgentV2Url   = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"
-	pythonAgentV2Url = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/harness_ti_pytest_plugin-0.1-py3-none-any.whl" // Will be changed later
+	rubyAgentV2Url   = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/ruby-agent.zip"                                                                          // Will be changed later
+	pythonAgentV2Url = "https://elasticbeanstalk-us-east-1-734046833946.s3.amazonaws.com/python-agent-v2.zip"                                                                     // Will be changed later
 	filterV2Dir      = "%s/ti/v2/filter"
 	configV2Dir      = "%s/ti/v2/java/config"
 )
@@ -326,10 +327,34 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	// Python
+	repoPath, err = python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
+	if err != nil {
+		return "", "", err
+	}
+	whlFilePath, err := python.FindWhlFile(repoPath)
+	if err != nil {
+		return "", "", err
+	}
+
+	disablePythonV2CodeModificationVarName := "TI_DISABLE_PYTHON_CODE_MODIFICATIONS"
+	disablePythonV2CodeModification := false
+	if _, ok := envs[disablePythonV2CodeModificationVarName]; ok {
+		disablePythonV2CodeModification = true
+	}
+
 	if !isPsh {
 		preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", agentPaths["python"])
 	} else {
 		preCmd += fmt.Sprintf("\ntry { python3 -m pip install %s } catch { $null };", agentPaths["python"])
+	}
+
+	if !disablePythonV2CodeModification {
+		modifyToxFileName := filepath.Join(repoPath, "modifytox.py")
+		if !isPsh {
+			preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
+		} else {
+			preCmd += fmt.Sprintf("\ntry {python3 %s %s %s } catch { $null };", modifyToxFileName, workspace, whlFilePath)
+		}
 	}
 
 	return preCmd, filterFilePath, nil
@@ -358,13 +383,14 @@ func downloadRubyAgent(ctx context.Context, path string, fs filesystem.FileSyste
 }
 
 func downloadPythonAgent(ctx context.Context, path string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
-	dir := filepath.Join(path, "python", "harness_ti_pytest_plugin-0.1-py3-none-any.whl")
+	dir := filepath.Join(path, "python", "python-agent-v2.zip")
+	installDir := filepath.Dir(dir)
 	err := instrumentation.DownloadFile(ctx, dir, pythonAgentV2Url, fs)
 	if err != nil {
 		log.WithError(err).Errorln("could not download python agent")
 		return "", err
 	}
-	return dir, nil
+	return installDir, nil
 }
 
 // This is nothing but filterfile where all the tests selected will be stored
