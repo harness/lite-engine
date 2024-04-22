@@ -53,6 +53,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step := toStep(r)
 	setTiEnvVariables(step, tiConfig)
 	agentPaths := make(map[string]string)
+	step.Entrypoint = r.RunTestsV2.Entrypoint
 	if r.RunTestsV2.IntelligenceMode {
 		err := downloadJavaAgent(ctx, tmpFilePath, fs, log)
 		if err != nil {
@@ -87,7 +88,6 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	} else {
 		step.Command = []string{r.RunTestsV2.Command[0]}
 	}
-	step.Entrypoint = r.RunTestsV2.Entrypoint
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
@@ -301,8 +301,8 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
+	log.Infoln("We have taken JAVA_TOOL_OPTIONS as env var by map ------------> YESSSS!!!!!")
 	envs["JAVA_TOOL_OPTIONS"] = agentArg
-
 	// Ruby
 	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 	if err != nil {
@@ -343,7 +343,11 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		disablePythonV2CodeModification = true
 	}
 
-	preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", whlFilePath)
+	if !isPsh {
+		preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", whlFilePath)
+	} else {
+		preCmd += fmt.Sprintf("\ntry { python3 -m pip install %s } catch { $null };", whlFilePath)
+	}
 
 	if !disablePythonV2CodeModification {
 		modifyToxFileName := filepath.Join(repoPath, "modifytox.py")
