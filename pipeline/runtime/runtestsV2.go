@@ -72,6 +72,9 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		agentPaths["python"] = pythonArtifactDir
 
 		isPsh := IsPowershell(step.Entrypoint)
+		log.Infoln(fmt.Sprintf("is powershell present  ----------> %t", isPsh))
+		log.Infoln(fmt.Sprintf("--------------->Hello getting entrypoint---------------->"))
+		log.Infoln(fmt.Sprintf("entrypoint ---> %s", step.Entrypoint))
 		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths, isPsh)
 		if err != nil || pythonArtifactDir == "" {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
@@ -301,8 +304,8 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
+	log.Infoln("We have taken JAVA_TOOL_OPTIONS as env var by map ------------> YESSSS!!!!!")
 	envs["JAVA_TOOL_OPTIONS"] = agentArg
-
 	// Ruby
 	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 	if err != nil {
@@ -343,7 +346,11 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		disablePythonV2CodeModification = true
 	}
 
-	preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", whlFilePath)
+	if !isPsh {
+		preCmd += fmt.Sprintf("\npython3 -m pip install %s || true;", whlFilePath)
+	} else {
+		preCmd += fmt.Sprintf("\ntry { python3 -m pip install %s } catch { $null };", whlFilePath)
+	}
 
 	if !disablePythonV2CodeModification {
 		modifyToxFileName := filepath.Join(repoPath, "modifytox.py")
