@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -506,6 +507,15 @@ func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	}
 
 	return nil
+}
+
+func GetV2AgentDownloadLinks(ctx context.Context, config *tiCfg.Cfg) ([]ti.DownloadLink, error) {
+	c := config.GetClient()
+	links, err := c.DownloadLink(ctx, "RunTestV2", runtime.GOOS, runtime.GOOS, "", "", "")
+	if err != nil {
+		return links, err
+	}
+	return links, nil
 }
 
 // installAgents checks if the required artifacts are installed for the language
