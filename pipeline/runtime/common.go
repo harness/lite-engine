@@ -11,11 +11,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	v2 "github.com/harness/godotenv/v2"
 	v3 "github.com/harness/godotenv/v3"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/remote"
@@ -188,4 +190,20 @@ func GetReplacer(
 	client := getLogServiceClient(cfg)
 	wc := livelog.New(client, logKey, name, []logstream.Nudge{}, false)
 	return logstream.NewReplacer(wc, secrets)
+}
+
+func waitForFileWithTimeout(timeout time.Duration, filename string, fs filesystem.FileSystem) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		_, err := fs.Stat(filename)
+		if err == nil {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for agent download")
+		}
+
+		time.Sleep(time.Millisecond * 100)
+	}
 }
