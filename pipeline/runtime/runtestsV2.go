@@ -312,7 +312,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
 	envs["JAVA_TOOL_OPTIONS"] = agentArg
 	// Ruby
-	repoPath := ""
+	repoPath := filepath.Join(agentPaths["ruby"], "harness", "ruby-agent")
 	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
 	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
 	var statusFilePath = filepath.Join(tmpFilePath, "unzip.done")
