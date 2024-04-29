@@ -145,7 +145,7 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 	splitIdx, splitTotal := GetSplitIdxAndTotal(envs)
 	tests := make([]ti.RunnableTest, 0)
 
-	//Autodetection
+	// Autodetection
 	if !runOnlySelectedTests {
 		// For full runs, detect all the tests in the repo and split them
 		// If autodetect fails or detects no tests, we run all tests in step 0
@@ -169,12 +169,10 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 		}
 		// Auto-detected tests successfully
 		log.Infoln(fmt.Sprintf("Autodetected tests: %s", formatTests(tests)))
-
 	} else if len(selection.Tests) > 0 {
 		// In case of intelligent runs, split the tests from TI SelectTests API response
 		tests = selection.Tests
 	}
-
 	// Split the tests and send the split slice to the runner
 	splitTests, err := getSplitTests(ctx, log, tests, stepID, defaultTestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	if err != nil {
@@ -340,7 +338,6 @@ func sanitizeTestGlob(globString string) []string {
 }
 
 func AutoDetectTests(ctx context.Context, workspace string, testGlobs []string, log *logrus.Logger, envs map[string]string, fs filesystem.FileSystem) ([]ti.RunnableTest, error) {
-
 	tests, err := java.AutoDetectTests(ctx, workspace, testGlobs)
 	if err != nil {
 		log.WithError(err).Errorln("Could not auto-detect java tests")

@@ -57,7 +57,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to get AgentV2 URL from TI")
 		}
 		if len(links) < 3 {
-			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("Error: Could not get agent V2 links from TI")
+			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error: Could not get agent V2 links from TI")
 		}
 
 		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log)
@@ -163,12 +163,10 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
 	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config) (types.SelectTestsResp, bool) {
 	selection := types.SelectTestsResp{}
-
 	if isManual {
 		log.Infoln("Manual execution has been detected. Running all the tests")
 		return selection, false
 	}
-
 	// Question : Here i can see feature state is being defined in Runtest but here we don't have runOnlySelected tests so should we always defined as optimized state
 	var files []types.File
 	var err error
@@ -330,9 +328,9 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		}
 
 		// Create a marker file indicating completion of unzip operation.
-		out, err := fs.Create(statusFilePath)
-		if err != nil {
-			return "", "", err
+		out, err1 := fs.Create(statusFilePath)
+		if err1 != nil {
+			return "", "", err1
 		}
 		out.Close()
 	}
@@ -356,9 +354,26 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	// Python
-	repoPath, err = python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
-	if err != nil {
-		return "", "", err
+	repoPath = filepath.Join(agentPaths["python"], "harness", "python-agent-v2")
+	var pyStatusFilePath = filepath.Join(tmpFilePath, "pyunzip.done")
+	if shouldWait {
+		err = waitForFileWithTimeout(10*time.Second, pyStatusFilePath, fs) // Wait for up to 10 seconds
+		if err != nil {
+			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
+			return "", "", err
+		}
+	} else {
+		repoPath, err = python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
+		if err != nil {
+			return "", "", err
+		}
+
+		// Create a marker file indicating completion of unzip operation.
+		out, err1 := fs.Create(pyStatusFilePath)
+		if err1 != nil {
+			return "", "", err1
+		}
+		out.Close()
 	}
 	whlFilePath, err := python.FindWhlFile(repoPath)
 	if err != nil {
