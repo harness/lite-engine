@@ -40,6 +40,12 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
+	if r.ScratchDir != "" {
+		// Plugins can use this directory as a scratch space to store temporary files.
+		// It will get cleaned up after a destroy.
+		step.Envs["HARNESS_SCRATCH_DIR"] = r.ScratchDir
+	}
+
 	// If the output variable file is set, it means we use the file directly to get the output variables
 	// instead of explicitly modifying the input command.
 	var outputFile string
