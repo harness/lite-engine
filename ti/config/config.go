@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/harness/ti-client/client"
@@ -18,9 +19,9 @@ type stepFeature struct {
 }
 
 type Cfg struct {
-	mu              *sync.Mutex
-	rubylocked      bool
-	pythonlocked    bool
+	mu         *sync.Mutex
+	rubylocked bool
+	// pythonlocked    bool
 	client          *client.HTTPClient
 	sourceBranch    string
 	targetBranch    string
@@ -131,20 +132,26 @@ func (c *Cfg) GetFeatureState(stepID string, feature types.SavingsFeature) (type
 }
 
 func (c *Cfg) LockZipForRuby() {
+	fmt.Println("before lock", c.rubylocked)
 	c.rubylocked = true
+	fmt.Println("after lock", c.rubylocked)
 }
 func (c *Cfg) UnlockZipForRuby() {
 	c.rubylocked = false
+	fmt.Println("unlocked rubylocked with value: ", c.rubylocked)
 }
-func (c *Cfg) LockZipForPython() {
-	c.pythonlocked = true
-}
-func (c *Cfg) UnlockZipForPython() {
-	c.pythonlocked = false
-}
+
+//	func (c *Cfg) LockZipForPython() {
+//		c.pythonlocked = true
+//	}
+//
+//	func (c *Cfg) UnlockZipForPython() {
+//		c.pythonlocked = false
+//	}
 func (c *Cfg) IsLockedRuby() bool {
 	return c.rubylocked
 }
-func (c *Cfg) IsLockedPython() bool {
-	return c.pythonlocked
-}
+
+// func (c *Cfg) IsLockedPython() bool {
+// 	return c.pythonlocked
+// }
