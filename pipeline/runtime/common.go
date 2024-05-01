@@ -194,7 +194,10 @@ func GetReplacer(
 func waitForFileWithTimeout(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 	deadline := time.Now().Add(timeout)
 	for {
+		fmt.Println("rubylocked==", tiConfig.IsLockedRuby())
+
 		if !tiConfig.IsLockedRuby() {
+			fmt.Println("rubylockedret==", tiConfig.IsLockedRuby())
 			return nil
 		}
 
@@ -209,7 +212,9 @@ func waitForFileWithTimeout(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 func waitForFileWithTimeoutPy(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 	deadline := time.Now().Add(timeout)
 	for {
+		fmt.Println("pylocked==", tiConfig.IsLockedPython())
 		if !tiConfig.IsLockedPython() {
+			fmt.Println("pythonlockedret==", tiConfig.IsLockedPython())
 			return nil
 		}
 
