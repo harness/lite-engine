@@ -311,11 +311,12 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	envs["JAVA_TOOL_OPTIONS"] = agentArg
 	// Ruby
 	repoPath := filepath.Join(agentPaths["ruby"], "harness", "ruby-agent")
+	repoPathPython := filepath.Join(agentPaths["python"], "harness", "python-agent-v2")
 	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
 	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
 	tiConfig.LockZipForRuby()
 	if shouldWait {
-		err = waitForFileWithTimeout(10*time.Second, tiConfig) // Wait for up to 10 seconds
+		err = waitForFileWithTimeout(20*time.Second, tiConfig) // Wait for up to 10 seconds
 		if err != nil {
 			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
 			return "", "", err
@@ -324,6 +325,11 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		repoPath, err = ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 		if err != nil {
 			log.WithError(err).Errorln("failed to unzip and get test info")
+			return "", "", err
+		}
+
+		repoPathPython, err = python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
+		if err != nil {
 			return "", "", err
 		}
 		tiConfig.UnlockZipForRuby()
@@ -348,22 +354,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	// Python
-	repoPath = filepath.Join(agentPaths["python"], "harness", "python-agent-v2")
-	tiConfig.LockZipForPython()
-	if shouldWait {
-		err = waitForFileWithTimeoutPy(10*time.Second, tiConfig) // Wait for up to 10 seconds
-		if err != nil {
-			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
-			return "", "", err
-		}
-	} else {
-		repoPath, err = python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
-		if err != nil {
-			return "", "", err
-		}
-		tiConfig.UnlockZipForPython()
-	}
-	whlFilePath, err := python.FindWhlFile(repoPath)
+	whlFilePath, err := python.FindWhlFile(repoPathPython)
 	if err != nil {
 		return "", "", err
 	}

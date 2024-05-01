@@ -197,26 +197,9 @@ func waitForFileWithTimeout(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 		if !tiConfig.IsLockedRuby() {
 			return nil
 		}
-
 		if time.Now().After(deadline) {
 			return fmt.Errorf("timeout waiting for agent download")
 		}
-
-		time.Sleep(time.Millisecond * 100)
-	}
-}
-
-func waitForFileWithTimeoutPy(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
-	deadline := time.Now().Add(timeout)
-	for {
-		if !tiConfig.IsLockedPython() {
-			return nil
-		}
-
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout waiting for agent download")
-		}
-
 		time.Sleep(time.Millisecond * 100)
 	}
 }

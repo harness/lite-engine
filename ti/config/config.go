@@ -20,7 +20,6 @@ type stepFeature struct {
 type Cfg struct {
 	mu              *sync.Mutex
 	rubylocked      bool
-	pythonlocked    bool
 	client          *client.HTTPClient
 	sourceBranch    string
 	targetBranch    string
@@ -136,15 +135,7 @@ func (c *Cfg) LockZipForRuby() {
 func (c *Cfg) UnlockZipForRuby() {
 	c.rubylocked = false
 }
-func (c *Cfg) LockZipForPython() {
-	c.pythonlocked = true
-}
-func (c *Cfg) UnlockZipForPython() {
-	c.pythonlocked = false
-}
+
 func (c *Cfg) IsLockedRuby() bool {
 	return c.rubylocked
-}
-func (c *Cfg) IsLockedPython() bool {
-	return c.pythonlocked
 }
