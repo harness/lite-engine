@@ -78,7 +78,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		agentPaths["python"] = pythonArtifactDir
 
 		isPsh := IsPowershell(step.Entrypoint)
-		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths, isPsh)
+		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths, isPsh, tiConfig)
 		if err != nil || pythonArtifactDir == "" {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 		}
@@ -274,7 +274,7 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
 //
 //nolint:funlen
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool) (preCmd, filterFilePath string, err error) {
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool, tiConfig *tiCfg.Cfg) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
@@ -313,9 +313,9 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	repoPath := filepath.Join(agentPaths["ruby"], "harness", "ruby-agent")
 	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
 	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
-	var statusFilePath = filepath.Join(tmpFilePath, "unzip.done")
+	tiConfig.LockZipForRuby()
 	if shouldWait {
-		err = waitForFileWithTimeout(10*time.Second, statusFilePath, fs) // Wait for up to 10 seconds
+		err = waitForFileWithTimeout(10*time.Second, tiConfig) // Wait for up to 10 seconds
 		if err != nil {
 			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
 			return "", "", err
@@ -326,13 +326,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 			log.WithError(err).Errorln("failed to unzip and get test info")
 			return "", "", err
 		}
-
-		// Create a marker file indicating completion of unzip operation.
-		out, err1 := fs.Create(statusFilePath)
-		if err1 != nil {
-			return "", "", err1
-		}
-		out.Close()
+		tiConfig.UnlockZipForRuby()
 	}
 
 	if !isPsh {
@@ -355,9 +349,9 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 
 	// Python
 	repoPath = filepath.Join(agentPaths["python"], "harness", "python-agent-v2")
-	var pyStatusFilePath = filepath.Join(tmpFilePath, "pyunzip.done")
+	tiConfig.LockZipForPython()
 	if shouldWait {
-		err = waitForFileWithTimeout(10*time.Second, pyStatusFilePath, fs) // Wait for up to 10 seconds
+		err = waitForFileWithTimeoutPy(10*time.Second, tiConfig) // Wait for up to 10 seconds
 		if err != nil {
 			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
 			return "", "", err
@@ -367,13 +361,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		if err != nil {
 			return "", "", err
 		}
-
-		// Create a marker file indicating completion of unzip operation.
-		out, err1 := fs.Create(pyStatusFilePath)
-		if err1 != nil {
-			return "", "", err1
-		}
-		out.Close()
+		tiConfig.UnlockZipForPython()
 	}
 	whlFilePath, err := python.FindWhlFile(repoPath)
 	if err != nil {

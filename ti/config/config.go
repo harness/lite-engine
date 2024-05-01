@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/harness/ti-client/client"
 	"github.com/harness/ti-client/types"
@@ -19,6 +20,10 @@ type stepFeature struct {
 
 type Cfg struct {
 	mu              *sync.Mutex
+	muruby          *sync.Mutex
+	mupy            *sync.Mutex
+	rubylocked      int32
+	pythonlocked    int32
 	client          *client.HTTPClient
 	sourceBranch    string
 	targetBranch    string
@@ -126,4 +131,23 @@ func (c *Cfg) GetFeatureState(stepID string, feature types.SavingsFeature) (type
 		return state, nil
 	}
 	return types.DISABLED, ErrStateNotFound
+}
+
+func (c *Cfg) LockZipForRuby() {
+	c.muruby.Lock()
+}
+func (c *Cfg) UnlockZipForRuby() {
+	c.muruby.Unlock()
+}
+func (c *Cfg) LockZipForPython() {
+	c.mupy.Lock()
+}
+func (c *Cfg) UnlockZipForPython() {
+	c.mupy.Unlock()
+}
+func (c *Cfg) IsLockedRuby() bool {
+	return atomic.LoadInt32(&c.rubylocked) == 1
+}
+func (c *Cfg) IsLockedPython() bool {
+	return atomic.LoadInt32(&c.pythonlocked) == 1
 }

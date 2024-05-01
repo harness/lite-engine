@@ -17,7 +17,6 @@ import (
 	v3 "github.com/harness/godotenv/v3"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine/spec"
-	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/remote"
@@ -192,11 +191,25 @@ func GetReplacer(
 	return logstream.NewReplacer(wc, secrets)
 }
 
-func waitForFileWithTimeout(timeout time.Duration, filename string, fs filesystem.FileSystem) error {
+func waitForFileWithTimeout(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		_, err := fs.Stat(filename)
-		if err == nil {
+		if !tiConfig.IsLockedRuby() {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for agent download")
+		}
+
+		time.Sleep(time.Millisecond * 100)
+	}
+}
+
+func waitForFileWithTimeoutPy(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		if !tiConfig.IsLockedPython() {
 			return nil
 		}
 
