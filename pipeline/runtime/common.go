@@ -117,6 +117,9 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer, useCINewGodotEn
 
 	if useCINewGodotEnvVersion {
 		env, err = v3.Read(envFile)
+		if err != nil {
+			env, err = v2.Read(envFile)
+		}
 	} else {
 		env, err = v2.Read(envFile)
 	}
