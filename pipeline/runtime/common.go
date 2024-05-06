@@ -194,7 +194,7 @@ func GetReplacer(
 func waitForFileWithTimeout(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		if !tiConfig.IsLockedRuby() {
+		if !tiConfig.IsZipLocked() {
 			return nil
 		}
 		if time.Now().After(deadline) {

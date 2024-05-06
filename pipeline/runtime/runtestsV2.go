@@ -314,7 +314,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	repoPathPython := filepath.Join(agentPaths["python"], "harness", "python-agent-v2")
 	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
 	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
-	tiConfig.LockZipForRuby()
+	tiConfig.LockZip()
 	if shouldWait {
 		err = waitForFileWithTimeout(20*time.Second, tiConfig) // Wait for up to 10 seconds
 		if err != nil {
@@ -332,7 +332,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		if err != nil {
 			return "", "", err
 		}
-		tiConfig.UnlockZipForRuby()
+		tiConfig.UnlockZip()
 	}
 
 	if !isPsh {
