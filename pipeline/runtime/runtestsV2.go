@@ -46,7 +46,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	fs := filesystem.New()
 	log := logrus.New()
 	log.Out = out
-	optimizationState := types.DISABLED
+	var optimizationState types.IntelligenceExecutionState
 	step := toStep(r)
 	setTiEnvVariables(step, tiConfig)
 	agentPaths := make(map[string]string)

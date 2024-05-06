@@ -43,7 +43,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	}
 
 	start := time.Now()
-	optimizationState := types.DISABLED
+	var optimizationState types.IntelligenceExecutionState
 	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs, tiConfig)
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), err

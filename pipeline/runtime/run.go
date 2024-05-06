@@ -32,7 +32,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	step.Entrypoint = r.Run.Entrypoint
 	setTiEnvVariables(step, tiConfig)
 
-	optimizationState := types.DISABLED
+	var optimizationState types.IntelligenceExecutionState
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
