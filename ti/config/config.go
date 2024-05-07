@@ -20,7 +20,6 @@ type stepFeature struct {
 
 type Cfg struct {
 	mu              *sync.Mutex
-	zipmu           *sync.Mutex
 	ziplocked       int32 // 0 for unlocked, 1 for locked
 	client          *client.HTTPClient
 	sourceBranch    string
@@ -38,7 +37,6 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify, "")
 	cfg := Cfg{
 		mu:              &sync.Mutex{},
-		zipmu:           &sync.Mutex{},
 		ziplocked:       0,
 		client:          tiClient,
 		sourceBranch:    sourceBranch,
@@ -134,12 +132,10 @@ func (c *Cfg) GetFeatureState(stepID string, feature types.SavingsFeature) (type
 }
 
 func (c *Cfg) LockZip() {
-	c.zipmu.Lock()
 	atomic.StoreInt32(&c.ziplocked, 1)
 }
 func (c *Cfg) UnlockZip() {
 	atomic.StoreInt32(&c.ziplocked, 0)
-	c.zipmu.Unlock()
 }
 
 func (c *Cfg) IsZipLocked() bool {
