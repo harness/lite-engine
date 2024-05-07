@@ -194,12 +194,12 @@ func GetReplacer(
 func waitForFileWithTimeout(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 	deadline := time.Now().Add(timeout)
 	for {
+		time.Sleep(time.Second * 1)
 		if !tiConfig.IsZipLocked() {
 			return nil
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("timeout waiting for agent download")
 		}
-		time.Sleep(time.Millisecond * 100)
 	}
 }

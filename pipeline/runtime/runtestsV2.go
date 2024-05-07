@@ -314,7 +314,6 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	repoPathPython := filepath.Join(agentPaths["python"], "harness", "python-agent-v2")
 	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
 	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
-	log.Infoln("Starting lock on step", stepIdx)
 	if shouldWait {
 		err = waitForFileWithTimeout(30*time.Second, tiConfig) // Wait for up to 10 seconds
 		if err != nil {
@@ -322,6 +321,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 			return "", "", err
 		}
 	} else {
+		log.Infoln("Starting lock on step", stepIdx)
 		tiConfig.LockZip()
 		repoPath, err = ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 		if err != nil {
