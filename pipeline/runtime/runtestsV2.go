@@ -275,7 +275,7 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
 //
-//nolint:funlen
+//nolint:funlen,gocyclo,lll
 func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool, tiConfig *tiCfg.Cfg) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
