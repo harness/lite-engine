@@ -28,12 +28,14 @@ import (
 )
 
 const (
-	outDir          = "%s/ti/v2/callgraph/cg/" // path passed as outDir in the config.ini file
-	javaAgentV2Arg  = "-javaagent:%s=%s"
-	javaAgentV2Jar  = "java-agent.jar"
-	javaAgentV2Path = "/java/v2/"
-	filterV2Dir     = "%s/ti/v2/filter"
-	configV2Dir     = "%s/ti/v2/java/config"
+	outDir            = "%s/ti/v2/callgraph/cg/" // path passed as outDir in the config.ini file
+	javaAgentV2Arg    = "-javaagent:%s=%s"
+	javaAgentV2Jar    = "java-agent.jar"
+	javaAgentV2Path   = "/java/v2/"
+	filterV2Dir       = "%s/ti/v2/filter"
+	configV2Dir       = "%s/ti/v2/java/config"
+	waitTimeoutInSec  = 30
+	agentV2LinkLength = 3
 )
 
 // Ignoring optimization state for now
@@ -56,7 +58,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to get AgentV2 URL from TI")
 		}
-		if len(links) < 3 {
+		if len(links) < agentV2LinkLength {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error: Could not get agent V2 links from TI")
 		}
 
@@ -315,13 +317,12 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
 	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
 	if shouldWait {
-		err = waitForFileWithTimeout(30*time.Second, tiConfig) // Wait for up to 10 seconds
+		err = waitForFileWithTimeout(waitTimeoutInSec*time.Second, tiConfig) // Wait for up to 10 seconds
 		if err != nil {
 			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
 			return "", "", err
 		}
 	} else {
-		log.Infoln("Starting lock on step", stepIdx)
 		tiConfig.LockZip()
 		repoPath, err = ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 		if err != nil {
@@ -335,7 +336,6 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		}
 		tiConfig.UnlockZip()
 	}
-	log.Infoln("unlocking on step", stepIdx)
 
 	if !isPsh {
 		preCmd = fmt.Sprintf("\nbundle add rspec_junit_formatter || true;\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
