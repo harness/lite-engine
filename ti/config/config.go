@@ -38,6 +38,8 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify, "")
 	cfg := Cfg{
 		mu:              &sync.Mutex{},
+		zipmu:           &sync.Mutex{},
+		ziplocked:       0,
 		client:          tiClient,
 		sourceBranch:    sourceBranch,
 		targetBranch:    targetBranch,
