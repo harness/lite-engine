@@ -314,9 +314,10 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	repoPathPython := filepath.Join(agentPaths["python"], "harness", "python-agent-v2")
 	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
 	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
+	log.Infoln("Starting lock on step", stepIdx)
 	tiConfig.LockZip()
 	if shouldWait {
-		err = waitForFileWithTimeout(20*time.Second, tiConfig) // Wait for up to 10 seconds
+		err = waitForFileWithTimeout(30*time.Second, tiConfig) // Wait for up to 10 seconds
 		if err != nil {
 			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
 			return "", "", err
@@ -334,6 +335,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		}
 		tiConfig.UnlockZip()
 	}
+	log.Infoln("unlocking on step", stepIdx)
 
 	if !isPsh {
 		preCmd = fmt.Sprintf("\nbundle add rspec_junit_formatter || true;\nbundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
