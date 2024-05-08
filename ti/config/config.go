@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/harness/ti-client/client"
 	"github.com/harness/ti-client/types"
@@ -19,6 +20,7 @@ type stepFeature struct {
 
 type Cfg struct {
 	mu              *sync.Mutex
+	ziplocked       int32 // 0 for unlocked, 1 for locked
 	client          *client.HTTPClient
 	sourceBranch    string
 	targetBranch    string
@@ -35,6 +37,7 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify, "")
 	cfg := Cfg{
 		mu:              &sync.Mutex{},
+		ziplocked:       1,
 		client:          tiClient,
 		sourceBranch:    sourceBranch,
 		targetBranch:    targetBranch,
@@ -126,4 +129,15 @@ func (c *Cfg) GetFeatureState(stepID string, feature types.SavingsFeature) (type
 		return state, nil
 	}
 	return types.DISABLED, ErrStateNotFound
+}
+
+func (c *Cfg) LockZip() {
+	atomic.StoreInt32(&c.ziplocked, 1)
+}
+func (c *Cfg) UnlockZip() {
+	atomic.StoreInt32(&c.ziplocked, 0)
+}
+
+func (c *Cfg) IsZipLocked() bool {
+	return atomic.LoadInt32(&c.ziplocked) == 1
 }

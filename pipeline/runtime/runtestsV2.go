@@ -28,12 +28,14 @@ import (
 )
 
 const (
-	outDir          = "%s/ti/v2/callgraph/cg/" // path passed as outDir in the config.ini file
-	javaAgentV2Arg  = "-javaagent:%s=%s"
-	javaAgentV2Jar  = "java-agent.jar"
-	javaAgentV2Path = "/java/v2/"
-	filterV2Dir     = "%s/ti/v2/filter"
-	configV2Dir     = "%s/ti/v2/java/config"
+	outDir            = "%s/ti/v2/callgraph/cg/" // path passed as outDir in the config.ini file
+	javaAgentV2Arg    = "-javaagent:%s=%s"
+	javaAgentV2Jar    = "java-agent.jar"
+	javaAgentV2Path   = "/java/v2/"
+	filterV2Dir       = "%s/ti/v2/filter"
+	configV2Dir       = "%s/ti/v2/java/config"
+	waitTimeoutInSec  = 30
+	agentV2LinkLength = 3
 )
 
 // Ignoring optimization state for now
@@ -56,8 +58,8 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to get AgentV2 URL from TI")
 		}
-		if len(links) < 3 {
-			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("Error: Could not get agent V2 links from TI")
+		if len(links) < agentV2LinkLength {
+			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error: Could not get agent V2 links from TI")
 		}
 
 		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log)
@@ -78,7 +80,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		agentPaths["python"] = pythonArtifactDir
 
 		isPsh := IsPowershell(step.Entrypoint)
-		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths, isPsh)
+		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths, isPsh, tiConfig)
 		if err != nil || pythonArtifactDir == "" {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 		}
@@ -163,12 +165,10 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
 	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config) (types.SelectTestsResp, bool) {
 	selection := types.SelectTestsResp{}
-
 	if isManual {
 		log.Infoln("Manual execution has been detected. Running all the tests")
 		return selection, false
 	}
-
 	// Question : Here i can see feature state is being defined in Runtest but here we don't have runOnlySelected tests so should we always defined as optimized state
 	var files []types.File
 	var err error
@@ -203,20 +203,21 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, fs, tiConfig)
 	if err != nil {
 		log.WithError(err).Errorln("An unexpected error occurred during test selection. Running all tests.")
-		return selection, false
+		runOnlySelectedTests = false
 	} else if selection.SelectAll {
 		log.Infoln("Test Intelligence determined to run all the tests")
-		return selection, false
+		runOnlySelectedTests = false
 	} else {
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
+		runOnlySelectedTests = true
 	}
 
 	// Test splitting: only when parallelism is enabled
 	if instrumentation.IsParallelismEnabled(envs) {
-		instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, tiConfig)
+		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, tiConfig, runOnlySelectedTests, fs)
 	}
 
-	return selection, true
+	return selection, runOnlySelectedTests
 }
 
 func createOutDir(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
@@ -274,8 +275,8 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
 //
-//nolint:funlen
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool) (preCmd, filterFilePath string, err error) {
+//nolint:funlen,gocyclo,lll
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool, tiConfig *tiCfg.Cfg) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
@@ -284,6 +285,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 
 	outDir, err := createOutDir(tmpFilePath, fs, log)
 	if err != nil {
+		log.WithError(err).Errorln("failed to create outDir")
 		return "", "", err
 	}
 
@@ -310,9 +312,29 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
 	envs["JAVA_TOOL_OPTIONS"] = agentArg
 	// Ruby
-	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
-	if err != nil {
-		return "", "", err
+	repoPath := filepath.Join(agentPaths["ruby"], "harness", "ruby-agent")
+	repoPathPython := filepath.Join(agentPaths["python"], "harness", "python-agent-v2")
+	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
+	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
+	if shouldWait {
+		err = waitForZipUnlock(waitTimeoutInSec*time.Second, tiConfig) // Wait for up to 10 seconds
+		if err != nil {
+			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
+			return "", "", err
+		}
+	} else {
+		tiConfig.LockZip()
+		repoPath, err = ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
+		if err != nil {
+			log.WithError(err).Errorln("failed to unzip and get test info")
+			return "", "", err
+		}
+
+		repoPathPython, err = python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
+		if err != nil {
+			return "", "", err
+		}
+		tiConfig.UnlockZip()
 	}
 
 	if !isPsh {
@@ -334,11 +356,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	// Python
-	repoPath, err = python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
-	if err != nil {
-		return "", "", err
-	}
-	whlFilePath, err := python.FindWhlFile(repoPath)
+	whlFilePath, err := python.FindWhlFile(repoPathPython)
 	if err != nil {
 		return "", "", err
 	}
@@ -416,6 +434,7 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	err = filter.PopulateItemInFilterFile(resp, filterFilePath, fs, isFilterFilePresent)
 
 	if err != nil {
+		log.WithError(err).Errorln("failed to populate items in filterfile")
 		return err
 	}
 	return nil

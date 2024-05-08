@@ -138,6 +138,7 @@ func Test_getPreCmd(t *testing.T) {
 		workspace   string
 		tmpFilePath string
 		fs          filesystem.FileSystem
+		tiConfig    *tiCfg.Cfg
 		log         *logrus.Logger
 		envs        map[string]string
 		agentPaths  map[string]string
@@ -153,7 +154,7 @@ func Test_getPreCmd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.agentPaths, false)
+			got, got1, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.agentPaths, false, tt.args.tiConfig)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getPreCmd() error = %v, wantErr %v", err, tt.wantErr)
 				return
