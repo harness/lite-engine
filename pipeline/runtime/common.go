@@ -191,7 +191,7 @@ func GetReplacer(
 	return logstream.NewReplacer(wc, secrets)
 }
 
-func waitForFileWithTimeout(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
+func waitForZipUnlock(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 	deadline := time.Now().Add(timeout)
 	for {
 		time.Sleep(time.Second * 1)

@@ -317,7 +317,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
 	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
 	if shouldWait {
-		err = waitForFileWithTimeout(waitTimeoutInSec*time.Second, tiConfig) // Wait for up to 10 seconds
+		err = waitForZipUnlock(waitTimeoutInSec*time.Second, tiConfig) // Wait for up to 10 seconds
 		if err != nil {
 			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
 			return "", "", err
