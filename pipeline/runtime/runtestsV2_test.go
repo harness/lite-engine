@@ -247,3 +247,46 @@ func Test_writetoBazelrcFile(t *testing.T) {
 		}
 	})
 }
+
+func TestSanitizeTestGlobsV2(t *testing.T) {
+	tests := []struct {
+		name        string
+		globStrings []string
+		expected    []string
+	}{
+		{
+			name:        "Empty Input",
+			globStrings: []string{},
+			expected:    []string{},
+		},
+		{
+			name:        "Single Glob",
+			globStrings: []string{"*.txt"},
+			expected:    []string{"*.txt"},
+		},
+		{
+			name:        "Multiple Globs",
+			globStrings: []string{"*.txt,*.md,*.pdf"},
+			expected:    []string{"*.txt", "*.md", "*.pdf"},
+		},
+		{
+			name:        "Empty String in Input",
+			globStrings: []string{"", "*.txt,*.md,*.pdf"},
+			expected:    []string{"*.txt", "*.md", "*.pdf"},
+		},
+		{
+			name:        "Empty Globs in Input",
+			globStrings: []string{"", ""},
+			expected:    []string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := sanitizeTestGlobsV2(test.globStrings)
+			if !reflect.DeepEqual(result, test.expected) {
+				t.Errorf("Test case %s failed. Expected: %v, Got: %v", test.name, test.expected, result)
+			}
+		})
+	}
+}

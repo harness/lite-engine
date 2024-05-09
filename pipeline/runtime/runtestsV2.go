@@ -507,7 +507,7 @@ func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.Sta
 }
 
 func sanitizeTestGlobsV2(globStrings []string) []string {
-	var result []string
+	var result = make([]string, 0)
 	for _, globString := range globStrings {
 		if globString != "" {
 			splitted := strings.Split(globString, ",")
