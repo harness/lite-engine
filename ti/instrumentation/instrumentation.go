@@ -87,8 +87,8 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 
 	// Call TI svc only when there is a chance of running selected tests
 	filesWithPkg := runner.ReadPackages(workspace, files)
-	selection, err = SelectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, fs, tiConfig)
 	testGlobs, excludeGlobs := runner.GetTestGlobs()
+	selection, err = SelectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, testGlobs, fs, tiConfig)
 	selection = filterTestsAfterSelection(selection, testGlobs, excludeGlobs)
 	if err != nil {
 		log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
@@ -135,7 +135,7 @@ func checkForBazelOptimization(ctx context.Context, workspace string, fs filesys
 // ComputeSelectedTestsV2 updates TI selection depending on the split strategy
 // AutoDetectTests output and parallelism configuration
 func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Config, log *logrus.Logger,
-	selection *ti.SelectTestsResp, stepID, workspace string, envs map[string]string, tiConfig *tiCfg.Cfg, runOnlySelectedTests bool, fs filesystem.FileSystem) bool {
+	selection *ti.SelectTestsResp, stepID, workspace string, envs map[string]string, testGlobs []string, tiConfig *tiCfg.Cfg, runOnlySelectedTests bool, fs filesystem.FileSystem) bool {
 	// Adding only this remove this condition later when we have complete specs
 	if runOnlySelectedTests && len(selection.Tests) == 0 {
 		// TI returned zero test cases to run. Skip parallelism as
@@ -150,7 +150,6 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 		// For full runs, detect all the tests in the repo and split them
 		// If autodetect fails or detects no tests, we run all tests in step 0
 		var err error
-		testGlobs := runConfigV2.TestGlobs
 		tests, err = AutoDetectTests(ctx, workspace, testGlobs, log, envs, fs)
 		if err != nil || len(tests) == 0 {
 			// AutoDetectTests output should be same across all the parallel steps. If one of the step

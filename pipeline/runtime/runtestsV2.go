@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -200,7 +201,8 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 		}
 	}
 	filesWithpkg := java.ReadPkgs(log, fs, workspace, files)
-	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, fs, tiConfig)
+	testGlobs := sanitizeTestGlobsV2(runV2Config.TestGlobs)
+	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, testGlobs, fs, tiConfig)
 	if err != nil {
 		log.WithError(err).Errorln("An unexpected error occurred during test selection. Running all tests.")
 		runOnlySelectedTests = false
@@ -214,7 +216,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 
 	// Test splitting: only when parallelism is enabled
 	if instrumentation.IsParallelismEnabled(envs) {
-		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, tiConfig, runOnlySelectedTests, fs)
+		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, testGlobs, tiConfig, runOnlySelectedTests, fs)
 	}
 
 	return selection, runOnlySelectedTests
@@ -502,4 +504,19 @@ func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.Sta
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
 	}
 	return cgErr
+}
+
+func sanitizeTestGlobsV2(globStrings []string) []string {
+	var result = make([]string, 0)
+	for _, globString := range globStrings {
+		if globString != "" {
+			splitted := strings.Split(globString, ",")
+			for _, s := range splitted {
+				if s != "" {
+					result = append(result, s)
+				}
+			}
+		}
+	}
+	return result
 }
