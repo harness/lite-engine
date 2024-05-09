@@ -511,7 +511,11 @@ func sanitizeTestGlobsV2(globStrings []string) []string {
 	for _, globString := range globStrings {
 		if globString != "" {
 			splitted := strings.Split(globString, ",")
-			result = append(result, splitted...)
+			for _, s := range splitted {
+				if s != "" {
+					result = append(result, s)
+				}
+			}
 		}
 	}
 	return result
