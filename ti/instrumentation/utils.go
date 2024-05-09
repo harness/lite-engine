@@ -420,7 +420,7 @@ func getAllJavaFilesInsideDirectory(directory string, changedFiles []ti.File, fi
 
 // selectTests takes a list of files which were changed as input and gets the tests
 // to be run corresponding to that.
-func SelectTests(ctx context.Context, workspace string, files []ti.File, runSelected bool, stepID string,
+func SelectTests(ctx context.Context, workspace string, files []ti.File, runSelected bool, stepID string, testGlobs []string,
 	fs filesystem.FileSystem, cfg *tiCfg.Cfg) (ti.SelectTestsResp, error) {
 	Log := logrus.New() // Revert
 	Log.Infoln("Info: starting test selection")
@@ -428,7 +428,7 @@ func SelectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	if err != nil {
 		return ti.SelectTestsResp{}, err
 	}
-	req := &ti.SelectTestsReq{SelectAll: !runSelected, Files: files, TiConfig: tiConfigYaml}
+	req := &ti.SelectTestsReq{SelectAll: !runSelected, Files: files, TiConfig: tiConfigYaml, TestGlobs: testGlobs}
 	c := cfg.GetClient()
 	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
 }
