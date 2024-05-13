@@ -30,6 +30,9 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 		return nil
 	}
 
+	log.Infoln("dir===", dir)
+	log.Infoln("cfg.GetDataDir()===", cfg.GetDataDir())
+
 	encCg, err := encodeCg(fmt.Sprintf(dir, cfg.GetDataDir()), log)
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
@@ -51,6 +54,9 @@ func encodeCg(dataDir string, log *logrus.Logger) ([]byte, error) {
 	if dataDir == "" {
 		return nil, fmt.Errorf("dataDir not present in request")
 	}
+
+	log.Infoln("datadir===", dataDir)
+
 	cgFiles, visFiles, err := getCgFiles(dataDir, "json", "csv", log)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch files inside the directory")
