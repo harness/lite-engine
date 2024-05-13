@@ -183,7 +183,7 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 
 	// Modify selections to run only selected tests
 	selection.Tests = splitTests
-	return runOnlySelectedTests
+	return true
 }
 
 // computeSelectedTests updates TI selection and ignoreInstr in-place depending on the
