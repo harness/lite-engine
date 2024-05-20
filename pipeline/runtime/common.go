@@ -27,9 +27,7 @@ import (
 )
 
 const (
-	ciNewVersionGodotEnv     = "CI_NEW_VERSION_GODOTENV"
-	outputVariableTypeString = "STRING"
-	outputVariableTypeSecret = "SECRET"
+	ciNewVersionGodotEnv = "CI_NEW_VERSION_GODOTENV"
 )
 
 func getNudges() []logstream.Nudge {
