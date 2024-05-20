@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -121,12 +120,6 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 					}
 					outputsV2 = append(outputsV2, output)
 				}
-			}
-		}
-		//removing output env file after parsing data
-		if err == nil {
-			if ferr := os.Remove(outputFile); ferr != nil {
-				logrus.WithError(ferr).WithField("file", outputFile).Warnln("could not remove output file")
 			}
 		}
 

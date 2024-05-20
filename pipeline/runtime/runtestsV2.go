@@ -180,12 +180,6 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 				outputsV2 = append(outputsV2, output)
 			}
 		}
-		//removing output env file after parsing data
-		if err == nil {
-			if ferr := os.Remove(outputFile); ferr != nil {
-				logrus.WithError(ferr).WithField("file", outputFile).Warnln("could not remove output file")
-			}
-		}
 
 		//checking exported secrets from plugins if any
 		_, secretErr := os.Stat(outputSecretsFile)
@@ -199,13 +193,6 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 					Type:  outputVariableTypeSecret,
 				}
 				outputsV2 = append(outputsV2, output)
-			}
-
-			//removing output secrets env file after parsing data
-			if err == nil {
-				if ferr := os.Remove(outputSecretsFile); ferr != nil {
-					logrus.WithError(ferr).WithField("file", outputSecretsFile).Warnln("could not remove secrets output file")
-				}
 			}
 
 		}
