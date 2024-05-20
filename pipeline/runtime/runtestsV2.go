@@ -160,6 +160,17 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		} else if len(r.OutputVars) > 0 {
 			// only return err when output vars are expected
 			finalErr = err
+			for _, key := range r.OutputVars {
+				if _, ok := outputs[key]; ok {
+					output := &api.OutputV2{
+						Key:   key,
+						Value: outputs[key],
+						Type:  outputVariableTypeString,
+					}
+					outputsV2 = append(outputsV2, output)
+				}
+			}
+		} else {
 			for key, value := range outputs {
 				output := &api.OutputV2{
 					Key:   key,
@@ -169,6 +180,13 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 				outputsV2 = append(outputsV2, output)
 			}
 		}
+		//removing output env file after parsing data
+		if finalErr == nil {
+			if ferr := os.Remove(outputFile); ferr != nil {
+				logrus.WithError(ferr).WithField("file", outputFile).Warnln("could not remove output file")
+			}
+		}
+
 		//checking exported secrets from plugins if any
 		_, secretErr := os.Stat(outputSecretsFile)
 		if secretErr == nil {
@@ -181,6 +199,13 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 					Type:  outputVariableTypeSecret,
 				}
 				outputsV2 = append(outputsV2, output)
+			}
+
+			//removing output secrets env file after parsing data
+			if finalErr == nil {
+				if ferr := os.Remove(outputSecretsFile); ferr != nil {
+					logrus.WithError(ferr).WithField("file", outputSecretsFile).Warnln("could not remove secrets output file")
+				}
 			}
 
 		}
