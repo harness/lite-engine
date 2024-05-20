@@ -67,7 +67,13 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		}
 	}
 
-	outputSecretsFile := fmt.Sprintf("%s/%s-output-secrets.env", pipeline.SharedVolPath, step.ID)
+	var outputSecretsFile string
+	if r.SecretVarFile != "" {
+		outputSecretsFile = r.SecretVarFile
+	} else {
+		outputSecretsFile = fmt.Sprintf("%s/%s-output-secrets.env", pipeline.SharedVolPath, step.ID)
+	}
+	// Plugins can use HARNESS_OUTPUT_SECRETS_FILE to write the output secrets to a file.
 	step.Envs["HARNESS_OUTPUT_SECRETS_FILE"] = outputSecretsFile
 
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
@@ -117,25 +123,12 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 					})
 				}
 			}
-		} else if len(r.OutputVars) > 0 {
-			// only return err when output vars are expected
-			finalErr = err
-			for _, key := range r.OutputVars {
-				if _, ok := outputs[key]; ok {
-					output := &api.OutputV2{
-						Key:   key,
-						Value: outputs[key],
-						Type:  outputVariableTypeString,
-					}
-					outputsV2 = append(outputsV2, output)
-				}
-			}
 		} else {
 			for key, value := range outputs {
 				output := &api.OutputV2{
 					Key:   key,
 					Value: value,
-					Type:  outputVariableTypeString,
+					Type:  string(api.STRING),
 				}
 				outputsV2 = append(outputsV2, output)
 			}
@@ -145,13 +138,15 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		_, secretErr := os.Stat(outputSecretsFile)
 		if secretErr == nil {
 			secrets, err := fetchExportedVarsFromEnvFile(outputSecretsFile, out, useCINewGodotEnvVersion)
-			finalErr = err
-
+			if err != nil {
+				finalErr = err
+				log.WithError(err).Errorln("error encountered while fetching output secrets from env File")
+			}
 			for key, value := range secrets {
 				output := &api.OutputV2{
 					Key:   key,
 					Value: value,
-					Type:  outputVariableTypeSecret,
+					Type:  string(api.SECRET),
 				}
 				outputsV2 = append(outputsV2, output)
 			}

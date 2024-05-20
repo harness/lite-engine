@@ -69,6 +69,10 @@ type (
 		// File to read from to fetch output variables. Note: If this is set, we ignore
 		// output_vars and instead read directly from the file to fetch output variables.
 		OutputVarFile string `json:"output_var_file,omitempty"`
+
+		// File to read from to fetch output secret variables
+		SecretVarFile string `json:"secret_var_file,omitempty"`
+
 		// Directory to be used as a scratch space for plugins. Technically, we could populate the env
 		// variable directly by the user of this library but this is more explicit and gives us more control
 		// over the env variable that we expose to plugins.
@@ -214,4 +218,11 @@ type CommandExecutionStatus string
 const (
 	Success CommandExecutionStatus = "SUCCESS"
 	Failure CommandExecutionStatus = "FAILURE"
+)
+
+type OutputType string
+
+const (
+	STRING OutputType = "STRING"
+	SECRET OutputType = "SECRET"
 )
