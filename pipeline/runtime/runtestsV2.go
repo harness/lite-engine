@@ -106,9 +106,6 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_OUTPUT"] = outputFile
 
-	outputSecretsFile := fmt.Sprintf("%s/%s-output-secrets.env", pipeline.SharedVolPath, step.ID)
-	step.Envs["HARNESS_OUTPUT_SECRETS_FILE"] = outputSecretsFile
-
 	if len(r.Outputs) > 0 {
 		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile)
 	} else if len(r.OutputVars) > 0 {
@@ -143,11 +140,8 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 
 	if exited != nil && exited.Exited && exited.ExitCode == 0 {
 		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
-		outputsV2 := []*api.OutputV2{}
-		var finalErr error
 		if len(r.Outputs) > 0 {
-			// only return err when outputs are expected
-			finalErr = err
+			outputsV2 := []*api.OutputV2{}
 			for _, output := range r.Outputs {
 				if _, ok := outputs[output.Key]; ok {
 					outputsV2 = append(outputsV2, &api.OutputV2{
@@ -157,47 +151,12 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 					})
 				}
 			}
+			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
 		} else if len(r.OutputVars) > 0 {
 			// only return err when output vars are expected
-			finalErr = err
-			for _, key := range r.OutputVars {
-				if _, ok := outputs[key]; ok {
-					output := &api.OutputV2{
-						Key:   key,
-						Value: outputs[key],
-						Type:  outputVariableTypeString,
-					}
-					outputsV2 = append(outputsV2, output)
-				}
-			}
-		} else {
-			for key, value := range outputs {
-				output := &api.OutputV2{
-					Key:   key,
-					Value: value,
-					Type:  outputVariableTypeString,
-				}
-				outputsV2 = append(outputsV2, output)
-			}
+			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
 		}
-
-		//checking exported secrets from plugins if any
-		_, secretErr := os.Stat(outputSecretsFile)
-		if secretErr == nil {
-			secrets, err := fetchExportedVarsFromEnvFile(outputSecretsFile, out, useCINewGodotEnvVersion)
-			finalErr = err
-			for key, value := range secrets {
-				output := &api.OutputV2{
-					Key:   key,
-					Value: value,
-					Type:  outputVariableTypeSecret,
-				}
-				outputsV2 = append(outputsV2, output)
-			}
-
-		}
-
-		return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), finalErr
+		return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), nil
 	}
 	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
 }
