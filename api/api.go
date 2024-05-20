@@ -106,9 +106,9 @@ type (
 		StepStatus   StepStatusConfig     `json:"step_status,omitempty"`
 	}
 	OutputV2 struct {
-		Key   string `json:"key,omitempty"`
-		Value string `json:"value"`
-		Type  string `json:"type,omitempty"`
+		Key   string     `json:"key,omitempty"`
+		Value string     `json:"value"`
+		Type  OutputType `json:"type,omitempty"`
 	}
 
 	StartStepResponse struct{}
@@ -223,6 +223,6 @@ const (
 type OutputType string
 
 const (
-	STRING OutputType = "STRING"
-	SECRET OutputType = "SECRET"
+	OutputTypeString OutputType = "STRING"
+	OutputTypeSecret OutputType = "SECRET"
 )

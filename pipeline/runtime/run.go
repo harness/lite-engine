@@ -73,8 +73,8 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	} else {
 		outputSecretsFile = fmt.Sprintf("%s/%s-output-secrets.env", pipeline.SharedVolPath, step.ID)
 	}
-	// Plugins can use HARNESS_OUTPUT_SECRETS_FILE to write the output secrets to a file.
-	step.Envs["HARNESS_OUTPUT_SECRETS_FILE"] = outputSecretsFile
+	// Plugins can use HARNESS_OUTPUT_SECRET_FILE to write the output secrets to a file.
+	step.Envs["HARNESS_OUTPUT_SECRET_FILE"] = outputSecretsFile
 
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
@@ -128,15 +128,14 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 				output := &api.OutputV2{
 					Key:   key,
 					Value: value,
-					Type:  string(api.STRING),
+					Type:  api.OutputTypeString,
 				}
 				outputsV2 = append(outputsV2, output)
 			}
 		}
 
 		//checking exported secrets from plugins if any
-		_, secretErr := os.Stat(outputSecretsFile)
-		if secretErr == nil {
+		if _, err := os.Stat(outputSecretsFile); err == nil {
 			secrets, err := fetchExportedVarsFromEnvFile(outputSecretsFile, out, useCINewGodotEnvVersion)
 			if err != nil {
 				finalErr = err
@@ -146,7 +145,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 				output := &api.OutputV2{
 					Key:   key,
 					Value: value,
-					Type:  string(api.SECRET),
+					Type:  api.OutputTypeSecret,
 				}
 				outputsV2 = append(outputsV2, output)
 			}
