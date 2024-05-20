@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -91,10 +92,14 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	}
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
-	if len(r.Outputs) > 0 {
-		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
-			outputsV2 := []*api.OutputV2{}
+
+	if exited != nil && exited.Exited && exited.ExitCode == 0 {
+		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+		outputsV2 := []*api.OutputV2{}
+		var finalErr error
+		if len(r.Outputs) > 0 {
+			// only return err when outputs are expected
+			finalErr = err
 			for _, output := range r.Outputs {
 				if _, ok := outputs[output.Key]; ok {
 					outputsV2 = append(outputsV2, &api.OutputV2{
@@ -104,13 +109,28 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 					})
 				}
 			}
-			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
+		} else if len(r.OutputVars) > 0 {
+			// only return err when output vars are expected
+			finalErr = err
+			for _, key := range r.OutputVars {
+				if _, ok := outputs[key]; ok {
+					output := &api.OutputV2{
+						Key:   key,
+						Value: outputs[key],
+						Type:  outputVariableTypeString,
+					}
+					outputsV2 = append(outputsV2, output)
+				}
+			}
 		}
-	} else if len(r.OutputVars) > 0 {
-		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
-			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
+		//removing output env file after parsing data
+		if err == nil {
+			if ferr := os.Remove(outputFile); ferr != nil {
+				logrus.WithError(ferr).WithField("file", outputFile).Warnln("could not remove output file")
+			}
 		}
+
+		return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), finalErr
 	}
 
 	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err

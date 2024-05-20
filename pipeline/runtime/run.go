@@ -141,7 +141,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 			}
 		}
 		//removing output env file after parsing data
-		if finalErr == nil {
+		if err == nil {
 			if ferr := os.Remove(outputFile); ferr != nil {
 				logrus.WithError(ferr).WithField("file", outputFile).Warnln("could not remove output file")
 			}
@@ -152,6 +152,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		if secretErr == nil {
 			secrets, err := fetchExportedVarsFromEnvFile(outputSecretsFile, out, useCINewGodotEnvVersion)
 			finalErr = err
+
 			for key, value := range secrets {
 				output := &api.OutputV2{
 					Key:   key,
@@ -162,7 +163,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 			}
 
 			//removing output secrets env file after parsing data
-			if finalErr == nil {
+			if err == nil {
 				if ferr := os.Remove(outputSecretsFile); ferr != nil {
 					logrus.WithError(ferr).WithField("file", outputSecretsFile).Warnln("could not remove secrets output file")
 				}
