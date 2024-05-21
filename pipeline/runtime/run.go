@@ -109,11 +109,12 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 	if exited != nil && exited.Exited && exited.ExitCode == 0 {
 		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+		if err != nil {
+			log.WithError(err).Errorln("error encountered while fetching outputs from env File")
+			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
+		}
 		outputsV2 := []*api.OutputV2{}
-		var finalErr error
 		if len(r.Outputs) > 0 {
-			// only return err when output vars are expected
-			finalErr = err
 			for _, output := range r.Outputs {
 				if _, ok := outputs[output.Key]; ok {
 					outputsV2 = append(outputsV2, &api.OutputV2{
@@ -138,8 +139,8 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		if _, err := os.Stat(outputSecretsFile); err == nil {
 			secrets, err := fetchExportedVarsFromEnvFile(outputSecretsFile, out, useCINewGodotEnvVersion)
 			if err != nil {
-				finalErr = err
 				log.WithError(err).Errorln("error encountered while fetching output secrets from env File")
+				return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
 			}
 			for key, value := range secrets {
 				output := &api.OutputV2{
@@ -152,7 +153,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 		}
 
-		return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), finalErr
+		return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), nil
 	}
 	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
 }
