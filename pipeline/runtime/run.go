@@ -110,7 +110,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	if exited != nil && exited.Exited && exited.ExitCode == 0 {
 		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
 		if err != nil {
-			log.WithError(err).Errorln("error encountered while fetching secrets from env File")
+			log.WithError(err).Errorln("error encountered while fetching outputs from env File")
 		}
 		outputsV2 := []*api.OutputV2{}
 		var finalErr error
