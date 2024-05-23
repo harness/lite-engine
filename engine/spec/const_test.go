@@ -21,7 +21,7 @@ func TestPullPolicy_Marshal(t *testing.T) {
 	}{
 		{
 			policy: PullAlways,
-			data:   `"always"`,
+			data:   `"Always"`,
 		},
 		{
 			policy: PullDefault,
@@ -29,11 +29,11 @@ func TestPullPolicy_Marshal(t *testing.T) {
 		},
 		{
 			policy: PullIfNotExists,
-			data:   `"if-not-exists"`,
+			data:   `"IfNotPresent"`,
 		},
 		{
 			policy: PullNever,
-			data:   `"never"`,
+			data:   `"Never"`,
 		},
 	}
 	for _, test := range tests {
@@ -55,7 +55,7 @@ func TestPullPolicy_Unmarshal(t *testing.T) {
 	}{
 		{
 			policy: PullAlways,
-			data:   `"always"`,
+			data:   `"Always"`,
 		},
 		{
 			policy: PullDefault,
@@ -63,11 +63,11 @@ func TestPullPolicy_Unmarshal(t *testing.T) {
 		},
 		{
 			policy: PullIfNotExists,
-			data:   `"if-not-exists"`,
+			data:   `"IfNotPresent"`,
 		},
 		{
 			policy: PullNever,
-			data:   `"never"`,
+			data:   `"Never"`,
 		},
 		{
 			// no policy should default to on-success
@@ -103,7 +103,7 @@ func TestPullPolicy_String(t *testing.T) {
 	}{
 		{
 			policy: PullAlways,
-			value:  "always",
+			value:  "Always",
 		},
 		{
 			policy: PullDefault,
@@ -111,11 +111,11 @@ func TestPullPolicy_String(t *testing.T) {
 		},
 		{
 			policy: PullIfNotExists,
-			value:  "if-not-exists",
+			value:  "IfNotPresent",
 		},
 		{
 			policy: PullNever,
-			value:  "never",
+			value:  "Never",
 		},
 	}
 	for _, test := range tests {
