@@ -30,17 +30,17 @@ func (p PullPolicy) String() string {
 
 var pullPolicyID = map[PullPolicy]string{
 	PullDefault:     "default",
-	PullAlways:      "always",
-	PullIfNotExists: "if-not-exists",
-	PullNever:       "never",
+	PullAlways:      "Always",
+	PullIfNotExists: "IfNotPresent",
+	PullNever:       "Never",
 }
 
 var pullPolicyName = map[string]PullPolicy{
-	"":              PullDefault,
-	"default":       PullDefault,
-	"always":        PullAlways,
-	"if-not-exists": PullIfNotExists,
-	"never":         PullNever,
+	"":             PullDefault,
+	"default":      PullDefault,
+	"Always":       PullAlways,
+	"IfNotPresent": PullIfNotExists,
+	"Never":        PullNever,
 }
 
 // MarshalJSON marshals the string representation of the
