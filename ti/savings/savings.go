@@ -49,11 +49,6 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 	// DLC Savings
 	if cacheMetricsFile, found := envs["PLUGIN_CACHE_METRICS_FILE"]; found {
 		if opts, ok := envs["PLUGIN_BUILDER_DRIVER_OPTS"]; ok && strings.Contains(opts, "harness/buildkit") {
-			// Both conditions are met
-			// Your code here
-			println("Both PLUGIN_CACHE_METRICS_FILE and PLUGIN_BUILDER_DRIVER_OPTS with specific value are found")
-			println("PLUGIN_CACHE_METRICS_FILE:", cacheMetricsFile)
-			println("PLUGIN_BUILDER_DRIVER_OPTS:", opts)
 			dlcState, err := dlc.GetFeatureState(cacheMetricsFile, log)
 			if err == nil {
 				states = append(states, dlcState)
