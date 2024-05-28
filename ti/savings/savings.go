@@ -60,7 +60,6 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 						types.DLC, time.Since(tiStart).Seconds())
 				}
 			}
-
 		}
 	}
 	// Cache Intel savings (Placeholder)
