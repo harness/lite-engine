@@ -48,3 +48,17 @@ func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filterFilePa
 
 	return nil
 }
+
+func PopulateItemInFilterFileForFlakyTest(flakyTestData string, filterFilePath string, fs filesystem.FileSystem) error {
+
+	f, err := fs.Create(filterFilePath)
+	if err != nil {
+		return err
+	}
+
+	_, err = f.Write([]byte(flakyTestData))
+	if err != nil {
+		return err
+	}
+	return nil
+}

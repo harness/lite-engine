@@ -6,10 +6,14 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,6 +42,15 @@ const (
 	waitTimeoutInSec  = 30
 	agentV2LinkLength = 3
 )
+
+type FlakyResp struct {
+	FlakyTests []FlakyTests `json:"flaky_tests"` //package.Class name
+}
+
+type FlakyTests struct {
+	Name      string `json:"name"`
+	ClassName string `json:"class_name"`
+}
 
 // Ignoring optimization state for now
 //
@@ -90,6 +103,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		step.Command = []string{commands}
 
 		err = createSelectedTestFile(ctx, fs, step.Name, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
+		retryFlakyTest(tiConfig, filterfilePath, fs, log)
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error while creating filter file %s", err)
 		}
@@ -215,9 +229,9 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 	}
 
 	// Test splitting: only when parallelism is enabled
-	if instrumentation.IsParallelismEnabled(envs) {
-		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, testGlobs, tiConfig, runOnlySelectedTests, fs)
-	}
+	// if instrumentation.IsParallelismEnabled(envs) {
+	// 	runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, testGlobs, tiConfig, runOnlySelectedTests, fs)
+	// }
 
 	return selection, runOnlySelectedTests
 }
@@ -519,4 +533,129 @@ func sanitizeTestGlobsV2(globStrings []string) []string {
 		}
 	}
 	return result
+}
+
+func getFlakyTests(cfg *tiCfg.Cfg, log *logrus.Logger) (string, error) {
+	classnames, err := executeClient(cfg, log)
+	if err != nil {
+		return "", err
+	}
+
+	var builder strings.Builder
+	for _, test := range classnames {
+		builder.WriteString(test)
+	}
+
+	return builder.String(), nil
+}
+
+func retryFlakyTest(cfg *tiCfg.Cfg, filterFilePath string, fs filesystem.FileSystem, log *logrus.Logger) {
+	idx, err := strconv.Atoi(os.Getenv("HARNESS_STEP_INDEX"))
+	if err != nil {
+		return
+	}
+	maxretries := 2
+
+	if idx == 0 || idx < maxretries {
+		data, err := getFlakyTests(cfg, log)
+		if err != nil {
+			return
+		}
+		err = filter.PopulateItemInFilterFileForFlakyTest(data, filterFilePath, fs)
+		if err != nil {
+			return
+		}
+	}
+}
+
+func executeClient(cfg *tiCfg.Cfg, log *logrus.Logger) ([]string, error) {
+	//  crStart := time.Now()
+	//  tests := collectTestInfoForFlakyTestFn(ctx,r.reports,r.id,r.log,crStart,r.environment)
+	//  //collectTestReportsFnV2(ctx, r.reports, r.id, r.log, crStart, r.environment)
+	endpoint := cfg.GetURL()
+	log.Infoln(fmt.Sprintf("Endpoint = %s", endpoint))
+	url := endpoint + "/ti-service/reports/flaky_test?accountId=kmpySmUISimoRrJL6NL73w"
+	method := "POST"
+
+	payload := strings.NewReader(`{
+	  "test_info":[
+		  {
+			  "name":"testLargeAssignmentAndGroupWithUniformSubscription()",
+			  "error_message": "java.util.concurrent.TimeoutException: testLargeAssignmentAndGroupWithUniformSubscription() timed out after 30 seconds"
+		  },
+		  {
+			 "name":"shouldRestoreActiveStatefulTaskThenUpdateStandbyTaskAndAgainRestoreActiveStatefulTask()"
+			  "error_message": "org.opentest4j.AssertionFailedError: Condition not met within timeout 15000. Did not get all restored active task within the given timeout! ==> expected: <true> but was: <false>"
+		  },
+		  {
+			  "name":"closingChannelSendFailure()",
+			  "error_message": "java.lang.AssertionError: receiveRequest timed out"
+		  },
+		  {
+			"name":"shouldUnassignTaskWhenRequired()",
+			"error_message": "org.opentest4j.AssertionFailedError: expected: not <null>"
+		  },
+		  {
+			"name":"testBecomeFollowerWhileNewClientFetchInPurgatory()",
+			"error_message": "org.opentest4j.AssertionFailedError: expected: <0> but was: <1>"
+		  },
+		  {
+			"name":"testBecomeFollowerWhileOldClientFetchInPurgatory()",
+			"error_message": "org.opentest4j.AssertionFailedError: expected: <0> but was: <1>"
+		  },
+		  {
+			"name":"testCannotReauthenticateWithDifferentPrincipal()",
+			"error_message": "org.opentest4j.AssertionFailedError: expected: org.opentest4j.AssertionFailedError: Metric not updated successful-reauthentication-total expected:<0.0> but was:<1.0> ==> expected: <0.0> but was: <1.0>"
+		  },
+		  {
+			"name":"testDeltaFollowerRemovedTopic()",
+			"error_message": "org.opentest4j.AssertionFailedError: expected: <0> but was: <1>"
+		  },
+		  {
+			"name":"testDeltaToFollowerCompletesFetch()",
+			"error_message": "org.opentest4j.AssertionFailedError: expected: <0> but was: <1>"
+		  },
+		  {
+			"name":"testFetchFollowerNotAllowedForOlderClients()",
+			"error_message": "org.opentest4j.AssertionFailedError: expected: <0> but was: <1>"
+		  },
+	  ]
+  }`)
+
+	client := &http.Client{}
+	req, err := http.NewRequest(method, url, payload)
+
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	token := cfg.GetToken()
+	req.Header.Add("X-Harness-Token", token)
+	req.Header.Add("X-Request-ID", "x7y648fhejfgjw")
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println("Error reading response body:", err)
+		return nil, err
+	}
+
+	var flakyResp FlakyResp
+	err = json.Unmarshal(body, &flakyResp)
+	if err != nil {
+		fmt.Println("Error unmarshaling JSON:", err)
+		return nil, err
+	}
+
+	var classNames []string
+	for _, test := range flakyResp.FlakyTests {
+		classNames = append(classNames, test.ClassName)
+	}
+
+	return classNames, nil
 }
