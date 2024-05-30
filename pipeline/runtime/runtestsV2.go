@@ -103,7 +103,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		step.Command = []string{commands}
 
 		err = createSelectedTestFile(ctx, fs, step.Name, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
-		retryFlakyTest(tiConfig, filterfilePath, fs, log)
+		retryFlakyTest(tiConfig, filterfilePath, fs, log, r)
 		if err != nil {
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error while creating filter file %s", err)
 		}
@@ -228,7 +228,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 		runOnlySelectedTests = true
 	}
 
-	// Test splitting: only when parallelism is enabled
+	//	Test splitting: only when parallelism is enabled
 	// if instrumentation.IsParallelismEnabled(envs) {
 	// 	runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, testGlobs, tiConfig, runOnlySelectedTests, fs)
 	// }
@@ -549,14 +549,18 @@ func getFlakyTests(cfg *tiCfg.Cfg, log *logrus.Logger) (string, error) {
 	return builder.String(), nil
 }
 
-func retryFlakyTest(cfg *tiCfg.Cfg, filterFilePath string, fs filesystem.FileSystem, log *logrus.Logger) {
-	idx, err := strconv.Atoi(os.Getenv("HARNESS_STEP_INDEX"))
+func retryFlakyTest(cfg *tiCfg.Cfg, filterFilePath string, fs filesystem.FileSystem, log *logrus.Logger, r *api.StartStepRequest) {
+	idx, _ := r.Envs["HARNESS_STEP_INDEX"]
+	// if err != nil {
+	// 	return
+	// }
+	stepidx, err := strconv.Atoi(idx)
 	if err != nil {
 		return
 	}
 	maxretries := 2
 
-	if idx == 0 || idx < maxretries {
+	if stepidx == 0 || stepidx < maxretries {
 		data, err := getFlakyTests(cfg, log)
 		if err != nil {
 			return
