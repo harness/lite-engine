@@ -143,7 +143,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 			}
 		}
 
-		//checking exported secrets from plugins if any
+		// checking exported secrets from plugins if any
 		if _, err := os.Stat(outputSecretsFile); err == nil {
 			secrets, err := fetchExportedVarsFromEnvFile(outputSecretsFile, out, useCINewGodotEnvVersion)
 			if err != nil {
@@ -157,7 +157,6 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 				}
 				outputsV2 = append(outputsV2, output)
 			}
-
 		}
 
 		return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), finalErr
