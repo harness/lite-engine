@@ -574,7 +574,7 @@ func retryFlakyTest(cfg *tiCfg.Cfg, filterFilePath string, fs filesystem.FileSys
 		return
 	}
 	maxretries := 2
-	log.Infoln("Index is ---> %s", idx)
+	log.Infoln(fmt.Sprintf("Index is ---> %s", idx))
 	if stepidx == 0 || stepidx < maxretries {
 		data, err := getFlakyTests(cfg, log)
 		if err != nil {
