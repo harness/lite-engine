@@ -25,7 +25,7 @@ const (
 	trueValue = "true"
 )
 
-func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
+func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo,funlen
 	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
 	step := toStep(r)
@@ -73,6 +73,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	} else {
 		outputSecretsFile = fmt.Sprintf("%s/%s-output-secrets.env", pipeline.SharedVolPath, step.ID)
 	}
+
 	// Plugins can use HARNESS_OUTPUT_SECRET_FILE to write the output secrets to a file.
 	step.Envs["HARNESS_OUTPUT_SECRET_FILE"] = outputSecretsFile
 
@@ -81,6 +82,10 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	if metadataFile, found := step.Envs["PLUGIN_METADATA_FILE"]; found {
 		step.Envs["PLUGIN_METADATA_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
+	}
+
+	if cacheMetricsFile, found := step.Envs["PLUGIN_CACHE_METRICS_FILE"]; found {
+		step.Envs["PLUGIN_CACHE_METRICS_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, cacheMetricsFile)
 	}
 
 	log := logrus.New()
@@ -97,7 +102,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
-		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig)
+		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, timeTakenMs, tiConfig, r.Envs)
 	}
 
 	useCINewGodotEnvVersion := false
@@ -138,7 +143,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 			}
 		}
 
-		//checking exported secrets from plugins if any
+		// checking exported secrets from plugins if any
 		if _, err := os.Stat(outputSecretsFile); err == nil {
 			secrets, err := fetchExportedVarsFromEnvFile(outputSecretsFile, out, useCINewGodotEnvVersion)
 			if err != nil {
@@ -152,7 +157,6 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 				}
 				outputsV2 = append(outputsV2, output)
 			}
-
 		}
 
 		return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), finalErr
