@@ -33,21 +33,18 @@ func GetFeatureState(cacheMetricsFile string, log *logrus.Logger) (types.Intelli
 
 	// Check if the file exists.
 	if _, err := os.Stat(cacheMetricsFile); os.IsNotExist(err) {
-		log.WithField("file", cacheMetricsFile).Error("Cache metrics file does not exist")
 		return state, err
 	}
 
 	// Read the JSON file containing the cache metrics.
 	data, err := os.ReadFile(cacheMetricsFile)
 	if err != nil {
-		log.WithField("file", cacheMetricsFile).Error("Failed to read cache metrics file")
 		return state, err
 	}
 
 	// Deserialize the JSON data into the CacheMetrics struct.
 	var metrics CacheMetrics
 	if err := json.Unmarshal(data, &metrics); err != nil {
-		log.WithField("file", cacheMetricsFile).Error("Failed to unmarshal cache metrics data")
 		return state, err
 	}
 
