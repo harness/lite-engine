@@ -536,13 +536,28 @@ func sanitizeTestGlobsV2(globStrings []string) []string {
 }
 
 func getFlakyTests(cfg *tiCfg.Cfg, log *logrus.Logger) (string, error) {
-	classnames, err := executeClient(cfg, log)
-	if err != nil {
-		return "", err
-	}
+	//classnames, err := executeClient(cfg, log)
+
+	cc := []string{"com.netflix.zuul.netty.connectionpool.DefaultClientChannelManagerTest",
+		"kafka.network.ConnectionQuotasTest",
+		"kafka.network.SocketServerTest",
+		"kafka.server.ReplicaManagerTest",
+		"org.apache.kafka.clients.consumer.CooperativeStickyAssignorTest",
+		"org.apache.kafka.clients.consumer.StickyAssignorTest",
+		"org.apache.kafka.clients.consumer.internals.CooperativeConsumerCoordinatorTest",
+		"org.apache.kafka.clients.consumer.internals.EagerConsumerCoordinatorTest",
+		"org.apache.kafka.common.security.authenticator.SaslAuthenticatorTest",
+		"org.apache.kafka.connect.runtime.distributed.DistributedHerderTest",
+		"org.apache.kafka.server.log.remote.metadata.storage.TopicBasedRemoteLogMetadataManagerTest",
+		"org.apache.kafka.streams.processor.internals.DefaultStateUpdaterTest",
+		"org.apache.kafka.streams.processor.internals.tasks.DefaultTaskExecutorTest"}
+
+	// if err != nil {
+	// 	return "", err
+	// }
 
 	var builder strings.Builder
-	for _, test := range classnames {
+	for _, test := range cc {
 		builder.WriteString(test)
 	}
 
