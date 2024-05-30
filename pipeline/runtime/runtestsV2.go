@@ -538,7 +538,7 @@ func sanitizeTestGlobsV2(globStrings []string) []string {
 func getFlakyTests(cfg *tiCfg.Cfg, log *logrus.Logger) (string, error) {
 	//classnames, err := executeClient(cfg, log)
 
-	cc := []string{"com.netflix.zuul.netty.connectionpool.DefaultClientChannelManagerTest",
+	cc := []string{
 		"kafka.network.ConnectionQuotasTest",
 		"kafka.network.SocketServerTest",
 		"kafka.server.ReplicaManagerTest",
@@ -556,12 +556,12 @@ func getFlakyTests(cfg *tiCfg.Cfg, log *logrus.Logger) (string, error) {
 	// 	return "", err
 	// }
 
-	var builder strings.Builder
+	var data string
 	for _, test := range cc {
-		builder.WriteString(test)
+		data += fmt.Sprintf("%s\n", test)
 	}
 
-	return builder.String(), nil
+	return data, nil
 }
 
 func retryFlakyTest(cfg *tiCfg.Cfg, filterFilePath string, fs filesystem.FileSystem, log *logrus.Logger, r *api.StartStepRequest) {
