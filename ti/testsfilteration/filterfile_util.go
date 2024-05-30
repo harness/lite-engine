@@ -56,7 +56,7 @@ func PopulateItemInFilterFileForFlakyTest(flakyTestData string, filterFilePath s
 		return err
 	}
 
-	_, err = f.Write([]byte(flakyTestData))
+	_, err = f.WriteString(flakyTestData)
 	if err != nil {
 		return err
 	}
