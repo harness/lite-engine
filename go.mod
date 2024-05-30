@@ -16,7 +16,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/harness/ti-client v0.0.0-20240524184141-c83b454996d0
+	github.com/harness/ti-client v0.0.0-20240530221551-2c3416e89776
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/linkedin/goavro/v2 v2.12.0
