@@ -565,7 +565,7 @@ func getFlakyTests(cfg *tiCfg.Cfg, log *logrus.Logger) (string, error) {
 }
 
 func retryFlakyTest(cfg *tiCfg.Cfg, filterFilePath string, fs filesystem.FileSystem, log *logrus.Logger, r *api.StartStepRequest) {
-	idx, _ := r.Envs["HARNESS_STEP_INDEX"]
+	idx := r.Envs["HARNESS_STEP_INDEX"]
 	// if err != nil {
 	// 	return
 	// }
