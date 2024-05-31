@@ -5,25 +5,8 @@ import (
 	"os"
 
 	"github.com/harness/ti-client/types"
+	dlcTypes "github.com/harness/ti-client/types/cache/dlc"
 	"github.com/sirupsen/logrus"
-)
-
-type (
-	// CacheMetrics represents the structure of the metrics data.
-	CacheMetrics struct {
-		TotalLayers int                 `json:"total_layers"`
-		Done        int                 `json:"done"`
-		Cached      int                 `json:"cached"`
-		Errored     int                 `json:"errored"`
-		Canceled    int                 `json:"canceled"`
-		Layers      map[int]LayerStatus `json:"layers"`
-	}
-
-	// LayerStatus details the status of each layer.
-	LayerStatus struct {
-		Status string
-		Time   float64 // Time in seconds; only set for DONE layers
-	}
 )
 
 // GetFeatureState evaluates the execution state of a feature based on cache metrics.
@@ -43,7 +26,7 @@ func GetFeatureState(cacheMetricsFile string, log *logrus.Logger) (types.Intelli
 	}
 
 	// Deserialize the JSON data into the CacheMetrics struct.
-	var metrics CacheMetrics
+	var metrics dlcTypes.Metrics
 	if err := json.Unmarshal(data, &metrics); err != nil {
 		return state, err
 	}
