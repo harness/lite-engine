@@ -9,20 +9,23 @@ import (
 )
 
 type (
-	// CacheMetrics represents the structure of the metrics data.
-	CacheMetrics struct {
-		TotalLayers int                 `json:"total_layers"`
-		Done        int                 `json:"done"`
-		Cached      int                 `json:"cached"`
-		Errored     int                 `json:"errored"`
-		Canceled    int                 `json:"canceled"`
-		Layers      map[int]LayerStatus `json:"layers"`
+	LayerStatus struct {
+		Status string  `json:"status"`
+		Time   float64 `json:"time"` // Time in seconds; only set for DONE layers
 	}
 
-	// LayerStatus details the status of each layer.
-	LayerStatus struct {
-		Status string
-		Time   float64 // Time in seconds; only set for DONE layers
+	Layer struct {
+		Index       int         ` json:"index"`
+		LayerStatus LayerStatus `json:"layer_status"`
+	}
+
+	CacheMetrics struct {
+		TotalLayers int     `json:"total_layers"`
+		Done        int     `json:"done"`
+		Cached      int     `json:"cached"`
+		Errored     int     `json:"errored"`
+		Canceled    int     `json:"canceled"`
+		Layers      []Layer `json:"layers"`
 	}
 )
 
