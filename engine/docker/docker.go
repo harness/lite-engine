@@ -38,20 +38,22 @@ import (
 )
 
 const (
-	imageMaxRetries           = 3
-	imageRetrySleepDuration   = 50
-	networkMaxRetries         = 3
-	networkRetrySleepDuration = 50
-	harnessHTTPProxy          = "HARNESS_HTTP_PROXY"
-	harnessHTTPSProxy         = "HARNESS_HTTPS_PROXY"
-	harnessNoProxy            = "HARNESS_NO_PROXY"
-	dockerServiceDir          = "/etc/systemd/system/docker.service.d"
-	httpProxyConfFilePath     = dockerServiceDir + "/http-proxy.conf"
-	directoryPermission       = 0700
-	filePermission            = 0600
-	windowsOS                 = "windows"
-	removing                  = "removing"
-	running                   = "running"
+	imageMaxRetries                  = 3
+	imageRetrySleepDuration          = 50
+	startContainerRetries            = 10
+	startContainerRetrySleepDuration = 5
+	networkMaxRetries                = 3
+	networkRetrySleepDuration        = 50
+	harnessHTTPProxy                 = "HARNESS_HTTP_PROXY"
+	harnessHTTPSProxy                = "HARNESS_HTTPS_PROXY"
+	harnessNoProxy                   = "HARNESS_NO_PROXY"
+	dockerServiceDir                 = "/etc/systemd/system/docker.service.d"
+	httpProxyConfFilePath            = dockerServiceDir + "/http-proxy.conf"
+	directoryPermission              = 0700
+	filePermission                   = 0600
+	windowsOS                        = "windows"
+	removing                         = "removing"
+	running                          = "running"
 )
 
 // Opts configures the Docker engine.
@@ -283,7 +285,17 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, ou
 	// start the container
 	startTime := time.Now()
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on container for step %s", stepID))
-	err := e.start(ctx, stepID)
+	var err error
+	for i := 0; i < startContainerRetries; i++ {
+		err = e.start(ctx, stepID)
+		if err != nil {
+			logrus.WithContext(ctx).WithError(err).Errorln(fmt.Sprintf("Error while starting container for the step %s, retry number %d", stepID, i+1))
+			time.Sleep(time.Second * startContainerRetrySleepDuration)
+		} else {
+			break
+		}
+	}
+
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
@@ -322,12 +334,15 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		}
 	}
 
-	_, err := e.client.ContainerCreate(ctx,
+	containerCreateBody, err := e.client.ContainerCreate(ctx,
 		toConfig(pipelineConfig, step),
 		toHostConfig(pipelineConfig, step),
 		toNetConfig(pipelineConfig, step),
 		step.ID,
 	)
+	if err == nil {
+		logrus.WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step")
+	}
 
 	// automatically pull and try to re-create the image if the
 	// failure is caused because the image does not exist.
@@ -339,12 +354,15 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 
 		// once the image is successfully pulled we attempt to
 		// re-create the container.
-		_, err = e.client.ContainerCreate(ctx,
+		containerCreateBody, err = e.client.ContainerCreate(ctx,
 			toConfig(pipelineConfig, step),
 			toHostConfig(pipelineConfig, step),
 			toNetConfig(pipelineConfig, step),
 			step.ID,
 		)
+		if err == nil {
+			logrus.WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step")
+		}
 	}
 	if err != nil {
 		return err
@@ -471,10 +489,12 @@ func (e *Docker) pullImage(ctx context.Context, image string, pullOpts types.Ima
 	if e.hidePull {
 		if _, cerr := io.Copy(io.Discard, rc); cerr != nil {
 			logrus.WithField("error", cerr).Warnln("failed to discard image pull logs")
+			return cerr
 		}
 	} else {
 		if cerr := jsonmessage.Copy(rc, output); cerr != nil {
 			logrus.WithField("error", cerr).Warnln("failed to copy image pull logs to output")
+			return cerr
 		}
 	}
 	rc.Close()
