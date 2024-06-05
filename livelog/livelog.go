@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/harness/lite-engine/logstream/remote"
 	"regexp"
 	"strings"
 	"sync"
@@ -18,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/harness/lite-engine/logstream"
+	"github.com/harness/lite-engine/logstream/remote"
 )
 
 const (

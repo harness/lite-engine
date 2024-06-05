@@ -6,8 +6,9 @@ package remote
 
 import (
 	"fmt"
-	"github.com/harness/lite-engine/logstream"
 	"time"
+
+	"github.com/harness/lite-engine/logstream"
 )
 
 // Custom error.
