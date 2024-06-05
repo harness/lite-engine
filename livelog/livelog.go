@@ -117,7 +117,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			ElaspedTime: int64(time.Since(b.now).Seconds()),
 		}
 
-		jsonLine := getLineBytes(line)
+		jsonLine, _ := getLineBytes(line)
 
 		if b.printToStdout {
 			logrus.WithField("name", b.name).Infoln(line.Message)
@@ -129,7 +129,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 				break
 			}
 
-			hline, err := json.Marshal(b.history[0])
+			hline, err := getLineBytes(b.history[0])
 			if err != nil {
 				logrus.WithError(err).WithField("name", b.name).Errorln("could not marshal log")
 			}
@@ -307,10 +307,9 @@ func (b *Writer) checkErrInLogs() {
 	}
 }
 
-func getLineBytes(line *logstream.Line) []byte {
+func getLineBytes(line *logstream.Line) ([]byte, error) {
 	remoteLine := remote.ConvertToRemote(line)
-	jsonLine, _ := json.Marshal(remoteLine)
-	return jsonLine
+	return json.Marshal(remoteLine)
 }
 
 // return back two byte arrays after splitting on last \n.
