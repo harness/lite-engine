@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/harness/lite-engine/logstream/remote"
 	"regexp"
 	"strings"
 	"sync"
@@ -116,7 +117,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			ElaspedTime: int64(time.Since(b.now).Seconds()),
 		}
 
-		jsonLine, _ := json.Marshal(line)
+		jsonLine := getLineBytes(line)
 
 		if b.printToStdout {
 			logrus.WithField("name", b.name).Infoln(line.Message)
@@ -304,6 +305,12 @@ func (b *Writer) checkErrInLogs() {
 			}
 		}
 	}
+}
+
+func getLineBytes(line *logstream.Line) []byte {
+	remoteLine := remote.ConvertToRemote(line)
+	jsonLine, _ := json.Marshal(remoteLine)
+	return jsonLine
 }
 
 // return back two byte arrays after splitting on last \n.

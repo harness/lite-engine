@@ -6,6 +6,7 @@ package remote
 
 import (
 	"fmt"
+	"github.com/harness/lite-engine/logstream"
 	"time"
 )
 
@@ -32,4 +33,13 @@ type Line struct {
 	Message   string            `json:"out"`
 	Timestamp time.Time         `json:"time"`
 	Args      map[string]string `json:"args"`
+}
+
+func ConvertToRemote(l *logstream.Line) *Line {
+	return &Line{
+		Level:     l.Level,
+		Message:   l.Message,
+		Number:    l.Number,
+		Timestamp: l.Timestamp,
+	}
 }
