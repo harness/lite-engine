@@ -19,7 +19,8 @@ import (
 )
 
 var (
-	unitTestCmd = "unittest"
+	unitTestCmd       = "unittest"
+	unittestPythonCmd = "python3 -m unittest"
 )
 
 type unittestRunner struct {
@@ -55,9 +56,6 @@ func (m *unittestRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 
 func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
-	if userArgs == "" {
-		userArgs = fmt.Sprintf("--junitxml='%s${HARNESS_NODE_INDEX}' -o junit_family='xunit1'", common.HarnessDefaultReportPath)
-	}
 	// Run all the tests
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, unitTestCmd, userArgs, m.log)
 	if err != nil {
@@ -67,7 +65,7 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, us
 	testCmd := ""
 	if runAll {
 		if ignoreInstr {
-			return strings.TrimSpace(fmt.Sprintf("%s %s", unitTestCmd, userArgs)), nil
+			return strings.TrimSpace(fmt.Sprintf("%s %s", unittestPythonCmd, userArgs)), nil
 		}
 		testCmd = strings.TrimSpace(fmt.Sprintf("python3 %s %s --test_harness %q",
 			scriptPath, currentDir, testHarness))
@@ -105,7 +103,7 @@ func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, us
 	testStr := strings.Join(ut, ",")
 
 	if ignoreInstr {
-		return strings.TrimSpace(fmt.Sprintf("%s %s %s", unitTestCmd, testStr, userArgs)), nil
+		return strings.TrimSpace(fmt.Sprintf("%s %s %s", unittestPythonCmd, testStr, userArgs)), nil
 	}
 
 	testCmd = fmt.Sprintf("python3 %s %s --test_harness %q --test_files %s",
