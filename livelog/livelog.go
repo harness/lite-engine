@@ -309,7 +309,12 @@ func (b *Writer) checkErrInLogs() {
 
 func getLineBytes(line *logstream.Line) ([]byte, error) {
 	remoteLine := remote.ConvertToRemote(line)
-	return json.Marshal(remoteLine)
+	jsonline, err := json.Marshal(remoteLine)
+	if err != nil {
+		return jsonline, err
+	}
+	jsonline = append(jsonline, []byte("\n")...)
+	return jsonline, err
 }
 
 // return back two byte arrays after splitting on last \n.
