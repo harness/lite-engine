@@ -376,7 +376,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	if !disablePythonV2CodeModification {
-		modifyToxFileName := filepath.Join(repoPath, "modifytox.py")
+		modifyToxFileName := filepath.Join(repoPathPython, "modifytox.py")
 		if !isPsh {
 			preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
 		} else {
