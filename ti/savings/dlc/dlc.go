@@ -10,26 +10,29 @@ import (
 )
 
 // GetFeatureState evaluates the execution state of a feature based on cache metrics.
-func GetFeatureState(cacheMetricsFile string, log *logrus.Logger) (types.IntelligenceExecutionState, error) {
+func ParseDlcSavings(cacheMetricsFile string, log *logrus.Logger) (types.IntelligenceExecutionState, types.SavingsRequest, error) {
+	savingsRequest := types.SavingsRequest{}
 	// Initialize the state as DISABLED by default.
 	state := types.DISABLED
 
 	// Check if the file exists.
 	if _, err := os.Stat(cacheMetricsFile); os.IsNotExist(err) {
-		return state, err
+		return state, savingsRequest, err
 	}
 
 	// Read the JSON file containing the cache metrics.
 	data, err := os.ReadFile(cacheMetricsFile)
 	if err != nil {
-		return state, err
+		return state, savingsRequest, err
 	}
 
 	// Deserialize the JSON data into the CacheMetrics struct.
 	var metrics dlcTypes.Metrics
 	if err := json.Unmarshal(data, &metrics); err != nil {
-		return state, err
+		return state, savingsRequest, err
 	}
+
+	savingsRequest.DlcMetrics = metrics
 
 	// Determine the feature state based on the metrics.
 	if metrics.TotalLayers > 0 {
@@ -40,5 +43,5 @@ func GetFeatureState(cacheMetricsFile string, log *logrus.Logger) (types.Intelli
 		}
 	}
 
-	return state, nil
+	return state, savingsRequest, nil
 }
