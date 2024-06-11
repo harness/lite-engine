@@ -315,12 +315,7 @@ func createBackoff(maxElapsedTime time.Duration) *backoff.ExponentialBackOff {
 func convertLines(lines []*logstream.Line) []*Line {
 	var res []*Line
 	for _, l := range lines {
-		res = append(res, &Line{
-			Level:     l.Level,
-			Message:   l.Message,
-			Number:    l.Number,
-			Timestamp: l.Timestamp,
-		})
+		res = append(res, ConvertToRemote(l))
 	}
 	return res
 }

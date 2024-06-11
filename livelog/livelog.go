@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/harness/lite-engine/logstream"
+	"github.com/harness/lite-engine/logstream/remote"
 )
 
 const (
@@ -116,7 +117,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			ElaspedTime: int64(time.Since(b.now).Seconds()),
 		}
 
-		jsonLine, _ := json.Marshal(line)
+		jsonLine, _ := getLineBytes(line)
 
 		if b.printToStdout {
 			logrus.WithField("name", b.name).Infoln(line.Message)
@@ -128,7 +129,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 				break
 			}
 
-			hline, err := json.Marshal(b.history[0])
+			hline, err := getLineBytes(b.history[0])
 			if err != nil {
 				logrus.WithError(err).WithField("name", b.name).Errorln("could not marshal log")
 			}
@@ -304,6 +305,16 @@ func (b *Writer) checkErrInLogs() {
 			}
 		}
 	}
+}
+
+func getLineBytes(line *logstream.Line) ([]byte, error) {
+	remoteLine := remote.ConvertToRemote(line)
+	jsonline, err := json.Marshal(remoteLine)
+	if err != nil {
+		return jsonline, err
+	}
+	jsonline = append(jsonline, []byte("\n")...)
+	return jsonline, err
 }
 
 // return back two byte arrays after splitting on last \n.
