@@ -29,7 +29,8 @@ func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *container.C
 		AttachStdin:  false,
 		AttachStdout: true,
 		AttachStderr: true,
-		Tty:          pipelineConfig.TTY,
+		Cmd:          []string{"sleep 0.001"},
+		Tty:          pipelineConfig.TTY, //Setting this to false is resolving the issue
 		OpenStdin:    false,
 		StdinOnce:    false,
 		ArgsEscaped:  false,
