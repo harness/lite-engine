@@ -147,6 +147,7 @@ type (
 		Address  string `json:"address,omitempty"`
 		Username string `json:"username,omitempty"`
 		Password string `json:"password,omitempty"`
+		OIDCToken string `json:"oidc_token,omitempty"`
 	}
 
 	OSStats struct {

@@ -317,11 +317,30 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, ou
 func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer) error {
 	// create pull options with encoded authorization credentials.
 	pullopts := types.ImagePullOptions{}
+
+	authConfig := types.AuthConfig{}
 	if step.Auth != nil {
-		pullopts.RegistryAuth = auths.Header(
-			step.Auth.Username,
-			step.Auth.Password,
-		)
+		authConfig.Username = step.Auth.Username
+		authConfig.Password = step.Auth.Password
+		authConfig.IdentityToken = step.Auth.OIDCToken
+	}
+	// OIDC Authentication
+	gcpOidcProjectNumber, _ := os.LookupEnv("PLUGIN_PROJECT_NUMBER")
+	gcpOidcProviderId, _ := os.LookupEnv("PLUGIN_PROVIDER_ID")
+	gcpOidcPoolId, _ := os.LookupEnv("PLUGIN_POOL_ID")
+	gcpOidcSA, _ := os.LookupEnv("PLUGIN_SERVICE_ACCOUNT_EMAIL")
+	gcpOidcToken, _ := os.LookupEnv("PLUGIN_OIDC_TOKEN_ID")
+
+	if gcpOidcProjectNumber != "" && gcpOidcProviderId != "" && gcpOidcPoolId != "" && gcpOidcSA != "" && gcpOidcToken != "" {
+		federalToken, err := auths.GetGcpFederalToken(gcpOidcToken, gcpOidcProjectNumber, gcpOidcPoolId, gcpOidcProviderId)
+		if err != nil {
+			return nil, fmt.Errorf("OIDC token retrieval failed: %w", err)
+		}
+		oidcToken, err := auths.GetGoogleCloudAccessToken(federalToken, gcpOidcSA)
+		if err != nil {
+			return nil, fmt.Errorf("error getting Google Cloud Access Token: %w", err)
+		}
+		authConfig.IdentityToken = oidcToken
 	}
 
 	// automatically pull the latest version of the image if requested
