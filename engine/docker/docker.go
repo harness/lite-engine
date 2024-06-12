@@ -443,7 +443,11 @@ func (e *Docker) logs(ctx context.Context, id string, tty bool, output io.Writer
 	defer logs.Close()
 
 	if tty {
+		log := logrus.New()
+		log.Out = output
+		log.Infoln(fmt.Sprintf("Here are the logs ---> %s", logs))
 		_, err = io.Copy(output, logs)
+		log.Infoln("Have we reached here ????")
 		if err != nil && err != io.EOF {
 			logger.FromContext(ctx).WithError(err).
 				WithField("container", id).
