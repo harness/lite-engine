@@ -29,7 +29,7 @@ func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *container.C
 		AttachStdin:  false,
 		AttachStdout: true,
 		AttachStderr: true,
-		Tty:          pipelineConfig.TTY,
+		Tty:          false,
 		OpenStdin:    false,
 		StdinOnce:    false,
 		ArgsEscaped:  false,
