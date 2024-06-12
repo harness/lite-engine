@@ -256,11 +256,14 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfi
 func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step,
 	output io.Writer, isDrone bool) (*runtime.State, error) {
 	// create the container
+	log := logrus.New()
+	log.Out = output
 	err := e.create(ctx, pipelineConfig, step, output)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
 	// start the execution in go routine if it's a detach step and not drone
+	log.Infoln(fmt.Sprintf("Are we in detach mode ??? %s ---> %s", isDrone, step.Detach))
 	if !isDrone && step.Detach {
 		go func() {
 			ctxBg := context.Background()
@@ -270,18 +273,23 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 				defer cancel()
 			}
 			e.startContainer(ctxBg, step.ID, pipelineConfig.TTY, output) //nolint:errcheck
+			log.Infoln(fmt.Sprintf("logstream writer info ---->  %s", output.(logstream.Writer)))
 			if wr, ok := output.(logstream.Writer); ok {
 				wr.Close()
 			}
 		}()
 		return &runtime.State{Exited: false}, nil
 	}
+	log.Infoln("We are here in non detach mode")
 	return e.startContainer(ctx, step.ID, pipelineConfig.TTY, output)
 }
 
 func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, output io.Writer) (*runtime.State, error) {
 	// start the container
+	log := logrus.New()
+	log.Out = output
 	startTime := time.Now()
+	log.Infoln(fmt.Sprintf("Starting command on container for step %s", stepID))
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on container for step %s", stepID))
 	err := e.start(ctx, stepID)
 	if err != nil {
@@ -292,8 +300,11 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, ou
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
+	log.Infoln(fmt.Sprintf("Have fetched the logs already."))
 	// wait for the response
+	log.Infoln(fmt.Sprintf("Lets start getting response  XXXXXXXXX"))
 	state, err := e.waitRetry(ctx, stepID)
+	log.Infoln(fmt.Sprintf("We have got the response. YAYYYY, here is the response   ---->  %s", state))
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on container for step %s, took %.2f seconds", stepID, time.Since(startTime).Seconds()))
 	return state, err
 }
@@ -443,7 +454,11 @@ func (e *Docker) logs(ctx context.Context, id string, tty bool, output io.Writer
 	defer logs.Close()
 
 	if tty {
+		log := logrus.New()
+		log.Out = output
+		log.Infoln(fmt.Sprintf("Here are the logs ---> %s", logs))
 		_, err = io.Copy(output, logs)
+		log.Infoln("Have we reached here ????")
 		if err != nil && err != io.EOF {
 			logger.FromContext(ctx).WithError(err).
 				WithField("container", id).
