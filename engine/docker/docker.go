@@ -334,11 +334,11 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	if gcpOidcProjectNumber != "" && gcpOidcProviderId != "" && gcpOidcPoolId != "" && gcpOidcSA != "" && gcpOidcToken != "" {
 		federalToken, err := auths.GetGcpFederalToken(gcpOidcToken, gcpOidcProjectNumber, gcpOidcPoolId, gcpOidcProviderId)
 		if err != nil {
-			return nil, fmt.Errorf("OIDC token retrieval failed: %w", err)
+			return fmt.Errorf("OIDC token retrieval failed: %w", err)
 		}
 		oidcToken, err := auths.GetGoogleCloudAccessToken(federalToken, gcpOidcSA)
 		if err != nil {
-			return nil, fmt.Errorf("error getting Google Cloud Access Token: %w", err)
+			return fmt.Errorf("error getting Google Cloud Access Token: %w", err)
 		}
 		authConfig.IdentityToken = oidcToken
 	}
