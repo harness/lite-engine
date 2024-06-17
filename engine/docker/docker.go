@@ -325,11 +325,11 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		authConfig.IdentityToken = step.Auth.OIDCToken
 	}
 	// OIDC Authentication
-	gcpOidcProjectNumber, _ := os.LookupEnv("PLUGIN_PROJECT_NUMBER")
-	gcpOidcProviderId, _ := os.LookupEnv("PLUGIN_PROVIDER_ID")
-	gcpOidcPoolId, _ := os.LookupEnv("PLUGIN_POOL_ID")
-	gcpOidcSA, _ := os.LookupEnv("PLUGIN_SERVICE_ACCOUNT_EMAIL")
-	gcpOidcToken, _ := os.LookupEnv("PLUGIN_OIDC_TOKEN_ID")
+	gcpOidcProjectNumber := os.Getenv("PLUGIN_PROJECT_NUMBER")
+	gcpOidcProviderId := os.Getenv("PLUGIN_PROVIDER_ID")
+	gcpOidcPoolId := os.Getenv("PLUGIN_POOL_ID")
+	gcpOidcSA := os.Getenv("PLUGIN_SERVICE_ACCOUNT_EMAIL")
+	gcpOidcToken := os.Getenv("PLUGIN_OIDC_TOKEN_ID")
 
 	if gcpOidcProjectNumber != "" && gcpOidcProviderId != "" && gcpOidcPoolId != "" && gcpOidcSA != "" && gcpOidcToken != "" {
 		federalToken, err := auths.GetGcpFederalToken(gcpOidcToken, gcpOidcProjectNumber, gcpOidcPoolId, gcpOidcProviderId)
@@ -360,7 +360,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		step.ID,
 	)
 	if err == nil {
-		logrus.WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step")
+		logrus.WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step") 
 	}
 
 	// automatically pull and try to re-create the image if the
