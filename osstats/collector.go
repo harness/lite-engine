@@ -131,7 +131,7 @@ func formatMB(val uint64) float64 {
 func (s *StatsCollector) get() (*osStat, error) {
 	if s.logProcess {
 		if err := s.dumpProcessInfo(); err != nil {
-			return nil, err
+			s.log.Errorln("Unable to log process info", err)
 		}
 	}
 
