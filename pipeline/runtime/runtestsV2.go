@@ -425,6 +425,15 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string) error {
 	isManualExecution := instrumentation.IsManualExecution(tiConfig)
 	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig, envs, runV2Config)
+	if tiConfig.GetParseSavings() {
+		if isFilterFilePresent {
+			// TI selected subset of tests
+			tiConfig.WriteFeatureState(stepID, types.TI, types.OPTIMIZED)
+		} else {
+			// TI selected all tests or returned an error which resulted in full run
+			tiConfig.WriteFeatureState(stepID, types.TI, types.FULL_RUN)
+		}
+	}
 
 	filterFileDir := fmt.Sprintf(filterV2Dir, tmpFilepath)
 
