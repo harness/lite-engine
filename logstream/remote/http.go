@@ -117,7 +117,9 @@ func (c *HTTPClient) Upload(ctx context.Context, key string, lines []*logstream.
 func (c *HTTPClient) uploadToRemoteStorage(ctx context.Context, key string, r io.Reader) error {
 	path := fmt.Sprintf(blobEndpoint, c.AccountID, key)
 	backoff := createInfiniteBackoff()
-	resp, err := c.retry(ctx, c.Endpoint+path, "POST", r, nil, true, backoff)
+	childCtx, cancel := context.WithTimeout(ctx, 60*time.Second) //nolint:gomnd
+	defer cancel()
+	resp, err := c.retry(childCtx, c.Endpoint+path, "POST", r, nil, true, backoff)
 	if resp != nil {
 		defer resp.Body.Close()
 	}
@@ -129,16 +131,21 @@ func (c *HTTPClient) uploadToRemoteStorage(ctx context.Context, key string, r io
 func (c *HTTPClient) uploadLink(ctx context.Context, key string) (*Link, error) {
 	path := fmt.Sprintf(uploadLinkEndpoint, c.AccountID, key)
 	out := new(Link)
-	backoff := createBackoff(60 * time.Second)                                //nolint:gomnd
-	_, err := c.retry(ctx, c.Endpoint+path, "POST", nil, out, false, backoff) //nolint:bodyclose
+	backoff := createBackoff(60 * time.Second) //nolint:gomnd
+	// 10s should be enought to get the upload link
+	childCtx, cancel := context.WithTimeout(ctx, 10*time.Second) //nolint:gomnd
+	defer cancel()
+	_, err := c.retry(childCtx, c.Endpoint+path, "POST", nil, out, false, backoff) //nolint:bodyclose
 	return out, err
 }
 
 // uploadUsingLink takes in a reader and a link object and uploads directly to
 // remote storage.
 func (c *HTTPClient) uploadUsingLink(ctx context.Context, link string, r io.Reader) error {
-	backoff := createBackoff(60 * time.Second)                 //nolint:gomnd
-	_, err := c.retry(ctx, link, "PUT", r, nil, true, backoff) //nolint:bodyclose
+	backoff := createInfiniteBackoff()
+	childCtx, cancel := context.WithTimeout(ctx, 60*time.Second) //nolint:gomnd
+	defer cancel()
+	_, err := c.retry(childCtx, link, "PUT", r, nil, true, backoff) //nolint:bodyclose
 	return err
 }
 

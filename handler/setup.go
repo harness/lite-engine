@@ -22,7 +22,8 @@ import (
 )
 
 var (
-	statsInterval = 30 * time.Second
+	statsInterval          = 30 * time.Second
+	harnessEnableDebugLogs = "HARNESS_ENABLE_DEBUG_LOGS"
 )
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
@@ -36,8 +37,11 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			WriteBadRequest(w, err)
 			return
 		}
-
-		collector := osstats.New(context.Background(), statsInterval)
+		logProcess := false
+		if val, ok := s.Envs[harnessEnableDebugLogs]; ok && val == "true" {
+			logProcess = true
+		}
+		collector := osstats.New(context.Background(), statsInterval, logProcess)
 
 		setProxyEnvs(s.Envs)
 		state := pipeline.GetState()

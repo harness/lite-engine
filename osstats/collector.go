@@ -2,6 +2,7 @@ package osstats
 
 import (
 	"context"
+	"encoding/json"
 	"runtime"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/harness/lite-engine/logger"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/process"
 	"github.com/sirupsen/logrus"
 )
 
@@ -28,6 +30,7 @@ type StatsCollector struct {
 	cpuPctSum  float64
 	cpuTotal   int
 	memTotalMB float64
+	logProcess bool
 }
 
 type osStat struct {
@@ -40,7 +43,7 @@ type osStat struct {
 	SwapMemPct     float64
 }
 
-func New(ctx context.Context, interval time.Duration) *StatsCollector {
+func New(ctx context.Context, interval time.Duration, logProcess bool) *StatsCollector {
 	return &StatsCollector{
 		ctx:      ctx,
 		log:      logger.FromContext(ctx),
@@ -56,6 +59,7 @@ func New(ctx context.Context, interval time.Duration) *StatsCollector {
 				Ymetric: "cpu_milli",
 			},
 		},
+		logProcess: logProcess,
 	}
 }
 
@@ -125,6 +129,12 @@ func formatMB(val uint64) float64 {
 }
 
 func (s *StatsCollector) get() (*osStat, error) {
+	if s.logProcess {
+		if err := s.dumpProcessInfo(); err != nil {
+			return nil, err
+		}
+	}
+
 	percent, err := cpu.Percent(time.Second, false)
 	if err != nil || len(percent) == 0 {
 		return nil, err
@@ -153,6 +163,51 @@ func (s *StatsCollector) get() (*osStat, error) {
 
 	return &osStat{CPUPct: percent[0], MemPct: vm.UsedPercent, MemTotalMB: formatMB(vm.Total),
 		MemAvailableMB: formatMB(vm.Available), MemUsedMB: formatMB(vm.Used), SwapMemPct: swap.UsedPercent, CPUTotal: s.cpuTotal}, nil
+}
+
+func (s *StatsCollector) dumpProcessInfo() error {
+	// Retrieve list of processes
+	processes, err := process.Processes()
+	if err != nil {
+		return err
+	}
+
+	var processDetails []map[string]interface{}
+
+	// Iterate over processes and collect details
+	for _, p := range processes {
+		pid := p.Pid
+		name, _ := p.Name()
+		cpuPercent, _ := p.CPUPercent()
+		memInfo, _ := p.MemoryInfo()
+		cmdline, _ := p.Cmdline()
+		parent, _ := p.Parent()
+		status, _ := p.Status()
+		user, _ := p.Username()
+		tgid, _ := p.Tgid()
+		threadNum, _ := p.NumThreads()
+
+		// Add process details to the slice
+		processDetails = append(processDetails, map[string]interface{}{
+			"pid":         pid,
+			"parent":      parent,
+			"name":        name,
+			"cpu_percent": cpuPercent,
+			"memory":      memInfo,
+			"cmdline":     cmdline,
+			"status":      status,
+			"user":        user,
+			"tgid":        tgid,
+			"thread_num":  threadNum,
+		})
+	}
+	// Convert process details to JSON
+	output, err := json.Marshal(processDetails)
+	if err != nil {
+		return err
+	}
+	s.log.Infoln("Process info: ", string(output))
+	return nil
 }
 
 func (s *StatsCollector) update(stat *osStat) {
