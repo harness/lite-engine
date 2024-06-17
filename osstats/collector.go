@@ -130,7 +130,7 @@ func formatMB(val uint64) float64 {
 
 func (s *StatsCollector) get() (*osStat, error) {
 	if s.logProcess {
-		if err := s.dumpProcessInfo(); err != nil {
+		if err := DumpProcessInfo(); err != nil {
 			s.log.Errorln("Unable to log process info", err)
 		}
 	}
@@ -165,7 +165,7 @@ func (s *StatsCollector) get() (*osStat, error) {
 		MemAvailableMB: formatMB(vm.Available), MemUsedMB: formatMB(vm.Used), SwapMemPct: swap.UsedPercent, CPUTotal: s.cpuTotal}, nil
 }
 
-func (s *StatsCollector) dumpProcessInfo() error {
+func DumpProcessInfo() error {
 	// Retrieve list of processes
 	processes, err := process.Processes()
 	if err != nil {
@@ -206,7 +206,7 @@ func (s *StatsCollector) dumpProcessInfo() error {
 	if err != nil {
 		return err
 	}
-	s.log.Infoln("Process info: ", string(output))
+	logrus.Infoln("Process info: ", string(output))
 	return nil
 }
 

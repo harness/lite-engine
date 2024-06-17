@@ -18,13 +18,15 @@ import (
 
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/remote"
+	"github.com/harness/lite-engine/osstats"
 )
 
 const (
-	defaultInterval = 1 * time.Second
-	maxLineLimit    = 2048 // 2KB
-	defaultLevel    = "info"
-	defaultLimit    = 5242880 // 5MB
+	defaultInterval    = 1 * time.Second
+	maxLineLimit       = 2048 // 2KB
+	defaultLevel       = "info"
+	defaultLimit       = 5242880 // 5MB
+	flushThresholdTime = 10 * time.Minute
 )
 
 // Writer is an io.Writer that sends logs to the server.
@@ -53,6 +55,8 @@ type Writer struct {
 	closed bool
 	close  chan struct{}
 	ready  chan struct{}
+
+	lastFlushTime time.Time
 }
 
 // New returns a new writer
@@ -68,6 +72,7 @@ func New(client logstream.Client, key, name string, nudges []logstream.Nudge, pr
 		nudges:        nudges,
 		close:         make(chan struct{}),
 		ready:         make(chan struct{}, 1),
+		lastFlushTime: time.Now(),
 	}
 	go b.Start()
 	return b
@@ -215,8 +220,14 @@ func (b *Writer) flush() error {
 	lines := b.copy()
 	b.clear()
 	if len(lines) == 0 {
+		thresholdTime := time.Now().Add(-flushThresholdTime)
+		if b.lastFlushTime.Before(thresholdTime) {
+			osstats.DumpProcessInfo()
+		}
+		b.lastFlushTime = time.Now()
 		return nil
 	}
+	b.lastFlushTime = time.Now()
 	err := b.client.Write(context.Background(), b.key, lines)
 	if err != nil {
 		logrus.WithError(err).WithField("key", b.key).WithField("num_lines", len(lines)).
