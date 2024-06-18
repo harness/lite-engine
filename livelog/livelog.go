@@ -220,13 +220,16 @@ func (b *Writer) flush() error {
 	lines := b.copy()
 	b.clear()
 	if len(lines) == 0 {
+		// print stats if no logs for 10 min
 		thresholdTime := time.Now().Add(-flushThresholdTime)
 		if b.lastFlushTime.Before(thresholdTime) {
 			osstats.DumpProcessInfo()
+			// reset lastFlushTime if stats were dumped
+			b.lastFlushTime = time.Now()
 		}
-		b.lastFlushTime = time.Now()
 		return nil
 	}
+	// reset lastFlushTime if logs are found
 	b.lastFlushTime = time.Now()
 	err := b.client.Write(context.Background(), b.key, lines)
 	if err != nil {
