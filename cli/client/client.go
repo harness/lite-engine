@@ -42,6 +42,13 @@ type clientCommand struct {
 }
 
 func (c *clientCommand) run(*kingpin.ParseContext) error {
+	// Log the inputs
+	logrus.Infof("Starting execution with inputs:")
+	logrus.Infof("envfile: %s", c.envfile)
+	logrus.Infof("runStage: %v", c.runStage)
+	logrus.Infof("remoteLog: %v", c.remoteLog)
+
+	// Load environment variables from file if specified
 	loadEnvErr := godotenv.Load(c.envfile)
 	if loadEnvErr != nil {
 		logrus.
