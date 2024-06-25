@@ -32,6 +32,17 @@ func ParseDlcSavings(cacheMetricsFile string, log *logrus.Logger) (types.Intelli
 		return state, savingsRequest, err
 	}
 
+	var metadata dlcTypes.Metadata
+	metadata.TotalLayers = metrics.TotalLayers
+	metadata.Cached = metrics.Cached
+
+	metadataBytes, err := json.Marshal(metadata)
+	if err != nil {
+		return state, savingsRequest, err
+	}
+
+	savingsRequest.Metadata = string(metadataBytes)
+
 	savingsRequest.DlcMetrics = metrics
 
 	// Determine the feature state based on the metrics.

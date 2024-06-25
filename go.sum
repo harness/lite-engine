@@ -82,6 +82,8 @@ github.com/harness/godotenv/v3 v3.0.0 h1:1YJU9nUk4tQygHOYkm+NZ5jL9IZQ3UqyBspCqL3
 github.com/harness/godotenv/v3 v3.0.0/go.mod h1:UIXXJtTM7NkSYMYknHYOO2d8BfDlAWMYZRuRsXcDDR0=
 github.com/harness/ti-client v0.0.0-20240617230757-1e90e7e3ada2 h1:9QHzlirx9Lg77ohXYTOeC+3aDPG8ZeHTKI1iAN5+cIo=
 github.com/harness/ti-client v0.0.0-20240617230757-1e90e7e3ada2/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
+github.com/harness/ti-client v0.0.0-20240625213131-4143abe5599d h1:vWf6TLbM3aRs9sRnfCVcvxhwtZAdA0fphiyRkuAO6yo=
+github.com/harness/ti-client v0.0.0-20240625213131-4143abe5599d/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/errwrap v1.1.0 h1:OxrOeh75EUXMY8TBjag2fzXGZ40LB6IKw45YeGUDY2I=
 github.com/hashicorp/errwrap v1.1.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
