@@ -319,11 +319,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	pullopts := types.ImagePullOptions{}
 
 	authConfig := types.AuthConfig{}
-	if step.Auth != nil {
-		authConfig.Username = step.Auth.Username
-		authConfig.Password = step.Auth.Password
-		authConfig.IdentityToken = step.Auth.OIDCToken
-	}
+
 	// OIDC Authentication
 	gcpOidcProjectNumber := os.Getenv("PLUGIN_PROJECT_NUMBER")
 	gcpOidcProviderId := os.Getenv("PLUGIN_PROVIDER_ID")
@@ -343,7 +339,12 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 			return fmt.Errorf("error getting Google Cloud Access Token: %w", err)
 		}
 		logrus.Infoln("generated sa oidc token, %s", oidcToken)
-		authConfig.IdentityToken = oidcToken
+
+		if step.Auth != nil {
+			authConfig.Username = step.Auth.Username
+			authConfig.Password = step.Auth.Password
+			authConfig.IdentityToken = oidcToken
+		}
 	}
 
 	// automatically pull the latest version of the image if requested
