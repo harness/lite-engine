@@ -338,16 +338,13 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		}
 		logrus.Infof("Generated SA OIDC token: %s", oidcToken)
 		step.Auth.OidcToken = oidcToken
-		// Set authConfig for OIDC
-		pullopts.RegistryAuth = auths.HeaderWithOidcToken(
-			step.Auth.OidcToken,
-		)
 
-	} else if step.Auth != nil {
-		// Set authConfig for Username/Password
+	}
+	if step.Auth != nil {
 		pullopts.RegistryAuth = auths.Header(
 			step.Auth.Username,
 			step.Auth.Password,
+			step.Auth.OidcToken,
 		)
 	}
 
