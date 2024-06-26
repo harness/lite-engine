@@ -326,7 +326,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	gcpOidcPoolId := os.Getenv("PLUGIN_POOL_ID")
 	gcpOidcSA := os.Getenv("PLUGIN_SERVICE_ACCOUNT_EMAIL")
 	gcpOidcToken := os.Getenv("PLUGIN_OIDC_TOKEN_ID")
-	logrus.Infoln("please find OIDC env values as follows: %s, %s, %s, %s, %s", gcpOidcProjectNumber, gcpOidcProviderId, gcpOidcPoolId, gcpOidcSA, gcpOidcToken)
+	logrus.Infof("please find OIDC env values as follows: %s, %s, %s, %s, %s", gcpOidcProjectNumber, gcpOidcProviderId, gcpOidcPoolId, gcpOidcSA, gcpOidcToken)
 
 	if gcpOidcProjectNumber != "" && gcpOidcProviderId != "" && gcpOidcPoolId != "" && gcpOidcSA != "" && gcpOidcToken != "" {
 		federalToken, err := auths.GetGcpFederalToken(gcpOidcToken, gcpOidcProjectNumber, gcpOidcPoolId, gcpOidcProviderId)
