@@ -330,16 +330,19 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	gcpOidcPoolId := os.Getenv("PLUGIN_POOL_ID")
 	gcpOidcSA := os.Getenv("PLUGIN_SERVICE_ACCOUNT_EMAIL")
 	gcpOidcToken := os.Getenv("PLUGIN_OIDC_TOKEN_ID")
+	logrus.Infoln("please find OIDC env values as follows: %s, %s, %s, %s, %s", gcpOidcProjectNumber, gcpOidcProviderId, gcpOidcPoolId, gcpOidcSA, gcpOidcToken)
 
 	if gcpOidcProjectNumber != "" && gcpOidcProviderId != "" && gcpOidcPoolId != "" && gcpOidcSA != "" && gcpOidcToken != "" {
 		federalToken, err := auths.GetGcpFederalToken(gcpOidcToken, gcpOidcProjectNumber, gcpOidcPoolId, gcpOidcProviderId)
 		if err != nil {
 			return fmt.Errorf("OIDC token retrieval failed: %w", err)
 		}
+		logrus.Infoln("generated federal token, %s", federalToken)
 		oidcToken, err := auths.GetGoogleCloudAccessToken(federalToken, gcpOidcSA)
 		if err != nil {
 			return fmt.Errorf("error getting Google Cloud Access Token: %w", err)
 		}
+		logrus.Infoln("generated sa oidc token, %s", oidcToken)
 		authConfig.IdentityToken = oidcToken
 	}
 
@@ -360,7 +363,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		step.ID,
 	)
 	if err == nil {
-		logrus.WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step") 
+		logrus.WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step")
 	}
 
 	// automatically pull and try to re-create the image if the
