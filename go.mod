@@ -12,7 +12,7 @@ require (
 	github.com/docker/docker v23.0.1+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/drone/drone-go v1.7.1
-	github.com/drone/runner-go v1.12.1-0.20240626143558-310169425805
+	github.com/drone/runner-go v1.12.1-0.20240626191520-096f1a17fbb3
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/mock v1.6.0

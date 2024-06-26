@@ -144,9 +144,10 @@ type (
 
 	// Auth defines dockerhub authentication credentials.
 	Auth struct {
-		Address  string `json:"address,omitempty"`
-		Username string `json:"username,omitempty"`
-		Password string `json:"password,omitempty"`
+		Address   string `json:"address,omitempty"`
+		Username  string `json:"username,omitempty"`
+		Password  string `json:"password,omitempty"`
+		OidcToken string `json:"oidc_token,omitempty"`
 	}
 
 	OSStats struct {

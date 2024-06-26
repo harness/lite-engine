@@ -317,8 +317,7 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, ou
 func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer) error {
 	// create pull options with encoded authorization credentials.
 	pullopts := types.ImagePullOptions{}
-	// Initialize the authConfig
-	authConfig := types.AuthConfig{}
+
 	// OIDC Authentication
 	gcpOidcEnvMapFromStep := step.Envs
 	gcpOidcProjectNumber := gcpOidcEnvMapFromStep["PLUGIN_PROJECT_NUMBER"]
@@ -338,13 +337,18 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 			return fmt.Errorf("Error getting Google Cloud Access Token: %w", err)
 		}
 		logrus.Infof("Generated SA OIDC token: %s", oidcToken)
-
+		step.Auth.OidcToken = oidcToken
 		// Set authConfig for OIDC
-		authConfig.IdentityToken = oidcToken
+		pullopts.RegistryAuth = auths.HeaderWithOidcToken(
+			step.Auth.OidcToken,
+		)
+
 	} else if step.Auth != nil {
 		// Set authConfig for Username/Password
-		authConfig.Username = step.Auth.Username
-		authConfig.Password = step.Auth.Password
+		pullopts.RegistryAuth = auths.Header(
+			step.Auth.Username,
+			step.Auth.Password,
+		)
 	}
 
 	// automatically pull the latest version of the image if requested
