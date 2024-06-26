@@ -321,11 +321,12 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	authConfig := types.AuthConfig{}
 
 	// OIDC Authentication
-	gcpOidcProjectNumber := os.Getenv("PLUGIN_PROJECT_NUMBER")
-	gcpOidcProviderId := os.Getenv("PLUGIN_PROVIDER_ID")
-	gcpOidcPoolId := os.Getenv("PLUGIN_POOL_ID")
-	gcpOidcSA := os.Getenv("PLUGIN_SERVICE_ACCOUNT_EMAIL")
-	gcpOidcToken := os.Getenv("PLUGIN_OIDC_TOKEN_ID")
+	gcpOidcEnvMapFromStep := step.Envs
+	gcpOidcProjectNumber := gcpOidcEnvMapFromStep["PLUGIN_PROJECT_NUMBER"]
+	gcpOidcProviderId := gcpOidcEnvMapFromStep["PLUGIN_PROVIDER_ID"]
+	gcpOidcPoolId := gcpOidcEnvMapFromStep["PLUGIN_POOL_ID"]
+	gcpOidcSA := gcpOidcEnvMapFromStep["PLUGIN_SERVICE_ACCOUNT_EMAIL"]
+	gcpOidcToken := gcpOidcEnvMapFromStep["PLUGIN_OIDC_TOKEN_ID"]
 	logrus.Infof("please find OIDC env values as follows: %s, %s, %s, %s, %s", gcpOidcProjectNumber, gcpOidcProviderId, gcpOidcPoolId, gcpOidcSA, gcpOidcToken)
 
 	if gcpOidcProjectNumber != "" && gcpOidcProviderId != "" && gcpOidcPoolId != "" && gcpOidcSA != "" && gcpOidcToken != "" {
