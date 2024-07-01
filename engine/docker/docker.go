@@ -338,6 +338,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		}
 		logrus.Infof("Generated SA OIDC token: %s", oidcToken)
 		step.Auth.Password = oidcToken
+		step.Auth.Username = "oauth2accesstoken"
 
 	}
 	if step.Auth != nil {
