@@ -337,14 +337,13 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 			return fmt.Errorf("Error getting Google Cloud Access Token: %w", err)
 		}
 		logrus.Infof("Generated SA OIDC token: %s", oidcToken)
-		step.Auth.OidcToken = oidcToken
+		step.Auth.Password = oidcToken
 
 	}
 	if step.Auth != nil {
 		pullopts.RegistryAuth = auths.Header(
 			step.Auth.Username,
 			step.Auth.Password,
-			step.Auth.OidcToken,
 		)
 	}
 
