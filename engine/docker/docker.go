@@ -342,6 +342,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 
 	}
 	if step.Auth != nil {
+		logrus.Infof("Inside step.Auth: %s", step.Auth)
 		pullopts.RegistryAuth = auths.Header(
 			step.Auth.Username,
 			step.Auth.Password,
