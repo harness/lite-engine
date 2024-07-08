@@ -13,7 +13,9 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, cmdTimeTaken int64,
+const restoreCacheHarnessStepID = "restore-cache-harness"
+
+func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, stepSuccess bool, cmdTimeTaken int64,
 	tiConfig *tiCfg.Cfg, envs map[string]string) types.IntelligenceExecutionState {
 	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
@@ -62,7 +64,16 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			}
 		}
 	}
-	// Cache Intel savings (Placeholder)
+
+	// Cache Intel savings
+	if stepID == restoreCacheHarnessStepID {
+		cacheIntelState := types.FULL_RUN
+		if stepSuccess {
+			cacheIntelState = types.OPTIMIZED
+		}
+		states = append(states, cacheIntelState)
+	}
+
 	return getStepState(states)
 }
 

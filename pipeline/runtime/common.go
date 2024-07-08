@@ -13,6 +13,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/drone/runner-go/pipeline/runtime"
 	v2 "github.com/harness/godotenv/v2"
 	v3 "github.com/harness/godotenv/v3"
 	"github.com/harness/lite-engine/api"
@@ -205,4 +206,12 @@ func waitForZipUnlock(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 			return fmt.Errorf("timeout waiting for agent download")
 		}
 	}
+}
+
+// checkStepSuccess checks if the step was successful based on the return values
+func checkStepSuccess(state *runtime.State, err error) bool {
+	if err == nil && state != nil && state.ExitCode == 0 && state.Exited {
+		return true
+	}
+	return false
 }
