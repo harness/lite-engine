@@ -208,8 +208,8 @@ func waitForZipUnlock(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 	}
 }
 
-// CheckStepSuccess checks if the step was successful based on the return values
-func CheckStepSuccess(state *runtime.State, err error) bool {
+// checkStepSuccess checks if the step was successful based on the return values
+func checkStepSuccess(state *runtime.State, err error) bool {
 	if err == nil && state != nil && state.ExitCode == 0 && state.Exited {
 		return true
 	}
