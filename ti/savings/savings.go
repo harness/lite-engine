@@ -13,7 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const restoreCacheHarnessStepId = "restore-cache-harness"
+const restoreCacheHarnessStepID = "restore-cache-harness"
 
 func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, stepSuccess bool, cmdTimeTaken int64,
 	tiConfig *tiCfg.Cfg, envs map[string]string) types.IntelligenceExecutionState {
@@ -66,7 +66,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 	}
 
 	// Cache Intel savings
-	if stepID == restoreCacheHarnessStepId {
+	if stepID == restoreCacheHarnessStepID {
 		cacheIntelState := types.FULL_RUN
 		if stepSuccess {
 			cacheIntelState = types.OPTIMIZED
