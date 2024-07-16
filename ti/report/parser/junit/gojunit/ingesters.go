@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"strings"
 )
 
 // IngestFile will parse the given XML file and return a slice of all contained
@@ -23,18 +24,25 @@ func IngestFile(filename, rootSuiteName string) ([]Suite, error) {
 	}
 	defer file.Close()
 
-	return IngestReader(file, rootSuiteName)
+	return IngestReader(file, rootSuiteName, strings.HasSuffix(filename, ".trx"))
 }
 
 // IngestReader will parse the given XML reader and return a slice of all
 // contained JUnit test suite definitions.
-func IngestReader(reader io.Reader, rootSuiteName string) ([]Suite, error) {
+func IngestReader(reader io.Reader, rootSuiteName string, trxFormat bool) ([]Suite, error) {
 	var (
 		suiteChan = make(chan Suite)
 		suites    = make([]Suite, 0)
+		nodes []xmlNode
+		err error
 	)
 
-	nodes, err := parse(reader)
+	if trxFormat {
+		nodes, err = parseTrx(reader)
+	} else {
+		nodes, err = parse(reader)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -54,5 +62,5 @@ func IngestReader(reader io.Reader, rootSuiteName string) ([]Suite, error) {
 // Ingest will parse the given XML data and return a slice of all contained
 // JUnit test suite definitions.
 func Ingest(data []byte, rootSuiteName string) ([]Suite, error) {
-	return IngestReader(bytes.NewReader(data), rootSuiteName)
+	return IngestReader(bytes.NewReader(data), rootSuiteName, false)
 }

@@ -12,8 +12,10 @@ import (
 	"bytes"
 	"encoding/xml"
 	"errors"
+	"fmt"
 	"html"
 	"io"
+	"time"
 )
 
 // reparentXML will wrap the given reader (which is assumed to be valid XML),
@@ -116,3 +118,150 @@ func parse(reader io.Reader) ([]xmlNode, error) {
 
 	return root.Nodes, nil
 }
+
+type unitTestResult struct {
+	Message string `xml:"Output>ErrorInfo>Message"`
+	StackTrace string `xml:"Output>ErrorInfo>StackTrace"`
+	Outcome string `xml:"outcome,attr"`
+	TestId string `xml:"testId,attr"`
+	TestName string `xml:"testName,attr"`
+	EndTime string `xml:"endTime,attr"`
+	StartTime string `xml:"startTime,attr"`
+	Duration string `xml:"duration,attr"`
+}
+
+type unitTest struct {
+	Id string `xml:"id,attr"`
+	Method testMethod `xml:"TestMethod"`
+}
+
+type testMethod struct {
+	ClassName string `xml:"className,attr"`
+}
+
+// parse unmarshalls the given XML data into a graph of nodes, and then returns
+// a slice of all top-level nodes.
+func parseTrx(reader io.Reader) ([]xmlNode, error) {
+	var (
+		dec  = xml.NewDecoder(reader)
+		root xmlNode
+	)
+
+	root = xmlNode{ XMLName: xml.Name{ Local: "fake-root" } }
+
+	root.Nodes = append(root.Nodes, xmlNode{ XMLName: xml.Name{ Local: "testsuites" } })
+	testSuites := &root.Nodes[0]
+	testSuites.Nodes = append(testSuites.Nodes, xmlNode{ XMLName: xml.Name{ Local: "testsuite" } })
+	testSuite := &testSuites.Nodes[0]
+
+	testSuite.Attrs = make(map[string]string)
+	testSuite.Attrs["name"] = "MSTestSuite"
+
+	testCases := make(map[string]int) // test id -> index
+
+	tests := 0
+	skipped := 0
+	failed := 0
+	errors := 0
+
+	for {
+		t, err := dec.Token()
+		
+		if t == nil || err != nil { // when t is nil, we finished reading the file
+		  break
+		}
+
+		switch se := t.(type) {
+		case xml.StartElement:
+			switch se.Name.Local {
+			case "Times":
+				var finish time.Time
+				var start time.Time
+
+				for _, attr := range se.Attr {
+					switch attr.Name.Local {
+					case "finish":
+						finish, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", attr.Value)
+					case "start":
+						start, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", attr.Value)
+					default:
+					}
+				}
+
+				duration := finish.Sub(start)
+				testSuite.Attrs["time"] = fmt.Sprintf("%f", duration.Seconds())
+			case "UnitTestResult":
+				tests += 1
+
+				var u unitTestResult
+				err := dec.DecodeElement(&u, &se)
+				fmt.Println(err)
+				fmt.Println(u)
+				fmt.Println("Adding test case")
+
+				testSuite.Nodes = append(testSuite.Nodes, xmlNode{ XMLName: xml.Name{ Local: "testcase" } })
+				testCase := &testSuite.Nodes[len(testSuite.Nodes) - 1]
+				testCases[u.TestId] = len(testSuite.Nodes) - 1
+				testCase.Attrs = make(map[string]string)
+				testCase.Attrs["id"] = u.TestId
+				
+				
+				var finish time.Time
+				var start time.Time
+				var testDuration time.Time
+
+				if u.Outcome == "Failed" {
+					failed += 1
+					failure := xmlNode{ XMLName: xml.Name{ Local: "failure" } }
+					testCase.Nodes = append(testCase.Nodes, failure)
+					failure.Content = []byte(fmt.Sprintf(`MESSAGE:
+					%s
+					+++++++++++++++++++
+                    STACK TRACE:
+					%s"`, u.Message, u.StackTrace))
+				} else if u.Outcome == "" || u.Outcome == "Error" {
+					errors += 1
+					errorNode := xmlNode{ XMLName: xml.Name{ Local: "error" } }
+					testCase.Nodes = append(testCase.Nodes, errorNode)
+					errorNode.Content = []byte(fmt.Sprintf(`MESSAGE:
+					%s
+					+++++++++++++++++++
+                    STACK TRACE:
+					%s"`, u.Message, u.StackTrace))
+				} else if u.Outcome != "Failed" && u.Outcome != "Passed" {
+					skipped += 1
+				}
+				
+				testCase.Attrs["name"] = u.TestName
+				start, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", u.StartTime)
+				finish, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", u.EndTime)
+				testDuration, _ = time.Parse("15:04:05.9999999", u.Duration)
+
+				duration := finish.Sub(start)
+				testCase.Attrs["time"] = fmt.Sprintf("%f", float64(int(duration.Seconds())) + float64(testDuration.Nanosecond() / 1000) / 1000000)
+
+			case "UnitTest":
+				var u unitTest
+				err := dec.DecodeElement(&u, &se)
+				fmt.Println(err)
+
+				fmt.Println(u.Id)
+				fmt.Println(u.Method.ClassName)
+				testCaseIndex := testCases[u.Id]
+				testCase := &testSuite.Nodes[testCaseIndex]
+				testCase.Attrs["classname"] = u.Method.ClassName
+			default:
+			}
+		default:
+		}
+	}
+
+	testSuite.Attrs["tests"] = fmt.Sprintf("%d", tests)
+	testSuite.Attrs["skipped"] = fmt.Sprintf("%d", skipped)
+	testSuite.Attrs["failed"] = fmt.Sprintf("%d", failed)
+	testSuite.Attrs["errors"] = fmt.Sprintf("%d", errors)
+	fmt.Println(testSuite.Attrs)
+
+	return root.Nodes, nil
+}
+

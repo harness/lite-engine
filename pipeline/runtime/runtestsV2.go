@@ -593,8 +593,8 @@ func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.Sta
 	}
 
 	if len(r.TestReport.Junit.Paths) == 0 {
-		// If there are no paths specified, set Paths[0] to include all XML files
-		r.TestReport.Junit.Paths = []string{"**/*.xml"}
+		// If there are no paths specified, set Paths[0] to include all XML files and all TRX files
+		r.TestReport.Junit.Paths = []string{"**/*.xml", "**/*.trx"}
 	}
 
 	reportStart := time.Now()
