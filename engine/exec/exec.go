@@ -26,7 +26,7 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	cmdArgs := step.Entrypoint[1:]
 	cmdArgs = append(cmdArgs, step.Command...)
 
-	cmd := exec.Command(step.Entrypoint[0], cmdArgs...) //nolint:gosec
+	cmd := exec.CommandContext(ctx, step.Entrypoint[0], cmdArgs...) //nolint:gosec
 
 	if step.User != "" {
 		if userID, err := strconv.Atoi(step.User); err == nil {
@@ -49,6 +49,11 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on host for step %s, took %.2f seconds", step.ID, time.Since(startTime).Seconds()))
 	if err == nil {
 		return &runtime.State{ExitCode: 0, Exited: true}, nil
+	}
+
+	if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		logrus.WithContext(ctx).Infoln(fmt.Sprintf("Execution canceled for step %s with error %v, took %.2f seconds", step.ID, ctx.Err(), time.Since(startTime).Seconds()))
+		return nil, ctx.Err()
 	}
 
 	if exitErr, ok := err.(*exec.ExitError); ok {
