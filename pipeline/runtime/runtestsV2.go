@@ -30,20 +30,20 @@ import (
 )
 
 const (
-	outDir            = "%s/ti/v2/callgraph/cg/" // path passed as outDir in the config.ini file
-	javaAgentV2Arg    = "-javaagent:%s=%s"
-	javaAgentV2Jar    = "java-agent.jar"
-	javaAgentV2Path   = "/java/v2/"
-	filterV2Dir       = "%s/ti/v2/filter"
-	configV2Dir       = "%s/ti/v2/java/config"
-	waitTimeoutInSec  = 30
-	agentV2LinkLength = 3
-	dotNetAgentLinkIndex = 3
+	outDir                  = "%s/ti/v2/callgraph/cg/" // path passed as outDir in the config.ini file
+	javaAgentV2Arg          = "-javaagent:%s=%s"
+	javaAgentV2Jar          = "java-agent.jar"
+	javaAgentV2Path         = "/java/v2/"
+	filterV2Dir             = "%s/ti/v2/filter"
+	configV2Dir             = "%s/ti/v2/java/config"
+	waitTimeoutInSec        = 30
+	agentV2LinkLength       = 3
+	dotNetAgentLinkIndex    = 3
 	dotNetAgentProfilerGUID = "{86A1D712-8FAE-4ECD-9333-DB03F62E44FA}"
-	dotNetAgentV2Lib    = "net-agent.so"
-	dotNetAgentV2Zip    = "net-agent.zip"
-	dotNetAgentV2Path   = "/dotnet/v2/"
-	dotNetConfigV2Dir   = "%s/ti/v2/dotnet/config"
+	dotNetAgentV2Lib        = "net-agent.so"
+	dotNetAgentV2Zip        = "net-agent.zip"
+	dotNetAgentV2Path       = "/dotnet/v2/"
+	dotNetConfigV2Dir       = "%s/ti/v2/dotnet/config"
 )
 
 // Ignoring optimization state for now
@@ -397,7 +397,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 				return "", "", err
 			}
 		}
-		
+
 		tiConfig.UnlockZip()
 	}
 

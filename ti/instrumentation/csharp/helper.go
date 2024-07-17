@@ -69,7 +69,7 @@ func Unzip(agentInstallDir string, log *logrus.Logger) (err error) {
 	zip := archiver.Zip{
 		OverwriteExisting: true,
 	}
-	
+
 	// Unzip everything at agentInstallDir/
 	err = zip.Unarchive(filepath.Join(agentInstallDir, "dotnet-agent.zip"), agentInstallDir)
 	if err != nil {

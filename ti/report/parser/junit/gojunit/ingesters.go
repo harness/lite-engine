@@ -33,8 +33,8 @@ func IngestReader(reader io.Reader, rootSuiteName string, trxFormat bool) ([]Sui
 	var (
 		suiteChan = make(chan Suite)
 		suites    = make([]Suite, 0)
-		nodes []xmlNode
-		err error
+		nodes     []xmlNode
+		err       error
 	)
 
 	if trxFormat {

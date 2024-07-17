@@ -131,7 +131,7 @@ type unitTestResult struct {
 }
 
 type unitTest struct {
-	Id     string     `xml:"id,attr"`
+	ID     string     `xml:"id,attr"`
 	Method testMethod `xml:"TestMethod"`
 }
 
@@ -175,10 +175,8 @@ func parseTrx(reader io.Reader) ([]xmlNode, error) {
 		case xml.StartElement:
 			switch se.Name.Local {
 			case "Times":
-				err := handleTimesNode(&se, testSuite)
-				if err != nil {
-					return nil, err
-				}
+				handleTimesNode(&se, testSuite)
+
 			case "UnitTestResult":
 				tests++
 				err := handleUnitTestResultNode(dec, &se, testSuite, testCases, &skipped, &failed, &errors)
@@ -212,7 +210,7 @@ func handleUnitTest(decoder *xml.Decoder, startElement *xml.StartElement, testSu
 		return err
 	}
 
-	testCaseIndex := testCases[u.Id]
+	testCaseIndex := testCases[u.ID]
 	testCase := &testSuite.Nodes[testCaseIndex]
 	testCase.Attrs["classname"] = u.Method.ClassName
 
@@ -260,17 +258,14 @@ func handleUnitTestResultNode(decoder *xml.Decoder, startElement *xml.StartEleme
 	}
 
 	testCase.Attrs["name"] = u.TestName
-	start, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", u.StartTime)
-	finish, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", u.EndTime)
 	testDuration, _ = time.Parse("15:04:05.9999999", u.Duration)
 
-	duration := finish.Sub(start)
-	testCase.Attrs["time"] = fmt.Sprintf("%f", float64(int(duration.Seconds()))+float64(testDuration.Nanosecond()/1000)/1000000)
+	testCase.Attrs["time"] = fmt.Sprintf("%f", float64(testDuration.Nanosecond()/int(time.Microsecond))/float64(time.Millisecond))
 
 	return nil
 }
 
-func handleTimesNode(se *xml.StartElement, testSuite *xmlNode) error {
+func handleTimesNode(se *xml.StartElement, testSuite *xmlNode) {
 	var finish time.Time
 	var start time.Time
 
@@ -286,6 +281,4 @@ func handleTimesNode(se *xml.StartElement, testSuite *xmlNode) error {
 
 	duration := finish.Sub(start)
 	testSuite.Attrs["time"] = fmt.Sprintf("%f", duration.Seconds())
-
-	return nil
 }
