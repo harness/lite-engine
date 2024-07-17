@@ -52,6 +52,10 @@ const (
 	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
 )
 
+var (
+	defaultStepTimeoutWithBuffer = defaultStepTimeout + 5*time.Minute
+)
+
 type StepExecutor struct {
 	engine     *engine.Engine
 	mu         sync.Mutex
@@ -129,7 +133,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		case resp = <-done:
 			e.sendStepStatus(r, &resp)
 			return
-		case <-time.After(defaultStepTimeout):
+		case <-time.After(defaultStepTimeoutWithBuffer):
 			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
 			e.sendStepStatus(r, &resp)
 			return
