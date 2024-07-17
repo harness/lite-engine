@@ -231,8 +231,6 @@ func handleUnitTestResultNode(decoder *xml.Decoder, startElement *xml.StartEleme
 	testCase.Attrs = make(map[string]string)
 	testCase.Attrs["id"] = u.TestID
 
-	var finish time.Time
-	var start time.Time
 	var testDuration time.Time
 
 	if u.Outcome == "Failed" {
