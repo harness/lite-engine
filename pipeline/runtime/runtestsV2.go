@@ -39,7 +39,7 @@ const (
 	waitTimeoutInSec  = 30
 	agentV2LinkLength = 3
 	dotNetAgentLinkIndex = 3
-	dotNetAgentProfilerGuid = "{86A1D712-8FAE-4ECD-9333-DB03F62E44FA}"
+	dotNetAgentProfilerGUID = "{86A1D712-8FAE-4ECD-9333-DB03F62E44FA}"
 	dotNetAgentV2Lib    = "net-agent.so"
 	dotNetAgentV2Zip    = "net-agent.zip"
 	dotNetAgentV2Path   = "/dotnet/v2/"
@@ -88,7 +88,8 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		agentPaths["python"] = pythonArtifactDir
 
 		if len(links) > dotNetAgentLinkIndex {
-			dotNetArtifactDir, err := downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log)
+			var dotNetArtifactDir string
+			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log)
 			if err == nil {
 				agentPaths["dotnet"] = dotNetArtifactDir
 			} else {
@@ -447,18 +448,18 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 
 	// .Net
 	if _, exists := agentPaths["dotnet"]; exists {
-		dotNetJsonFilePath, err := createDotNetConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
+		dotNetJSONFilePath, err := createDotNetConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
 		if err != nil {
-			log.WithError(err).Errorln(fmt.Sprintf("could not create dotnet agent config file in path %s", dotNetJsonFilePath))
+			log.WithError(err).Errorln(fmt.Sprintf("could not create dotnet agent config file in path %s", dotNetJSONFilePath))
 			return "", "", err
 		}
 
 		dotNetAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
 
 		envs["CORECLR_PROFILER_PATH"] = dotNetAgentPath
-		envs["CORECLR_PROFILER"] = dotNetAgentProfilerGuid
+		envs["CORECLR_PROFILER"] = dotNetAgentProfilerGUID
 		envs["CORECLR_ENABLE_PROFILING"] = "1"
-		envs["TI_DOTNET_CONFIG"] = dotNetJsonFilePath
+		envs["TI_DOTNET_CONFIG"] = dotNetJSONFilePath
 	}
 
 	return preCmd, filterFilePath, nil

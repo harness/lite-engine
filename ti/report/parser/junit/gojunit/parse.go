@@ -120,18 +120,18 @@ func parse(reader io.Reader) ([]xmlNode, error) {
 }
 
 type unitTestResult struct {
-	Message string `xml:"Output>ErrorInfo>Message"`
+	Message    string `xml:"Output>ErrorInfo>Message"`
 	StackTrace string `xml:"Output>ErrorInfo>StackTrace"`
-	Outcome string `xml:"outcome,attr"`
-	TestId string `xml:"testId,attr"`
-	TestName string `xml:"testName,attr"`
-	EndTime string `xml:"endTime,attr"`
-	StartTime string `xml:"startTime,attr"`
-	Duration string `xml:"duration,attr"`
+	Outcome    string `xml:"outcome,attr"`
+	TestID     string `xml:"testId,attr"`
+	TestName   string `xml:"testName,attr"`
+	EndTime    string `xml:"endTime,attr"`
+	StartTime  string `xml:"startTime,attr"`
+	Duration   string `xml:"duration,attr"`
 }
 
 type unitTest struct {
-	Id string `xml:"id,attr"`
+	Id     string     `xml:"id,attr"`
 	Method testMethod `xml:"TestMethod"`
 }
 
@@ -147,11 +147,11 @@ func parseTrx(reader io.Reader) ([]xmlNode, error) {
 		root xmlNode
 	)
 
-	root = xmlNode{ XMLName: xml.Name{ Local: "fake-root" } }
+	root = xmlNode{XMLName: xml.Name{Local: "fake-root"}}
 
-	root.Nodes = append(root.Nodes, xmlNode{ XMLName: xml.Name{ Local: "testsuites" } })
+	root.Nodes = append(root.Nodes, xmlNode{XMLName: xml.Name{Local: "testsuites"}})
 	testSuites := &root.Nodes[0]
-	testSuites.Nodes = append(testSuites.Nodes, xmlNode{ XMLName: xml.Name{ Local: "testsuite" } })
+	testSuites.Nodes = append(testSuites.Nodes, xmlNode{XMLName: xml.Name{Local: "testsuite"}})
 	testSuite := &testSuites.Nodes[0]
 
 	testSuite.Attrs = make(map[string]string)
@@ -166,90 +166,31 @@ func parseTrx(reader io.Reader) ([]xmlNode, error) {
 
 	for {
 		t, err := dec.Token()
-		
+
 		if t == nil || err != nil { // when t is nil, we finished reading the file
-		  break
+			break
 		}
 
 		switch se := t.(type) {
 		case xml.StartElement:
 			switch se.Name.Local {
 			case "Times":
-				var finish time.Time
-				var start time.Time
-
-				for _, attr := range se.Attr {
-					switch attr.Name.Local {
-					case "finish":
-						finish, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", attr.Value)
-					case "start":
-						start, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", attr.Value)
-					default:
-					}
+				err := handleTimesNode(&se, testSuite)
+				if err != nil {
+					return nil, err
 				}
-
-				duration := finish.Sub(start)
-				testSuite.Attrs["time"] = fmt.Sprintf("%f", duration.Seconds())
 			case "UnitTestResult":
-				tests += 1
-
-				var u unitTestResult
-				err := dec.DecodeElement(&u, &se)
-				fmt.Println(err)
-				fmt.Println(u)
-				fmt.Println("Adding test case")
-
-				testSuite.Nodes = append(testSuite.Nodes, xmlNode{ XMLName: xml.Name{ Local: "testcase" } })
-				testCase := &testSuite.Nodes[len(testSuite.Nodes) - 1]
-				testCases[u.TestId] = len(testSuite.Nodes) - 1
-				testCase.Attrs = make(map[string]string)
-				testCase.Attrs["id"] = u.TestId
-				
-				
-				var finish time.Time
-				var start time.Time
-				var testDuration time.Time
-
-				if u.Outcome == "Failed" {
-					failed += 1
-					failure := xmlNode{ XMLName: xml.Name{ Local: "failure" } }
-					testCase.Nodes = append(testCase.Nodes, failure)
-					failure.Content = []byte(fmt.Sprintf(`MESSAGE:
-					%s
-					+++++++++++++++++++
-                    STACK TRACE:
-					%s"`, u.Message, u.StackTrace))
-				} else if u.Outcome == "" || u.Outcome == "Error" {
-					errors += 1
-					errorNode := xmlNode{ XMLName: xml.Name{ Local: "error" } }
-					testCase.Nodes = append(testCase.Nodes, errorNode)
-					errorNode.Content = []byte(fmt.Sprintf(`MESSAGE:
-					%s
-					+++++++++++++++++++
-                    STACK TRACE:
-					%s"`, u.Message, u.StackTrace))
-				} else if u.Outcome != "Failed" && u.Outcome != "Passed" {
-					skipped += 1
+				tests++
+				err := handleUnitTestResultNode(dec, &se, testSuite, testCases, &skipped, &failed, &errors)
+				if err != nil {
+					return nil, err
 				}
-				
-				testCase.Attrs["name"] = u.TestName
-				start, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", u.StartTime)
-				finish, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", u.EndTime)
-				testDuration, _ = time.Parse("15:04:05.9999999", u.Duration)
-
-				duration := finish.Sub(start)
-				testCase.Attrs["time"] = fmt.Sprintf("%f", float64(int(duration.Seconds())) + float64(testDuration.Nanosecond() / 1000) / 1000000)
 
 			case "UnitTest":
-				var u unitTest
-				err := dec.DecodeElement(&u, &se)
-				fmt.Println(err)
-
-				fmt.Println(u.Id)
-				fmt.Println(u.Method.ClassName)
-				testCaseIndex := testCases[u.Id]
-				testCase := &testSuite.Nodes[testCaseIndex]
-				testCase.Attrs["classname"] = u.Method.ClassName
+				err := handleUnitTest(dec, &se, testSuite, testCases)
+				if err != nil {
+					return nil, err
+				}
 			default:
 			}
 		default:
@@ -260,8 +201,91 @@ func parseTrx(reader io.Reader) ([]xmlNode, error) {
 	testSuite.Attrs["skipped"] = fmt.Sprintf("%d", skipped)
 	testSuite.Attrs["failed"] = fmt.Sprintf("%d", failed)
 	testSuite.Attrs["errors"] = fmt.Sprintf("%d", errors)
-	fmt.Println(testSuite.Attrs)
 
 	return root.Nodes, nil
 }
 
+func handleUnitTest(decoder *xml.Decoder, startElement *xml.StartElement, testSuite *xmlNode, testCases map[string]int) error {
+	var u unitTest
+	err := decoder.DecodeElement(&u, startElement)
+	if err != nil {
+		return err
+	}
+
+	testCaseIndex := testCases[u.Id]
+	testCase := &testSuite.Nodes[testCaseIndex]
+	testCase.Attrs["classname"] = u.Method.ClassName
+
+	return nil
+}
+
+func handleUnitTestResultNode(decoder *xml.Decoder, startElement *xml.StartElement, testSuite *xmlNode, testCases map[string]int,
+	skipped *int, failed *int, errors *int) error {
+	var u unitTestResult
+	err := decoder.DecodeElement(&u, startElement)
+	if err != nil {
+		return err
+	}
+
+	testSuite.Nodes = append(testSuite.Nodes, xmlNode{XMLName: xml.Name{Local: "testcase"}})
+	testCase := &testSuite.Nodes[len(testSuite.Nodes)-1]
+	testCases[u.TestID] = len(testSuite.Nodes) - 1
+	testCase.Attrs = make(map[string]string)
+	testCase.Attrs["id"] = u.TestID
+
+	var finish time.Time
+	var start time.Time
+	var testDuration time.Time
+
+	if u.Outcome == "Failed" {
+		(*failed)++
+		failure := xmlNode{XMLName: xml.Name{Local: "failure"}}
+		testCase.Nodes = append(testCase.Nodes, failure)
+		failure.Content = []byte(fmt.Sprintf(`MESSAGE:
+		%s
+		+++++++++++++++++++
+		STACK TRACE:
+		%s"`, u.Message, u.StackTrace))
+	} else if u.Outcome == "" || u.Outcome == "Error" {
+		(*errors)++
+		errorNode := xmlNode{XMLName: xml.Name{Local: "error"}}
+		testCase.Nodes = append(testCase.Nodes, errorNode)
+		errorNode.Content = []byte(fmt.Sprintf(`MESSAGE:
+		%s
+		+++++++++++++++++++
+		STACK TRACE:
+		%s"`, u.Message, u.StackTrace))
+	} else if u.Outcome != "Failed" && u.Outcome != "Passed" {
+		(*skipped)++
+	}
+
+	testCase.Attrs["name"] = u.TestName
+	start, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", u.StartTime)
+	finish, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", u.EndTime)
+	testDuration, _ = time.Parse("15:04:05.9999999", u.Duration)
+
+	duration := finish.Sub(start)
+	testCase.Attrs["time"] = fmt.Sprintf("%f", float64(int(duration.Seconds()))+float64(testDuration.Nanosecond()/1000)/1000000)
+
+	return nil
+}
+
+func handleTimesNode(se *xml.StartElement, testSuite *xmlNode) error {
+	var finish time.Time
+	var start time.Time
+
+	for _, attr := range se.Attr {
+		switch attr.Name.Local {
+		case "finish":
+			finish, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", attr.Value)
+		case "start":
+			start, _ = time.Parse("2006-01-02T15:04:05.9999999Z07:00", attr.Value)
+		default:
+		}
+	}
+
+	duration := finish.Sub(start)
+	testSuite.Attrs["time"] = fmt.Sprintf("%f", duration.Seconds())
+
+	return nil
+}
