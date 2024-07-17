@@ -94,7 +94,6 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 			} else {
 				log.Warningln(".net agent installation failed. Continuing without .net support.")
 			}
-			
 		}
 
 		isPsh := IsPowershell(step.Entrypoint)
