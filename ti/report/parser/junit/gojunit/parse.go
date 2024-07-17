@@ -139,8 +139,15 @@ type testMethod struct {
 	ClassName string `xml:"className,attr"`
 }
 
-// parse unmarshalls the given XML data into a graph of nodes, and then returns
-// a slice of all top-level nodes.
+// parseTrx unmarshalls a TRX XML data and converts it into a XML data that resembles a JUnit format
+// Some gaps:
+// type attribute is not present in TRX files
+// StdOut and StdErr are not being extracted at the moment
+// Filename is missing at the moment
+// TestSuites can be handled better - the TRX format tries to divide things into categories and reference them in
+// multiple places, and to support that, we should do a lot more work.
+// * Current conversion tools which I checked weren't doing half of that work or would be able to be used in all of
+// our supported environments
 func parseTrx(reader io.Reader) ([]xmlNode, error) {
 	var (
 		dec  = xml.NewDecoder(reader)
@@ -235,24 +242,22 @@ func handleUnitTestResultNode(decoder *xml.Decoder, startElement *xml.StartEleme
 
 	if u.Outcome == "Failed" {
 		(*failed)++
-		failure := xmlNode{XMLName: xml.Name{Local: "failure"}}
-		testCase.Nodes = append(testCase.Nodes, failure)
-		failure.Content = []byte(fmt.Sprintf(`MESSAGE:
-		%s
-		+++++++++++++++++++
-		STACK TRACE:
-		%s"`, u.Message, u.StackTrace))
+		failureNode := xmlNode{XMLName: xml.Name{Local: "failure"}}
+		testCase.Nodes = append(testCase.Nodes, failureNode)
+		failureNode.Attrs["message"] = u.Message
+		failureNode.Content = []byte(u.StackTrace)
 	} else if u.Outcome == "" || u.Outcome == "Error" {
 		(*errors)++
 		errorNode := xmlNode{XMLName: xml.Name{Local: "error"}}
 		testCase.Nodes = append(testCase.Nodes, errorNode)
-		errorNode.Content = []byte(fmt.Sprintf(`MESSAGE:
-		%s
-		+++++++++++++++++++
-		STACK TRACE:
-		%s"`, u.Message, u.StackTrace))
+		errorNode.Attrs["message"] = u.Message
+		errorNode.Content = []byte(u.StackTrace)
 	} else if u.Outcome != "Failed" && u.Outcome != "Passed" {
 		(*skipped)++
+		skippedNode := xmlNode{XMLName: xml.Name{Local: "skipped"}}
+		testCase.Nodes = append(testCase.Nodes, skippedNode)
+		skippedNode.Attrs["message"] = u.Message
+		skippedNode.Content = []byte(u.StackTrace)
 	}
 
 	testCase.Attrs["name"] = u.TestName
