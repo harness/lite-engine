@@ -18,6 +18,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type cmdResult struct {
+	state *runtime.State
+	err   error
+}
+
 func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State, error) {
 	if len(step.Entrypoint) == 0 {
 		return nil, errors.New("step entrypoint cannot be empty")
@@ -45,19 +50,33 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 		return nil, err
 	}
 
+	cmdSignal := make(chan cmdResult, 1)
+	go waitForCmd(cmd, cmdSignal)
+
+	select {
+	case <-ctx.Done():
+		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			logrus.WithContext(ctx).Infoln(fmt.Sprintf("Execution canceled for step %s with error %v, took %.2f seconds", step.ID, ctx.Err(), time.Since(startTime).Seconds()))
+			return nil, ctx.Err()
+		} else {
+			logrus.WithContext(ctx).Infoln(fmt.Sprintf("Context of command completed for step %s with error %v, took %.2f seconds", step.ID, ctx.Err(), time.Since(startTime).Seconds()))
+			return nil, fmt.Errorf("command context completed with error %v", ctx.Err())
+		}
+	case result := <-cmdSignal:
+		logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on host for step %s, took %.2f seconds", step.ID, time.Since(startTime).Seconds()))
+		return result.state, result.err
+	}
+}
+
+func waitForCmd(cmd *exec.Cmd, cmdSignal chan<- cmdResult) {
 	err := cmd.Wait()
-	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on host for step %s, took %.2f seconds", step.ID, time.Since(startTime).Seconds()))
 	if err == nil {
-		return &runtime.State{ExitCode: 0, Exited: true}, nil
+		cmdSignal <- cmdResult{state: &runtime.State{ExitCode: 0, Exited: true}, err: nil}
+		return
 	}
-
-	if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		logrus.WithContext(ctx).Infoln(fmt.Sprintf("Execution canceled for step %s with error %v, took %.2f seconds", step.ID, ctx.Err(), time.Since(startTime).Seconds()))
-		return nil, ctx.Err()
-	}
-
 	if exitErr, ok := err.(*exec.ExitError); ok {
-		return &runtime.State{ExitCode: exitErr.ExitCode(), Exited: true}, nil
+		cmdSignal <- cmdResult{state: &runtime.State{ExitCode: exitErr.ExitCode(), Exited: true}, err: nil}
+		return
 	}
-	return nil, err
+	cmdSignal <- cmdResult{state: nil, err: err}
 }
