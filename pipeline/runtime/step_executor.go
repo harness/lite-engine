@@ -322,6 +322,9 @@ func executeStepHelper( //nolint:gocritic
 			if r.Timeout > 0 {
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
 				defer cancel()
+			} else {
+				ctx, cancel = context.WithTimeout(ctx, defaultStepTimeout)
+				defer cancel()
 			}
 			run(ctx, f, r, wr, tiCfg) //nolint:errcheck
 			wr.Close()
@@ -335,6 +338,9 @@ func executeStepHelper( //nolint:gocritic
 	var cancel context.CancelFunc
 	if r.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
+		defer cancel()
+	} else {
+		ctx, cancel = context.WithTimeout(ctx, defaultStepTimeout)
 		defer cancel()
 	}
 
