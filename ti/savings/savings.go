@@ -65,7 +65,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 		}
 	}
 
-	// If the Step Fails then we should return the savings state only for restore-cache (CACHE_INTEL). This is to match the current beahavior in K8
+	// If the Step Fails then we should return the savings state only for restore-cache (CACHE_INTEL). This is to match the current behavior in K8
 	if !stepSuccess {
 		states = make([]types.IntelligenceExecutionState, 0)
 	}
