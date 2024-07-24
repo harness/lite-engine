@@ -162,10 +162,11 @@ type (
 	}
 
 	LogConfig struct {
-		AccountID      string `json:"account_id,omitempty"`
-		IndirectUpload bool   `json:"indirect_upload,omitempty"` // Whether to directly upload via signed link or using log service
-		URL            string `json:"url,omitempty"`
-		Token          string `json:"token,omitempty"`
+		AccountID             string `json:"account_id,omitempty"`
+		IndirectUpload        bool   `json:"indirect_upload,omitempty"` // Whether to directly upload via signed link or using log service
+		URL                   string `json:"url,omitempty"`
+		Token                 string `json:"token,omitempty"`
+		IndirectUploadSetting bool   `json:"indirect_upload_setting,omitempty"`
 	}
 
 	TIConfig struct {

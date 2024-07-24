@@ -37,13 +37,14 @@ var defaultClient = &http.Client{
 }
 
 // NewHTTPClient returns a new HTTPClient.
-func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool) *HTTPClient {
+func NewHTTPClient(endpoint, accountID, token string, indirectUpload, indirectUploadSetting, skipverify bool) *HTTPClient {
 	client := &HTTPClient{
-		Endpoint:       endpoint,
-		AccountID:      accountID,
-		Token:          token,
-		SkipVerify:     skipverify,
-		IndirectUpload: indirectUpload,
+		Endpoint:              endpoint,
+		AccountID:             accountID,
+		Token:                 token,
+		SkipVerify:            skipverify,
+		IndirectUpload:        indirectUpload,
+		IndirectUploadSetting: indirectUploadSetting,
 	}
 	if skipverify {
 		client.Client = &http.Client{
@@ -63,16 +64,17 @@ func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify
 
 // HTTPClient provides an http service client.
 type HTTPClient struct {
-	Client         *http.Client
-	Endpoint       string // Example: http://localhost:port
-	Token          string // Per account token to validate against
-	AccountID      string
-	SkipVerify     bool
-	IndirectUpload bool
+	Client                *http.Client
+	Endpoint              string // Example: http://localhost:port
+	Token                 string // Per account token to validate against
+	AccountID             string
+	SkipVerify            bool
+	IndirectUpload        bool
+	IndirectUploadSetting bool
 }
 
 // UploadFile uploads the file directly to data store or via log service
-// if indirectUpload is true, logs go through log service instead of using an uploadable link.
+// if indirectUpload or IndirectUploadSetting is true, logs go through log service instead of using an uploadable link.
 func (c *HTTPClient) Upload(ctx context.Context, key string, lines []*logstream.Line) error {
 	data := new(bytes.Buffer)
 	for _, line := range convertLines(lines) {
@@ -84,9 +86,11 @@ func (c *HTTPClient) Upload(ctx context.Context, key string, lines []*logstream.
 		}
 		data.Write(buf.Bytes())
 	}
-	if c.IndirectUpload {
+	logrus.Infoln(fmt.Sprintf("Value of ff indirectUpload is %t", c.IndirectUpload))
+	logrus.Infoln(fmt.Sprintf("Value of setting indirectUploadSetting is %t", c.IndirectUploadSetting))
+	if c.IndirectUpload || c.IndirectUploadSetting {
 		logrus.WithField("key", key).
-			Infoln("uploading logs through log service as indirectUpload is specified as true")
+			Infoln("uploading logs through log service as indirectUpload or IndirectUploadSetting is specified as true")
 		err := c.uploadToRemoteStorage(ctx, key, data)
 		if err != nil {
 			logrus.WithError(err).WithField("key", key).
