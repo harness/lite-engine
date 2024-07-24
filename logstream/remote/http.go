@@ -86,8 +86,7 @@ func (c *HTTPClient) Upload(ctx context.Context, key string, lines []*logstream.
 		}
 		data.Write(buf.Bytes())
 	}
-	logrus.Infoln(fmt.Sprintf("Value of ff indirectUpload is %t", c.IndirectUpload))
-	logrus.Infoln(fmt.Sprintf("Value of setting indirectUploadSetting is %t", c.IndirectUploadSetting))
+
 	if c.IndirectUpload || c.IndirectUploadSetting {
 		logrus.WithField("key", key).
 			Infoln("uploading logs through log service as indirectUpload or IndirectUploadSetting is specified as true")
