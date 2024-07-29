@@ -19,6 +19,7 @@ import (
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation"
+	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
@@ -29,14 +30,20 @@ import (
 )
 
 const (
-	outDir            = "%s/ti/v2/callgraph/cg/" // path passed as outDir in the config.ini file
-	javaAgentV2Arg    = "-javaagent:%s=%s"
-	javaAgentV2Jar    = "java-agent.jar"
-	javaAgentV2Path   = "/java/v2/"
-	filterV2Dir       = "%s/ti/v2/filter"
-	configV2Dir       = "%s/ti/v2/java/config"
-	waitTimeoutInSec  = 30
-	agentV2LinkLength = 3
+	outDir                  = "%s/ti/v2/callgraph/cg/" // path passed as outDir in the config.ini file
+	javaAgentV2Arg          = "-javaagent:%s=%s"
+	javaAgentV2Jar          = "java-agent.jar"
+	javaAgentV2Path         = "/java/v2/"
+	filterV2Dir             = "%s/ti/v2/filter"
+	configV2Dir             = "%s/ti/v2/java/config"
+	waitTimeoutInSec        = 30
+	agentV2LinkLength       = 3
+	dotNetAgentLinkIndex    = 3
+	dotNetAgentProfilerGUID = "{86A1D712-8FAE-4ECD-9333-DB03F62E44FA}"
+	dotNetAgentV2Lib        = "net-agent.so"
+	dotNetAgentV2Zip        = "net-agent.zip"
+	dotNetAgentV2Path       = "/dotnet/v2/"
+	dotNetConfigV2Dir       = "%s/ti/v2/dotnet/config"
 )
 
 // Ignoring optimization state for now
@@ -79,6 +86,16 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Python agent")
 		}
 		agentPaths["python"] = pythonArtifactDir
+
+		if len(links) > dotNetAgentLinkIndex {
+			var dotNetArtifactDir string
+			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log)
+			if err == nil {
+				agentPaths["dotnet"] = dotNetArtifactDir
+			} else {
+				log.Warningln(".net agent installation failed. Continuing without .net support.")
+			}
+		}
 
 		isPsh := IsPowershell(step.Entrypoint)
 		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths, isPsh, tiConfig)
@@ -275,6 +292,43 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 	return iniFile, nil // path of config.ini file
 }
 
+func createDotNetConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger, filterfilePath, outDir string, splitIdx int) (string, error) {
+	jsonFileDir := fmt.Sprintf(dotNetConfigV2Dir, tmpDir)
+	err := fs.MkdirAll(jsonFileDir, os.ModePerm)
+	if err != nil {
+		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", jsonFileDir))
+		return "", err
+	}
+	// create file paths with splitidx for splitting
+	jsonFile := fmt.Sprintf("%s/config_%d.json", jsonFileDir, splitIdx)
+
+	data := fmt.Sprintf(`{
+		"logging":{
+			"level": "information",
+			"console": "false",
+			"file": "%s/log"
+		},
+		"outdir": "%s",
+		"filterFile": "%s"
+	}`, outDir, outDir, filterfilePath)
+
+	log.Infof("Writing to %s with config:\n%s", jsonFile, data)
+	f, err := fs.Create(jsonFile)
+	if err != nil {
+		log.WithError(err).Errorln(fmt.Sprintf("could not create config file %s", jsonFile))
+		return "", err
+	}
+
+	_, err = f.WriteString(data)
+	defer f.Close()
+	if err != nil {
+		log.WithError(err).Errorln(fmt.Sprintf("could not write %s to config file %s", data, jsonFile))
+		return "", err
+	}
+
+	return jsonFile, nil // path of config.json file
+}
+
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
 //
 //nolint:funlen,gocyclo,lll
@@ -336,6 +390,14 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		if err != nil {
 			return "", "", err
 		}
+
+		if agentPath, exists := agentPaths["dotnet"]; exists {
+			err = csharp.Unzip(agentPath, log)
+			if err != nil {
+				return "", "", err
+			}
+		}
+
 		tiConfig.UnlockZip()
 	}
 
@@ -384,6 +446,22 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		}
 	}
 
+	// .Net
+	if _, exists := agentPaths["dotnet"]; exists {
+		dotNetJSONFilePath, err := createDotNetConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
+		if err != nil {
+			log.WithError(err).Errorln(fmt.Sprintf("could not create dotnet agent config file in path %s", dotNetJSONFilePath))
+			return "", "", err
+		}
+
+		dotNetAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
+
+		envs["CORECLR_PROFILER_PATH"] = dotNetAgentPath
+		envs["CORECLR_PROFILER"] = dotNetAgentProfilerGUID
+		envs["CORECLR_ENABLE_PROFILING"] = "1"
+		envs["TI_DOTNET_CONFIG"] = dotNetJSONFilePath
+	}
+
 	return preCmd, filterFilePath, nil
 }
 
@@ -415,6 +493,18 @@ func downloadPythonAgent(ctx context.Context, path, pythonAgentV2Url string, fs 
 	err := instrumentation.DownloadFile(ctx, dir, pythonAgentV2Url, fs)
 	if err != nil {
 		log.WithError(err).Errorln("could not download python agent")
+		return "", err
+	}
+	return installDir, nil
+}
+
+func downloadDotNetAgent(ctx context.Context, path, dotNetAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+	dotNetAgentPath := fmt.Sprintf("%s%s", dotNetAgentV2Path, dotNetAgentV2Zip)
+	dir := filepath.Join(path, dotNetAgentPath)
+	installDir := filepath.Dir(dir)
+	err := instrumentation.DownloadFile(ctx, dir, dotNetAgentV2Url, fs)
+	if err != nil {
+		log.WithError(err).Errorln("could not download .net agent")
 		return "", err
 	}
 	return installDir, nil
@@ -503,8 +593,8 @@ func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.Sta
 	}
 
 	if len(r.TestReport.Junit.Paths) == 0 {
-		// If there are no paths specified, set Paths[0] to include all XML files
-		r.TestReport.Junit.Paths = []string{"**/*.xml"}
+		// If there are no paths specified, set Paths[0] to include all XML files and all TRX files
+		r.TestReport.Junit.Paths = []string{"**/*.xml", "**/*.trx"}
 	}
 
 	reportStart := time.Now()
