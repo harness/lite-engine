@@ -52,67 +52,23 @@ const (
 func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer,
 	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
-	tmpFilePath := tiConfig.GetDataDir()
-	fs := filesystem.New()
 	log := logrus.New()
 	log.Out = out
 	optimizationState := types.DISABLED
 	step := toStep(r)
 	setTiEnvVariables(step, tiConfig)
-	agentPaths := make(map[string]string)
 	step.Entrypoint = r.RunTestsV2.Entrypoint
-	if r.RunTestsV2.IntelligenceMode {
-		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig)
-		if err != nil {
-			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to get AgentV2 URL from TI")
-		}
-		if len(links) < agentV2LinkLength {
-			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error: Could not get agent V2 links from TI")
-		}
 
-		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log)
-		if err != nil {
-			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Java agent")
-		}
-
-		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log)
-		if err != nil || rubyArtifactDir == "" {
-			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Ruby agent")
-		}
-		agentPaths["ruby"] = rubyArtifactDir
-
-		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log)
-		if err != nil {
-			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to download Python agent")
-		}
-		agentPaths["python"] = pythonArtifactDir
-
-		if len(links) > dotNetAgentLinkIndex {
-			var dotNetArtifactDir string
-			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log)
-			if err == nil {
-				agentPaths["dotnet"] = dotNetArtifactDir
-			} else {
-				log.Warningln(".net agent installation failed. Continuing without .net support.")
-			}
-		}
-
-		isPsh := IsPowershell(step.Entrypoint)
-		preCmd, filterfilePath, err := getPreCmd(r.WorkingDir, tmpFilePath, fs, log, r.Envs, agentPaths, isPsh, tiConfig)
-		if err != nil || pythonArtifactDir == "" {
-			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
-		}
-
-		commands := fmt.Sprintf("%s\n%s", preCmd, r.RunTestsV2.Command[0])
-		step.Command = []string{commands}
-
-		err = createSelectedTestFile(ctx, fs, step.Name, r.WorkingDir, log, tiConfig, tmpFilePath, r.Envs, &r.RunTestsV2, filterfilePath)
-		if err != nil {
-			return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("error while creating filter file %s", err)
-		}
-	} else {
-		step.Command = []string{r.RunTestsV2.Command[0]}
+	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, log, r.Envs, tiConfig)
+	if err != nil {
+		return nil, nil, nil, nil, nil, string(optimizationState), err
 	}
+	baseCommand := r.RunTestsV2.Command[0]
+	if preCmd != "" {
+		step.Command = []string{fmt.Sprintf("%s\n%s", preCmd, baseCommand)}
+	}
+	step.Command = []string{baseCommand}
+
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
@@ -176,6 +132,59 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), nil
 	}
 	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
+}
+
+func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, workspace string, log *logrus.Logger, envs map[string]string, tiConfig *tiCfg.Cfg) (string, error) {
+	agentPaths := make(map[string]string)
+	fs := filesystem.New()
+	tmpFilePath := tiConfig.GetDataDir()
+	var preCmd string
+	if config.IntelligenceMode {
+		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig)
+		if err != nil {
+			return preCmd, fmt.Errorf("failed to get AgentV2 URL from TI")
+		}
+		if len(links) < agentV2LinkLength {
+			return preCmd, fmt.Errorf("error: Could not get agent V2 links from TI")
+		}
+
+		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log)
+		if err != nil {
+			return preCmd, fmt.Errorf("failed to download Java agent")
+		}
+
+		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log)
+		if err != nil || rubyArtifactDir == "" {
+			return preCmd, fmt.Errorf("failed to download Ruby agent")
+		}
+		agentPaths["ruby"] = rubyArtifactDir
+
+		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log)
+		if err != nil {
+			return preCmd, fmt.Errorf("failed to download Python agent")
+		}
+		agentPaths["python"] = pythonArtifactDir
+
+		if len(links) > dotNetAgentLinkIndex {
+			var dotNetArtifactDir string
+			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log)
+			if err == nil {
+				agentPaths["dotnet"] = dotNetArtifactDir
+			} else {
+				log.Warningln(".net agent installation failed. Continuing without .net support.")
+			}
+		}
+		isPsh := IsPowershell(config.Entrypoint)
+		preCmd, filterfilePath, err := getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
+		if err != nil || pythonArtifactDir == "" {
+			return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
+		}
+		err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath)
+		if err != nil {
+			return preCmd, fmt.Errorf("error while creating filter file %s", err)
+		}
+	}
+	return preCmd, nil
 }
 
 // Second parameter in return type (bool) is will be used to decide whether the filter file should be created or not.
