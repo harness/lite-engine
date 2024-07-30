@@ -46,9 +46,7 @@ const (
 	dotNetConfigV2Dir       = "%s/ti/v2/dotnet/config"
 )
 
-// Ignoring optimization state for now
-//
-//nolint:funlen,gocritic,gocyclo
+//nolint:gocritic,gocyclo
 func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer,
 	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
 	start := time.Now()
@@ -138,7 +136,7 @@ func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, w
 	agentPaths := make(map[string]string)
 	fs := filesystem.New()
 	tmpFilePath := tiConfig.GetDataDir()
-	var preCmd string
+	var preCmd, filterfilePath string
 	if config.IntelligenceMode {
 		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig)
 		if err != nil {
@@ -175,7 +173,7 @@ func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, w
 			}
 		}
 		isPsh := IsPowershell(config.Entrypoint)
-		preCmd, filterfilePath, err := getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
+		preCmd, filterfilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
 		if err != nil || pythonArtifactDir == "" {
 			return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 		}
