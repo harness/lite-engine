@@ -61,11 +61,11 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	if err != nil {
 		return nil, nil, nil, nil, nil, string(optimizationState), err
 	}
-	baseCommand := r.RunTestsV2.Command[0]
+	command := r.RunTestsV2.Command[0]
 	if preCmd != "" {
-		step.Command = []string{fmt.Sprintf("%s\n%s", preCmd, baseCommand)}
+		command = fmt.Sprintf("%s\n%s", preCmd, command)
 	}
-	step.Command = []string{baseCommand}
+	step.Command = []string{command}
 
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
