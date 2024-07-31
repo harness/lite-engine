@@ -52,6 +52,10 @@ const (
 	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
 )
 
+var (
+	defaultStepTimeoutWithBuffer = defaultStepTimeout + 5*time.Minute
+)
+
 type StepExecutor struct {
 	engine     *engine.Engine
 	mu         sync.Mutex
@@ -129,7 +133,9 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		case resp = <-done:
 			e.sendStepStatus(r, &resp)
 			return
-		case <-time.After(defaultStepTimeout):
+		case <-time.After(defaultStepTimeoutWithBuffer):
+			// Adding a buffer beyond the 10 hours limit to allow closing loggers and return response from
+			// step execution. This is a fallback in case the step execution does not exit
 			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: "step timed out"}
 			e.sendStepStatus(r, &resp)
 			return
@@ -318,6 +324,9 @@ func executeStepHelper( //nolint:gocritic
 			if r.Timeout > 0 {
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
 				defer cancel()
+			} else {
+				ctx, cancel = context.WithTimeout(ctx, defaultStepTimeout)
+				defer cancel()
 			}
 			run(ctx, f, r, wr, tiCfg) //nolint:errcheck
 			wr.Close()
@@ -331,6 +340,9 @@ func executeStepHelper( //nolint:gocritic
 	var cancel context.CancelFunc
 	if r.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
+		defer cancel()
+	} else {
+		ctx, cancel = context.WithTimeout(ctx, defaultStepTimeout)
 		defer cancel()
 	}
 
