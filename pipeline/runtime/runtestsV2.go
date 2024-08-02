@@ -41,7 +41,7 @@ const (
 	dotNetAgentLinkIndex    = 3
 	dotNetAgentProfilerGUID = "{86A1D712-8FAE-4ECD-9333-DB03F62E44FA}"
 	dotNetAgentV2Lib        = "net-agent.so"
-	dotNetAgentV2Zip        = "net-agent.zip"
+	dotNetAgentV2Zip        = "dotnet-agent.zip"
 	dotNetAgentV2Path       = "/dotnet/v2/"
 	dotNetConfigV2Dir       = "%s/ti/v2/dotnet/config"
 )
