@@ -139,7 +139,13 @@ func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, w
 	tmpFilePath := tiConfig.GetDataDir()
 	var preCmd, filterfilePath string
 	if config.IntelligenceMode {
-		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig)
+		// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
+		// the agents, and would also help in diagnosing issues when needed. The value we look for is specific not a
+		// simple "true" to have something that is more unique and hard to guess.
+		qaEnvValue, ok := envs["HARNESS_TI_QA_ENV"]
+		useQAEnv := ok && qaEnvValue == "QA_ENV_ENABLED"
+
+		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig, useQAEnv)
 		if err != nil {
 			return preCmd, fmt.Errorf("failed to get AgentV2 URL from TI")
 		}
