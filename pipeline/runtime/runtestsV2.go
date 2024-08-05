@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	goRuntime "runtime"
 	"strings"
 	"time"
 
@@ -462,8 +463,23 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		}
 
 		dotNetAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
-
 		envs["CORECLR_PROFILER_PATH"] = dotNetAgentPath
+
+		if goRuntime.GOOS == "linux" {
+			dotNetAgentPathLinux := fmt.Sprintf("%s%slinux/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
+			dotNetAgentPathAlpine := fmt.Sprintf("%s%salpine/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
+
+			envs["CORECLR_PROFILER_PATH_ALPINE"] = dotNetAgentPathAlpine
+			envs["CORECLR_PROFILER_PATH_LINUX"] = dotNetAgentPathLinux
+			envs["CORECLR_PROFILER_PATH"] = dotNetAgentPathLinux
+
+			if !isPsh {
+				preCmd += "\nif cat /etc/os-release | grep -iq alpine ; then export CORECLR_PROFILER_PATH=$CORECLR_PROFILER_PATH_ALPINE; fi;"
+			} else {
+				preCmd += "\nIf (Get-Content /etc/os-release | %{$_ -match 'alpine'}) { [System.Environment]::SetEnvironmentVariable('CORECLR_PROFILER_PATH', [System.Environment]::GetEnvironmentVariable('CORECLR_PROFILER_PATH_ALPINE')); }"
+			}
+		}
+		
 		envs["CORECLR_PROFILER"] = dotNetAgentProfilerGUID
 		envs["CORECLR_ENABLE_PROFILING"] = "1"
 		envs["TI_DOTNET_CONFIG"] = dotNetJSONFilePath
