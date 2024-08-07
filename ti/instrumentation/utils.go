@@ -511,7 +511,13 @@ func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 
 func GetV2AgentDownloadLinks(ctx context.Context, config *tiCfg.Cfg, useQAEnv bool) ([]ti.DownloadLink, error) {
 	c := config.GetClient()
-	links, err := c.DownloadLink(ctx, "RunTestV2", runtime.GOOS, runtime.GOARCH, "", "", "qa")
+
+	buildEnv := ""
+	if useQAEnv {
+		buildEnv = "qa"
+	}
+
+	links, err := c.DownloadLink(ctx, "RunTestV2", runtime.GOOS, runtime.GOARCH, "", "", buildEnv)
 	if err != nil {
 		return links, err
 	}
