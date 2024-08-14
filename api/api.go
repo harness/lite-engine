@@ -196,11 +196,12 @@ type (
 	}
 
 	StepStatusConfig struct {
-		Endpoint   string `json:"endpoint,omitempty"`
-		Token      string `json:"token,omitempty"`
-		AccountID  string `json:"account_id,omitempty"`
-		DelegateID string `json:"delegate_id,omitempty"`
-		TaskID     string `json:"task_id,omitempty"`
+		Endpoint       string `json:"endpoint,omitempty"`
+		Token          string `json:"token,omitempty"`
+		AccountID      string `json:"account_id,omitempty"`
+		DelegateID     string `json:"delegate_id,omitempty"`
+		TaskID         string `json:"task_id,omitempty"`
+		RunnerResponse bool   `json:"runner_response,omitempty"`
 	}
 
 	VMTaskExecutionResponse struct {
@@ -218,6 +219,7 @@ type CommandExecutionStatus string
 const (
 	Success CommandExecutionStatus = "SUCCESS"
 	Failure CommandExecutionStatus = "FAILURE"
+	Timeout CommandExecutionStatus = "TIMEOUT"
 )
 
 type OutputType string

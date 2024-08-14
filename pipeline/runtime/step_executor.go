@@ -130,7 +130,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			e.sendStepStatus(r, &resp)
 			return
 		case <-time.After(defaultStepTimeout):
-			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: "step timed out"}
+			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
 			e.sendStepStatus(r, &resp)
 			return
 		}
@@ -396,22 +396,55 @@ func setPrevStepExportEnvs(r *api.StartStepRequest) {
 }
 
 func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMTaskExecutionResponse) {
-	jsonData, err := json.Marshal(response)
-	if err != nil {
-		logrus.WithField("id", r.ID).Errorln("Error marshaling struct:", err)
-		return
-	}
 	delegateClient := delegate.NewFromToken(r.StepStatus.Endpoint, r.StepStatus.AccountID, r.StepStatus.Token, true, "")
-	taskResponse := &client.TaskResponse{
-		Data: json.RawMessage(jsonData),
-		Code: "OK",
-		Type: stepStatusUpdate,
-	}
-	if err = delegateClient.SendStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse); err != nil {
+
+	if err := e.sendStatus(r, delegateClient, response); err != nil {
 		logrus.WithField("id", r.ID).WithError(err).Errorln("failed to send step status")
 		return
 	}
 	logrus.WithField("id", r.ID).Infoln("successfully sent step status")
+}
+
+func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
+	if r.StepStatus.RunnerResponse {
+		status := client.Success
+		if response.CommandExecutionStatus == api.Failure {
+			status = client.Failure
+		} else if response.CommandExecutionStatus == api.Timeout {
+			status = client.Timeout
+		}
+
+		jsonData, err := json.Marshal(response)
+		// In case of invalid response data, send failure response
+		if err != nil {
+			response.ErrorMessage = "Failed to marshal the response data"
+			status = client.Failure
+		}
+
+		taskResponse := &client.RunnerTaskResponse{
+			ID:    r.StepStatus.TaskID,
+			Data:  json.RawMessage(jsonData),
+			Code:  status,
+			Error: response.ErrorMessage,
+			Type:  stepStatusUpdate,
+		}
+		return delegateClient.SendRunnerStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+	} else {
+		// For legacy backwards compatibility treat timeout as failure
+		if response.CommandExecutionStatus == api.Timeout {
+			response.CommandExecutionStatus = api.Failure
+		}
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			return err
+		}
+		taskResponse := &client.TaskResponse{
+			Data: json.RawMessage(jsonData),
+			Code: "OK",
+			Type: stepStatusUpdate,
+		}
+		return delegateClient.SendStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+	}
 }
 
 func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
