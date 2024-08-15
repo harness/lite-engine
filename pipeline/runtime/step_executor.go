@@ -407,6 +407,7 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 
 func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	if r.StepStatus.RunnerResponse {
+		logrus.WithField("id", r.ID).Infoln("Sending runner step status")
 		status := client.Success
 		if response.CommandExecutionStatus == api.Failure {
 			status = client.Failure
@@ -430,6 +431,7 @@ func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *deleg
 		}
 		return delegateClient.SendRunnerStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
 	} else {
+		logrus.WithField("id", r.ID).Infoln("Sending legacy step status")
 		// For legacy backwards compatibility treat timeout as failure
 		if response.CommandExecutionStatus == api.Timeout {
 			response.CommandExecutionStatus = api.Failure
