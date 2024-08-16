@@ -72,7 +72,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
-	exited, err := f(ctx, step, out, false)
+	exited, err := f(ctx, step, out, false, false)
 	timeTakenMs := time.Since(start).Milliseconds()
 	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {

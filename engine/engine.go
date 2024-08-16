@@ -97,7 +97,7 @@ func (e *Engine) Destroy(ctx context.Context) error {
 	return e.docker.Destroy(ctx, cfg)
 }
 
-func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error) {
+func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
 	e.mu.Lock()
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
@@ -111,7 +111,7 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 	}
 
 	if step.Image != "" {
-		return e.docker.Run(ctx, cfg, step, output, isDrone)
+		return e.docker.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
 	return exec.Run(ctx, step, output)

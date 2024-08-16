@@ -31,7 +31,7 @@ import (
 
 type ExecutionStatus int
 
-type RunFunc func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error)
+type RunFunc func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error)
 
 type StepStatus struct {
 	Status            ExecutionStatus

@@ -66,6 +66,7 @@ func RunStep(
 	output io.Writer,
 	cfg *spec.PipelineConfig,
 	isDrone bool,
+	isHosted bool,
 ) (*runtime.State, error) {
 	d, err := docker.NewEnv(opts.Opts)
 	if err != nil {
@@ -80,7 +81,7 @@ func RunStep(
 		printCommand(step, output)
 	}
 	if step.Image != "" {
-		return d.Run(ctx, cfg, step, output, isDrone)
+		return d.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
 	return exec.Run(ctx, step, output)

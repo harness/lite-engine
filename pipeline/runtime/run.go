@@ -91,7 +91,10 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	log := logrus.New()
 	log.Out = out
 
-	exited, err := f(ctx, step, out, r.LogDrone)
+	// stageRuntimeID is only passed for dlite
+	isHosted := r.StageRuntimeID != ""
+
+	exited, err := f(ctx, step, out, r.LogDrone, isHosted)
 	timeTakenMs := time.Since(start).Milliseconds()
 
 	reportStart := time.Now()
