@@ -20,9 +20,9 @@ import (
 )
 
 // returns a container configuration.
-func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *container.Config {
+func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step, image string) *container.Config {
 	config := &container.Config{
-		Image:        step.Image,
+		Image:        image,
 		Labels:       step.Labels,
 		WorkingDir:   step.WorkingDir,
 		User:         step.User,

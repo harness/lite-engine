@@ -111,7 +111,7 @@ func OverrideRegistry(imageWithTag string) string {
 
 	imageName := parts[0]
 	tagName := ""
-	if len(parts) == 2 {
+	if len(parts) == 2 { //nolint:gomnd
 		tagName = parts[1]
 	}
 

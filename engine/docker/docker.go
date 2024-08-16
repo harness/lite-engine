@@ -314,7 +314,7 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, ou
 // emulate docker commands
 //
 
-func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer, isHosted bool) error {
+func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer, isHosted bool) error { //nolint:gocyclo
 	// create pull options with encoded authorization credentials.
 	pullopts := types.ImagePullOptions{}
 	if step.Auth != nil {
@@ -324,24 +324,28 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		)
 	}
 
-	finalImage := step.Image
+	originalImage := step.Image
+	overriddenImage := originalImage
 
 	// override image registry for internal images
 	// this is short term solution
 	// override if no auth is present
 	if isHosted && (step.Auth == nil || step.Auth.Username == "" || step.Auth.Password == "") {
-		finalImage = image.OverrideRegistry(step.Image)
+		overriddenImage = image.OverrideRegistry(step.Image)
 	}
+
+	selectedImage := overriddenImage
 
 	// automatically pull the latest version of the image if requested
 	// by the process configuration, or if the image is :latest
 	if step.Pull == spec.PullAlways ||
-		(step.Pull == spec.PullDefault && image.IsLatest(finalImage)) {
-		pullerr := e.pullImageWithRetries(ctx, finalImage, pullopts, output)
+		(step.Pull == spec.PullDefault && image.IsLatest(overriddenImage)) {
+		pullerr := e.pullImageWithRetries(ctx, overriddenImage, pullopts, output)
 		if pullerr != nil {
-			// if for some reason overriden image does not work then fallback
-			if finalImage != step.Image {
-				pullerr = e.pullImageWithRetries(ctx, step.Image, pullopts, output)
+			// if for some reason overridden image does not work then fallback
+			if overriddenImage != originalImage {
+				selectedImage = originalImage
+				pullerr = e.pullImageWithRetries(ctx, originalImage, pullopts, output)
 			}
 			if pullerr != nil {
 				return pullerr
@@ -350,7 +354,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	}
 
 	containerCreateBody, err := e.client.ContainerCreate(ctx,
-		toConfig(pipelineConfig, step),
+		toConfig(pipelineConfig, step, selectedImage),
 		toHostConfig(pipelineConfig, step),
 		toNetConfig(pipelineConfig, step),
 		step.ID,
@@ -362,11 +366,12 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	// automatically pull and try to re-create the image if the
 	// failure is caused because the image does not exist.
 	if client.IsErrNotFound(err) && step.Pull != spec.PullNever {
-		pullerr := e.pullImageWithRetries(ctx, finalImage, pullopts, output)
+		pullerr := e.pullImageWithRetries(ctx, overriddenImage, pullopts, output)
 		if pullerr != nil {
-			// if for some reason overriden image does not work then fallback
-			if finalImage != step.Image {
-				pullerr = e.pullImageWithRetries(ctx, step.Image, pullopts, output)
+			// if for some reason overridden image does not work then fallback
+			if overriddenImage != originalImage {
+				selectedImage = originalImage
+				pullerr = e.pullImageWithRetries(ctx, originalImage, pullopts, output)
 			}
 			if pullerr != nil {
 				return pullerr
@@ -376,7 +381,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		// once the image is successfully pulled we attempt to
 		// re-create the container.
 		containerCreateBody, err = e.client.ContainerCreate(ctx,
-			toConfig(pipelineConfig, step),
+			toConfig(pipelineConfig, step, selectedImage),
 			toHostConfig(pipelineConfig, step),
 			toNetConfig(pipelineConfig, step),
 			step.ID,
