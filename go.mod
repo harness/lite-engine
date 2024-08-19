@@ -36,7 +36,7 @@ require (
 	github.com/harness/godotenv/v2 v2.0.0
 	github.com/harness/godotenv/v3 v3.0.0
 	github.com/shirou/gopsutil/v3 v3.23.5
-	github.com/wings-software/dlite v1.0.0-rc.10.0.20240815144723-959a84361749
+	github.com/wings-software/dlite v1.0.0-rc.11
 	golang.org/x/net v0.17.0
 )
 
