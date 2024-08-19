@@ -332,6 +332,9 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	// override if no auth is present
 	if isHosted && (step.Auth == nil || step.Auth.Username == "" || step.Auth.Password == "") {
 		logrus.WithContext(ctx).Infoln(fmt.Sprintf("========overriding registry for step %s", step.ID))
+		logrus.WithContext(ctx).Infoln(fmt.Sprintf("========step details %s", step))
+		logrus.WithContext(ctx).Infoln(fmt.Sprintf("========pipeline details %s", pipelineConfig))
+
 		overriddenImage = image.OverrideRegistry(step.Image)
 	}
 
