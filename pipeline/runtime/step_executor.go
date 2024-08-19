@@ -418,6 +418,7 @@ func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *deleg
 		jsonData, err := json.Marshal(response)
 		// In case of invalid response data, send failure response
 		if err != nil {
+			logrus.WithField("id", r.ID).WithError(err).Errorln("failed to marshal the response, failing the task")
 			response.ErrorMessage = "Failed to marshal the response data"
 			status = client.Failure
 		}
