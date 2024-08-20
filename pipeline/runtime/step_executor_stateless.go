@@ -58,8 +58,8 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 	writer logstream.Writer,
 ) (*runtime.State, map[string]string,
 	map[string]string, []byte, []*api.OutputV2, string, error) {
-	runFunc := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool) (*runtime.State, error) {
-		return engine.RunStep(ctx, engine.Opts{}, step, output, cfg, isDrone)
+	runFunc := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+		return engine.RunStep(ctx, engine.Opts{}, step, output, cfg, isDrone, isHosted)
 	}
 	// Temporary: this should be removed once we have a better way of handling test intelligence.
 	tiConfig := getTiCfg(&r.TIConfig)

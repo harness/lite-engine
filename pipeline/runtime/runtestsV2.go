@@ -91,7 +91,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		step.Envs["PLUGIN_METADATA_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
 	}
 
-	exited, err := f(ctx, step, out, r.LogDrone)
+	exited, err := f(ctx, step, out, r.LogDrone, false)
 	timeTakenMs := time.Since(start).Milliseconds()
 	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig)
 	if err == nil {

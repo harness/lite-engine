@@ -15,6 +15,13 @@ import (
 	"github.com/docker/distribution/reference"
 )
 
+var (
+	internalImages = []string{"harness/drone-git", "plugins/docker", "plugins/acr", "plugins/ecr", "plugins/gcr",
+		"plugins/gar", "plugins/gcs", "plugins/s3", "harness/sto-plugin", "plugins/artifactory", "plugins/cache",
+		"harness/ssca-plugin", "harness/slsa-plugin", "harness/ssca-compliance-plugin"}
+	garRegistry = "us-docker.pkg.dev/gar-prod-setup/harness-public/"
+)
+
 // Trim returns the short image name without tag.
 func Trim(name string) string {
 	ref, err := reference.ParseAnyReference(name)
@@ -93,4 +100,28 @@ func MatchHostname(image, hostname string) bool {
 // the image uses the :latest tag.
 func IsLatest(s string) bool {
 	return strings.HasSuffix(Expand(s), ":latest")
+}
+
+// Overrides registry if image is an internal image
+func OverrideRegistry(imageWithTag string) string {
+	parts := strings.Split(imageWithTag, ":")
+	if len(parts) < 1 || len(parts) > 2 {
+		return imageWithTag
+	}
+
+	imageName := parts[0]
+	tagName := ""
+	if len(parts) == 2 { //nolint:gomnd
+		tagName = parts[1]
+	}
+
+	for _, im := range internalImages {
+		if imageName == im {
+			if tagName == "" {
+				return garRegistry + imageName
+			}
+			return garRegistry + imageName + ":" + tagName
+		}
+	}
+	return imageWithTag
 }
