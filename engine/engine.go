@@ -182,6 +182,14 @@ func createFiles(paths []*spec.File) error {
 
 		path := f.Path
 
+		// make the file writable (if it exists)
+		if _, err := os.Stat(path); err == nil {
+			if err = os.Chmod(path, 0644); err != nil {
+				return errors.Wrap(err,
+					fmt.Sprintf("failed to set permissions for file on host path: %q", path))
+			}
+		}
+
 		if f.IsDir {
 			// create a folder
 			if err := os.MkdirAll(path, fs.FileMode(f.Mode)); err != nil {
@@ -189,14 +197,6 @@ func createFiles(paths []*spec.File) error {
 					fmt.Sprintf("failed to create directory for host path: %q", path))
 			}
 			continue
-		}
-
-		// make the file writable (if it exists)
-		if _, err := os.Stat(path); err == nil {
-			if err = os.Chmod(path, 0644); err != nil {
-				return errors.Wrap(err,
-					fmt.Sprintf("failed to set permissions for file on host path: %q", path))
-			}
 		}
 
 		// Create (or overwrite) the file
@@ -214,7 +214,6 @@ func createFiles(paths []*spec.File) error {
 
 		_ = file.Close()
 
-		// Set the file mode to the desired permissions
 		if err = os.Chmod(path, fs.FileMode(f.Mode)); err != nil {
 			return errors.Wrap(err,
 				fmt.Sprintf("failed to change permissions for file on host path: %q", path))
