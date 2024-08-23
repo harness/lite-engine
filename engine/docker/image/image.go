@@ -19,7 +19,7 @@ var (
 	internalImages = []string{"harness/drone-git", "plugins/docker", "plugins/acr", "plugins/ecr", "plugins/gcr",
 		"plugins/gar", "plugins/gcs", "plugins/s3", "harness/sto-plugin", "plugins/artifactory", "plugins/cache",
 		"harness/ssca-plugin", "harness/slsa-plugin", "harness/ssca-compliance-plugin"}
-	garRegistry = "us-docker.pkg.dev/gar-prod-setup/harness-public/"
+	garRegistry = "us-docker.pkg.dev/gar-prod-setup/harness-publicww/"
 )
 
 // Trim returns the short image name without tag.
