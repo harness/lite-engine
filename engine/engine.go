@@ -19,6 +19,7 @@ import (
 	"github.com/harness/lite-engine/engine/exec"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -181,8 +182,14 @@ func createFiles(paths []*spec.File) error {
 		}
 
 		path := f.Path
+
+		// make the file writable (if it exists)
 		if _, err := os.Stat(path); err == nil {
-			continue
+			if err = os.Chmod(path, 0644); err != nil {
+				logrus.Error(errors.Wrap(err,
+					fmt.Sprintf("failed to set permissions for file on host path: %q", path)))
+				continue
+			}
 		}
 
 		if f.IsDir {
@@ -191,11 +198,10 @@ func createFiles(paths []*spec.File) error {
 				return errors.Wrap(err,
 					fmt.Sprintf("failed to create directory for host path: %q", path))
 			}
-
 			continue
 		}
 
-		// create a file
+		// Create (or overwrite) the file
 		file, err := os.Create(path)
 		if err != nil {
 			return errors.Wrap(err,
