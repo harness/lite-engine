@@ -86,7 +86,8 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.mu.Unlock()
 
 	go func() {
-		state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r)
+		wr := getLogStreamWriter(r)
+		state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r, wr)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
 		e.mu.Lock()
@@ -109,12 +110,14 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 	go func() {
 		done := make(chan api.VMTaskExecutionResponse, 1)
 		var resp api.VMTaskExecutionResponse
+		var wr logstream.Writer
 
 		go func() {
 			if r.StageRuntimeID != "" && r.Image == "" {
 				setPrevStepExportEnvs(r)
 			}
-			state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r)
+			wr = getLogStreamWriter(r)
+			state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r, wr)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
 			pollResponse := convertStatus(status)
@@ -130,6 +133,10 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			e.sendStepStatus(r, &resp)
 			return
 		case <-time.After(defaultStepTimeout):
+			// close the log stream if timeout
+			if wr != nil {
+				wr.Close()
+			}
 			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
 			e.sendStepStatus(r, &resp)
 			return
@@ -280,22 +287,12 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 	return runStep()
 }
 
-func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map[string]string, //nolint:gocritic
+func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
 	map[string]string, []byte, []*api.OutputV2, string, error) {
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, nil, nil, "", err
 	}
-
-	state := pipeline.GetState()
-	secrets := append(state.GetSecrets(), r.Secrets...)
-
-	// Create a log stream for step logs
-	client := state.GetLogStreamClient()
-	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false)
-	wr := logstream.NewReplacer(wc, secrets)
-	go wr.Open() //nolint:errcheck
-
 	return executeStepHelper(r, e.engine.Run, wr, pipeline.GetState().GetTIConfig())
 }
 
@@ -381,6 +378,21 @@ func run(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer,
 		return executeRunTestsV2Step(ctx, f, r, out, tiConfig)
 	}
 	return executeRunTestStep(ctx, f, r, out, tiConfig)
+}
+
+func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
+	if r.LogDrone {
+		return nil
+	}
+	pipelineState := pipeline.GetState()
+	secrets := append(pipelineState.GetSecrets(), r.Secrets...)
+
+	// Create a log stream for step logs
+	client := pipelineState.GetLogStreamClient()
+	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false)
+	wr := logstream.NewReplacer(wc, secrets)
+	go wr.Open() //nolint:errcheck
+	return wr
 }
 
 // This is used for Github Actions to set the envs from prev step.
