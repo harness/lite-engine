@@ -20,40 +20,12 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
 	start := time.Now()
-	cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log)
-	if err == nil {
-		states = append(states, cacheState)
-		log.Infof("Computed build cache execution details with state %s and time %sms in %0.2f seconds",
-			cacheState, strconv.Itoa(timeTaken), time.Since(start).Seconds())
-
-		tiStart := time.Now()
-		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, cacheState, int64(timeTaken), savingsRequest)
-		if tiErr == nil {
-			log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
-				types.BUILD_CACHE, time.Since(tiStart).Seconds())
-		}
-	}
-
-	// TI Savings
-	if tiState, err := tiConfig.GetFeatureState(stepID, types.TI); err == nil {
-		states = append(states, tiState)
-		log.Infof("Computed test intelligence execution details with state %s and time %dms",
-			tiState, cmdTimeTaken)
-
-		tiStart := time.Now()
-		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.TI, tiState, cmdTimeTaken, types.SavingsRequest{})
-		if tiErr == nil {
-			log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
-				types.TI, time.Since(tiStart).Seconds())
-		}
-	}
 
 	// DLC Savings
 	if cacheMetricsFile, found := envs["PLUGIN_CACHE_METRICS_FILE"]; found {
 		if opts, ok := envs["PLUGIN_BUILDER_DRIVER_OPTS"]; ok && strings.Contains(opts, "harness/buildkit") {
 			dlcState, savingsRequest, err := dlc.ParseDlcSavings(cacheMetricsFile, log)
 			if err == nil {
-				states = make([]types.IntelligenceExecutionState, 0)
 				states = append(states, dlcState)
 				log.Infof("Computed docker layer caching execution details with state %s and time %dms", dlcState, cmdTimeTaken)
 				tiStart := time.Now()
@@ -62,6 +34,34 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 					log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
 						types.DLC, time.Since(tiStart).Seconds())
 				}
+			}
+		}
+	} else {
+		cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log)
+		if err == nil {
+			states = append(states, cacheState)
+			log.Infof("Computed build cache execution details with state %s and time %sms in %0.2f seconds",
+				cacheState, strconv.Itoa(timeTaken), time.Since(start).Seconds())
+
+			tiStart := time.Now()
+			tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, cacheState, int64(timeTaken), savingsRequest)
+			if tiErr == nil {
+				log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
+					types.BUILD_CACHE, time.Since(tiStart).Seconds())
+			}
+		}
+
+		// TI Savings
+		if tiState, err := tiConfig.GetFeatureState(stepID, types.TI); err == nil {
+			states = append(states, tiState)
+			log.Infof("Computed test intelligence execution details with state %s and time %dms",
+				tiState, cmdTimeTaken)
+
+			tiStart := time.Now()
+			tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.TI, tiState, cmdTimeTaken, types.SavingsRequest{})
+			if tiErr == nil {
+				log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
+					types.TI, time.Since(tiStart).Seconds())
 			}
 		}
 	}
