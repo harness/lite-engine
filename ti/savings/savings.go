@@ -53,6 +53,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 		if opts, ok := envs["PLUGIN_BUILDER_DRIVER_OPTS"]; ok && strings.Contains(opts, "harness/buildkit") {
 			dlcState, savingsRequest, err := dlc.ParseDlcSavings(cacheMetricsFile, log)
 			if err == nil {
+				states = make([]types.IntelligenceExecutionState, 0)
 				states = append(states, dlcState)
 				log.Infof("Computed docker layer caching execution details with state %s and time %dms", dlcState, cmdTimeTaken)
 				tiStart := time.Now()
