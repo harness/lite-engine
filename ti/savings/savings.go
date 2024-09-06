@@ -3,7 +3,6 @@ package savings
 import (
 	"context"
 	"strconv"
-	"strings"
 	"time"
 
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -50,7 +49,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 
 	// DLC Savings
 	if cacheMetricsFile, found := envs["PLUGIN_CACHE_METRICS_FILE"]; found {
-		if opts, ok := envs["PLUGIN_BUILDER_DRIVER_OPTS"]; ok && strings.Contains(opts, "harness/buildkit") {
+		if _, ok := envs["PLUGIN_BUILDER_DRIVER_OPTS"]; ok {
 			dlcState, savingsRequest, err := dlc.ParseDlcSavings(cacheMetricsFile, log)
 			if err == nil {
 				states = append(states, dlcState)
