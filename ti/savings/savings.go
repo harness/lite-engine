@@ -3,7 +3,6 @@ package savings
 import (
 	"context"
 	"strconv"
-	"strings"
 	"time"
 
 	tiCfg "github.com/harness/lite-engine/ti/config"
