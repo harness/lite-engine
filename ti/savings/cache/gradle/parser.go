@@ -52,12 +52,28 @@ func readHTMLFromFile(filePath string) (*html.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
 	content, err := io.ReadAll(file)
 	if err != nil {
+		file.Close() // Close the file in case of error
 		return nil, err
 	}
+
+	// Close the file before renaming it
+	err = file.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	// Append ".processed" to the file path
+	processedFilePath := filePath + ".processed"
+
+	// Rename the file to append ".processed". This ensures that the original file is not processed multiple times
+	err = os.Rename(filePath, processedFilePath)
+	if err != nil {
+		return nil, err
+	}
+
 	reader := strings.NewReader(string(content))
 	doc, err := html.Parse(reader)
 	if err != nil {
