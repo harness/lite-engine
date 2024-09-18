@@ -48,21 +48,35 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 }
 
 func readHTMLFromFile(filePath string) (*html.Node, error) {
-	file, err := os.Open(filePath)
+	// Append ".processed" to the file path
+	processedFilePath := filePath + ".processed"
+
+	// Rename the file to append ".processed". This ensures the original file is not processed multiple times
+	err := os.Rename(filePath, processedFilePath)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+
+	// Open the renamed file
+	file, err := os.Open(processedFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()                 // Ensure the file gets closed when the function exits
+	defer os.Remove(processedFilePath) // Ensure the file gets cleanup up when the function exits
 
 	content, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}
+
+	// Parse the content as HTML
 	reader := strings.NewReader(string(content))
 	doc, err := html.Parse(reader)
 	if err != nil {
 		return nil, err
 	}
+
 	return doc, nil
 }
 
