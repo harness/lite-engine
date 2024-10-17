@@ -6,10 +6,12 @@ package exec
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os/exec"
+	goruntime "runtime"
 	"strconv"
 	"time"
 
@@ -25,7 +27,12 @@ type cmdResult struct {
 
 func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State, error) {
 	if len(step.Entrypoint) == 0 {
-		return nil, errors.New("step entrypoint cannot be empty")
+		val, _ := json.Marshal(step)
+		val2, _ := json.Marshal(step.Entrypoint)
+		b := make([]byte, 2048) // adjust buffer size to be larger than expected stack
+		n := goruntime.Stack(b, false)
+		s := string(b[:n])
+		return nil, errors.New("step entrypoint cannot be empty: " + string(val2) + " <=> " + string(val) + " <=> " + s)
 	}
 
 	cmdArgs := step.Entrypoint[1:]

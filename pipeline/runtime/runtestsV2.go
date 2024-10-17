@@ -55,8 +55,8 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	log.Out = out
 	optimizationState := types.DISABLED
 	step := toStep(r)
-	setTiEnvVariables(step, tiConfig)
 	step.Entrypoint = r.RunTestsV2.Entrypoint
+	setTiEnvVariables(step, tiConfig)
 
 	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, log, r.Envs, tiConfig)
 	if err != nil {
@@ -172,6 +172,11 @@ func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, w
 
 		if len(links) > dotNetAgentLinkIndex {
 			var dotNetArtifactDir string
+			if useQAEnv {
+				links[dotNetAgentLinkIndex].URL = strings.Replace(links[dotNetAgentLinkIndex].URL, "/dotnet/", "/dotnet/qa/", -1)
+			} else {
+				links[dotNetAgentLinkIndex].URL = strings.Replace(links[dotNetAgentLinkIndex].URL, "/dotnet/", "/dotnet/temp/", -1)
+			}
 			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log)
 			if err == nil {
 				agentPaths["dotnet"] = dotNetArtifactDir
@@ -529,6 +534,7 @@ func downloadPythonAgent(ctx context.Context, path, pythonAgentV2Url string, fs 
 
 func downloadDotNetAgent(ctx context.Context, path, dotNetAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
 	dotNetAgentPath := fmt.Sprintf("%s%s", dotNetAgentV2Path, dotNetAgentV2Zip)
+	log.Infof("Downloading agent from: %s", dotNetAgentV2Url)
 	dir := filepath.Join(path, dotNetAgentPath)
 	installDir := filepath.Dir(dir)
 	err := instrumentation.DownloadFile(ctx, dir, dotNetAgentV2Url, fs)

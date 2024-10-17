@@ -75,6 +75,16 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		return &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 
+	logrus.WithField("id", r.ID).Infoln("KIND:::: " + r.Kind.String())
+
+	// if r.Kind == api.Run {
+	// 	val, _ := json.Marshal(r)
+	// 	b := make([]byte, 2048) // adjust buffer size to be larger than expected stack
+	// 	n := goruntime.Stack(b, false)
+	// 	s := string(b[:n])
+	// 	return &errors.BadRequestError{Msg: "Start step failed: " + string(val) + " <=> " + s}
+	// }
+
 	e.mu.Lock()
 	_, ok := e.stepStatus[r.ID]
 	if ok {
