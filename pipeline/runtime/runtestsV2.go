@@ -145,6 +145,9 @@ func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, w
 		qaEnvValue, ok := envs["HARNESS_TI_QA_ENV"]
 		useQAEnv := ok && qaEnvValue == "QA_ENV_ENABLED"
 
+		ffTIDotnetEnv, ok := envs["FF_TI_DOTNET_ENABLED"]
+		enableDotnet := ok && ffTIDotnetEnv == "true"
+
 		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig, useQAEnv)
 		if err != nil {
 			return preCmd, fmt.Errorf("failed to get AgentV2 URL from TI")
@@ -170,7 +173,7 @@ func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, w
 		}
 		agentPaths["python"] = pythonArtifactDir
 
-		if len(links) > dotNetAgentLinkIndex {
+		if len(links) > dotNetAgentLinkIndex && enableDotnet {
 			var dotNetArtifactDir string
 			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log)
 			if err == nil {
