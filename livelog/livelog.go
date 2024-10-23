@@ -52,27 +52,28 @@ type Writer struct {
 	history       []*logstream.Line
 	prev          []byte
 
-	closed bool
-	close  chan struct{}
-	ready  chan struct{}
-
-	lastFlushTime time.Time
+	closed            bool
+	close             chan struct{}
+	ready             chan struct{}
+	trimNewLineSuffix bool
+	lastFlushTime     time.Time
 }
 
 // New returns a new writer
-func New(client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout bool) *Writer {
+func New(client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout bool, trimNewLineSuffix bool) *Writer {
 	b := &Writer{
-		client:        client,
-		key:           key,
-		name:          name,
-		now:           time.Now(),
-		printToStdout: printToStdout,
-		limit:         defaultLimit,
-		interval:      defaultInterval,
-		nudges:        nudges,
-		close:         make(chan struct{}),
-		ready:         make(chan struct{}, 1),
-		lastFlushTime: time.Now(),
+		client:            client,
+		key:               key,
+		name:              name,
+		now:               time.Now(),
+		printToStdout:     printToStdout,
+		limit:             defaultLimit,
+		interval:          defaultInterval,
+		nudges:            nudges,
+		close:             make(chan struct{}),
+		ready:             make(chan struct{}, 1),
+		lastFlushTime:     time.Now(),
+		trimNewLineSuffix: trimNewLineSuffix,
 	}
 	go b.Start()
 	return b
@@ -114,6 +115,11 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 		if part == "" {
 			continue
 		}
+
+		if b.trimNewLineSuffix {
+			part = strings.TrimSuffix(part, "\n")
+		}
+
 		line := &logstream.Line{
 			Level:       defaultLevel,
 			Message:     truncate(part, maxLineLimit),
