@@ -78,7 +78,8 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		logger.FromRequest(r).
 			WithField("latency", time.Since(st)).
 			WithField("time", time.Now().Format(time.RFC3339)).
-			Infoln("api: successfully completed the stage setup")
+			WithField("TrimSuffix at stage level is --> ", s.LogConfig.TrimNewLineSuffix).
+			Infoln("api: successfully completed the stage setup. What will be the difference")
 	}
 }
 

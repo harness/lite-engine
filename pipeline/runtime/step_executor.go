@@ -389,7 +389,10 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 
 	// Create a log stream for step logs
 	client := pipelineState.GetLogStreamClient()
-	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false, r.LogConfig.TrimNewLineSuffix)
+
+	//We are using SetupRequest instead of StartStepRequest because LogConfig is being populated through Setup request only.
+	logrus.WithField("Here stage id is --> ", r.StageRuntimeID).Infoln(fmt.Sprintf("here we have come to stage executor to see trimSuffix --> %t", pipelineState.GetLogConfig().TrimNewLineSuffix))
+	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false, pipelineState.GetTIConfig().IsZipLocked())
 	wr := logstream.NewReplacer(wc, secrets)
 	go wr.Open() //nolint:errcheck
 	return wr

@@ -81,6 +81,13 @@ func (s *State) GetTIConfig() *tiCfg.Cfg {
 	return &s.tiConfig
 }
 
+func (s *State) GetLogConfig() *api.LogConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return &s.logConfig
+}
+
 func GetState() *State {
 	once.Do(func() {
 		state = &State{
