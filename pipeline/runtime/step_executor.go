@@ -389,7 +389,8 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 
 	// Create a log stream for step logs
 	client := pipelineState.GetLogStreamClient()
-	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false, r.LogConfig.TrimNewLineSuffix)
+
+	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false, pipelineState.GetLogConfig().TrimNewLineSuffix)
 	wr := logstream.NewReplacer(wc, secrets)
 	go wr.Open() //nolint:errcheck
 	return wr
