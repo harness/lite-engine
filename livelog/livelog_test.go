@@ -16,7 +16,7 @@ import (
 
 func TestLineWriterSingle(t *testing.T) {
 	client := new(mockClient)
-	w := New(client, "1", "1", nil, false)
+	w := New(client, "1", "1", nil, false, false)
 	w.SetInterval(time.Duration(0))
 	w.num = 4
 	_, _ = w.Write([]byte("foo\nbar\n"))
@@ -25,6 +25,32 @@ func TestLineWriterSingle(t *testing.T) {
 	b := []*logstream.Line{
 		{Number: 4, Message: "foo\n"},
 		{Number: 5, Message: "bar\n"},
+	}
+	if err := compare(a, b); err != nil {
+		t.Fail()
+		fmt.Print(a)
+		t.Log(err)
+	}
+
+	w.Close()
+	a = client.uploaded
+	if err := compare(a, b); err != nil {
+		t.Fail()
+		t.Log(err)
+	}
+}
+
+func TestLineWriterSingleWithTrimNewLineSuffixEnabled(t *testing.T) {
+	client := new(mockClient)
+	w := New(client, "1", "1", nil, false, true)
+	w.SetInterval(time.Duration(0))
+	w.num = 4
+	_, _ = w.Write([]byte("foo\nbar\n"))
+
+	a := w.pending
+	b := []*logstream.Line{
+		{Number: 4, Message: "foo"},
+		{Number: 5, Message: "bar"},
 	}
 	if err := compare(a, b); err != nil {
 		t.Fail()
