@@ -91,9 +91,19 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	}
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
+
+	outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+	if outputs == nil {
+		outputs = make(map[string]string)
+	}
+	reportSaveErr := report.SaveReportSummaryToOutputs(ctx, tiConfig, step.Name, outputs, log)
+	if reportSaveErr != nil {
+		log.Warnf("Error while saving report summary to outputs %s", reportSaveErr.Error())
+	}
+	summaryOutputV2 := report.GetSummaryOutputsV2(outputs)
+
 	if len(r.Outputs) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
 			outputsV2 := []*api.OutputV2{}
 			for _, output := range r.Outputs {
 				if _, ok := outputs[output.Key]; ok {
@@ -104,16 +114,19 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 					})
 				}
 			}
+			outputsV2 = append(outputsV2, summaryOutputV2...)
 			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
 		}
 	} else if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
 			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
 		}
 	}
+	if len(outputs) != 0 && len(summaryOutputV2) != 0 {
+		return exited, outputs, exportEnvs, artifact, summaryOutputV2, string(optimizationState), nil
+	}
 
-	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
+	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), nil
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step
