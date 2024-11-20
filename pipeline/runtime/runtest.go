@@ -126,7 +126,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 		return exited, outputs, exportEnvs, artifact, summaryOutputV2, string(optimizationState), nil
 	}
 
-	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), nil
+	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step
