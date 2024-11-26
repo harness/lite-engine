@@ -41,7 +41,8 @@ const (
 	agentV2LinkLength       = 3
 	dotNetAgentLinkIndex    = 3
 	dotNetAgentProfilerGUID = "{86A1D712-8FAE-4ECD-9333-DB03F62E44FA}"
-	dotNetAgentV2Lib        = "net-agent.so"
+	dotNetAgentV2LibLinux   = "net-agent.so"
+	dotNetAgentV2LibWin     = "net-agent.dll"
 	dotNetAgentV2Zip        = "dotnet-agent.zip"
 	dotNetAgentV2Path       = "/dotnet/v2/"
 	dotNetConfigV2Dir       = "%s/ti/v2/dotnet/config"
@@ -468,12 +469,12 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 			return "", "", err
 		}
 
-		dotNetAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
+		dotNetAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibLinux)
 		envs["CORECLR_PROFILER_PATH"] = dotNetAgentPath
 
 		if goRuntime.GOOS == "linux" {
-			dotNetAgentPathLinux := fmt.Sprintf("%s%slinux/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
-			dotNetAgentPathAlpine := fmt.Sprintf("%s%salpine/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
+			dotNetAgentPathLinux := fmt.Sprintf("%s%slinux/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibLinux)
+			dotNetAgentPathAlpine := fmt.Sprintf("%s%salpine/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibLinux)
 
 			envs["CORECLR_PROFILER_PATH_ALPINE"] = dotNetAgentPathAlpine
 			envs["CORECLR_PROFILER_PATH_LINUX"] = dotNetAgentPathLinux
@@ -484,6 +485,11 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 			} else {
 				preCmd += "\nIf (Get-Content /etc/os-release | %{$_ -match 'alpine'}) { [System.Environment]::SetEnvironmentVariable('CORECLR_PROFILER_PATH', [System.Environment]::GetEnvironmentVariable('CORECLR_PROFILER_PATH_ALPINE')); }"
 			}
+		}
+
+		if goRuntime.GOOS == "windows" {
+			dotNetAgentPathWindows := fmt.Sprintf("%s%spack/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibWin)
+			envs["CORECLR_PROFILER_PATH"] = dotNetAgentPathWindows
 		}
 
 		envs["CORECLR_PROFILER"] = dotNetAgentProfilerGUID
