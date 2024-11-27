@@ -24,6 +24,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
+	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
 	"github.com/harness/ti-client/types"
@@ -111,8 +112,23 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 
+	summaryOutputs := make(map[string]string)
+	reportSaveErr := report.SaveReportSummaryToOutputs(ctx, tiConfig, step.Name, summaryOutputs, log, r.Envs)
+	if reportSaveErr != nil {
+		log.Errorf("Error while saving report summary to outputs %s", reportSaveErr.Error())
+	}
+	summaryOutputsV2 := report.GetSummaryOutputsV2(summaryOutputs, r.Envs)
 	if exited != nil && exited.Exited && exited.ExitCode == 0 {
 		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+		if report.TestSummaryAsOutputEnabled(r.Envs) {
+			if outputs == nil {
+				outputs = make(map[string]string)
+			}
+
+			for k, v := range summaryOutputs {
+				outputs[k] = v
+			}
+		}
 		if len(r.Outputs) > 0 {
 			outputsV2 := []*api.OutputV2{}
 			for _, output := range r.Outputs {
@@ -124,12 +140,24 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 					})
 				}
 			}
+			if report.TestSummaryAsOutputEnabled(r.Envs) {
+				outputsV2 = append(outputsV2, summaryOutputsV2...)
+			}
 			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
 		} else if len(r.OutputVars) > 0 {
 			// only return err when output vars are expected
-			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
+			if report.TestSummaryAsOutputEnabled(r.Envs) {
+				return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), err
+			}
+			return exited, summaryOutputs, exportEnvs, artifact, nil, string(optimizationState), err
+		}
+		if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
+			return exited, outputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), nil
 		}
 		return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), nil
+	}
+	if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
+		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), err
 	}
 	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
 }

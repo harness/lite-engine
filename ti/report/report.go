@@ -6,6 +6,7 @@ package report
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/harness/lite-engine/api"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report/parser/junit"
+	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
 
@@ -50,4 +52,66 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, st
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed TI service request to write report for step %s, took %.2f seconds", stepID, time.Since(startTime).Seconds()))
 	log.Infoln(fmt.Sprintf("Successfully collected test reports in %s time", time.Since(start)))
 	return nil
+}
+
+func SaveReportSummaryToOutputs(ctx context.Context, tiConfig *tiCfg.Cfg, stepID string, outputs map[string]string, log *logrus.Logger, envs map[string]string) error {
+	if !TestSummaryAsOutputEnabled(envs) {
+		return nil
+	}
+	tiClient := tiConfig.GetClient()
+	summaryRequest := types.SummaryRequest{
+		AllStages:  true,
+		OrgID:      tiConfig.GetOrgID(),
+		ProjectID:  tiConfig.GetProjectID(),
+		PipelineID: tiConfig.GetPipelineID(),
+		BuildID:    tiConfig.GetBuildID(),
+		StageID:    tiConfig.GetStageID(),
+		StepID:     stepID,
+		ReportType: "junit",
+	}
+	response, err := tiClient.Summary(ctx, summaryRequest)
+	if err != nil {
+		return err
+	}
+	if response.TotalTests == 0 {
+		return errors.New("no tests found in the summary")
+	}
+	outputs["total_tests"] = fmt.Sprintf("%d", response.TotalTests)
+	outputs["successful_tests"] = fmt.Sprintf("%d", response.SuccessfulTests)
+	outputs["failed_tests"] = fmt.Sprintf("%d", response.FailedTests)
+	outputs["skipped_tests"] = fmt.Sprintf("%d", response.SkippedTests)
+	outputs["duration_ms"] = fmt.Sprintf("%d", response.TimeMs)
+	return nil
+}
+
+func GetSummaryOutputsV2(outputs map[string]string, envs map[string]string) []*api.OutputV2 {
+	outputsV2 := []*api.OutputV2{}
+	if !TestSummaryAsOutputEnabled(envs) {
+		return outputsV2
+	}
+	outputsV2 = checkAndAddSummary("total_tests", outputs, outputsV2)
+	outputsV2 = checkAndAddSummary("successful_tests", outputs, outputsV2)
+	outputsV2 = checkAndAddSummary("failed_tests", outputs, outputsV2)
+	outputsV2 = checkAndAddSummary("skipped_tests", outputs, outputsV2)
+	outputsV2 = checkAndAddSummary("duration_ms", outputs, outputsV2)
+	return outputsV2
+}
+
+func checkAndAddSummary(metricName string, outputs map[string]string, outputsV2 []*api.OutputV2) []*api.OutputV2 {
+	if _, ok := outputs[metricName]; ok {
+		outputsV2 = append(outputsV2, &api.OutputV2{
+			Key:   metricName,
+			Value: outputs[metricName],
+			Type:  api.OutputTypeString,
+		})
+	}
+	return outputsV2
+}
+
+func TestSummaryAsOutputEnabled(envs map[string]string) bool {
+	value, present := envs["HARNESS_CI_TEST_SUMMARY_OUTPUT_FF"]
+	if !present {
+		return false
+	}
+	return value == "true"
 }

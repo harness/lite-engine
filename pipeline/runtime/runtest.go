@@ -91,9 +91,26 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	}
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
+
+	outputs, fetchErr := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+	if outputs == nil {
+		outputs = make(map[string]string)
+	}
+	summaryOutputs := make(map[string]string)
+	reportSaveErr := report.SaveReportSummaryToOutputs(ctx, tiConfig, step.Name, summaryOutputs, log, r.Envs)
+	if reportSaveErr != nil {
+		log.Warnf("Error while saving report summary to outputs %s", reportSaveErr.Error())
+	}
+	summaryOutputV2 := report.GetSummaryOutputsV2(summaryOutputs, r.Envs)
+	if report.TestSummaryAsOutputEnabled(r.Envs) && len(summaryOutputV2) > 0 {
+		// copy to outputs, we need a separate summaryOutput map to return when step fials
+		for k, v := range summaryOutputs {
+			outputs[k] = v
+		}
+	}
+
 	if len(r.Outputs) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
 			outputsV2 := []*api.OutputV2{}
 			for _, output := range r.Outputs {
 				if _, ok := outputs[output.Key]; ok {
@@ -104,13 +121,33 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 					})
 				}
 			}
-			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
+			if report.TestSummaryAsOutputEnabled(r.Envs) {
+				outputsV2 = append(outputsV2, summaryOutputV2...)
+			}
+			// when outputvars are defined and step has suceeded, fetchErr takes priority
+			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), fetchErr
+		}
+		if report.TestSummaryAsOutputEnabled(r.Envs) {
+			return exited, summaryOutputs, exportEnvs, artifact, summaryOutputV2, string(optimizationState), err
 		}
 	} else if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
-			outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
-			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
+			if len(summaryOutputV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
+				// when step has failed return the actual error
+				return exited, outputs, exportEnvs, artifact, summaryOutputV2, string(optimizationState), err
+			}
+			// when outputvars are defined and step has suceeded, fetchErr takes priority
+			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), fetchErr
 		}
+		if len(outputs) != 0 && len(summaryOutputV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
+			// when step has failed return the actual error
+			return exited, summaryOutputs, exportEnvs, artifact, summaryOutputV2, string(optimizationState), err
+		}
+	}
+	if len(outputs) != 0 && len(summaryOutputV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
+		// when there is no output vars requested, fetchErr will have non nil value
+		// In that case return err, which reflects pipeline error
+		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputV2, string(optimizationState), err
 	}
 
 	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
