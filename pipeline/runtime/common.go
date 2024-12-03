@@ -49,7 +49,7 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 
 	cmd := ""
 	if isPsh {
-		cmd += fmt.Sprintf("\nNew-Item %s", outputFile)
+		cmd += fmt.Sprintf("\nNew-Item -ItemType File -Path \"%s\"", outputFile
 	} else if isPython {
 		cmd += "\nimport os\n"
 	}
