@@ -99,7 +99,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	reportStart := time.Now()
 	if rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, reportStart, tiConfig, r.Envs); rerr != nil {
-		logrus.WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
+		logrus.WithContext(ctx).WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
 		log.Errorf("Failed to upload report. Time taken: %s", time.Since(reportStart))
 	}
 
