@@ -149,7 +149,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 			if report.TestSummaryAsOutputEnabled(r.Envs) {
 				return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), err
 			}
-			return exited, summaryOutputs, exportEnvs, artifact, nil, string(optimizationState), err
+			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
 		}
 		if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
 			return exited, outputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), nil
