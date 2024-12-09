@@ -294,7 +294,15 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, nil, nil, "", err
 	}
-	return executeStepHelper(r, e.engine.Run, wr, pipeline.GetState().GetTIConfig())
+	// If TI Config has been passed in the step request, use that insetad of relying on the one in the pipeline state
+	var tiConfig *tiCfg.Cfg
+	if r.TIConfig.URL != "" {
+		g := getTiCfg(&r.TIConfig)
+		tiConfig = &g
+	} else {
+		tiConfig = pipeline.GetState().GetTIConfig()
+	}
+	return executeStepHelper(r, e.engine.Run, wr, tiConfig)
 }
 
 // executeStepHelper is a helper function which is used both by this step executor as well as the
