@@ -429,45 +429,65 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 
 func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	if r.StepStatus.RunnerResponse {
-		logrus.WithField("id", r.ID).Infoln("Sending runner step status")
-		status := client.Success
-		if response.CommandExecutionStatus == api.Failure {
-			status = client.Failure
-		} else if response.CommandExecutionStatus == api.Timeout {
-			status = client.Timeout
-		}
-
-		jsonData, err := json.Marshal(response)
-		// In case of invalid response data, send failure response
-		if err != nil {
-			logrus.WithField("id", r.ID).WithError(err).Errorln("failed to marshal the response, failing the task")
-			response.ErrorMessage = "Failed to marshal the response data"
-			status = client.Failure
-		}
-
-		taskResponse := &client.RunnerTaskResponse{
-			ID:    r.StepStatus.TaskID,
-			Data:  json.RawMessage(jsonData),
-			Code:  status,
-			Error: response.ErrorMessage,
-			Type:  stepStatusUpdate,
-		}
-		return delegateClient.SendRunnerStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+		return e.sendRunnerResponseStatus(r, delegateClient, response)
+	} else if r.StepStatus.TaskStatusV2 {
+		return e.sendResponseStatusV2(r, delegateClient, response)
 	} else {
-		// For legacy backwards compatibility treat timeout as failure
-		if response.CommandExecutionStatus == api.Timeout {
-			response.CommandExecutionStatus = api.Failure
-		}
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			return err
-		}
-		taskResponse := &client.TaskResponse{
-			Data: json.RawMessage(jsonData),
-			Code: "OK",
-			Type: stepStatusUpdate,
-		}
-		return delegateClient.SendStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+		return e.sendResponseStatus(r, delegateClient, response)
+	}
+}
+
+func (e *StepExecutor) sendRunnerResponseStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
+	logrus.WithField("id", r.ID).Infoln("Sending runner step status")
+	taskResponse := getRunnerTaskResponse(r, response)
+	return delegateClient.SendRunnerStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+}
+
+func (e *StepExecutor) sendResponseStatusV2(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
+	logrus.WithField("id", r.ID).Infoln("Sending step status to V2 Endpoint")
+	taskResponse := getRunnerTaskResponse(r, response)
+	return delegateClient.SendStatusV2(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+}
+
+func (e *StepExecutor) sendResponseStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
+	// For legacy backwards compatibility treat timeout as failure
+	if response.CommandExecutionStatus == api.Timeout {
+		response.CommandExecutionStatus = api.Failure
+	}
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		return err
+	}
+	taskResponse := &client.TaskResponse{
+		Data: json.RawMessage(jsonData),
+		Code: "OK",
+		Type: stepStatusUpdate,
+	}
+	return delegateClient.SendStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+}
+
+func getRunnerTaskResponse(r *api.StartStepRequest, response *api.VMTaskExecutionResponse) *client.RunnerTaskResponse {
+	status := client.Success
+	if response.CommandExecutionStatus == api.Failure {
+		status = client.Failure
+	} else if response.CommandExecutionStatus == api.Timeout {
+		status = client.Timeout
+	}
+
+	jsonData, err := json.Marshal(response)
+	// In case of invalid response data, send failure response
+	if err != nil {
+		logrus.WithField("id", r.ID).WithError(err).Errorln("failed to marshal the response, failing the task")
+		response.ErrorMessage = "Failed to marshal the response data"
+		status = client.Failure
+	}
+
+	return &client.RunnerTaskResponse{
+		ID:    r.StepStatus.TaskID,
+		Data:  json.RawMessage(jsonData),
+		Code:  status,
+		Error: response.ErrorMessage,
+		Type:  stepStatusUpdate,
 	}
 }
 

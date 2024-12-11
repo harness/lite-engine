@@ -203,6 +203,7 @@ type (
 		DelegateID     string `json:"delegate_id,omitempty"`
 		TaskID         string `json:"task_id,omitempty"`
 		RunnerResponse bool   `json:"runner_response,omitempty"`
+		TaskStatusV2   bool   `json:"task_status_v2,omitempty"`
 	}
 
 	VMTaskExecutionResponse struct {
