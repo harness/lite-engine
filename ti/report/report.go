@@ -60,7 +60,7 @@ func SaveReportSummaryToOutputs(ctx context.Context, tiConfig *tiCfg.Cfg, stepID
 	}
 	tiClient := tiConfig.GetClient()
 	summaryRequest := types.SummaryRequest{
-		AllStages:  true,
+		AllStages:  false,
 		OrgID:      tiConfig.GetOrgID(),
 		ProjectID:  tiConfig.GetProjectID(),
 		PipelineID: tiConfig.GetPipelineID(),
