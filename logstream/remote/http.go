@@ -8,11 +8,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -37,7 +40,7 @@ var defaultClient = &http.Client{
 }
 
 // NewHTTPClient returns a new HTTPClient.
-func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool) *HTTPClient {
+func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey, mtlsCertsDir string) *HTTPClient {
 	client := &HTTPClient{
 		Endpoint:       endpoint,
 		AccountID:      accountID,
@@ -45,20 +48,91 @@ func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify
 		SkipVerify:     skipverify,
 		IndirectUpload: indirectUpload,
 	}
-	if skipverify {
-		client.Client = &http.Client{
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-			Transport: &http.Transport{
-				Proxy: http.ProxyFromEnvironment,
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true, //nolint:gosec
-				},
-			},
+
+	// Load mTLS certificates if available
+	mtlsEnabled, mtlsCerts := loadMTLSCerts(base64MtlsClientCert, base64MtlsClientCertKey, mtlsCertsDir, "/etc/mtls/client.crt", "/etc/mtls/client.key")
+
+	// Only create HTTP client if needed (mTLS or skipverify)
+	if skipverify || mtlsEnabled {
+		client.Client = clientWithTLSConfig(skipverify, mtlsEnabled, mtlsCerts)
+	}
+
+	return client
+}
+
+// loadMTLSCerts determines the source of mTLS certificates based on base64 strings or file paths
+func loadMTLSCerts(base64Cert, base64Key, mtlsCertsDir, defaultCertFile, defaultKeyFile string) (bool, tls.Certificate) {
+	// Attempt to load from base64 strings
+	if base64Cert != "" && base64Key != "" {
+		cert, err := loadCertsFromBase64(base64Cert, base64Key)
+		if err == nil {
+			return true, cert
+		}
+		fmt.Printf("failed to load mTLS certs from base64, error: %s\n", err)
+	}
+
+	// Attempt to load from specified directory
+	if mtlsCertsDir != "" {
+		certFile := filepath.Join(mtlsCertsDir, "client.crt")
+		keyFile := filepath.Join(mtlsCertsDir, "client.key")
+		if fileExists(certFile) && fileExists(keyFile) {
+			return loadMTLSCertsFromFiles(certFile, keyFile)
 		}
 	}
-	return client
+
+	// Fallback to default paths
+	return loadMTLSCertsFromFiles(defaultCertFile, defaultKeyFile)
+}
+
+// loadCertsFromBase64 loads certificates from base64-encoded strings
+func loadCertsFromBase64(certBase64, keyBase64 string) (tls.Certificate, error) {
+	certBytes, err := base64.StdEncoding.DecodeString(certBase64)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("failed to decode base64 certificate: %w", err)
+	}
+	keyBytes, err := base64.StdEncoding.DecodeString(keyBase64)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("failed to decode base64 key: %w", err)
+	}
+	return tls.X509KeyPair(certBytes, keyBytes)
+}
+
+// loadMTLSCertsFromFiles loads mTLS certificates from file paths
+func loadMTLSCertsFromFiles(certFile, keyFile string) (bool, tls.Certificate) {
+	if fileExists(certFile) && fileExists(keyFile) {
+		mtlsCerts, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			fmt.Printf("failed to load mTLS cert/key pair, error: %s\n", err)
+			return false, tls.Certificate{}
+		}
+		return true, mtlsCerts
+	}
+	return false, tls.Certificate{}
+}
+
+// clientWithTLSConfig creates an HTTP client with the provided TLS settings
+func clientWithTLSConfig(skipverify bool, mtlsEnabled bool, cert tls.Certificate) *http.Client {
+	config := &tls.Config{
+		InsecureSkipVerify: skipverify,
+	}
+	if mtlsEnabled {
+		config.Certificates = []tls.Certificate{cert}
+	}
+	return &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
+			TLSClientConfig: config,
+		},
+	}
+}
+
+
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	return err == nil && !info.IsDir()
 }
 
 // HTTPClient provides an http service client.
