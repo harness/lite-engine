@@ -129,7 +129,6 @@ func clientWithTLSConfig(skipverify bool, mtlsEnabled bool, cert tls.Certificate
 	}
 }
 
-
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
 	return err == nil && !info.IsDir()
