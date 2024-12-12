@@ -49,7 +49,7 @@ func (e *StepExecutorStateless) Run(
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
 	pollResponse := convertStatus(e.stepStatus)
-	return convertPollResponse(pollResponse), nil
+	return convertPollResponse(pollResponse, r.Envs), nil
 }
 
 func (e *StepExecutorStateless) executeStep( //nolint:gocritic

@@ -24,6 +24,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
+	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
 	"github.com/harness/ti-client/types"
@@ -41,7 +42,8 @@ const (
 	agentV2LinkLength       = 3
 	dotNetAgentLinkIndex    = 3
 	dotNetAgentProfilerGUID = "{86A1D712-8FAE-4ECD-9333-DB03F62E44FA}"
-	dotNetAgentV2Lib        = "net-agent.so"
+	dotNetAgentV2LibLinux   = "net-agent.so"
+	dotNetAgentV2LibWin     = "net-agent.dll"
 	dotNetAgentV2Zip        = "dotnet-agent.zip"
 	dotNetAgentV2Path       = "/dotnet/v2/"
 	dotNetConfigV2Dir       = "%s/ti/v2/dotnet/config"
@@ -110,8 +112,23 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 
+	summaryOutputs := make(map[string]string)
+	reportSaveErr := report.SaveReportSummaryToOutputs(ctx, tiConfig, step.Name, summaryOutputs, log, r.Envs)
+	if reportSaveErr != nil {
+		log.Errorf("Error while saving report summary to outputs %s", reportSaveErr.Error())
+	}
+	summaryOutputsV2 := report.GetSummaryOutputsV2(summaryOutputs, r.Envs)
 	if exited != nil && exited.Exited && exited.ExitCode == 0 {
 		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+		if report.TestSummaryAsOutputEnabled(r.Envs) {
+			if outputs == nil {
+				outputs = make(map[string]string)
+			}
+
+			for k, v := range summaryOutputs {
+				outputs[k] = v
+			}
+		}
 		if len(r.Outputs) > 0 {
 			outputsV2 := []*api.OutputV2{}
 			for _, output := range r.Outputs {
@@ -123,12 +140,24 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 					})
 				}
 			}
+			if report.TestSummaryAsOutputEnabled(r.Envs) {
+				outputsV2 = append(outputsV2, summaryOutputsV2...)
+			}
 			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
 		} else if len(r.OutputVars) > 0 {
 			// only return err when output vars are expected
+			if report.TestSummaryAsOutputEnabled(r.Envs) {
+				return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), err
+			}
 			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
 		}
+		if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
+			return exited, outputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), nil
+		}
 		return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), nil
+	}
+	if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
+		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), err
 	}
 	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
 }
@@ -468,12 +497,12 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 			return "", "", err
 		}
 
-		dotNetAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
+		dotNetAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibLinux)
 		envs["CORECLR_PROFILER_PATH"] = dotNetAgentPath
 
 		if goRuntime.GOOS == "linux" {
-			dotNetAgentPathLinux := fmt.Sprintf("%s%slinux/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
-			dotNetAgentPathAlpine := fmt.Sprintf("%s%salpine/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2Lib)
+			dotNetAgentPathLinux := fmt.Sprintf("%s%slinux/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibLinux)
+			dotNetAgentPathAlpine := fmt.Sprintf("%s%salpine/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibLinux)
 
 			envs["CORECLR_PROFILER_PATH_ALPINE"] = dotNetAgentPathAlpine
 			envs["CORECLR_PROFILER_PATH_LINUX"] = dotNetAgentPathLinux
@@ -484,6 +513,11 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 			} else {
 				preCmd += "\nIf (Get-Content /etc/os-release | %{$_ -match 'alpine'}) { [System.Environment]::SetEnvironmentVariable('CORECLR_PROFILER_PATH', [System.Environment]::GetEnvironmentVariable('CORECLR_PROFILER_PATH_ALPINE')); }"
 			}
+		}
+
+		if goRuntime.GOOS == "windows" {
+			dotNetAgentPathWindows := fmt.Sprintf("%s%spack/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibWin)
+			envs["CORECLR_PROFILER_PATH"] = dotNetAgentPathWindows
 		}
 
 		envs["CORECLR_PROFILER"] = dotNetAgentProfilerGUID

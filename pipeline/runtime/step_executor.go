@@ -20,6 +20,7 @@ import (
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/harness/lite-engine/ti/report"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/wings-software/dlite/client"
@@ -124,7 +125,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
 			}
-			resp = convertPollResponse(pollResponse)
+			resp = convertPollResponse(pollResponse, r.Envs)
 			done <- resp
 		}()
 
@@ -293,7 +294,15 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, nil, nil, "", err
 	}
-	return executeStepHelper(r, e.engine.Run, wr, pipeline.GetState().GetTIConfig())
+	// If TI Config has been passed in the step request, use that insetad of relying on the one in the pipeline state
+	var tiConfig *tiCfg.Cfg
+	if r.TIConfig.URL != "" {
+		g := getTiCfg(&r.TIConfig)
+		tiConfig = &g
+	} else {
+		tiConfig = pipeline.GetState().GetTIConfig()
+	}
+	return executeStepHelper(r, e.engine.Run, wr, tiConfig)
 }
 
 // executeStepHelper is a helper function which is used both by this step executor as well as the
@@ -420,45 +429,65 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 
 func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	if r.StepStatus.RunnerResponse {
-		logrus.WithField("id", r.ID).Infoln("Sending runner step status")
-		status := client.Success
-		if response.CommandExecutionStatus == api.Failure {
-			status = client.Failure
-		} else if response.CommandExecutionStatus == api.Timeout {
-			status = client.Timeout
-		}
-
-		jsonData, err := json.Marshal(response)
-		// In case of invalid response data, send failure response
-		if err != nil {
-			logrus.WithField("id", r.ID).WithError(err).Errorln("failed to marshal the response, failing the task")
-			response.ErrorMessage = "Failed to marshal the response data"
-			status = client.Failure
-		}
-
-		taskResponse := &client.RunnerTaskResponse{
-			ID:    r.StepStatus.TaskID,
-			Data:  json.RawMessage(jsonData),
-			Code:  status,
-			Error: response.ErrorMessage,
-			Type:  stepStatusUpdate,
-		}
-		return delegateClient.SendRunnerStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+		return e.sendRunnerResponseStatus(r, delegateClient, response)
+	} else if r.StepStatus.TaskStatusV2 {
+		return e.sendResponseStatusV2(r, delegateClient, response)
 	} else {
-		// For legacy backwards compatibility treat timeout as failure
-		if response.CommandExecutionStatus == api.Timeout {
-			response.CommandExecutionStatus = api.Failure
-		}
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			return err
-		}
-		taskResponse := &client.TaskResponse{
-			Data: json.RawMessage(jsonData),
-			Code: "OK",
-			Type: stepStatusUpdate,
-		}
-		return delegateClient.SendStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+		return e.sendResponseStatus(r, delegateClient, response)
+	}
+}
+
+func (e *StepExecutor) sendRunnerResponseStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
+	logrus.WithField("id", r.ID).Infoln("Sending runner step status")
+	taskResponse := getRunnerTaskResponse(r, response)
+	return delegateClient.SendRunnerStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+}
+
+func (e *StepExecutor) sendResponseStatusV2(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
+	logrus.WithField("id", r.ID).Infoln("Sending step status to V2 Endpoint")
+	taskResponse := getRunnerTaskResponse(r, response)
+	return delegateClient.SendStatusV2(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+}
+
+func (e *StepExecutor) sendResponseStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
+	// For legacy backwards compatibility treat timeout as failure
+	if response.CommandExecutionStatus == api.Timeout {
+		response.CommandExecutionStatus = api.Failure
+	}
+	jsonData, err := json.Marshal(response)
+	if err != nil {
+		return err
+	}
+	taskResponse := &client.TaskResponse{
+		Data: json.RawMessage(jsonData),
+		Code: "OK",
+		Type: stepStatusUpdate,
+	}
+	return delegateClient.SendStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
+}
+
+func getRunnerTaskResponse(r *api.StartStepRequest, response *api.VMTaskExecutionResponse) *client.RunnerTaskResponse {
+	status := client.Success
+	if response.CommandExecutionStatus == api.Failure {
+		status = client.Failure
+	} else if response.CommandExecutionStatus == api.Timeout {
+		status = client.Timeout
+	}
+
+	jsonData, err := json.Marshal(response)
+	// In case of invalid response data, send failure response
+	if err != nil {
+		logrus.WithField("id", r.ID).WithError(err).Errorln("failed to marshal the response, failing the task")
+		response.ErrorMessage = "Failed to marshal the response data"
+		status = client.Failure
+	}
+
+	return &client.RunnerTaskResponse{
+		ID:    r.StepStatus.TaskID,
+		Data:  json.RawMessage(jsonData),
+		Code:  status,
+		Error: response.ErrorMessage,
+		Type:  stepStatusUpdate,
 	}
 }
 
@@ -495,9 +524,12 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 	return r
 }
 
-func convertPollResponse(r *api.PollStepResponse) api.VMTaskExecutionResponse {
+func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VMTaskExecutionResponse {
 	if r.Error == "" {
 		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact, Outputs: r.OutputV2, OptimizationState: r.OptimizationState}
+	}
+	if report.TestSummaryAsOutputEnabled(envs) {
+		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, OutputVars: r.Outputs, Outputs: r.OutputV2, ErrorMessage: r.Error, OptimizationState: r.OptimizationState}
 	}
 	return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: r.Error, OptimizationState: r.OptimizationState}
 }
