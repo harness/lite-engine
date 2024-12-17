@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -104,11 +103,6 @@ func clientWithTLSConfig(skipverify bool, mtlsEnabled bool, cert tls.Certificate
 			TLSClientConfig: config,
 		},
 	}
-}
-
-func fileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	return err == nil && !info.IsDir()
 }
 
 // HTTPClient provides an http service client.
