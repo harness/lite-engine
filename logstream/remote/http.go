@@ -15,7 +15,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -40,7 +39,7 @@ var defaultClient = &http.Client{
 }
 
 // NewHTTPClient returns a new HTTPClient.
-func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey, mtlsCertsDir string) *HTTPClient {
+func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string) *HTTPClient {
 	client := &HTTPClient{
 		Endpoint:       endpoint,
 		AccountID:      accountID,
@@ -50,7 +49,7 @@ func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify
 	}
 
 	// Load mTLS certificates if available
-	mtlsEnabled, mtlsCerts := loadMTLSCerts(base64MtlsClientCert, base64MtlsClientCertKey, mtlsCertsDir, "/etc/mtls/client.crt", "/etc/mtls/client.key")
+	mtlsEnabled, mtlsCerts := loadMTLSCerts(base64MtlsClientCert, base64MtlsClientCertKey)
 
 	// Only create HTTP client if needed (mTLS or skipverify)
 	if skipverify || mtlsEnabled {
@@ -61,7 +60,7 @@ func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify
 }
 
 // loadMTLSCerts determines the source of mTLS certificates based on base64 strings or file paths
-func loadMTLSCerts(base64Cert, base64Key, mtlsCertsDir, defaultCertFile, defaultKeyFile string) (bool, tls.Certificate) {
+func loadMTLSCerts(base64Cert, base64Key string) (bool, tls.Certificate) {
 	// Attempt to load from base64 strings
 	if base64Cert != "" && base64Key != "" {
 		cert, err := loadCertsFromBase64(base64Cert, base64Key)
@@ -71,17 +70,8 @@ func loadMTLSCerts(base64Cert, base64Key, mtlsCertsDir, defaultCertFile, default
 		fmt.Printf("failed to load mTLS certs from base64, error: %s\n", err)
 	}
 
-	// Attempt to load from specified directory
-	if mtlsCertsDir != "" {
-		certFile := filepath.Join(mtlsCertsDir, "client.crt")
-		keyFile := filepath.Join(mtlsCertsDir, "client.key")
-		if fileExists(certFile) && fileExists(keyFile) {
-			return loadMTLSCertsFromFiles(certFile, keyFile)
-		}
-	}
-
-	// Fallback to default paths
-	return loadMTLSCertsFromFiles(defaultCertFile, defaultKeyFile)
+	// Return false and an empty tls.Certificate if loading fails or inputs are empty
+	return false, tls.Certificate{}
 }
 
 // loadCertsFromBase64 loads certificates from base64-encoded strings
@@ -95,19 +85,6 @@ func loadCertsFromBase64(certBase64, keyBase64 string) (tls.Certificate, error) 
 		return tls.Certificate{}, fmt.Errorf("failed to decode base64 key: %w", err)
 	}
 	return tls.X509KeyPair(certBytes, keyBytes)
-}
-
-// loadMTLSCertsFromFiles loads mTLS certificates from file paths
-func loadMTLSCertsFromFiles(certFile, keyFile string) (bool, tls.Certificate) {
-	if fileExists(certFile) && fileExists(keyFile) {
-		mtlsCerts, err := tls.LoadX509KeyPair(certFile, keyFile)
-		if err != nil {
-			fmt.Printf("failed to load mTLS cert/key pair, error: %s\n", err)
-			return false, tls.Certificate{}
-		}
-		return true, mtlsCerts
-	}
-	return false, tls.Certificate{}
 }
 
 // clientWithTLSConfig creates an HTTP client with the provided TLS settings

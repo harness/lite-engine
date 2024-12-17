@@ -2,4 +2,5 @@ lite-engine*
 .env
 get-docker.sh
 /release/
+.idea/
 

@@ -6,10 +6,12 @@ package engine
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	osruntime "runtime"
 	"strings"
 	"sync"
@@ -28,6 +30,8 @@ const (
 	DockerSockWinPath  = `\\.\pipe\docker_engine`
 	permissions        = 0777
 	boldYellowColor    = "\u001b[33;1m"
+
+	mtlsCertsDirPath = "/tmp/engine/mtls"
 )
 
 type Engine struct {
@@ -72,6 +76,67 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 		}
 		_ = os.Chmod(path, permissions)
 	}
+
+	// create mTLS certs and set environment variable if successful
+	certsWritten, err := createMtlsCerts(pipelineConfig.MtlsConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to create mTLS certificates")
+	}
+	if certsWritten {
+		// This can be used by STO and SSCA plugins to support mTLS
+		pipelineConfig.Envs["HARNESS_MTLS_CERTS_DIR"] = mtlsCertsDirPath
+	}
+
+	return nil
+}
+
+// createMtlsCerts handles creation of mTLS certificates from base64-encoded data
+func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
+	if mtlsConfig.ClientCert == "" || mtlsConfig.ClientCertKey == "" {
+		return false, nil // No certs to process
+	}
+
+	// Create the mTLS directory
+	if err := os.MkdirAll(mtlsCertsDirPath, permissions); err != nil {
+		return false, errors.Wrap(err, "failed to create mTLS directory")
+	}
+
+	// Decode and write certificate
+	certPath := filepath.Join(mtlsCertsDirPath, "client.crt")
+	if err := writeBase64ToFile(certPath, mtlsConfig.ClientCert); err != nil {
+		return false, errors.Wrap(err, "failed to write mTLS certificate")
+	}
+
+	// Set 0777 permissions for the certificate
+	if _, err := os.Stat(certPath); err == nil {
+		_ = os.Chmod(certPath, permissions)
+	}
+
+	// Decode and write key
+	keyPath := filepath.Join(mtlsCertsDirPath, "client.key")
+	if err := writeBase64ToFile(keyPath, mtlsConfig.ClientCertKey); err != nil {
+		return false, errors.Wrap(err, "failed to write mTLS key")
+	}
+
+	// Set 0777 permissions for the key
+	if _, err := os.Stat(keyPath); err == nil {
+		_ = os.Chmod(keyPath, permissions)
+	}
+
+	return true, nil
+}
+
+// writeBase64ToFile decodes base64 data and writes it to a file
+func writeBase64ToFile(filePath, base64Data string) error {
+	data, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return errors.Wrap(err, "failed to decode base64 data")
+	}
+
+	if err := os.WriteFile(filePath, data, permissions); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to write to file: %s", filePath))
+	}
+
 	return nil
 }
 

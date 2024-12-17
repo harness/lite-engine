@@ -24,7 +24,7 @@ type (
 		Files             []*spec.File      `json:"files,omitempty"`
 		MountDockerSocket *bool             `json:"mount_docker_socket,omitempty"`
 		TTY               bool              `json:"tty,omitempty" default:"false"`
-		MtlsConfig        MtlsConfig        `json:"mtls_config,omitempty"`
+		MtlsConfig        spec.MtlsConfig   `json:"mtls_config,omitempty"`
 	}
 
 	SetupResponse struct{}
@@ -186,11 +186,6 @@ type (
 		CommitBranch string `json:"commit_branch,omitempty"`
 		CommitLink   string `json:"commit_link,omitempty"`
 		ParseSavings bool   `json:"parse_savings,omitempty"`
-	}
-
-	MtlsConfig struct {
-		ClientCert    string `json:"client_cert,omitempty"`
-		ClientCertKey string `json:"client_cert_key,omitempty"`
 	}
 
 	TestReport struct {

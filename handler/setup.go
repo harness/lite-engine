@@ -45,7 +45,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 
 		setProxyEnvs(s.Envs)
 		state := pipeline.GetState()
-		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig), collector)
+		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig), s.MtlsConfig, collector)
 
 		if s.MountDockerSocket == nil || *s.MountDockerSocket { // required to support m1 where docker isn't installed.
 			s.Volumes = append(s.Volumes, getDockerSockVolume())
@@ -62,6 +62,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			Files:             s.Files,
 			EnableDockerSetup: s.MountDockerSocket,
 			TTY:               s.TTY,
+			MtlsConfig:        s.MtlsConfig,
 		}
 		collector.Start()
 		if err := engine.Setup(r.Context(), cfg); err != nil {
@@ -113,8 +114,8 @@ func setProxyEnvs(environment map[string]string) {
 	}
 }
 
-func getTiCfg(t *api.TIConfig) tiCfg.Cfg {
+func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig) tiCfg.Cfg {
 	cfg := tiCfg.New(t.URL, t.Token, t.AccountID, t.OrgID, t.ProjectID, t.PipelineID, t.BuildID, t.StageID, t.Repo,
-		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.SharedVolPath, t.ParseSavings, false)
+		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.SharedVolPath, t.ParseSavings, false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
 	return cfg
 }
