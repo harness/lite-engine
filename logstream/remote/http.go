@@ -90,8 +90,8 @@ func loadCertsFromBase64(certBase64, keyBase64 string) (tls.Certificate, error) 
 
 // clientWithTLSConfig creates an HTTP client with the provided TLS settings
 func clientWithTLSConfig(skipverify bool, mtlsEnabled bool, cert tls.Certificate) *http.Client { //nolint:gocritic
-	config := &tls.Config{
-		InsecureSkipVerify: skipverify, //nolint:gosec
+	config := &tls.Config{ //nolint:gosec
+		InsecureSkipVerify: skipverify,
 	}
 	if mtlsEnabled {
 		config.Certificates = []tls.Certificate{cert}

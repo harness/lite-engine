@@ -548,8 +548,8 @@ func createMTLSClient(clientCertBase64, clientKeyBase64 string) *http.Client {
 	}
 
 	// Create a TLS configuration with the client certificate
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{clientCert}, //nolint:gosec
+	tlsConfig := &tls.Config{ //nolint:gosec
+		Certificates: []tls.Certificate{clientCert},
 	}
 
 	// Create a custom HTTP transport with the TLS configuration
