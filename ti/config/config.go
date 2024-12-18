@@ -2,10 +2,11 @@ package config
 
 import (
 	"errors"
-	"github.com/harness/ti-client/client"
-	"github.com/harness/ti-client/types"
 	"sync"
 	"sync/atomic"
+
+	"github.com/harness/ti-client/client"
+	"github.com/harness/ti-client/types"
 )
 
 var (

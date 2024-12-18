@@ -9,7 +9,6 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"fmt"
-	"github.com/harness/lite-engine/pipeline"
 	"io"
 	"net/http"
 	"os"
@@ -20,6 +19,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/harness/lite-engine/pipeline"
+
+	"github.com/mattn/go-zglob"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
+
 	"github.com/harness/lite-engine/internal/filesystem"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
@@ -28,10 +34,6 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
-	"github.com/mattn/go-zglob"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -476,7 +478,6 @@ func formatTests(tests []ti.RunnableTest) string {
 }
 
 func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSystem) error {
-
 	mtlsConfig := pipeline.GetState().GetMtlsConfig()
 
 	// Create an HTTP client (mTLS or default). This needs to be done because ti-service can return a ti-service link to

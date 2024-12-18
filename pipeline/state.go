@@ -5,8 +5,9 @@
 package pipeline
 
 import (
-	"github.com/harness/lite-engine/engine/spec"
 	"sync"
+
+	"github.com/harness/lite-engine/engine/spec"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/logstream"
