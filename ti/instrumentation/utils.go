@@ -6,7 +6,10 @@ package instrumentation
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/base64"
 	"fmt"
+	"github.com/harness/lite-engine/pipeline"
 	"io"
 	"net/http"
 	"os"
@@ -473,6 +476,14 @@ func formatTests(tests []ti.RunnableTest) string {
 }
 
 func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSystem) error {
+
+	mtlsConfig := pipeline.GetState().GetMtlsConfig()
+
+	// Create an HTTP client (mTLS or default). This needs to be done because ti-service can return a ti-service link to
+	// download the agent artifacts. Hence mtls will be needed to download the agent artifacts. Ideally the download call should
+	// be made from the ti-service client code itself.
+	client := createMTLSClient(mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
+
 	// Create the nested directory if it doesn't exist
 	dir := filepath.Dir(path)
 	if err := fs.MkdirAll(dir, os.ModePerm); err != nil {
@@ -489,7 +500,7 @@ func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	if err != nil {
 		return fmt.Errorf("failed to create request with context: %s", err)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to make a request: %s", err)
 	}
@@ -507,6 +518,46 @@ func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	}
 
 	return nil
+}
+
+func createMTLSClient(clientCertBase64, clientKeyBase64 string) *http.Client {
+	// If certificates are empty, return the default HTTP client
+	if clientCertBase64 == "" || clientKeyBase64 == "" {
+		return http.DefaultClient
+	}
+
+	// Attempt to decode the base64 client cert and key
+	cert, err := base64.StdEncoding.DecodeString(clientCertBase64)
+	if err != nil {
+		fmt.Printf("Error decoding client certificate: %v. Falling back to default client.\n", err)
+		return http.DefaultClient
+	}
+
+	key, err := base64.StdEncoding.DecodeString(clientKeyBase64)
+	if err != nil {
+		fmt.Printf("Error decoding client key: %v. Falling back to default client.\n", err)
+		return http.DefaultClient
+	}
+
+	// Attempt to load the TLS client certificate
+	clientCert, err := tls.X509KeyPair(cert, key)
+	if err != nil {
+		fmt.Printf("Error loading client certificate and key: %v. Falling back to default client.\n", err)
+		return http.DefaultClient
+	}
+
+	// Create a TLS configuration with the client certificate
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{clientCert},
+	}
+
+	// Create a custom HTTP transport with the TLS configuration
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	// Return the custom HTTP client
+	return &http.Client{Transport: transport}
 }
 
 func GetV2AgentDownloadLinks(ctx context.Context, config *tiCfg.Cfg, useQAEnv bool) ([]ti.DownloadLink, error) {
