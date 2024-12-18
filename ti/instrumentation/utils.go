@@ -521,7 +521,7 @@ func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	return nil
 }
 
-func createMTLSClient(clientCertBase64, clientKeyBase64 string) *http.Client {
+func createMTLSClient(clientCertBase64, clientKeyBase64 string) *http.Client { //nolint:gosec
 	// If certificates are empty, return the default HTTP client
 	if clientCertBase64 == "" || clientKeyBase64 == "" {
 		return http.DefaultClient
