@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -160,11 +159,11 @@ func (c *HTTPClient) Upload(ctx context.Context, key string, lines []*logstream.
 
 // uploadToRemoteStorage uploads the file to remote storage.
 func (c *HTTPClient) uploadToRemoteStorage(ctx context.Context, key string, r io.Reader) error {
-	urlPath := fmt.Sprintf(blobEndpoint, c.AccountID, key)
+	path := fmt.Sprintf(blobEndpoint, c.AccountID, key)
 	backoff := createInfiniteBackoff()
 	childCtx, cancel := context.WithTimeout(ctx, 60*time.Second) //nolint:gomnd
 	defer cancel()
-	resp, err := c.retry(childCtx, path.Join(c.Endpoint, urlPath), "POST", r, nil, true, backoff)
+	resp, err := c.retry(childCtx, c.Endpoint+path, "POST", r, nil, true, backoff)
 	if resp != nil {
 		defer resp.Body.Close()
 	}
@@ -174,13 +173,13 @@ func (c *HTTPClient) uploadToRemoteStorage(ctx context.Context, key string, r io
 // uploadLink returns a secure link that can be used to
 // upload a file to remote storage.
 func (c *HTTPClient) uploadLink(ctx context.Context, key string) (*Link, error) {
-	urlPath := fmt.Sprintf(uploadLinkEndpoint, c.AccountID, key)
+	path := fmt.Sprintf(uploadLinkEndpoint, c.AccountID, key)
 	out := new(Link)
 	backoff := createBackoff(60 * time.Second) //nolint:gomnd
 	// 10s should be enought to get the upload link
 	childCtx, cancel := context.WithTimeout(ctx, 10*time.Second) //nolint:gomnd
 	defer cancel()
-	_, err := c.retry(childCtx, path.Join(c.Endpoint, urlPath), "POST", nil, out, false, backoff) //nolint:bodyclose
+	_, err := c.retry(childCtx, c.Endpoint+path, "POST", nil, out, false, backoff) //nolint:bodyclose
 	return out, err
 }
 
@@ -196,24 +195,24 @@ func (c *HTTPClient) uploadUsingLink(ctx context.Context, link string, r io.Read
 
 // Open opens the data stream.
 func (c *HTTPClient) Open(ctx context.Context, key string) error {
-	urlPath := fmt.Sprintf(streamEndpoint, c.AccountID, key)
-	backoff := createBackoff(10 * time.Second)                                               //nolint:gomnd
-	_, err := c.retry(ctx, path.Join(c.Endpoint, urlPath), "POST", nil, nil, false, backoff) //nolint:bodyclose
+	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
+	backoff := createBackoff(10 * time.Second)                                //nolint:gomnd
+	_, err := c.retry(ctx, c.Endpoint+path, "POST", nil, nil, false, backoff) //nolint:bodyclose
 	return err
 }
 
 // Close closes the data stream.
 func (c *HTTPClient) Close(ctx context.Context, key string) error {
-	urlPath := fmt.Sprintf(streamEndpoint, c.AccountID, key)
-	_, err := c.do(ctx, path.Join(c.Endpoint, urlPath), "DELETE", nil, nil) //nolint:bodyclose
+	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
+	_, err := c.do(ctx, c.Endpoint+path, "DELETE", nil, nil) //nolint:bodyclose
 	return err
 }
 
 // Write writes logs to the data stream.
 func (c *HTTPClient) Write(ctx context.Context, key string, lines []*logstream.Line) error {
-	urlPath := fmt.Sprintf(streamEndpoint, c.AccountID, key)
+	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
 	l := convertLines(lines)
-	_, err := c.do(ctx, path.Join(c.Endpoint, urlPath), "PUT", &l, nil) //nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "PUT", &l, nil) //nolint:bodyclose
 	return err
 }
 
