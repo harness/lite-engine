@@ -303,7 +303,7 @@ func TestComputeSelected(t *testing.T) { //nolint:funlen
 			selectTestsResponse.Tests = tt.runnableTests
 			tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
 				"", "", "", "", "", "", "", "",
-				"", false, false)
+				"", false, false, "", "")
 
 			computeSelectedTests(ctx, config, log, runner, &selectTestsResponse, stepID, "", envs, &tiConfig)
 
