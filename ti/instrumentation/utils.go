@@ -521,7 +521,7 @@ func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	return nil
 }
 
-func createMTLSClient(clientCertBase64, clientKeyBase64 string) *http.Client { //nolint:gosec
+func createMTLSClient(clientCertBase64, clientKeyBase64 string) *http.Client {
 	// If certificates are empty, return the default HTTP client
 	if clientCertBase64 == "" || clientKeyBase64 == "" {
 		return http.DefaultClient
@@ -549,7 +549,7 @@ func createMTLSClient(clientCertBase64, clientKeyBase64 string) *http.Client { /
 
 	// Create a TLS configuration with the client certificate
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{clientCert},
+		Certificates: []tls.Certificate{clientCert}, //nolint:gosec
 	}
 
 	// Create a custom HTTP transport with the TLS configuration
