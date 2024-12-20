@@ -205,7 +205,7 @@ func (e *Docker) destroyContainers(
 			e.softStop(ctx, ctr.ID)
 		} else {
 			if err := e.client.ContainerKill(ctx, ctr.ID, "9"); err != nil {
-				logrus.WithField("container", ctr.ID).WithField("error", err).Warnln("failed to kill container")
+				logrus.WithContext(ctx).WithField("container", ctr.ID).WithField("error", err).Warnln("failed to kill container")
 			}
 		}
 	}
@@ -213,7 +213,7 @@ func (e *Docker) destroyContainers(
 	// cleanup all containers
 	for _, ctr := range containers {
 		if err := e.client.ContainerRemove(ctx, ctr.ID, removeOpts); err != nil {
-			logrus.WithField("container", ctr.ID).WithField("error", err).Warnln("failed to remove container")
+			logrus.WithContext(ctx).WithField("container", ctr.ID).WithField("error", err).Warnln("failed to remove container")
 		}
 	}
 
@@ -228,13 +228,13 @@ func (e *Docker) destroyContainers(
 			continue
 		}
 		if err := e.client.VolumeRemove(ctx, vol.EmptyDir.ID, true); err != nil {
-			logrus.WithField("volume", vol.EmptyDir.ID).WithField("error", err).Warnln("failed to remove volume")
+			logrus.WithContext(ctx).WithField("volume", vol.EmptyDir.ID).WithField("error", err).Warnln("failed to remove volume")
 		}
 	}
 
 	// cleanup the network
 	if err := e.client.NetworkRemove(ctx, pipelineConfig.Network.ID); err != nil {
-		logrus.WithField("network", pipelineConfig.Network.ID).WithField("error", err).Warnln("failed to remove network")
+		logrus.WithContext(ctx).WithField("network", pipelineConfig.Network.ID).WithField("error", err).Warnln("failed to remove network")
 	}
 
 	// notice that we never collect or return any errors.
@@ -359,7 +359,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		step.ID,
 	)
 	if err == nil {
-		logrus.WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step")
+		logrus.WithContext(ctx).WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step")
 	}
 
 	// automatically pull and try to re-create the image if the
@@ -386,7 +386,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 			step.ID,
 		)
 		if err == nil {
-			logrus.WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step")
+			logrus.WithContext(ctx).WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step")
 		}
 	}
 	if err != nil {
@@ -513,12 +513,12 @@ func (e *Docker) pullImage(ctx context.Context, image string, pullOpts types.Ima
 
 	if e.hidePull {
 		if _, cerr := io.Copy(io.Discard, rc); cerr != nil {
-			logrus.WithField("error", cerr).Warnln("failed to discard image pull logs")
+			logrus.WithContext(ctx).WithField("error", cerr).Warnln("failed to discard image pull logs")
 			return cerr
 		}
 	} else {
 		if cerr := jsonmessage.Copy(rc, output); cerr != nil {
-			logrus.WithField("error", cerr).Warnln("failed to copy image pull logs to output")
+			logrus.WithContext(ctx).WithField("error", cerr).Warnln("failed to copy image pull logs to output")
 			return cerr
 		}
 	}
@@ -534,7 +534,7 @@ func (e *Docker) pullImageWithRetries(ctx context.Context, image string,
 		if err == nil {
 			return nil
 		}
-		logrus.WithError(err).
+		logrus.WithContext(ctx).WithError(err).
 			WithField("image", image).
 			Warnln("failed to pull image")
 
@@ -548,7 +548,7 @@ func (e *Docker) pullImageWithRetries(ctx context.Context, image string,
 			return err
 		default:
 			if i < imageMaxRetries {
-				logrus.WithField("image", image).Infoln("retrying image pull")
+				logrus.WithContext(ctx).WithField("image", image).Infoln("retrying image pull")
 			}
 		}
 		time.Sleep(time.Millisecond * imageRetrySleepDuration)
@@ -633,7 +633,7 @@ func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spe
 func (e *Docker) softStop(ctx context.Context, name string) {
 	timeout := 30 * time.Second
 	if err := e.client.ContainerStop(ctx, name, &timeout); err != nil {
-		logrus.WithField("container", name).WithField("error", err).Warnln("failed to stop the container")
+		logrus.WithContext(ctx).WithField("container", name).WithField("error", err).Warnln("failed to stop the container")
 	}
 
 	// Before removing the container we want to be sure that it's in a healthy state to be removed.
@@ -645,7 +645,7 @@ func (e *Docker) softStop(ctx context.Context, name string) {
 		time.Sleep(1 * time.Second)
 		containerStatus, err := e.client.ContainerInspect(ctx, name)
 		if err != nil {
-			logrus.WithField("container", name).WithField("error", err).Warnln("failed to retrieve container stats")
+			logrus.WithContext(ctx).WithField("container", name).WithField("error", err).Warnln("failed to retrieve container stats")
 			continue
 		}
 		if containerStatus.State.Status == removing || containerStatus.State.Status == running {

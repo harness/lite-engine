@@ -88,7 +88,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 
 	go func() {
 		wr := getLogStreamWriter(r)
-		state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r, wr)
+		state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(ctx, r, wr)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
 		e.mu.Lock()
@@ -118,7 +118,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				setPrevStepExportEnvs(r)
 			}
 			wr = getLogStreamWriter(r)
-			state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r, wr)
+			state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(ctx, r, wr)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
 			pollResponse := convertStatus(status)
@@ -244,7 +244,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 
 	stepLog := NewStepLog(ctx) // step output will terminate when the ctx is canceled
 
-	logr := logrus.
+	logr := logrus.WithContext(ctx).
 		WithField("id", r.ID).
 		WithField("step", r.Name)
 
@@ -288,7 +288,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 	return runStep()
 }
 
-func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
+func (e *StepExecutor) executeStep(ctx context.Context, r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
 	map[string]string, []byte, []*api.OutputV2, string, error) {
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
@@ -302,13 +302,14 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 	} else {
 		tiConfig = pipeline.GetState().GetTIConfig()
 	}
-	return executeStepHelper(r, e.engine.Run, wr, tiConfig)
+	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig)
 }
 
 // executeStepHelper is a helper function which is used both by this step executor as well as the
 // stateless step executor. This is done so as to not duplicate logic across multiple implementations.
 // Eventually, we should deprecate this step executor in favor of the stateless executor.
 func executeStepHelper( //nolint:gocritic
+	ctx context.Context,
 	r *api.StartStepRequest,
 	f RunFunc,
 	wr logstream.Writer,
@@ -319,7 +320,6 @@ func executeStepHelper( //nolint:gocritic
 	// We do here only for non-container step.
 	if r.Detach && r.Image == "" {
 		go func() {
-			ctx := context.Background()
 			var cancel context.CancelFunc
 			if r.Timeout > 0 {
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
@@ -333,7 +333,6 @@ func executeStepHelper( //nolint:gocritic
 
 	var result error
 
-	ctx := context.Background()
 	var cancel context.CancelFunc
 	if r.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
@@ -370,9 +369,9 @@ func executeStepHelper( //nolint:gocritic
 		}
 
 		if exited.OOMKilled {
-			logrus.WithField("id", r.ID).Infoln("received oom kill.")
+			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("received oom kill.")
 		} else {
-			logrus.WithField("id", r.ID).Infof("received exit code %d\n", exited.ExitCode)
+			logrus.WithContext(ctx).WithField("id", r.ID).Infof("received exit code %d\n", exited.ExitCode)
 		}
 	}
 	return exited, outputs, envs, artifact, outputV2, optimizationState, result

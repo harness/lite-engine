@@ -45,7 +45,7 @@ func (e *StepExecutorStateless) Run(
 
 	e.stepStatus = StepStatus{Status: Running}
 
-	state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(r, cfg, writer)
+	state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(ctx, r, cfg, writer)
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
 	pollResponse := convertStatus(e.stepStatus)
@@ -53,6 +53,7 @@ func (e *StepExecutorStateless) Run(
 }
 
 func (e *StepExecutorStateless) executeStep( //nolint:gocritic
+	ctx context.Context,
 	r *api.StartStepRequest,
 	cfg *spec.PipelineConfig,
 	writer logstream.Writer,
@@ -64,7 +65,7 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 	// Temporary: this should be removed once we have a better way of handling test intelligence.
 	tiConfig := getTiCfg(&r.TIConfig)
 
-	return executeStepHelper(r, runFunc, writer, &tiConfig)
+	return executeStepHelper(ctx, r, runFunc, writer, &tiConfig)
 }
 
 func getTiCfg(t *api.TIConfig) tiCfg.Cfg {
