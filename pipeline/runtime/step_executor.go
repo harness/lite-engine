@@ -297,7 +297,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 	// If TI Config has been passed in the step request, use that insetad of relying on the one in the pipeline state
 	var tiConfig *tiCfg.Cfg
 	if r.TIConfig.URL != "" {
-		g := getTiCfg(&r.TIConfig, pipeline.GetState().GetMtlsConfig())
+		g := getTiCfg(&r.TIConfig, &r.MtlsConfig)
 		tiConfig = &g
 	} else {
 		tiConfig = pipeline.GetState().GetTIConfig()

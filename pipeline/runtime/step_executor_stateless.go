@@ -62,7 +62,7 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 		return engine.RunStep(ctx, engine.Opts{}, step, output, cfg, isDrone, isHosted)
 	}
 	// Temporary: this should be removed once we have a better way of handling test intelligence.
-	tiConfig := getTiCfg(&r.TIConfig, pipeline.GetState().GetMtlsConfig())
+	tiConfig := getTiCfg(&r.TIConfig, &r.MtlsConfig)
 
 	return executeStepHelper(r, runFunc, writer, &tiConfig)
 }

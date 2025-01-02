@@ -92,13 +92,6 @@ func (s *State) GetLogConfig() *api.LogConfig {
 	return &s.logConfig
 }
 
-func (s *State) GetMtlsConfig() *spec.MtlsConfig {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return &s.mtlsConfig
-}
-
 func GetState() *State {
 	once.Do(func() {
 		state = &State{
