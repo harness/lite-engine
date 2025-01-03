@@ -320,6 +320,7 @@ func executeStepHelper( //nolint:gocritic
 	// We do here only for non-container step.
 	if r.Detach && r.Image == "" {
 		go func() {
+			ctx = context.Background()
 			var cancel context.CancelFunc
 			if r.Timeout > 0 {
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
@@ -333,6 +334,7 @@ func executeStepHelper( //nolint:gocritic
 
 	var result error
 
+	ctx = context.Background()
 	var cancel context.CancelFunc
 	if r.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
