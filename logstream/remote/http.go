@@ -68,7 +68,8 @@ func loadMTLSCerts(base64Cert, base64Key string) (bool, tls.Certificate) {
 		if err == nil {
 			return true, cert
 		}
-		fmt.Printf("failed to load mTLS certs from base64, error: %s\n", err)
+		logrus.WithError(err).
+			Errorln("failed to load mTLS certs from base64")
 	}
 
 	// Return false and an empty tls.Certificate if loading fails or inputs are empty

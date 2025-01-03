@@ -30,8 +30,6 @@ const (
 	DockerSockWinPath  = `\\.\pipe\docker_engine`
 	permissions        = 0777
 	boldYellowColor    = "\u001b[33;1m"
-
-	mtlsCertsDirPath = "/tmp/engine/mtls"
 )
 
 type Engine struct {
@@ -84,7 +82,7 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 	}
 	if certsWritten {
 		// This can be used by STO and SSCA plugins to support mTLS
-		pipelineConfig.Envs["HARNESS_MTLS_CERTS_DIR"] = mtlsCertsDirPath
+		pipelineConfig.Envs["HARNESS_MTLS_CERTS_DIR"] = pipelineConfig.MtlsConfig.ClientCertDirPath
 	}
 
 	return nil
@@ -92,17 +90,17 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 
 // createMtlsCerts handles creation of mTLS certificates from base64-encoded data
 func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
-	if mtlsConfig.ClientCert == "" || mtlsConfig.ClientCertKey == "" {
-		return false, nil // No certs to process
+	if mtlsConfig.ClientCert == "" || mtlsConfig.ClientCertKey == "" || mtlsConfig.ClientCertDirPath == "" {
+		return false, nil // No certs to process or dir path not set
 	}
 
 	// Create the mTLS directory
-	if err := os.MkdirAll(mtlsCertsDirPath, permissions); err != nil {
+	if err := os.MkdirAll(mtlsConfig.ClientCertDirPath, permissions); err != nil {
 		return false, errors.Wrap(err, "failed to create mTLS directory")
 	}
 
 	// Decode and write certificate
-	certPath := filepath.Join(mtlsCertsDirPath, "client.crt")
+	certPath := filepath.Join(mtlsConfig.ClientCertDirPath, "client.crt")
 	if err := writeBase64ToFile(certPath, mtlsConfig.ClientCert); err != nil {
 		return false, errors.Wrap(err, "failed to write mTLS certificate")
 	}
@@ -113,7 +111,7 @@ func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
 	}
 
 	// Decode and write key
-	keyPath := filepath.Join(mtlsCertsDirPath, "client.key")
+	keyPath := filepath.Join(mtlsConfig.ClientCertDirPath, "client.key")
 	if err := writeBase64ToFile(keyPath, mtlsConfig.ClientCertKey); err != nil {
 		return false, errors.Wrap(err, "failed to write mTLS key")
 	}

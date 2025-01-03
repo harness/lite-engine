@@ -173,7 +173,8 @@ type (
 	}
 
 	MtlsConfig struct {
-		ClientCert    string `json:"client_cert,omitempty"`
-		ClientCertKey string `json:"client_cert_key,omitempty"`
+		ClientCert        string `json:"client_cert,omitempty"`
+		ClientCertKey     string `json:"client_cert_key,omitempty"`
+		ClientCertDirPath string `json:"client_cert_dir_path,omitempty"`
 	}
 )
