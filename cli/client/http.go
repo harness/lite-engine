@@ -104,13 +104,13 @@ func (c *HTTPClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*
 
 func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
 	var err error
-	for i := 0; i <= 3; i++ {
+	for i := 0; i <= 6; i++ {
 		var out *api.StartStepResponse
 		out, err = c.StartStep(ctx, in)
 		if err == nil {
 			return out, nil
 		}
-		time.Sleep(time.Millisecond * 50) //nolint:gomnd
+		time.Sleep(time.Millisecond * 1000) //nolint:gomnd
 	}
 	return nil, err
 }
