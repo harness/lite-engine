@@ -107,7 +107,10 @@ func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
 
 	// Set 0777 permissions for the certificate
 	if _, err := os.Stat(certPath); err == nil {
-		_ = os.Chmod(certPath, permissions)
+		if err := os.Chmod(certPath, permissions); err != nil {
+			logrus.Error(errors.Wrap(err,
+				fmt.Sprintf("Failed to set permissions %o for file on host path: %q", permissions, certPath)))
+		}
 	}
 
 	// Decode and write key
@@ -118,7 +121,10 @@ func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
 
 	// Set 0777 permissions for the key
 	if _, err := os.Stat(keyPath); err == nil {
-		_ = os.Chmod(keyPath, permissions)
+		if err := os.Chmod(keyPath, permissions); err != nil {
+			logrus.Error(errors.Wrap(err,
+				fmt.Sprintf("Failed to set permissions %o for file on host path: %q", permissions, certPath)))
+		}
 	}
 
 	return true, nil
