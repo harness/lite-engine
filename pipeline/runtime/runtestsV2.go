@@ -29,6 +29,8 @@ import (
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
+
+	tiClient "github.com/harness/ti-client/client"
 )
 
 const (
@@ -181,19 +183,19 @@ func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, w
 		if len(links) < agentV2LinkLength {
 			return preCmd, fmt.Errorf("error: Could not get agent V2 links from TI")
 		}
-
-		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log)
+		client := tiConfig.GetClient()
+		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log, client)
 		if err != nil {
 			return preCmd, fmt.Errorf("failed to download Java agent")
 		}
 
-		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log)
+		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log, client)
 		if err != nil || rubyArtifactDir == "" {
 			return preCmd, fmt.Errorf("failed to download Ruby agent")
 		}
 		agentPaths["ruby"] = rubyArtifactDir
 
-		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log)
+		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log, client)
 		if err != nil {
 			return preCmd, fmt.Errorf("failed to download Python agent")
 		}
@@ -201,7 +203,7 @@ func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, w
 
 		if len(links) > dotNetAgentLinkIndex {
 			var dotNetArtifactDir string
-			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log)
+			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log, client)
 			if err == nil {
 				agentPaths["dotnet"] = dotNetArtifactDir
 			} else {
@@ -528,10 +530,10 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	return preCmd, filterFilePath, nil
 }
 
-func downloadJavaAgent(ctx context.Context, path, javaAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger) error {
+func downloadJavaAgent(ctx context.Context, path, javaAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger, client tiClient.Client) error {
 	javaAgentPath := fmt.Sprintf("%s%s", javaAgentV2Path, javaAgentV2Jar)
 	dir := filepath.Join(path, javaAgentPath)
-	err := instrumentation.DownloadFile(ctx, dir, javaAgentV2Url, fs)
+	err := instrumentation.DownloadFile(ctx, dir, javaAgentV2Url, fs, client)
 	if err != nil {
 		log.WithError(err).Errorln("could not download java agent")
 		return err
@@ -539,10 +541,10 @@ func downloadJavaAgent(ctx context.Context, path, javaAgentV2Url string, fs file
 	return nil
 }
 
-func downloadRubyAgent(ctx context.Context, path, rubyAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+func downloadRubyAgent(ctx context.Context, path, rubyAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger, client tiClient.Client) (string, error) {
 	dir := filepath.Join(path, "ruby", "ruby-agent.zip")
 	installDir := filepath.Dir(dir)
-	err := instrumentation.DownloadFile(ctx, dir, rubyAgentV2Url, fs)
+	err := instrumentation.DownloadFile(ctx, dir, rubyAgentV2Url, fs, client)
 	if err != nil {
 		log.WithError(err).Errorln("could not download ruby agent")
 		return "", err
@@ -550,10 +552,10 @@ func downloadRubyAgent(ctx context.Context, path, rubyAgentV2Url string, fs file
 	return installDir, nil
 }
 
-func downloadPythonAgent(ctx context.Context, path, pythonAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+func downloadPythonAgent(ctx context.Context, path, pythonAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger, client tiClient.Client) (string, error) {
 	dir := filepath.Join(path, "python", "python-agent-v2.zip")
 	installDir := filepath.Dir(dir)
-	err := instrumentation.DownloadFile(ctx, dir, pythonAgentV2Url, fs)
+	err := instrumentation.DownloadFile(ctx, dir, pythonAgentV2Url, fs, client)
 	if err != nil {
 		log.WithError(err).Errorln("could not download python agent")
 		return "", err
@@ -561,11 +563,11 @@ func downloadPythonAgent(ctx context.Context, path, pythonAgentV2Url string, fs 
 	return installDir, nil
 }
 
-func downloadDotNetAgent(ctx context.Context, path, dotNetAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger) (string, error) {
+func downloadDotNetAgent(ctx context.Context, path, dotNetAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger, client tiClient.Client) (string, error) {
 	dotNetAgentPath := fmt.Sprintf("%s%s", dotNetAgentV2Path, dotNetAgentV2Zip)
 	dir := filepath.Join(path, dotNetAgentPath)
 	installDir := filepath.Dir(dir)
-	err := instrumentation.DownloadFile(ctx, dir, dotNetAgentV2Url, fs)
+	err := instrumentation.DownloadFile(ctx, dir, dotNetAgentV2Url, fs, client)
 	if err != nil {
 		log.WithError(err).Errorln("could not download .net agent")
 		return "", err

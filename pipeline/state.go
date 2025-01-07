@@ -7,6 +7,8 @@ package pipeline
 import (
 	"sync"
 
+	"github.com/harness/lite-engine/engine/spec"
+
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/filestore"
@@ -27,21 +29,23 @@ const (
 
 // State stores the pipeline state.
 type State struct {
-	mu        sync.Mutex
-	logConfig api.LogConfig
-	tiConfig  tiCfg.Cfg
-	secrets   []string
+	mu         sync.Mutex
+	logConfig  api.LogConfig
+	tiConfig   tiCfg.Cfg
+	mtlsConfig spec.MtlsConfig
+	secrets    []string
 
 	statsCollector *osstats.StatsCollector
 	logClient      logstream.Client
 }
 
-func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, collector *osstats.StatsCollector) { //nolint:gocritic
+func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.secrets = secrets
 	s.logConfig = logConfig
 	s.tiConfig = tiConfig
+	s.mtlsConfig = mtlsConfig
 	s.statsCollector = collector
 }
 
@@ -66,7 +70,7 @@ func (s *State) GetLogStreamClient() logstream.Client {
 	if s.logClient == nil {
 		if s.logConfig.URL != "" {
 			s.logClient = remote.NewHTTPClient(s.logConfig.URL, s.logConfig.AccountID,
-				s.logConfig.Token, s.logConfig.IndirectUpload, false)
+				s.logConfig.Token, s.logConfig.IndirectUpload, false, s.mtlsConfig.ClientCert, s.mtlsConfig.ClientCertKey)
 		} else {
 			s.logClient = filestore.New(SharedVolPath)
 		}
@@ -97,6 +101,7 @@ func GetState() *State {
 			statsCollector: &osstats.StatsCollector{},
 			secrets:        make([]string, 0),
 			logClient:      nil,
+			mtlsConfig:     spec.MtlsConfig{},
 		}
 	})
 	return state

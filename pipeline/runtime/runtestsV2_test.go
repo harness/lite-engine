@@ -14,6 +14,8 @@ import (
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	tiClient "github.com/harness/ti-client/client"
 )
 
 func Test_CollectRunTestsV2Data(t *testing.T) {
@@ -24,7 +26,7 @@ func Test_CollectRunTestsV2Data(t *testing.T) {
 	stepName := "RunTestsV2"
 	tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
 		"", "", "", "", "", "", "", "",
-		"", false, false)
+		"", false, false, "", "")
 
 	tests := []struct {
 		name          string
@@ -116,6 +118,7 @@ func Test_downloadJavaAgent(t *testing.T) {
 		agentURL string
 		fs       filesystem.FileSystem
 		log      *logrus.Logger
+		client   tiClient.Client
 	}
 	tests := []struct {
 		name    string
@@ -126,7 +129,7 @@ func Test_downloadJavaAgent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := downloadJavaAgent(tt.args.ctx, tt.args.path, tt.args.agentURL, tt.args.fs, tt.args.log); (err != nil) != tt.wantErr {
+			if err := downloadJavaAgent(tt.args.ctx, tt.args.path, tt.args.agentURL, tt.args.fs, tt.args.log, tt.args.client); (err != nil) != tt.wantErr {
 				t.Errorf("downloadJavaAgent() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

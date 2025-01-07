@@ -63,13 +63,13 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 		return engine.RunStep(ctx, engine.Opts{}, step, output, cfg, isDrone, isHosted)
 	}
 	// Temporary: this should be removed once we have a better way of handling test intelligence.
-	tiConfig := getTiCfg(&r.TIConfig)
+	tiConfig := getTiCfg(&r.TIConfig, &r.MtlsConfig)
 
 	return executeStepHelper(ctx, r, runFunc, writer, &tiConfig)
 }
 
-func getTiCfg(t *api.TIConfig) tiCfg.Cfg {
+func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig) tiCfg.Cfg {
 	cfg := tiCfg.New(t.URL, t.Token, t.AccountID, t.OrgID, t.ProjectID, t.PipelineID, t.BuildID, t.StageID, t.Repo,
-		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.SharedVolPath, t.ParseSavings, false)
+		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.SharedVolPath, t.ParseSavings, false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
 	return cfg
 }

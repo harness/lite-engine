@@ -6,10 +6,12 @@ package engine
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	osruntime "runtime"
 	"strings"
 	"sync"
@@ -72,6 +74,73 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 		}
 		_ = os.Chmod(path, permissions)
 	}
+
+	// create mTLS certs and set environment variable if successful
+	certsWritten, err := createMtlsCerts(pipelineConfig.MtlsConfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to create mTLS certificates")
+	}
+	if certsWritten {
+		// This can be used by STO and SSCA plugins to support mTLS
+		pipelineConfig.Envs["HARNESS_MTLS_CERTS_DIR"] = pipelineConfig.MtlsConfig.ClientCertDirPath
+	}
+
+	return nil
+}
+
+// createMtlsCerts handles creation of mTLS certificates from base64-encoded data
+func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
+	if mtlsConfig.ClientCert == "" || mtlsConfig.ClientCertKey == "" || mtlsConfig.ClientCertDirPath == "" {
+		return false, nil // No certs to process or dir path not set
+	}
+
+	// Create the mTLS directory
+	if err := os.MkdirAll(mtlsConfig.ClientCertDirPath, permissions); err != nil {
+		return false, errors.Wrap(err, "failed to create mTLS directory")
+	}
+
+	// Decode and write certificate
+	certPath := filepath.Join(mtlsConfig.ClientCertDirPath, "client.crt")
+	if err := writeBase64ToFile(certPath, mtlsConfig.ClientCert); err != nil {
+		return false, errors.Wrap(err, "failed to write mTLS certificate")
+	}
+
+	// Set 0777 permissions for the certificate
+	if _, err := os.Stat(certPath); err == nil {
+		if err := os.Chmod(certPath, permissions); err != nil {
+			logrus.Error(errors.Wrap(err,
+				fmt.Sprintf("Failed to set permissions %o for file on host path: %q", permissions, certPath)))
+		}
+	}
+
+	// Decode and write key
+	keyPath := filepath.Join(mtlsConfig.ClientCertDirPath, "client.key")
+	if err := writeBase64ToFile(keyPath, mtlsConfig.ClientCertKey); err != nil {
+		return false, errors.Wrap(err, "failed to write mTLS key")
+	}
+
+	// Set 0777 permissions for the key
+	if _, err := os.Stat(keyPath); err == nil {
+		if err := os.Chmod(keyPath, permissions); err != nil {
+			logrus.Error(errors.Wrap(err,
+				fmt.Sprintf("Failed to set permissions %o for file on host path: %q", permissions, certPath)))
+		}
+	}
+
+	return true, nil
+}
+
+// writeBase64ToFile decodes base64 data and writes it to a file
+func writeBase64ToFile(filePath, base64Data string) error {
+	data, err := base64.StdEncoding.DecodeString(base64Data)
+	if err != nil {
+		return errors.Wrap(err, "failed to decode base64 data")
+	}
+
+	if err := os.WriteFile(filePath, data, permissions); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to write to file: %s", filePath))
+	}
+
 	return nil
 }
 

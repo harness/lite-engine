@@ -32,9 +32,9 @@ type Cfg struct {
 }
 
 func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink,
-	sourceBranch, targetBranch, commitBranch, dataDir string, parseSavings, skipVerify bool) Cfg {
+	sourceBranch, targetBranch, commitBranch, dataDir string, parseSavings, skipVerify bool, mtlsClientCert, mtlsClientCertKey string) Cfg {
 	tiClient := client.NewHTTPClient(
-		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify, "")
+		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify, "", mtlsClientCert, mtlsClientCertKey)
 	cfg := Cfg{
 		mu:              &sync.Mutex{},
 		ziplocked:       1,

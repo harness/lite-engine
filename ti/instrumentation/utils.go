@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +15,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/mattn/go-zglob"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -25,10 +29,8 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	ti "github.com/harness/ti-client/types"
-	"github.com/mattn/go-zglob"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+
+	tiClient "github.com/harness/ti-client/client"
 )
 
 var (
@@ -472,7 +474,7 @@ func formatTests(tests []ti.RunnableTest) string {
 	return strings.Join(testStrings, ", ")
 }
 
-func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSystem) error {
+func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSystem, client tiClient.Client) error {
 	// Create the nested directory if it doesn't exist
 	dir := filepath.Dir(path)
 	if err := fs.MkdirAll(dir, os.ModePerm); err != nil {
@@ -485,23 +487,14 @@ func DownloadFile(ctx context.Context, path, url string, fs filesystem.FileSyste
 	}
 	defer out.Close()
 	// Get the data
-	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
-	if err != nil {
-		return fmt.Errorf("failed to create request with context: %s", err)
-	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.DownloadAgent(ctx, url)
 	if err != nil {
 		return fmt.Errorf("failed to make a request: %s", err)
 	}
-	defer resp.Body.Close()
-
-	// Check server response
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status: %s", resp.Status)
-	}
+	defer resp.Close()
 
 	// Writer the body to file
-	_, err = io.Copy(out, resp.Body)
+	_, err = io.Copy(out, resp)
 	if err != nil {
 		return fmt.Errorf("failed to copy: %s", err)
 	}
@@ -549,7 +542,7 @@ func installAgents(ctx context.Context, baseDir, language, os, arch, framework s
 		}
 		// TODO: (Vistaar) Add check for whether the path exists here. This can be implemented
 		// once we have a proper release process for agent artifacts.
-		err := DownloadFile(ctx, absPath, l.URL, fs)
+		err := DownloadFile(ctx, absPath, l.URL, fs, config.GetClient())
 		if err != nil {
 			log.WithError(err).Printf("could not download %s to path %s\n", l.URL, installDir)
 			return "", err

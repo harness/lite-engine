@@ -24,6 +24,7 @@ type (
 		Files             []*spec.File      `json:"files,omitempty"`
 		MountDockerSocket *bool             `json:"mount_docker_socket,omitempty"`
 		TTY               bool              `json:"tty,omitempty" default:"false"`
+		MtlsConfig        spec.MtlsConfig   `json:"mtls_config,omitempty"`
 	}
 
 	SetupResponse struct{}
@@ -57,8 +58,9 @@ type (
 
 		// Configs for log service and test intelligence (currently provided in setup and maintained as state)
 		// TODO (Vistaar): LogConfig might be moved out from here.
-		LogConfig LogConfig `json:"log_config,omitempty"`
-		TIConfig  TIConfig  `json:"ti_config,omitempty"`
+		LogConfig  LogConfig       `json:"log_config,omitempty"`
+		TIConfig   TIConfig        `json:"ti_config,omitempty"`
+		MtlsConfig spec.MtlsConfig `json:"mtls_config,omitempty"`
 
 		OutputVars        []string    `json:"output_vars,omitempty"`
 		TestReport        TestReport  `json:"test_report,omitempty"`

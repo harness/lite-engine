@@ -20,6 +20,7 @@ type (
 		Files             []*File           `json:"files,omitempty"`
 		EnableDockerSetup *bool             `json:"mount_docker_socket"`
 		TTY               bool              `json:"tty,omitempty" default:"false"`
+		MtlsConfig        MtlsConfig        `json:"mtls_config,omitempty"`
 	}
 
 	// Step defines a pipeline step.
@@ -169,5 +170,11 @@ type (
 	Point struct {
 		X float64 `json:"x"`
 		Y float64 `json:"y"`
+	}
+
+	MtlsConfig struct {
+		ClientCert        string `json:"client_cert,omitempty"`
+		ClientCertKey     string `json:"client_cert_key,omitempty"`
+		ClientCertDirPath string `json:"client_cert_dir_path,omitempty"`
 	}
 )
