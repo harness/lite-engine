@@ -80,16 +80,8 @@ github.com/harness/godotenv/v2 v2.0.0 h1:9Hpa8PfXQ5PJ8kGmSLp4eEdPLhVXsUMGMHrH7yo
 github.com/harness/godotenv/v2 v2.0.0/go.mod h1:f2Xdq/sKp6M464DNmLny9JhQIrPPp2yRlha9q78ZhAs=
 github.com/harness/godotenv/v3 v3.0.1 h1:7QPEOkpx6SLLrYRRzPBp50d6c0XIxq721iqoFxbz1Bs=
 github.com/harness/godotenv/v3 v3.0.1/go.mod h1:UIXXJtTM7NkSYMYknHYOO2d8BfDlAWMYZRuRsXcDDR0=
-github.com/harness/ti-client v0.0.0-20240617230757-1e90e7e3ada2 h1:9QHzlirx9Lg77ohXYTOeC+3aDPG8ZeHTKI1iAN5+cIo=
-github.com/harness/ti-client v0.0.0-20240617230757-1e90e7e3ada2/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
-github.com/harness/ti-client v0.0.0-20241216230843-375986aa2220 h1:M9d6zlBX3GKo5ZAO7VM7OiHxU8busQJhw2UEGoxH4oc=
-github.com/harness/ti-client v0.0.0-20241216230843-375986aa2220/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
-github.com/harness/ti-client v0.0.0-20241217064251-28422cd73076 h1:q/inKc/CCfioaV3jchvAECD9hTJHw0wAA8N0FLUasco=
-github.com/harness/ti-client v0.0.0-20241217064251-28422cd73076/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
-github.com/harness/ti-client v0.0.0-20250101204653-03b019c92d99 h1:l3i2nZrx8N8YU7Fvst7SRioZsy7ZI8Mv52yAYSN6Czc=
-github.com/harness/ti-client v0.0.0-20250101204653-03b019c92d99/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
-github.com/harness/ti-client v0.0.0-20250101212039-baa69c185398 h1:4KyKrLilhIJ5sU1/nXpgC23ABvF5gKrK1MFac2BOvGk=
-github.com/harness/ti-client v0.0.0-20250101212039-baa69c185398/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
+github.com/harness/ti-client v0.0.0-20250104064648-cba197bedd61 h1:y8CWfjrKjLjbKPRqlmCYT3dj4S2lC5T17/l5qA7T1vc=
+github.com/harness/ti-client v0.0.0-20250104064648-cba197bedd61/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/errwrap v1.1.0 h1:OxrOeh75EUXMY8TBjag2fzXGZ40LB6IKw45YeGUDY2I=
 github.com/hashicorp/errwrap v1.1.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
@@ -182,8 +174,6 @@ github.com/ulikunitz/xz v0.5.8/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oW
 github.com/ulikunitz/xz v0.5.9/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
 github.com/ulikunitz/xz v0.5.11 h1:kpFauv27b6ynzBNT/Xy+1k+fK4WswhN/6PN5WhFAGw8=
 github.com/ulikunitz/xz v0.5.11/go.mod h1:nbz6k7qbPmH4IRqmfOplQw/tblSgqTqBwxkY0oWt/14=
-github.com/wings-software/dlite v1.0.0-rc.11 h1:HnsXNfWkAq1MXi0O6IWLb4rZUL4su+KDkXeX+OKSdKg=
-github.com/wings-software/dlite v1.0.0-rc.11/go.mod h1:zZd6iaMk8Av1QSABGuDWdxBFO82MxE0r6PRoDsLDvCE=
 github.com/wings-software/dlite v1.0.0-rc.13 h1:p5cWaspKrSS9x9qheqf/yN9V39jnlMp82JR1p1tO0Ts=
 github.com/wings-software/dlite v1.0.0-rc.13/go.mod h1:zZd6iaMk8Av1QSABGuDWdxBFO82MxE0r6PRoDsLDvCE=
 github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 h1:nIPpBwaJSVYIxUFsDv3M8ofmx9yWTog9BfvIu0q41lo=
