@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/harness/ti-client/types"
 	gradleTypes "github.com/harness/ti-client/types/cache/gradle"
 	"golang.org/x/net/html"
 )
@@ -292,4 +293,22 @@ func (n *JsonNode) populateFrom(htmlNode *html.Node) { //nolint:gocyclo
 	if textBuffer.Len() > 0 {
 		n.Text = textBuffer.String()
 	}
+}
+
+func GetMetadataFromGradleMetrics(metrics types.SavingsRequest) (int, int) {
+	totalTasks := 0
+	cachedTasks := 0
+
+	for _, profile := range metrics.GradleMetrics.Profiles {
+		for _, project := range profile.Projects {
+			for _, task := range project.Tasks {
+				totalTasks++
+				if task.State == "FROM-CACHE" {
+					cachedTasks++
+				}
+			}
+		}
+	}
+
+	return totalTasks, cachedTasks
 }

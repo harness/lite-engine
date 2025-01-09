@@ -22,6 +22,8 @@ func Test_CollectRunTestData(t *testing.T) {
 		"", "", "", "", "", "", "", "",
 		"", false, false, "", "")
 
+	telemetryData := api.TelemetryData{}
+
 	tests := []struct {
 		name          string
 		cgErr         error
@@ -58,10 +60,10 @@ func Test_CollectRunTestData(t *testing.T) {
 			collectCgFn = func(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, dir string) error {
 				return tc.cgErr
 			}
-			collectTestReportsFn = func(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, envs map[string]string) error {
+			collectTestReportsFn = func(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, testMetadata *api.TestIntelligenceMetaData, envs map[string]string) error {
 				return tc.crErr
 			}
-			err := collectRunTestData(ctx, log, &apiReq, time.Now(), stepName, &tiConfig)
+			err := collectRunTestData(ctx, log, &apiReq, time.Now(), stepName, &tiConfig, &telemetryData)
 			assert.Equal(t, tc.collectionErr, err)
 		})
 	}

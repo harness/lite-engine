@@ -107,6 +107,48 @@ type (
 		Files        []*spec.File         `json:"files,omitempty"`
 		StepStatus   StepStatusConfig     `json:"step_status,omitempty"`
 	}
+
+	TelemetryData struct {
+		BuildIntelligenceMetaData BuildIntelligenceMetaData `json:"build_intelligence_data,omitempty"`
+		TestIntelligenceMetaData  TestIntelligenceMetaData  `json:"test_intelligence_data,omitempty"`
+		CacheIntelligenceMetaData CacheIntelligenceMetaData `json:"cache_intelligence_data,omitempty"`
+		DlcMetadata               DlcMetadata               `json:"dlc_metadata,omitempty"`
+		Errors                    []string                  `json:"errors,omitempty"`
+	}
+
+	BuildIntelligenceMetaData struct {
+		BuildTasks    int      `json:"build_tasks,omitempty"`
+		TasksRestored int      `json:"tasks_restored,omitempty"`
+		StepType      string   `json:"step_type,omitempty"`
+		BuildTool     string   `json:"build_tool,omitempty"`
+		Language      string   `json:"language,omitempty"`
+		Errors        []string `json:"errors,omitempty"`
+	}
+
+	TestIntelligenceMetaData struct {
+		TotalTests             int      `json:"total_tests,omitempty"`
+		TotalTestClasses       int      `json:"total_test_classes,omitempty"`
+		TotalSelectedTests     int      `json:"total_selected_tests,omitempty"`
+		TotalSelectedTestClass int      `json:"total_selected_test_classes,omitempty"`
+		CPUTimeSaved           int64    `json:"cpu_time_saved,omitempty"`
+		BuildTool              string   `json:"build_tool,omitempty"`
+		Language               string   `json:"language,omitempty"`
+		Errors                 []string `json:"errors,omitempty"`
+	}
+
+	CacheIntelligenceMetaData struct {
+		CacheSize        int      `json:"cache_size,omitempty"`
+		IsNonDefaultPath bool     `json:"is_non_default_path,omitempty"`
+		IsCustomKeys     bool     `json:"is_custom_keys,omitempty"`
+		Errors           []string `json:"errors,omitempty"`
+	}
+
+	DlcMetadata struct {
+		TotalLayers    int      `json:"total_layers,omitempty"`
+		LayersRestored int      `json:"layers_restored,omitempty"`
+		Errors         []string `json:"errors,omitempty"`
+	}
+
 	OutputV2 struct {
 		Key   string     `json:"key,omitempty"`
 		Value string     `json:"value"`
@@ -129,6 +171,7 @@ type (
 		Artifact          []byte            `json:"artifact,omitempty"`
 		OutputV2          []*OutputV2       `json:"outputV2,omitempty"`
 		OptimizationState string            `json:"optimization_state,omitempty"`
+		TelemetryData     *TelemetryData    `json:"telemetry_data,omitempty"`
 	}
 
 	StreamOutputRequest struct {
@@ -221,6 +264,7 @@ type (
 		Artifact               []byte                 `json:"artifact,omitempty"`
 		Outputs                []*OutputV2            `json:"outputs,omitempty"`
 		OptimizationState      string                 `json:"optimization_state,omitempty"`
+		TelemetryData          *TelemetryData         `json:"telemetry_data,omitempty"`
 	}
 )
 

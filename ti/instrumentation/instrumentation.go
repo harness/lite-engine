@@ -246,7 +246,7 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	config.RunOnlySelectedTests = true
 }
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string, cfg *tiCfg.Cfg) (string, error) {
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string, cfg *tiCfg.Cfg, testMetadata *api.TestIntelligenceMetaData) (string, error) {
 	fs := filesystem.New()
 	tmpFilePath := cfg.GetDataDir()
 
@@ -308,6 +308,8 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 	if err != nil {
 		return "", err
 	}
+	testMetadata.TotalSelectedTests = selection.SelectedTests
+	testMetadata.TotalSelectedTestClass = common.CountDistinctClasses(selection.Tests)
 
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Ignoring instrumentation and not attaching agent")

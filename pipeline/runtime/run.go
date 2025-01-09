@@ -26,7 +26,7 @@ const (
 )
 
 func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo,funlen
-	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
+	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
 	start := time.Now()
 	step := toStep(r)
 	step.Command = r.Run.Command
@@ -36,9 +36,10 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	optimizationState := types.DISABLED
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
+	telemetryData := &api.TelemetryData{}
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
-		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
+		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
 	if r.ScratchDir != "" {
@@ -98,14 +99,14 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	timeTakenMs := time.Since(start).Milliseconds()
 
 	reportStart := time.Now()
-	if rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, reportStart, tiConfig, r.Envs); rerr != nil {
+	if rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs); rerr != nil {
 		logrus.WithContext(ctx).WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
 		log.Errorf("Failed to upload report. Time taken: %s", time.Since(reportStart))
 	}
 
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
-		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs)
+		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData)
 	}
 
 	useCINewGodotEnvVersion := false
@@ -190,11 +191,11 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 			}
 		}
 
-		return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), finalErr
+		return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), finalErr
 	}
 	if len(summaryOutputsV2) == 0 || !report.TestSummaryAsOutputEnabled(r.Envs) {
-		return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
+		return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 	}
 	// even if the step failed, we still want to return the summary outputs
-	return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), err
+	return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
 }
