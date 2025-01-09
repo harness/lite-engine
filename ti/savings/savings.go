@@ -5,8 +5,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/harness/lite-engine/api"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/savings/cache"
+	"github.com/harness/lite-engine/ti/savings/cache/gradle"
 	"github.com/harness/lite-engine/ti/savings/dlc"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
@@ -15,7 +17,7 @@ import (
 const restoreCacheHarnessStepID = "restore-cache-harness"
 
 func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, stepSuccess bool, cmdTimeTaken int64,
-	tiConfig *tiCfg.Cfg, envs map[string]string) types.IntelligenceExecutionState {
+	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *api.TelemetryData) types.IntelligenceExecutionState {
 	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
 	start := time.Now()
@@ -31,6 +33,9 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
 				types.BUILD_CACHE, time.Since(tiStart).Seconds())
 		}
+		totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(savingsRequest)
+		telemetryData.BuildIntelligenceMetaData.BuildTasks = totaltasks
+		telemetryData.BuildIntelligenceMetaData.TasksRestored = cachedtasks
 	}
 
 	// TI Savings
@@ -60,6 +65,8 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 					log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
 						types.DLC, time.Since(tiStart).Seconds())
 				}
+				telemetryData.DlcMetadata.TotalLayers = savingsRequest.DlcMetrics.TotalLayers
+				telemetryData.DlcMetadata.LayersRestored = savingsRequest.DlcMetrics.Cached
 			}
 		}
 	}

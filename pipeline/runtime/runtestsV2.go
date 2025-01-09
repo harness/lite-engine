@@ -20,6 +20,7 @@ import (
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation"
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/instrumentation/python"
@@ -51,7 +52,7 @@ const (
 
 //nolint:gocritic,gocyclo
 func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer,
-	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
+	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
 	start := time.Now()
 	log := logrus.New()
 	log.Out = out
@@ -59,10 +60,11 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step := toStep(r)
 	setTiEnvVariables(step, tiConfig)
 	step.Entrypoint = r.RunTestsV2.Entrypoint
+	telemetryData := &api.TelemetryData{}
 
-	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, log, r.Envs, tiConfig)
+	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
 	if err != nil {
-		return nil, nil, nil, nil, nil, string(optimizationState), err
+		return nil, nil, nil, nil, nil, nil, string(optimizationState), err
 	}
 	command := r.RunTestsV2.Command[0]
 	if preCmd != "" {
@@ -74,7 +76,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
-		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
+		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
 	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
@@ -95,13 +97,13 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 
 	exited, err := f(ctx, step, out, r.LogDrone, false)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig)
+	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData)
 	if err == nil {
 		err = collectionErr
 	}
 
 	if tiConfig.GetParseSavings() {
-		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs)
+		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData)
 	}
 
 	useCINewGodotEnvVersion := false
@@ -143,26 +145,26 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 			if report.TestSummaryAsOutputEnabled(r.Envs) {
 				outputsV2 = append(outputsV2, summaryOutputsV2...)
 			}
-			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), err
+			return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), err
 		} else if len(r.OutputVars) > 0 {
 			// only return err when output vars are expected
 			if report.TestSummaryAsOutputEnabled(r.Envs) {
-				return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), err
+				return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
 			}
-			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), err
+			return exited, outputs, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 		}
 		if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
-			return exited, outputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), nil
+			return exited, outputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), nil
 		}
-		return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), nil
+		return exited, outputs, exportEnvs, artifact, nil, telemetryData, string(optimizationState), nil
 	}
 	if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
-		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, string(optimizationState), err
+		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
 	}
-	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
+	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
 
-func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, workspace string, log *logrus.Logger, envs map[string]string, tiConfig *tiCfg.Cfg) (string, error) {
+func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, workspace string, log *logrus.Logger, envs map[string]string, tiConfig *tiCfg.Cfg, testMetadata *api.TestIntelligenceMetaData) (string, error) {
 	agentPaths := make(map[string]string)
 	fs := filesystem.New()
 	tmpFilePath := tiConfig.GetDataDir()
@@ -213,7 +215,7 @@ func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, w
 		if err != nil || pythonArtifactDir == "" {
 			return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 		}
-		err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath)
+		err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath, testMetadata)
 		if err != nil {
 			return preCmd, fmt.Errorf("error while creating filter file %s", err)
 		}
@@ -575,7 +577,7 @@ func downloadDotNetAgent(ctx context.Context, path, dotNetAgentV2Url string, fs 
 
 // This is nothing but filterfile where all the tests selected will be stored
 func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
-	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string) error {
+	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string, testMetadata *api.TestIntelligenceMetaData) error {
 	isManualExecution := instrumentation.IsManualExecution(tiConfig)
 	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig, envs, runV2Config)
 	if tiConfig.GetParseSavings() {
@@ -601,6 +603,8 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 		log.WithError(err).Errorln("failed to populate items in filterfile")
 		return err
 	}
+	testMetadata.TotalSelectedTests = resp.SelectedTests
+	testMetadata.TotalSelectedTestClass = common.CountDistinctClasses(resp.Tests)
 	return nil
 }
 
@@ -646,7 +650,7 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 	return nil
 }
 
-func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
+func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *api.TelemetryData) error {
 	cgStart := time.Now()
 
 	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir)
@@ -661,7 +665,7 @@ func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.Sta
 	}
 
 	reportStart := time.Now()
-	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, r.Envs)
+	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
 	if crErr != nil {
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
 	}

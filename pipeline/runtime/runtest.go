@@ -33,7 +33,7 @@ var (
 )
 
 func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
-	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
+	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
 	log := &logrus.Logger{
 		Out:   out,
 		Level: logrus.InfoLevel,
@@ -44,9 +44,10 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 
 	start := time.Now()
 	optimizationState := types.DISABLED
-	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs, tiConfig)
+	telemetryData := &api.TelemetryData{}
+	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
 	if err != nil {
-		return nil, nil, nil, nil, nil, string(optimizationState), err
+		return nil, nil, nil, nil, nil, nil, string(optimizationState), err
 	}
 
 	instrumentation.InjectReportInformation(r)
@@ -59,7 +60,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
-		return nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
+		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
 	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
@@ -74,7 +75,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 
 	exited, err := f(ctx, step, out, false, false)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig)
+	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig, telemetryData)
 	if err == nil {
 		// Fail the step if run was successful but error during collection
 		err = collectionErr
@@ -82,7 +83,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
-		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs)
+		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData)
 	}
 
 	useCINewGodotEnvVersion := false
@@ -125,36 +126,36 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 				outputsV2 = append(outputsV2, summaryOutputV2...)
 			}
 			// when outputvars are defined and step has suceeded, fetchErr takes priority
-			return exited, outputs, exportEnvs, artifact, outputsV2, string(optimizationState), fetchErr
+			return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), fetchErr
 		}
 		if report.TestSummaryAsOutputEnabled(r.Envs) {
-			return exited, summaryOutputs, exportEnvs, artifact, summaryOutputV2, string(optimizationState), err
+			return exited, summaryOutputs, exportEnvs, artifact, summaryOutputV2, telemetryData, string(optimizationState), err
 		}
 	} else if len(r.OutputVars) > 0 {
 		if exited != nil && exited.Exited && exited.ExitCode == 0 {
 			if len(summaryOutputV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
 				// when step has failed return the actual error
-				return exited, outputs, exportEnvs, artifact, summaryOutputV2, string(optimizationState), err
+				return exited, outputs, exportEnvs, artifact, summaryOutputV2, telemetryData, string(optimizationState), err
 			}
 			// when outputvars are defined and step has suceeded, fetchErr takes priority
-			return exited, outputs, exportEnvs, artifact, nil, string(optimizationState), fetchErr
+			return exited, outputs, exportEnvs, artifact, nil, telemetryData, string(optimizationState), fetchErr
 		}
 		if len(outputs) != 0 && len(summaryOutputV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
 			// when step has failed return the actual error
-			return exited, summaryOutputs, exportEnvs, artifact, summaryOutputV2, string(optimizationState), err
+			return exited, summaryOutputs, exportEnvs, artifact, summaryOutputV2, telemetryData, string(optimizationState), err
 		}
 	}
 	if len(outputs) != 0 && len(summaryOutputV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
 		// when there is no output vars requested, fetchErr will have non nil value
 		// In that case return err, which reflects pipeline error
-		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputV2, string(optimizationState), err
+		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputV2, telemetryData, string(optimizationState), err
 	}
 
-	return exited, nil, exportEnvs, artifact, nil, string(optimizationState), err
+	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step
-func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg) error {
+func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *api.TelemetryData) error {
 	cgStart := time.Now()
 	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, cgDir)
 	if cgErr != nil {
@@ -163,7 +164,7 @@ func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartSte
 	}
 
 	reportStart := time.Now()
-	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, r.Envs)
+	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
 	if crErr != nil {
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
 	}

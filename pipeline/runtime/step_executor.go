@@ -43,6 +43,7 @@ type StepStatus struct {
 	Artifact          []byte
 	OutputV2          []*api.OutputV2
 	OptimizationState string
+	TelemetryData     *api.TelemetryData
 }
 
 const (
@@ -88,9 +89,9 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 
 	go func() {
 		wr := getLogStreamWriter(r)
-		state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(ctx, r, wr)
+		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(ctx, r, wr)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
-			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
+			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata}
 		e.mu.Lock()
 		e.stepStatus[r.ID] = status
 		channels := e.stepWaitCh[r.ID]
@@ -118,9 +119,9 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				setPrevStepExportEnvs(r)
 			}
 			wr = getLogStreamWriter(r)
-			state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(ctx, r, wr)
+			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(ctx, r, wr)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
-				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
+				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 			pollResponse := convertStatus(status)
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
@@ -257,7 +258,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 
 		r.Kind = api.Run // only this kind is supported
 
-		exited, _, _, _, _, _, err := run(ctx, e.engine.Run, r, stepLog, pipeline.GetState().GetTIConfig())
+		exited, _, _, _, _, _, _, err := run(ctx, e.engine.Run, r, stepLog, pipeline.GetState().GetTIConfig())
 		if ctx.Err() == context.Canceled || ctx.Err() == context.DeadlineExceeded {
 			logr.WithError(err).Warnln("step execution canceled")
 			return nil, ctx.Err()
@@ -289,10 +290,10 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 }
 
 func (e *StepExecutor) executeStep(ctx context.Context, r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
-	map[string]string, []byte, []*api.OutputV2, string, error) {
+	map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
-		return state, nil, nil, nil, nil, "", err
+		return state, nil, nil, nil, nil, nil, "", err
 	}
 	// If TI Config has been passed in the step request, use that insetad of relying on the one in the pipeline state
 	var tiConfig *tiCfg.Cfg
@@ -314,7 +315,7 @@ func executeStepHelper( //nolint:gocritic
 	f RunFunc,
 	wr logstream.Writer,
 	tiCfg *tiCfg.Cfg) (*runtime.State, map[string]string,
-	map[string]string, []byte, []*api.OutputV2, string, error) {
+	map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
 	// We do here only for non-container step.
@@ -329,7 +330,7 @@ func executeStepHelper( //nolint:gocritic
 			run(ctx, f, r, wr, tiCfg) //nolint:errcheck
 			wr.Close()
 		}()
-		return &runtime.State{Exited: false}, nil, nil, nil, nil, "", nil
+		return &runtime.State{Exited: false}, nil, nil, nil, nil, nil, "", nil
 	}
 
 	var result error
@@ -341,7 +342,7 @@ func executeStepHelper( //nolint:gocritic
 		defer cancel()
 	}
 
-	exited, outputs, envs, artifact, outputV2, optimizationState, err :=
+	exited, outputs, envs, artifact, outputV2, telemetryData, optimizationState, err :=
 		run(ctx, f, r, wr, tiCfg)
 	if err != nil {
 		result = multierror.Append(result, err)
@@ -360,7 +361,7 @@ func executeStepHelper( //nolint:gocritic
 	// DeadlineExceeded error this indicates the step was timed out.
 	switch ctx.Err() {
 	case context.Canceled, context.DeadlineExceeded:
-		return nil, nil, nil, nil, nil, "", ctx.Err()
+		return nil, nil, nil, nil, nil, nil, "", ctx.Err()
 	}
 
 	if exited != nil {
@@ -376,11 +377,11 @@ func executeStepHelper( //nolint:gocritic
 			logrus.WithContext(ctx).WithField("id", r.ID).Infof("received exit code %d\n", exited.ExitCode)
 		}
 	}
-	return exited, outputs, envs, artifact, outputV2, optimizationState, result
+	return exited, outputs, envs, artifact, outputV2, telemetryData, optimizationState, result
 }
 
 func run(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
-	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, string, error) {
+	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
 	if r.Kind == api.Run {
 		return executeRunStep(ctx, f, r, out, tiConfig)
 	}
@@ -500,6 +501,7 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 		Artifact:          status.Artifact,
 		OutputV2:          status.OutputV2,
 		OptimizationState: status.OptimizationState,
+		TelemetryData:     status.TelemetryData,
 	}
 
 	stepErr := status.StepErr
@@ -527,10 +529,10 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 
 func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VMTaskExecutionResponse {
 	if r.Error == "" {
-		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact, Outputs: r.OutputV2, OptimizationState: r.OptimizationState}
+		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact, Outputs: r.OutputV2, OptimizationState: r.OptimizationState, TelemetryData: r.TelemetryData}
 	}
 	if report.TestSummaryAsOutputEnabled(envs) {
-		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, OutputVars: r.Outputs, Outputs: r.OutputV2, ErrorMessage: r.Error, OptimizationState: r.OptimizationState}
+		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, OutputVars: r.Outputs, Outputs: r.OutputV2, ErrorMessage: r.Error, OptimizationState: r.OptimizationState, TelemetryData: r.TelemetryData}
 	}
 	return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: r.Error, OptimizationState: r.OptimizationState}
 }

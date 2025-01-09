@@ -62,10 +62,10 @@ func Test_CollectRunTestsV2Data(t *testing.T) {
 			collectCgFn = func(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, dir string) error {
 				return tc.cgErr
 			}
-			collectTestReportsFn = func(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, envs map[string]string) error {
+			collectTestReportsFn = func(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, testMetadata *api.TestIntelligenceMetaData, envs map[string]string) error {
 				return tc.crErr
 			}
-			err := collectTestReportsAndCg(ctx, log, &apiReq, time.Now(), stepName, &tiConfig)
+			err := collectTestReportsAndCg(ctx, log, &apiReq, time.Now(), stepName, &tiConfig, &api.TelemetryData{})
 			assert.Equal(t, tc.collectionErr, err)
 		})
 	}
@@ -73,16 +73,17 @@ func Test_CollectRunTestsV2Data(t *testing.T) {
 
 func Test_createSelectedTestFile(t *testing.T) {
 	type args struct {
-		ctx            context.Context
-		fs             filesystem.FileSystem
-		stepID         string
-		workspace      string
-		log            *logrus.Logger
-		tiConfig       *tiCfg.Cfg
-		tmpFilepath    string
-		envs           map[string]string
-		runV2Config    *api.RunTestsV2Config
-		filterFilePath string
+		ctx                      context.Context
+		fs                       filesystem.FileSystem
+		stepID                   string
+		workspace                string
+		log                      *logrus.Logger
+		tiConfig                 *tiCfg.Cfg
+		tmpFilepath              string
+		envs                     map[string]string
+		runV2Config              *api.RunTestsV2Config
+		filterFilePath           string
+		testIntelligenceMetaData *api.TestIntelligenceMetaData
 	}
 	tests := []struct {
 		name    string
@@ -102,7 +103,8 @@ func Test_createSelectedTestFile(t *testing.T) {
 				tt.args.tmpFilepath,
 				tt.args.envs,
 				tt.args.runV2Config,
-				tt.args.filterFilePath); (err != nil) != tt.wantErr {
+				tt.args.filterFilePath,
+				tt.args.testIntelligenceMetaData); (err != nil) != tt.wantErr {
 				t.Errorf("createSelectedTestFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

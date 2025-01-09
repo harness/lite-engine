@@ -45,9 +45,9 @@ func (e *StepExecutorStateless) Run(
 
 	e.stepStatus = StepStatus{Status: Running}
 
-	state, outputs, envs, artifact, outputV2, optimizationState, stepErr := e.executeStep(ctx, r, cfg, writer)
+	state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(ctx, r, cfg, writer)
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
-		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState}
+		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 	pollResponse := convertStatus(e.stepStatus)
 	return convertPollResponse(pollResponse, r.Envs), nil
 }
@@ -58,7 +58,7 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 	cfg *spec.PipelineConfig,
 	writer logstream.Writer,
 ) (*runtime.State, map[string]string,
-	map[string]string, []byte, []*api.OutputV2, string, error) {
+	map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
 	runFunc := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
 		return engine.RunStep(ctx, engine.Opts{}, step, output, cfg, isDrone, isHosted)
 	}
