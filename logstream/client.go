@@ -15,7 +15,7 @@ type Client interface {
 	Open(ctx context.Context, key string) error
 
 	// Close closes the data stream.
-	Close(ctx context.Context, key string) error
+	Close(ctx context.Context, key string, snapshot bool) error
 
 	// Write writes logs to the data stream.
 	Write(ctx context.Context, key string, lines []*Line) error

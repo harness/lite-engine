@@ -28,7 +28,7 @@ func (f *Logger) Open(_ context.Context, key string) error {
 	return nil
 }
 
-func (f *Logger) Close(_ context.Context, key string) error {
+func (f *Logger) Close(_ context.Context, key string, snapshot bool) error {
 	return nil
 }
 

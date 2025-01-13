@@ -57,7 +57,7 @@ func (f *FileStore) Open(_ context.Context, key string) error {
 }
 
 // Close closes the data stream.
-func (f *FileStore) Close(_ context.Context, key string) error {
+func (f *FileStore) Close(_ context.Context, key string, snapshot bool) error {
 	file, err := f.getFileRef(key)
 	if err != nil {
 		return err

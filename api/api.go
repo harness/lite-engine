@@ -169,6 +169,12 @@ type (
 		URL               string `json:"url,omitempty"`
 		Token             string `json:"token,omitempty"`
 		TrimNewLineSuffix bool   `json:"trim_new_line_suffix,omitempty"`
+		// Note: setting `skipOpeningStream` as `true` has the effect of making the `Writer` in
+		// livelog.go use a stream snapshot to save the final logs, instead of calling `upload`.
+		// There is a limit of 5k lines for log-service's snapshot, so this parameter should NOT
+		// be used in cases where more than 5k lines of logs are written by the logger. Otherwise,
+		// the final logs blob may have missing logs.
+		SkipOpeningStream bool `json:"skip_opening_stream,omitempty"`
 	}
 
 	TIConfig struct {
