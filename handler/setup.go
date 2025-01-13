@@ -7,6 +7,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"runtime"
@@ -117,5 +118,6 @@ func setProxyEnvs(environment map[string]string) {
 func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig) tiCfg.Cfg {
 	cfg := tiCfg.New(t.URL, t.Token, t.AccountID, t.OrgID, t.ProjectID, t.PipelineID, t.BuildID, t.StageID, t.Repo,
 		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.SharedVolPath, t.ParseSavings, false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
+	fmt.Println("Here Ti Config is ---------> %s", cfg)
 	return cfg
 }
