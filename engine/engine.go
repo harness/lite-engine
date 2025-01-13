@@ -213,11 +213,17 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 			}
 		}
 	}
+	logrus.Info(fmt.Sprintf("Step ID is %s", step.ID))
+	logrus.Info(fmt.Sprintf("Step name is %s", step.Name))
+	logrus.Info(fmt.Sprintf("Step Image is %s", step.Image))
 	for k, v := range cfg.Envs {
 		envs[k] = v
+		logrus.Info(fmt.Sprintf("Config env vars key = %s and value = %s", k, v))
 	}
+	logrus.Info("Here are config env vars ")
 	for k, v := range step.Envs {
 		envs[k] = v
+		logrus.Info(fmt.Sprintf("Step env vars key = %s and value = %s", k, v))
 	}
 	step.Envs = envs
 	step.WorkingDir = pathConverter(step.WorkingDir)

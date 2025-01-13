@@ -90,7 +90,13 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	log := logrus.New()
 	log.Out = out
-
+	// log.Info("Here is the step name ---> %s", step.Name)
+	// log.Info("Here is the step ID -----> %s", step.ID)
+	// for k, v := range step.Envs {
+	// 	log.Info(fmt.Sprintf("Step (Run) env vars key = %s and value = %s", k, v))
+	// }
+	// log.Info("Here are the step environment variables %s", step.Envs)
+	step.Envs["HARNESS_ACCOUNT_ID"] = r.LogConfig.AccountID
 	// stageRuntimeID is only passed for dlite
 	isHosted := r.StageRuntimeID != ""
 
