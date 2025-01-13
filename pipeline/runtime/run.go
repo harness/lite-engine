@@ -31,8 +31,9 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	step := toStep(r)
 	step.Command = r.Run.Command
 	step.Entrypoint = r.Run.Entrypoint
+	fmt.Println(fmt.Sprintf("Here value of HARNESS_ACCOUNT_ID in step %s is --> %s before setting up TI Env Vars", step.Name, step.Envs["HARNESS_ACCOUNT_ID"]))
+	accountID := step.Envs["HARNESS_ACCOUNT_ID"]
 	setTiEnvVariables(step, tiConfig)
-
 	optimizationState := types.DISABLED
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
@@ -90,8 +91,15 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	log := logrus.New()
 	log.Out = out
-
+	// log.Info("Here is the step name ---> %s", step.Name)
+	// log.Info("Here is the step ID -----> %s", step.ID)
+	// for k, v := range step.Envs {
+	// 	log.Info(fmt.Sprintf("Step (Run) env vars key = %s and value = %s", k, v))
+	// }
+	// log.Info("Here are the step environment variables %s", step.Envs)
 	// stageRuntimeID is only passed for dlite
+	step.Envs["HARNESS_ACCOUNT_ID"] = accountID
+	log.Info(fmt.Sprintf("Here value of HARNESS_ACCOUNT_ID in step %s is --> %s ", step.Name, accountID))
 	isHosted := r.StageRuntimeID != ""
 
 	exited, err := f(ctx, step, out, r.LogDrone, isHosted)
