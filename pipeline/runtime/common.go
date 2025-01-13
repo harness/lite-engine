@@ -176,6 +176,7 @@ func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 	envMap[ti.BuildIDEnv] = config.GetBuildID()
 	envMap[ti.StepIDEnv] = step.Name
 	envMap[ti.InfraEnv] = ti.HarnessInfra
+	fmt.Println(fmt.Sprintf("Here TI Env for Account ID is key -----> %s, value ------> %s", ti.AccountIDEnv, envMap[ti.AccountIDEnv]))
 }
 
 func getLogServiceClient(cfg api.LogConfig) logstream.Client {
