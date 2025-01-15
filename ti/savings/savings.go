@@ -2,6 +2,8 @@ package savings
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"strconv"
 	"time"
 
@@ -93,8 +95,9 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			cacheIntelState = types.OPTIMIZED
 		}
 		states = append(states, cacheIntelState)
-		if cacheSize, found := envs["HARNESS_CACHE_INTEL_SIZE"]; found {
-			telemetryData.CacheIntelligenceMetaData.CacheSize = cacheSize
+		err := parseCacheInfo(telemetryData)
+		if err != nil {
+			log.Errorf("Failed to parse cache info: %v", err)
 		}
 	}
 
@@ -116,4 +119,27 @@ func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceE
 		}
 	}
 	return state
+}
+
+func parseCacheInfo(telemetryData *api.TelemetryData) error {
+	cacheFile := "plugin-cache-intel.json"
+
+	if _, err := os.Stat(cacheFile); os.IsNotExist(err) {
+		return err
+	}
+
+	// Read the JSON file containing the cache metrics.
+	data, err := os.ReadFile(cacheFile)
+	if err != nil {
+		return err
+	}
+
+	// Deserialize the JSON data into the CacheMetrics struct.
+	var cacheInfo api.CacheMetadata
+	if err := json.Unmarshal(data, &cacheInfo); err != nil {
+		return err
+	}
+
+	telemetryData.CacheIntelligenceMetaData.CacheSize = cacheInfo.CacheSize
+	return nil
 }
