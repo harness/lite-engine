@@ -290,5 +290,5 @@ const (
 )
 
 type CacheMetadata struct {
-	CacheSize string
+	CacheSize string `json:"cache_size,omitempty"`
 }
