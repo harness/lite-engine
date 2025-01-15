@@ -33,6 +33,15 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
 				types.BUILD_CACHE, time.Since(tiStart).Seconds())
 		}
+
+		if buildtool, found := envs["HARNESS_BUILD_TOOL"]; found {
+			telemetryData.BuildIntelligenceMetaData.BuildTool = buildtool
+
+		}
+
+		if lang, found := envs["HARNESS_LANG"]; found {
+			telemetryData.BuildIntelligenceMetaData.Language = lang
+		}
 		totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(savingsRequest)
 		telemetryData.BuildIntelligenceMetaData.BuildTasks = totaltasks
 		telemetryData.BuildIntelligenceMetaData.TasksRestored = cachedtasks
@@ -84,6 +93,9 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			cacheIntelState = types.OPTIMIZED
 		}
 		states = append(states, cacheIntelState)
+		if cacheSize, found := envs["HARNESS_CACHE_INTEL_SIZE"]; found {
+			telemetryData.CacheIntelligenceMetaData.CacheSize = cacheSize
+		}
 	}
 
 	return getStepState(states)
