@@ -6,6 +6,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -109,6 +110,11 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData)
 	}
 
+	err = parseBuildInfo(telemetryData)
+	if err != nil {
+		logrus.WithContext(ctx).WithError(err).Errorln("failed to parse build info")
+	}
+
 	useCINewGodotEnvVersion := false
 	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == trueValue {
 		useCINewGodotEnvVersion = true
@@ -198,4 +204,27 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	}
 	// even if the step failed, we still want to return the summary outputs
 	return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
+}
+
+func parseBuildInfo(telemetryData *api.TelemetryData) error {
+	buildFile := "/harness/build-lang.json"
+
+	if _, err := os.Stat(buildFile); os.IsNotExist(err) {
+		return err
+	}
+
+	// Read the JSON file containing the cache metrics.
+	data, err := os.ReadFile(buildFile)
+	if err != nil {
+		return err
+	}
+
+	// Deserialize the JSON data into the CacheMetrics struct.
+	var buildInfo api.BuildInfo
+	if err := json.Unmarshal(data, &buildInfo); err != nil {
+		return err
+	}
+
+	telemetryData.BuildInfo = buildInfo
+	return nil
 }

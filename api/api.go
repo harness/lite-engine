@@ -113,6 +113,7 @@ type (
 		TestIntelligenceMetaData  TestIntelligenceMetaData  `json:"test_intelligence_data,omitempty"`
 		CacheIntelligenceMetaData CacheIntelligenceMetaData `json:"cache_intelligence_data,omitempty"`
 		DlcMetadata               DlcMetadata               `json:"dlc_metadata,omitempty"`
+		BuildInfo                 BuildInfo                 `json:"build_info,omitempty"`
 		Errors                    []string                  `json:"errors,omitempty"`
 	}
 
@@ -134,6 +135,11 @@ type (
 		BuildTool              string   `json:"build_tool,omitempty"`
 		Language               string   `json:"language,omitempty"`
 		Errors                 []string `json:"errors,omitempty"`
+	}
+
+	BuildInfo struct {
+		HarnessLang      string `json:"harness_lang"`
+		HarnessBuildTool string `json:"harness_build_tool"`
 	}
 
 	CacheIntelligenceMetaData struct {
@@ -282,3 +288,7 @@ const (
 	OutputTypeString OutputType = "STRING"
 	OutputTypeSecret OutputType = "SECRET"
 )
+
+type CacheMetadata struct {
+	CacheSize string
+}
