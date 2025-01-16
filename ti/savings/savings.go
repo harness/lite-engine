@@ -96,9 +96,11 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			cacheIntelState = types.OPTIMIZED
 		}
 		states = append(states, cacheIntelState)
-		err := parseCacheInfo(telemetryData)
-		if err != nil {
-			log.Errorf("Failed to parse cache info: %v", err)
+		if cacheIntelFile, found := envs["PLUGIN_CACHE_INTEL_FILE"]; found {
+			err := parseCacheInfo(workspace, cacheIntelFile, telemetryData)
+			if err != nil {
+				log.Errorf("Failed to parse cache info: %v", err)
+			}
 		}
 	}
 
@@ -122,9 +124,8 @@ func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceE
 	return state
 }
 
-func parseCacheInfo(telemetryData *api.TelemetryData) error {
-	cacheFile := "plugin-cache-intel.json"
-
+func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *api.TelemetryData) error {
+	cacheFile := fmt.Sprintf("%s/%s", workspace, cacheIntelFile)
 	if _, err := os.Stat(cacheFile); os.IsNotExist(err) {
 		return err
 	}
