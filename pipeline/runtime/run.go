@@ -110,9 +110,11 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData)
 	}
 
-	err = parseBuildInfo(telemetryData)
-	if err != nil {
-		logrus.WithContext(ctx).WithError(err).Errorln("failed to parse build info")
+	if buildLangFile, found := r.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
+		err = parseBuildInfo(telemetryData, buildLangFile)
+		if err != nil {
+			logrus.WithContext(ctx).WithError(err).Errorln("failed to parse build info")
+		}
 	}
 
 	useCINewGodotEnvVersion := false
@@ -206,9 +208,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
 }
 
-func parseBuildInfo(telemetryData *api.TelemetryData) error {
-	buildFile := "/harness/build-lang.json"
-
+func parseBuildInfo(telemetryData *api.TelemetryData, buildFile string) error {
 	if _, err := os.Stat(buildFile); os.IsNotExist(err) {
 		return err
 	}
