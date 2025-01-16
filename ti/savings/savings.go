@@ -3,6 +3,7 @@ package savings
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -134,12 +135,15 @@ func parseCacheInfo(telemetryData *api.TelemetryData) error {
 		return err
 	}
 
+	fmt.Println("data=======", string(data))
 	// Deserialize the JSON data into the CacheMetrics struct.
 	var cacheInfo api.CacheMetadata
 	if err := json.Unmarshal(data, &cacheInfo); err != nil {
 		return err
 	}
 
+	fmt.Println("cacheInfo=======", cacheInfo)
 	telemetryData.CacheIntelligenceMetaData.CacheSize = cacheInfo.CacheSize
+	fmt.Println("telemetryData=======", telemetryData)
 	return nil
 }
