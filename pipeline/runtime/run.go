@@ -111,13 +111,14 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	}
 
 	if buildLangFile, found := r.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
-		err = parseBuildInfo(telemetryData, buildLangFile)
+		err = parseBuildInfo(telemetryData, r.WorkingDir+"/"+buildLangFile)
 		if err != nil {
 			logrus.WithContext(ctx).WithError(err).Errorln("failed to parse build info")
 		}
 	}
 
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("envs=== %s", os.Environ()))
+	logrus.WithContext(ctx).Infoln(fmt.Sprintf("envsrr=== %s", r.Envs))
 
 	useCINewGodotEnvVersion := false
 	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == trueValue {
