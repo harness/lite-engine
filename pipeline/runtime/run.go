@@ -117,9 +117,6 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		}
 	}
 
-	logrus.WithContext(ctx).Infoln(fmt.Sprintf("envs=== %s", os.Environ()))
-	logrus.WithContext(ctx).Infoln(fmt.Sprintf("envsrr=== %s", r.Envs))
-
 	useCINewGodotEnvVersion := false
 	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == trueValue {
 		useCINewGodotEnvVersion = true

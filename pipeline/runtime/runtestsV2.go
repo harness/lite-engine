@@ -610,15 +610,6 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	return nil
 }
 
-func countDistinctClasses(tests []types.RunnableTest) int {
-	uniqueClasses := make(map[string]bool) // Map to track unique class names
-
-	for _, test := range tests {
-		uniqueClasses[test.Class] = true // Add class to map (duplicates will be ignored)
-	}
-
-	return len(uniqueClasses) // Return the count of unique keys in the map
-}
 func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {

@@ -136,18 +136,12 @@ func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *api.Telemet
 		return err
 	}
 
-	logrus.Errorln("data1=======", string(data))
-	fmt.Println("data=======", string(data))
 	// Deserialize the JSON data into the CacheMetrics struct.
 	var cacheInfo api.CacheMetadata
 	if err := json.Unmarshal(data, &cacheInfo); err != nil {
 		return err
 	}
 
-	fmt.Println("cacheInfo=======", cacheInfo)
-	logrus.Errorln("cacheInfo1=======", cacheInfo)
 	telemetryData.CacheIntelligenceMetaData.CacheSize = cacheInfo.CacheSize
-	fmt.Println("telemetryData=======", telemetryData)
-	logrus.Errorln("telemetryData1=======", telemetryData)
 	return nil
 }
