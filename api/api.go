@@ -138,8 +138,8 @@ type (
 	}
 
 	BuildInfo struct {
-		HarnessLang      string `json:"harness_lang"`
-		HarnessBuildTool string `json:"harness_build_tool"`
+		HarnessLang      string `json:"harness_lang,omitempty"`
+		HarnessBuildTool string `json:"harness_build_tool,omitempty"`
 	}
 
 	CacheIntelligenceMetaData struct {
