@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/harness/lite-engine/api"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/savings/cache"
@@ -136,12 +137,19 @@ func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *api.Telemet
 		return err
 	}
 
-	// Deserialize the JSON data into the CacheMetrics struct.
-	var cacheInfo api.CacheMetadata
-	if err := json.Unmarshal(data, &cacheInfo); err != nil {
+	// Deserialize the JSON data into a slice of CacheMetadata.
+	var cacheInfoList []api.CacheMetadata
+	if err := json.Unmarshal(data, &cacheInfoList); err != nil {
 		return err
 	}
 
-	telemetryData.CacheIntelligenceMetaData.CacheSize = cacheInfo.CacheSize
+	// Calculate the total cache size (raw bytes).
+	var totalCacheSize uint64
+	for _, cacheInfo := range cacheInfoList {
+		totalCacheSize += cacheInfo.CacheSizeBytes
+	}
+
+	// Set the total cache size in telemetry data (human-readable format).
+	telemetryData.CacheIntelligenceMetaData.CacheSize = humanize.Bytes(totalCacheSize)
 	return nil
 }
