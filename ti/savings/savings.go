@@ -96,10 +96,10 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			cacheIntelState = types.OPTIMIZED
 		}
 		states = append(states, cacheIntelState)
-		if cacheIntelFile, found := envs["PLUGIN_CACHE_INTEL_FILE"]; found {
+		if cacheIntelFile, found := envs["PLUGIN_CACHE_INTEL_METRICS_FILE"]; found {
 			err := parseCacheInfo(workspace, cacheIntelFile, telemetryData)
 			if err != nil {
-				log.Errorf("Failed to parse cache info: %v", err)
+				log.Errorf("skipping cache metrics parsing: %v", err)
 			}
 		}
 	}
