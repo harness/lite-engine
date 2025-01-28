@@ -24,9 +24,10 @@ import (
 )
 
 const (
-	streamEndpoint     = "/stream?accountID=%s&key=%s&snapshot=%t"
-	blobEndpoint       = "/blob?accountID=%s&key=%s"
-	uploadLinkEndpoint = "/blob/link/upload?accountID=%s&key=%s"
+	streamEndpoint             = "/stream?accountID=%s&key=%s"
+	streamWithSnapshotEndpoint = "/stream?accountID=%s&key=%s&snapshot=true"
+	blobEndpoint               = "/blob?accountID=%s&key=%s"
+	uploadLinkEndpoint         = "/blob/link/upload?accountID=%s&key=%s"
 )
 
 var _ logstream.Client = (*HTTPClient)(nil)
@@ -206,7 +207,11 @@ func (c *HTTPClient) Open(ctx context.Context, key string) error {
 
 // Close closes the data stream.
 func (c *HTTPClient) Close(ctx context.Context, key string, snapshot bool) error {
-	path := fmt.Sprintf(streamEndpoint, c.AccountID, key, snapshot)
+	endpoint := streamEndpoint
+	if snapshot {
+		endpoint = streamWithSnapshotEndpoint
+	}
+	path := fmt.Sprintf(endpoint, c.AccountID, key)
 	_, err := c.do(ctx, c.Endpoint+path, "DELETE", nil, nil) //nolint:bodyclose
 	return err
 }
