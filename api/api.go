@@ -143,7 +143,7 @@ type (
 	}
 
 	CacheIntelligenceMetaData struct {
-		CacheSize        string   `json:"cache_size,omitempty"`
+		CacheSize        uint64   `json:"cache_size,omitempty"`
 		IsNonDefaultPath bool     `json:"is_non_default_path,omitempty"`
 		IsCustomKeys     bool     `json:"is_custom_keys,omitempty"`
 		Errors           []string `json:"errors,omitempty"`

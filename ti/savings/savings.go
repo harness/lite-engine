@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/harness/lite-engine/api"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/savings/cache"
@@ -150,6 +149,6 @@ func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *api.Telemet
 	}
 
 	// Set the total cache size in telemetry data (human-readable format).
-	telemetryData.CacheIntelligenceMetaData.CacheSize = humanize.Bytes(totalCacheSize)
+	telemetryData.CacheIntelligenceMetaData.CacheSize = totalCacheSize
 	return nil
 }
