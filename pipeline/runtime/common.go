@@ -59,7 +59,7 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 		} else if isPython {
 			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
 		} else {
-			cmd += fmt.Sprintf("\ntrap 'echo \"%s=$%s\" >> %s' EXIT", o, o, outputFile)
+			cmd += fmt.Sprintf("\ntrap 'echo \"%s=$%s\" >> %s' EXIT; ", o, o, outputFile)
 		}
 	}
 
@@ -82,7 +82,7 @@ func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile s
 		} else if isPython {
 			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o.Key, o.Value)
 		} else {
-			cmd += fmt.Sprintf("\ntrap 'echo \"%s='$%s'\" >> %s' EXIT", o.Key, o.Value, outputFile)
+			cmd += fmt.Sprintf("\ntrap 'echo \"%s='$%s'\" >> %s' EXIT; ", o.Key, o.Value, outputFile)
 		}
 	}
 
