@@ -2,11 +2,16 @@ package savings
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"os"
 	"strconv"
 	"time"
 
+	"github.com/harness/lite-engine/api"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/savings/cache"
+	"github.com/harness/lite-engine/ti/savings/cache/gradle"
 	"github.com/harness/lite-engine/ti/savings/dlc"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
@@ -15,7 +20,7 @@ import (
 const restoreCacheHarnessStepID = "restore-cache-harness"
 
 func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, stepSuccess bool, cmdTimeTaken int64,
-	tiConfig *tiCfg.Cfg, envs map[string]string) types.IntelligenceExecutionState {
+	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *api.TelemetryData) types.IntelligenceExecutionState {
 	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
 	start := time.Now()
@@ -31,6 +36,10 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
 				types.BUILD_CACHE, time.Since(tiStart).Seconds())
 		}
+
+		totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(savingsRequest)
+		telemetryData.BuildIntelligenceMetaData.BuildTasks = totaltasks
+		telemetryData.BuildIntelligenceMetaData.TasksRestored = cachedtasks
 	}
 
 	// TI Savings
@@ -60,6 +69,8 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 					log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
 						types.DLC, time.Since(tiStart).Seconds())
 				}
+				telemetryData.DlcMetadata.TotalLayers = savingsRequest.DlcMetrics.TotalLayers
+				telemetryData.DlcMetadata.Cached = savingsRequest.DlcMetrics.Cached
 			}
 		}
 	}
@@ -77,6 +88,12 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			cacheIntelState = types.OPTIMIZED
 		}
 		states = append(states, cacheIntelState)
+		if cacheIntelFile, found := envs["PLUGIN_CACHE_INTEL_METRICS_FILE"]; found {
+			err := parseCacheInfo(workspace, cacheIntelFile, telemetryData)
+			if err != nil {
+				log.Errorf("skipping cache metrics parsing: %v", err)
+			}
+		}
 	}
 
 	return getStepState(states)
@@ -97,4 +114,33 @@ func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceE
 		}
 	}
 	return state
+}
+
+func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *api.TelemetryData) error {
+	cacheFile := fmt.Sprintf("%s/%s", workspace, cacheIntelFile)
+	if _, err := os.Stat(cacheFile); os.IsNotExist(err) {
+		return err
+	}
+
+	// Read the JSON file containing the cache metrics.
+	data, err := os.ReadFile(cacheFile)
+	if err != nil {
+		return err
+	}
+
+	// Deserialize the JSON data into a slice of CacheMetadata.
+	var cacheInfoList []api.CacheMetadata
+	if err := json.Unmarshal(data, &cacheInfoList); err != nil {
+		return err
+	}
+
+	// Calculate the total cache size (raw bytes).
+	var totalCacheSize uint64
+	for _, cacheInfo := range cacheInfoList {
+		totalCacheSize += cacheInfo.CacheSizeBytes
+	}
+
+	// Set the total cache size in telemetry data (human-readable format).
+	telemetryData.CacheIntelligenceMetaData.CacheSize = totalCacheSize
+	return nil
 }

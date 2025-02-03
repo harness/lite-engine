@@ -6,6 +6,7 @@ package api
 
 import (
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/ti-client/types/cache/dlc"
 )
 
 type (
@@ -107,6 +108,45 @@ type (
 		Files        []*spec.File         `json:"files,omitempty"`
 		StepStatus   StepStatusConfig     `json:"step_status,omitempty"`
 	}
+
+	TelemetryData struct {
+		BuildIntelligenceMetaData BuildIntelligenceMetaData `json:"build_intelligence_data,omitempty"`
+		TestIntelligenceMetaData  TestIntelligenceMetaData  `json:"test_intelligence_data,omitempty"`
+		CacheIntelligenceMetaData CacheIntelligenceMetaData `json:"cache_intelligence_data,omitempty"`
+		DlcMetadata               dlc.Metadata              `json:"dlc_metadata,omitempty"`
+		BuildInfo                 BuildInfo                 `json:"build_info,omitempty"`
+		Errors                    []string                  `json:"errors,omitempty"`
+	}
+
+	BuildIntelligenceMetaData struct {
+		BuildTasks    int      `json:"build_tasks,omitempty"`
+		TasksRestored int      `json:"tasks_restored,omitempty"`
+		StepType      string   `json:"step_type,omitempty"`
+		Errors        []string `json:"errors,omitempty"`
+	}
+
+	TestIntelligenceMetaData struct {
+		TotalTests             int      `json:"total_tests,omitempty"`
+		TotalTestClasses       int      `json:"total_test_classes,omitempty"`
+		TotalSelectedTests     int      `json:"total_selected_tests,omitempty"`
+		TotalSelectedTestClass int      `json:"total_selected_test_classes,omitempty"`
+		CPUTimeSaved           int64    `json:"cpu_time_saved,omitempty"`
+		IsRunTestV2            bool     `json:"is_run_test_v2,omitempty"`
+		Errors                 []string `json:"errors,omitempty"`
+	}
+
+	BuildInfo struct {
+		HarnessLang      string `json:"harness_lang,omitempty"`
+		HarnessBuildTool string `json:"harness_build_tool,omitempty"`
+	}
+
+	CacheIntelligenceMetaData struct {
+		CacheSize        uint64   `json:"cache_size,omitempty"`
+		IsNonDefaultPath bool     `json:"is_non_default_path,omitempty"`
+		IsCustomKeys     bool     `json:"is_custom_keys,omitempty"`
+		Errors           []string `json:"errors,omitempty"`
+	}
+
 	OutputV2 struct {
 		Key   string     `json:"key,omitempty"`
 		Value string     `json:"value"`
@@ -129,6 +169,7 @@ type (
 		Artifact          []byte            `json:"artifact,omitempty"`
 		OutputV2          []*OutputV2       `json:"outputV2,omitempty"`
 		OptimizationState string            `json:"optimization_state,omitempty"`
+		TelemetryData     *TelemetryData    `json:"telemetry_data,omitempty"`
 	}
 
 	StreamOutputRequest struct {
@@ -221,6 +262,7 @@ type (
 		Artifact               []byte                 `json:"artifact,omitempty"`
 		Outputs                []*OutputV2            `json:"outputs,omitempty"`
 		OptimizationState      string                 `json:"optimization_state,omitempty"`
+		TelemetryData          *TelemetryData         `json:"telemetry_data,omitempty"`
 	}
 )
 
@@ -238,3 +280,7 @@ const (
 	OutputTypeString OutputType = "STRING"
 	OutputTypeSecret OutputType = "SECRET"
 )
+
+type CacheMetadata struct {
+	CacheSizeBytes uint64 `json:"cache_size_bytes,omitempty"`
+}
