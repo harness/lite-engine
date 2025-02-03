@@ -6,6 +6,7 @@ package api
 
 import (
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/ti-client/types/cache/dlc"
 )
 
 type (
@@ -112,7 +113,7 @@ type (
 		BuildIntelligenceMetaData BuildIntelligenceMetaData `json:"build_intelligence_data,omitempty"`
 		TestIntelligenceMetaData  TestIntelligenceMetaData  `json:"test_intelligence_data,omitempty"`
 		CacheIntelligenceMetaData CacheIntelligenceMetaData `json:"cache_intelligence_data,omitempty"`
-		DlcMetadata               DlcMetadata               `json:"dlc_metadata,omitempty"`
+		DlcMetadata               dlc.Metadata              `json:"dlc_metadata,omitempty"`
 		BuildInfo                 BuildInfo                 `json:"build_info,omitempty"`
 		Errors                    []string                  `json:"errors,omitempty"`
 	}
@@ -121,8 +122,6 @@ type (
 		BuildTasks    int      `json:"build_tasks,omitempty"`
 		TasksRestored int      `json:"tasks_restored,omitempty"`
 		StepType      string   `json:"step_type,omitempty"`
-		BuildTool     string   `json:"build_tool,omitempty"`
-		Language      string   `json:"language,omitempty"`
 		Errors        []string `json:"errors,omitempty"`
 	}
 
@@ -132,8 +131,7 @@ type (
 		TotalSelectedTests     int      `json:"total_selected_tests,omitempty"`
 		TotalSelectedTestClass int      `json:"total_selected_test_classes,omitempty"`
 		CPUTimeSaved           int64    `json:"cpu_time_saved,omitempty"`
-		BuildTool              string   `json:"build_tool,omitempty"`
-		Language               string   `json:"language,omitempty"`
+		IsRunTestV2            bool     `json:"is_run_test_v2,omitempty"`
 		Errors                 []string `json:"errors,omitempty"`
 	}
 

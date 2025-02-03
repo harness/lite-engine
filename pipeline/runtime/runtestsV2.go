@@ -607,6 +607,7 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	}
 	testMetadata.TotalSelectedTests = resp.SelectedTests
 	testMetadata.TotalSelectedTestClass = common.CountDistinctClasses(resp.Tests)
+	testMetadata.IsRunTestV2 = true
 	return nil
 }
 

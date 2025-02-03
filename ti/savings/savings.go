@@ -37,14 +37,6 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 				types.BUILD_CACHE, time.Since(tiStart).Seconds())
 		}
 
-		if buildtool, found := envs["HARNESS_BUILD_TOOL"]; found {
-			telemetryData.BuildIntelligenceMetaData.BuildTool = buildtool
-
-		}
-
-		if lang, found := envs["HARNESS_LANG"]; found {
-			telemetryData.BuildIntelligenceMetaData.Language = lang
-		}
 		totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(savingsRequest)
 		telemetryData.BuildIntelligenceMetaData.BuildTasks = totaltasks
 		telemetryData.BuildIntelligenceMetaData.TasksRestored = cachedtasks
@@ -78,7 +70,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 						types.DLC, time.Since(tiStart).Seconds())
 				}
 				telemetryData.DlcMetadata.TotalLayers = savingsRequest.DlcMetrics.TotalLayers
-				telemetryData.DlcMetadata.LayersRestored = savingsRequest.DlcMetrics.Cached
+				telemetryData.DlcMetadata.Cached = savingsRequest.DlcMetrics.Cached
 			}
 		}
 	}
