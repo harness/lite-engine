@@ -147,12 +147,6 @@ type (
 		Errors           []string `json:"errors,omitempty"`
 	}
 
-	DlcMetadata struct {
-		TotalLayers    int      `json:"total_layers,omitempty"`
-		LayersRestored int      `json:"layers_restored,omitempty"`
-		Errors         []string `json:"errors,omitempty"`
-	}
-
 	OutputV2 struct {
 		Key   string     `json:"key,omitempty"`
 		Value string     `json:"value"`
