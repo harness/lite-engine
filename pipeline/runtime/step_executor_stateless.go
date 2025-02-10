@@ -14,6 +14,7 @@ import (
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
+	"github.com/harness/ti-client/types"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -58,7 +59,7 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 	cfg *spec.PipelineConfig,
 	writer logstream.Writer,
 ) (*runtime.State, map[string]string,
-	map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
+	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	runFunc := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
 		return engine.RunStep(ctx, engine.Opts{}, step, output, cfg, isDrone, isHosted)
 	}
