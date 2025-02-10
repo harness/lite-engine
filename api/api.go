@@ -242,7 +242,3 @@ const (
 	OutputTypeString OutputType = "STRING"
 	OutputTypeSecret OutputType = "SECRET"
 )
-
-type CacheMetadata struct {
-	CacheSizeBytes uint64 `json:"cache_size_bytes,omitempty"`
-}
