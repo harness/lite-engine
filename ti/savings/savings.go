@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/harness/lite-engine/api"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/savings/cache"
 	"github.com/harness/lite-engine/ti/savings/cache/gradle"
@@ -129,7 +128,7 @@ func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *types.Telem
 	}
 
 	// Deserialize the JSON data into a slice of CacheMetadata.
-	var cacheInfoList []api.CacheMetadata
+	var cacheInfoList []types.CacheMetadata
 	if err := json.Unmarshal(data, &cacheInfoList); err != nil {
 		return err
 	}
