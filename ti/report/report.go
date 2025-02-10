@@ -19,7 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, testMetadata *api.TestIntelligenceMetaData, envs map[string]string) error {
+func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, testMetadata *types.TestIntelligenceMetaData, envs map[string]string) error {
 	if report.Kind != api.Junit {
 		return fmt.Errorf("unknown report type: %s", report.Kind)
 	}

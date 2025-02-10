@@ -54,7 +54,7 @@ const (
 
 //nolint:gocritic,gocyclo
 func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer,
-	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
+	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	start := time.Now()
 	log := logrus.New()
 	log.Out = out
@@ -62,7 +62,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step := toStep(r)
 	setTiEnvVariables(step, tiConfig)
 	step.Entrypoint = r.RunTestsV2.Entrypoint
-	telemetryData := &api.TelemetryData{}
+	telemetryData := &types.TelemetryData{}
 
 	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
 	if err != nil {
@@ -166,7 +166,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
 
-func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, workspace string, log *logrus.Logger, envs map[string]string, tiConfig *tiCfg.Cfg, testMetadata *api.TestIntelligenceMetaData) (string, error) {
+func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, workspace string, log *logrus.Logger, envs map[string]string, tiConfig *tiCfg.Cfg, testMetadata *types.TestIntelligenceMetaData) (string, error) {
 	agentPaths := make(map[string]string)
 	fs := filesystem.New()
 	tmpFilePath := tiConfig.GetDataDir()
@@ -579,7 +579,7 @@ func downloadDotNetAgent(ctx context.Context, path, dotNetAgentV2Url string, fs 
 
 // This is nothing but filterfile where all the tests selected will be stored
 func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
-	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string, testMetadata *api.TestIntelligenceMetaData) error {
+	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string, testMetadata *types.TestIntelligenceMetaData) error {
 	isManualExecution := instrumentation.IsManualExecution(tiConfig)
 	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig, envs, runV2Config)
 	if tiConfig.GetParseSavings() {
@@ -653,7 +653,7 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 	return nil
 }
 
-func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *api.TelemetryData) error {
+func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *types.TelemetryData) error {
 	cgStart := time.Now()
 
 	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir)

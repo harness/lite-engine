@@ -20,7 +20,7 @@ import (
 const restoreCacheHarnessStepID = "restore-cache-harness"
 
 func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, stepSuccess bool, cmdTimeTaken int64,
-	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *api.TelemetryData) types.IntelligenceExecutionState {
+	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *types.TelemetryData) types.IntelligenceExecutionState {
 	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
 	start := time.Now()
@@ -116,7 +116,7 @@ func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceE
 	return state
 }
 
-func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *api.TelemetryData) error {
+func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *types.TelemetryData) error {
 	cacheFile := fmt.Sprintf("%s/%s", workspace, cacheIntelFile)
 	if _, err := os.Stat(cacheFile); os.IsNotExist(err) {
 		return err
