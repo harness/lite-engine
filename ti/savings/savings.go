@@ -2,9 +2,6 @@ package savings
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"os"
 	"strconv"
 	"time"
 
@@ -12,6 +9,7 @@ import (
 	"github.com/harness/lite-engine/ti/savings/cache"
 	"github.com/harness/lite-engine/ti/savings/cache/gradle"
 	"github.com/harness/lite-engine/ti/savings/dlc"
+	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
@@ -88,7 +86,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 		}
 		states = append(states, cacheIntelState)
 		if cacheIntelFile, found := envs["PLUGIN_CACHE_INTEL_METRICS_FILE"]; found {
-			err := parseCacheInfo(workspace, cacheIntelFile, telemetryData)
+			err := telemetryutils.ParseCacheInfo(workspace, cacheIntelFile, telemetryData)
 			if err != nil {
 				log.Errorf("skipping cache metrics parsing: %v", err)
 			}
@@ -113,33 +111,4 @@ func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceE
 		}
 	}
 	return state
-}
-
-func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *types.TelemetryData) error {
-	cacheFile := fmt.Sprintf("%s/%s", workspace, cacheIntelFile)
-	if _, err := os.Stat(cacheFile); os.IsNotExist(err) {
-		return err
-	}
-
-	// Read the JSON file containing the cache metrics.
-	data, err := os.ReadFile(cacheFile)
-	if err != nil {
-		return err
-	}
-
-	// Deserialize the JSON data into a slice of CacheMetadata.
-	var cacheInfoList []types.CacheMetadata
-	if err := json.Unmarshal(data, &cacheInfoList); err != nil {
-		return err
-	}
-
-	// Calculate the total cache size (raw bytes).
-	var totalCacheSize uint64
-	for _, cacheInfo := range cacheInfoList {
-		totalCacheSize += cacheInfo.CacheSizeBytes
-	}
-
-	// Set the total cache size in telemetry data (human-readable format).
-	telemetryData.CacheIntelligenceMetaData.CacheSize = totalCacheSize
-	return nil
 }
