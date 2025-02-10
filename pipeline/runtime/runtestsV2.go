@@ -99,7 +99,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 
 	exited, err := f(ctx, step, out, r.LogDrone, false)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData)
+	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData, r.Envs)
 	if err == nil {
 		err = collectionErr
 	}
@@ -653,14 +653,8 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 	return nil
 }
 
-func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *api.TelemetryData) error {
+func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *api.TelemetryData, envs map[string]string) error {
 	cgStart := time.Now()
-
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir)
-	if cgErr != nil {
-		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
-		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
-	}
 
 	if len(r.TestReport.Junit.Paths) == 0 {
 		// If there are no paths specified, set Paths[0] to include all XML files and all TRX files
@@ -668,9 +662,28 @@ func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.Sta
 	}
 
 	reportStart := time.Now()
-	crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
+	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
 	if crErr != nil {
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
+	}
+
+	testFailed := false
+
+	if envValue, ok := envs["DISABLE_CG_UPLOAD_ON_FAILURE_FF"]; ok {
+		if envValue == "true" && tests != nil {
+			for _, test := range tests {
+				if test.Result.Status == types.StatusFailed {
+					testFailed = true
+					break
+				}
+			}
+		}
+	}
+
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, testFailed)
+	if cgErr != nil {
+		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
+		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
 	}
 	return cgErr
 }
