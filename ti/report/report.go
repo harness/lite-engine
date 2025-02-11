@@ -19,13 +19,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, testMetadata *api.TestIntelligenceMetaData, envs map[string]string) error {
+func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, testMetadata *api.TestIntelligenceMetaData, envs map[string]string) ([]*types.TestCase, error) {
 	if report.Kind != api.Junit {
-		return fmt.Errorf("unknown report type: %s", report.Kind)
+		return nil, fmt.Errorf("unknown report type: %s", report.Kind)
 	}
 
 	if len(report.Junit.Paths) == 0 {
-		return nil
+		return []*types.TestCase{}, nil
 	}
 
 	// Append working dir to the paths. In k8s, we specify the workDir in the YAML but this is
@@ -40,21 +40,21 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, st
 
 	tests := junit.ParseTests(report.Junit.Paths, log, envs)
 	if len(tests) == 0 {
-		return nil
+		return tests, nil
 	}
 
 	startTime := time.Now()
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting TI service request to write report for step %s", stepID))
 	c := tiConfig.GetClient()
 	if err := c.Write(ctx, stepID, strings.ToLower(report.Kind.String()), tests); err != nil {
-		return err
+		return nil, err
 	}
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed TI service request to write report for step %s, took %.2f seconds", stepID, time.Since(startTime).Seconds()))
 	//Write tests telemetry data, total test, total test classes,selected test, cselected classes,
 	testMetadata.TotalTests = len(tests)
 	testMetadata.TotalTestClasses = countDistinctClasses(tests)
 	log.Infoln(fmt.Sprintf("Successfully collected test reports in %s time", time.Since(start)))
-	return nil
+	return tests, nil
 }
 
 func countDistinctClasses(testCases []*types.TestCase) int {
