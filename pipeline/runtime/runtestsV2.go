@@ -50,6 +50,7 @@ const (
 	dotNetAgentV2Zip        = "dotnet-agent.zip"
 	dotNetAgentV2Path       = "/dotnet/v2/"
 	dotNetConfigV2Dir       = "%s/ti/v2/dotnet/config"
+	javascriptRequireFile   = "ti-agent.cjs"
 )
 
 //nolint:gocritic,gocyclo
@@ -527,6 +528,10 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		envs["CORECLR_PROFILER"] = dotNetAgentProfilerGUID
 		envs["CORECLR_ENABLE_PROFILING"] = "1"
 		envs["TI_DOTNET_CONFIG"] = dotNetJSONFilePath
+
+		if jsFFVal, ok := envs["CI_ENABLE_RUNTESTV2_JS_FF"]; ok && jsFFVal == "true" {
+			envs["NODE_OPTIONS"] = fmt.Sprintf("-r %s%s/%s", tmpFilePath, dotNetAgentV2Path, javascriptRequireFile)
+		}
 	}
 
 	return preCmd, filterFilePath, nil
