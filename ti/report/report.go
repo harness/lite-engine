@@ -15,6 +15,7 @@ import (
 	"github.com/harness/lite-engine/api"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report/parser/junit"
+	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
@@ -52,7 +53,7 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, st
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed TI service request to write report for step %s, took %.2f seconds", stepID, time.Since(startTime).Seconds()))
 	//Write tests telemetry data, total test, total test classes,selected test, cselected classes,
 	testMetadata.TotalTests = len(tests)
-	testMetadata.TotalTestClasses = countDistinctClasses(tests)
+	testMetadata.TotalTestClasses = telemetryutils.CountDistinctClasses(tests)
 	log.Infoln(fmt.Sprintf("Successfully collected test reports in %s time", time.Since(start)))
 	return nil
 }

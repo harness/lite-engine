@@ -18,6 +18,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
+	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
 	"github.com/harness/ti-client/types"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
@@ -310,7 +311,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		return "", err
 	}
 	testMetadata.TotalSelectedTests = selection.SelectedTests
-	testMetadata.TotalSelectedTestClass = common.CountDistinctClasses(selection.Tests)
+	testMetadata.TotalSelectedTestClass = telemetryutils.CountDistinctSelectedClasses(selection.Tests)
 
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Ignoring instrumentation and not attaching agent")
