@@ -57,15 +57,6 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, st
 	return nil
 }
 
-func countDistinctClasses(testCases []*types.TestCase) int {
-	uniqueClasses := make(map[string]bool)
-
-	for _, testCase := range testCases {
-		uniqueClasses[testCase.ClassName] = true
-	}
-
-	return len(uniqueClasses)
-}
 func SaveReportSummaryToOutputs(ctx context.Context, tiConfig *tiCfg.Cfg, stepID string, outputs map[string]string, log *logrus.Logger, envs map[string]string) error {
 	if !TestSummaryAsOutputEnabled(envs) {
 		return nil

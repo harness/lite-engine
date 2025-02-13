@@ -20,7 +20,6 @@ import (
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation"
-	"github.com/harness/lite-engine/ti/instrumentation/common"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/instrumentation/python"
@@ -28,6 +27,7 @@ import (
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
+	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 
@@ -606,7 +606,7 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 		return err
 	}
 	testMetadata.TotalSelectedTests = resp.SelectedTests
-	testMetadata.TotalSelectedTestClass = common.CountDistinctClasses(resp.Tests)
+	testMetadata.TotalSelectedTestClass = telemetryutils.CountDistinctSelectedClasses(resp.Tests)
 	testMetadata.IsRunTestV2 = true
 	return nil
 }
