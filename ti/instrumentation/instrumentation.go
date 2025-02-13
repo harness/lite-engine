@@ -18,6 +18,8 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
+	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
+	"github.com/harness/ti-client/types"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
@@ -246,7 +248,7 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 	config.RunOnlySelectedTests = true
 }
 
-func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string, cfg *tiCfg.Cfg, testMetadata *api.TestIntelligenceMetaData) (string, error) {
+func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace string, log *logrus.Logger, envs map[string]string, cfg *tiCfg.Cfg, testMetadata *types.TestIntelligenceMetaData) (string, error) {
 	fs := filesystem.New()
 	tmpFilePath := cfg.GetDataDir()
 
@@ -309,7 +311,7 @@ func GetCmd(ctx context.Context, config *api.RunTestConfig, stepID, workspace st
 		return "", err
 	}
 	testMetadata.TotalSelectedTests = selection.SelectedTests
-	testMetadata.TotalSelectedTestClass = common.CountDistinctClasses(selection.Tests)
+	testMetadata.TotalSelectedTestClass = telemetryutils.CountDistinctSelectedClasses(selection.Tests)
 
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Ignoring instrumentation and not attaching agent")

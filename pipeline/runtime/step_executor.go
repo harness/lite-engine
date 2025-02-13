@@ -21,6 +21,7 @@ import (
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
+	"github.com/harness/ti-client/types"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/wings-software/dlite/client"
@@ -43,7 +44,7 @@ type StepStatus struct {
 	Artifact          []byte
 	OutputV2          []*api.OutputV2
 	OptimizationState string
-	TelemetryData     *api.TelemetryData
+	TelemetryData     *types.TelemetryData
 }
 
 const (
@@ -290,7 +291,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 }
 
 func (e *StepExecutor) executeStep(ctx context.Context, r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
-	map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
+	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, nil, nil, nil, "", err
@@ -315,7 +316,7 @@ func executeStepHelper( //nolint:gocritic
 	f RunFunc,
 	wr logstream.Writer,
 	tiCfg *tiCfg.Cfg) (*runtime.State, map[string]string,
-	map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
+	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
 	// We do here only for non-container step.
@@ -381,7 +382,7 @@ func executeStepHelper( //nolint:gocritic
 }
 
 func run(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic
-	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
+	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	if r.Kind == api.Run {
 		return executeRunStep(ctx, f, r, out, tiConfig)
 	}

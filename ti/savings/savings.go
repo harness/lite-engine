@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/harness/lite-engine/api"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/savings/cache"
 	"github.com/harness/lite-engine/ti/savings/cache/gradle"
@@ -20,7 +19,7 @@ import (
 const restoreCacheHarnessStepID = "restore-cache-harness"
 
 func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, stepSuccess bool, cmdTimeTaken int64,
-	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *api.TelemetryData) types.IntelligenceExecutionState {
+	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *types.TelemetryData) types.IntelligenceExecutionState {
 	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
 	start := time.Now()
@@ -116,7 +115,7 @@ func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceE
 	return state
 }
 
-func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *api.TelemetryData) error {
+func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *types.TelemetryData) error {
 	cacheFile := fmt.Sprintf("%s/%s", workspace, cacheIntelFile)
 	if _, err := os.Stat(cacheFile); os.IsNotExist(err) {
 		return err
@@ -129,7 +128,7 @@ func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *api.Telemet
 	}
 
 	// Deserialize the JSON data into a slice of CacheMetadata.
-	var cacheInfoList []api.CacheMetadata
+	var cacheInfoList []types.CacheMetadata
 	if err := json.Unmarshal(data, &cacheInfoList); err != nil {
 		return err
 	}

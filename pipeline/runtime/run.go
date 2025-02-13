@@ -27,7 +27,7 @@ const (
 )
 
 func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo,funlen
-	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *api.TelemetryData, string, error) {
+	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	start := time.Now()
 	step := toStep(r)
 	step.Command = r.Run.Command
@@ -37,7 +37,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	optimizationState := types.DISABLED
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
-	telemetryData := &api.TelemetryData{}
+	telemetryData := &types.TelemetryData{}
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
@@ -110,6 +110,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData)
 	}
 
+	//only for git-clone-step
 	if buildLangFile, found := r.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
 		err1 := parseBuildInfo(telemetryData, r.WorkingDir+"/"+buildLangFile)
 		if err1 != nil {
@@ -208,7 +209,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
 }
 
-func parseBuildInfo(telemetryData *api.TelemetryData, buildFile string) error {
+func parseBuildInfo(telemetryData *types.TelemetryData, buildFile string) error {
 	if _, err := os.Stat(buildFile); os.IsNotExist(err) {
 		return err
 	}
@@ -220,7 +221,7 @@ func parseBuildInfo(telemetryData *api.TelemetryData, buildFile string) error {
 	}
 
 	// Deserialize the JSON data into the CacheMetrics struct.
-	var buildInfo api.BuildInfo
+	var buildInfo types.BuildInfo
 	if err := json.Unmarshal(data, &buildInfo); err != nil {
 		return err
 	}
