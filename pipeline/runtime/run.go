@@ -18,7 +18,6 @@ import (
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
-	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
@@ -113,7 +112,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	//only for git-clone-step
 	if buildLangFile, found := r.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
-		err1 := telemetryutils.ParseBuildInfo(telemetryData, r.WorkingDir+"/"+buildLangFile)
+		err1 := parseBuildInfo(telemetryData, r.WorkingDir+"/"+buildLangFile)
 		if err1 != nil {
 			logrus.WithContext(ctx).WithError(err1).Errorln("failed to parse build info")
 		}
