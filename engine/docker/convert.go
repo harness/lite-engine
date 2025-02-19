@@ -207,8 +207,12 @@ func toVolumeSlice(pipelineConfig *spec.PipelineConfig, step *spec.Step) []strin
 			to = append(to, path)
 		}
 		if isBindMount(volume) {
-			// Volume binding in docker does not work when the volume is a symlink in the host machine.
-			// Here, were attempt to convert any possible symlinks to the actual folder it is pointing to.
+			// Here, we attempt to convert any possible symlinks to the actual folder it is pointing to,
+			// in order to avoid any issues with vm's filesystem not in sync with symlinks in the host.
+			// Known case: Rancher Desktop, in MacOS, uses lima-vm, and the `/tmp` folder in the vm is
+			// not the same as the `/tmp` folder of the host (which is a symlink pointing to "/private/tmp").
+			// By resolving the symlink here, `/tmp` will be converted to its resolved folder, `/private/tmp`,
+			// and the bind mount will work as expected.
 			hostPath, err := filepath.EvalSymlinks(volume.HostPath.Path)
 			if err != nil {
 				// If failed to resolve symlinks, use the original hostPath.
