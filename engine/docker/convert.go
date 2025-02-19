@@ -9,6 +9,7 @@
 package docker
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/harness/lite-engine/engine/spec"
@@ -206,7 +207,14 @@ func toVolumeSlice(pipelineConfig *spec.PipelineConfig, step *spec.Step) []strin
 			to = append(to, path)
 		}
 		if isBindMount(volume) {
-			path := volume.HostPath.Path + ":" + mount.Path
+			// Volume binding in docker does not work when the volume is a symlink in the host machine.
+			// Here, were attempt to convert any possible symlinks to the actual folder it is pointing to.
+			hostPath, err := filepath.EvalSymlinks(volume.HostPath.Path)
+			if err != nil {
+				// If failed to resolve symlinks, use the original hostPath.
+				hostPath = volume.HostPath.Path
+			}
+			path := hostPath + ":" + mount.Path
 			to = append(to, path)
 		}
 	}
