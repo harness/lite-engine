@@ -136,77 +136,69 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	}
 	summaryOutputsV2 := report.GetSummaryOutputsV2(summaryOutputs, r.Envs)
 
-	if exited != nil && exited.Exited && exited.ExitCode == 0 {
-		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
-		if report.TestSummaryAsOutputEnabled(r.Envs) {
-			if outputs == nil {
-				outputs = make(map[string]string)
+	outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+	if report.TestSummaryAsOutputEnabled(r.Envs) {
+		if outputs == nil {
+			outputs = make(map[string]string)
+		}
+		// add summary outputs to current outputs map
+		for k, v := range summaryOutputs {
+			outputs[k] = v
+		}
+	}
+	outputsV2 := []*api.OutputV2{}
+	var finalErr error
+	if len(r.Outputs) > 0 {
+		// only return err when output vars are expected
+		finalErr = err
+		for _, output := range r.Outputs {
+			if _, ok := outputs[output.Key]; ok {
+				outputsV2 = append(outputsV2, &api.OutputV2{
+					Key:   output.Key,
+					Value: outputs[output.Key],
+					Type:  output.Type,
+				})
 			}
-			// add summary outputs to current outputs map
+		}
+		if report.TestSummaryAsOutputEnabled(r.Envs) {
+			outputsV2 = append(outputsV2, summaryOutputsV2...)
+		}
+	} else {
+		if len(r.OutputVars) > 0 {
+			// only return err when output vars are expected
+			finalErr = err
+		}
+		if report.TestSummaryAsOutputEnabled(r.Envs) {
 			for k, v := range summaryOutputs {
 				outputs[k] = v
 			}
 		}
-		outputsV2 := []*api.OutputV2{}
-		var finalErr error
-		if len(r.Outputs) > 0 {
-			// only return err when output vars are expected
-			finalErr = err
-			for _, output := range r.Outputs {
-				if _, ok := outputs[output.Key]; ok {
-					outputsV2 = append(outputsV2, &api.OutputV2{
-						Key:   output.Key,
-						Value: outputs[output.Key],
-						Type:  output.Type,
-					})
-				}
+		for key, value := range outputs {
+			output := &api.OutputV2{
+				Key:   key,
+				Value: value,
+				Type:  api.OutputTypeString,
 			}
-			if report.TestSummaryAsOutputEnabled(r.Envs) {
-				outputsV2 = append(outputsV2, summaryOutputsV2...)
-			}
-		} else {
-			if len(r.OutputVars) > 0 {
-				// only return err when output vars are expected
-				finalErr = err
-			}
-			if report.TestSummaryAsOutputEnabled(r.Envs) {
-				for k, v := range summaryOutputs {
-					outputs[k] = v
-				}
-			}
-			for key, value := range outputs {
-				output := &api.OutputV2{
-					Key:   key,
-					Value: value,
-					Type:  api.OutputTypeString,
-				}
-				outputsV2 = append(outputsV2, output)
-			}
+			outputsV2 = append(outputsV2, output)
 		}
+	}
 
-		// checking exported secrets from plugins if any
-		if _, err := os.Stat(outputSecretsFile); err == nil {
-			secrets, err := fetchExportedVarsFromEnvFile(outputSecretsFile, out, useCINewGodotEnvVersion)
-			if err != nil {
-				log.WithError(err).Errorln("error encountered while fetching output secrets from env File")
-			}
-			for key, value := range secrets {
-				output := &api.OutputV2{
-					Key:   key,
-					Value: value,
-					Type:  api.OutputTypeSecret,
-				}
-				outputsV2 = append(outputsV2, output)
-			}
+	// checking exported secrets from plugins if any
+	if _, err := os.Stat(outputSecretsFile); err == nil {
+		secrets, err := fetchExportedVarsFromEnvFile(outputSecretsFile, out, useCINewGodotEnvVersion)
+		if err != nil {
+			log.WithError(err).Errorln("error encountered while fetching output secrets from env File")
 		}
-
-		return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), finalErr
+		for key, value := range secrets {
+			output := &api.OutputV2{
+				Key:   key,
+				Value: value,
+				Type:  api.OutputTypeSecret,
+			}
+			outputsV2 = append(outputsV2, output)
+		}
 	}
-	if len(summaryOutputsV2) == 0 || !report.TestSummaryAsOutputEnabled(r.Envs) {
-		return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
-	}
-	// even if the step failed, we still want to return the summary outputs
-	return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
+	return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), finalErr
 }
 
 func parseBuildInfo(telemetryData *types.TelemetryData, buildFile string) error {
