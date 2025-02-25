@@ -198,6 +198,9 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 			outputsV2 = append(outputsV2, output)
 		}
 	}
+	if len(summaryOutputsV2) == 0 || !report.TestSummaryAsOutputEnabled(r.Envs) {
+		return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), finalErr
+	}
 	return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), finalErr
 }
 
