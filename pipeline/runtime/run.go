@@ -64,9 +64,9 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	//  Here we auto append the run command to write output variables.
 	if len(r.Outputs) > 0 {
-		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile)
+		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, r.Run.ShouldTrapOutputCommand)
 	} else if len(r.OutputVars) > 0 {
-		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
+		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, r.Run.ShouldTrapOutputCommand)
 	}
 
 	var outputSecretsFile string

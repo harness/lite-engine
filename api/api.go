@@ -140,30 +140,33 @@ type (
 	}
 
 	RunConfig struct {
-		Command    []string `json:"commands,omitempty"`
-		Entrypoint []string `json:"entrypoint,omitempty"`
+		Command                 []string `json:"commands,omitempty"`
+		Entrypoint              []string `json:"entrypoint,omitempty"`
+		ShouldTrapOutputCommand bool     `json:"should_trap_output_command,omitempty"`
 	}
 
 	RunTestsV2Config struct {
-		Command          []string `json:"commands,omitempty"`
-		Entrypoint       []string `json:"entrypoint,omitempty"`
-		TestGlobs        []string `json:"test_globs,omitempty"`
-		IntelligenceMode bool     `json:"intelligence_mode,omitempty"`
+		Command                 []string `json:"commands,omitempty"`
+		Entrypoint              []string `json:"entrypoint,omitempty"`
+		ShouldTrapOutputCommand bool     `json:"should_trap_output_command,omitempty"`
+		TestGlobs               []string `json:"test_globs,omitempty"`
+		IntelligenceMode        bool     `json:"intelligence_mode,omitempty"`
 	}
 
 	RunTestConfig struct {
-		Args                 string   `json:"args,omitempty"`
-		Entrypoint           []string `json:"entrypoint,omitempty"`
-		PreCommand           string   `json:"pre_command,omitempty"`
-		PostCommand          string   `json:"post_command,omitempty"`
-		BuildTool            string   `json:"build_tool,omitempty"`
-		Language             string   `json:"language,omitempty"`
-		Packages             string   `json:"packages,omitempty"`
-		RunOnlySelectedTests bool     `json:"run_only_selected_tests,omitempty"`
-		TestAnnotations      string   `json:"test_annotations,omitempty"`
-		TestSplitStrategy    string   `json:"test_split_strategy,omitempty"`
-		ParallelizeTests     bool     `json:"parallelize_tests,omitempty"`
-		TestGlobs            string   `json:"test_globs,omitempty"`
+		Args                    string   `json:"args,omitempty"`
+		Entrypoint              []string `json:"entrypoint,omitempty"`
+		PreCommand              string   `json:"pre_command,omitempty"`
+		PostCommand             string   `json:"post_command,omitempty"`
+		BuildTool               string   `json:"build_tool,omitempty"`
+		Language                string   `json:"language,omitempty"`
+		Packages                string   `json:"packages,omitempty"`
+		RunOnlySelectedTests    bool     `json:"run_only_selected_tests,omitempty"`
+		ShouldTrapOutputCommand bool     `json:"should_trap_output_command,omitempty"`
+		TestAnnotations         string   `json:"test_annotations,omitempty"`
+		TestSplitStrategy       string   `json:"test_split_strategy,omitempty"`
+		ParallelizeTests        bool     `json:"parallelize_tests,omitempty"`
+		TestGlobs               string   `json:"test_globs,omitempty"`
 	}
 
 	LogConfig struct {

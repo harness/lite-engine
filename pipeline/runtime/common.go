@@ -9,6 +9,7 @@ import (
 	b64 "encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/harness/lite-engine/internal/utils"
 	"io"
 	"os"
 	"time"
@@ -43,7 +44,7 @@ func getNudges() []logstream.Nudge {
 	}
 }
 
-func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string {
+func getOutputVarCmd(entrypoint, outputVars []string, outputFile string, shouldTrapOutputCommand bool) string {
 	isPsh := IsPowershell(entrypoint)
 	isPython := isPython(entrypoint)
 
@@ -59,17 +60,22 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 		} else if isPython {
 			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
 		} else {
-			cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o, o, outputFile)
+			if !shouldTrapOutputCommand {
+				cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o, o, outputFile)
+			} else {
+				cmd += utils.GetTrapOutputVarCmd(outputVars, outputFile)
+			}
+
 		}
 	}
 
 	return cmd
 }
 
-func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile string) string {
+func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile string, shouldTrapOutputCommand bool) string {
 	isPsh := IsPowershell(entrypoint)
 	isPython := isPython(entrypoint)
-
+	outputVarsTmp := make(map[string]string)
 	cmd := ""
 	if isPsh {
 		cmd += fmt.Sprintf("\nNew-Item %s", outputFile)
@@ -82,8 +88,15 @@ func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile s
 		} else if isPython {
 			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o.Key, o.Value)
 		} else {
-			cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o.Key, o.Value, outputFile)
+			if !shouldTrapOutputCommand {
+				cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o.Key, o.Value, outputFile)
+			} else {
+				outputVarsTmp[o.Key] = o.Value
+			}
 		}
+	}
+	if shouldTrapOutputCommand && len(outputVarsTmp) > 0 {
+		cmd += utils.GetTrapOutputVarCmdFromMap(outputVarsTmp, outputFile)
 	}
 
 	return cmd
