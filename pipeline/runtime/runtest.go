@@ -57,7 +57,7 @@ func executeRunTestStep(ctx context.Context, engine *engine.Engine, r *api.Start
 
 	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
 	if len(r.OutputVars) > 0 {
-		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
+		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, r.RunTest.ShouldTrapOutputCommand)
 	}
 
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)

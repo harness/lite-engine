@@ -8,6 +8,7 @@ import (
 	b64 "encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/harness/lite-engine/internal/utils"
 	"io"
 	"os"
 
@@ -31,7 +32,7 @@ func getNudges() []logstream.Nudge {
 	}
 }
 
-func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string {
+func getOutputVarCmd(entrypoint, outputVars []string, outputFile string, shouldTrapOutputCommand bool) string {
 	isPsh := isPowershell(entrypoint)
 	isPython := isPython(entrypoint)
 
@@ -47,7 +48,11 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string 
 		} else if isPython {
 			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
 		} else {
-			cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o, o, outputFile)
+			if shouldTrapOutputCommand {
+				cmd += utils.GetTrapOutputCmd(o, o, outputFile)
+			} else {
+				cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o, o, outputFile)
+			}
 		}
 	}
 

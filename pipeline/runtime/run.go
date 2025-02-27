@@ -38,7 +38,7 @@ func executeRunStep(ctx context.Context, engine *engine.Engine, r *api.StartStep
 	step.Envs["DRONE_OUTPUT"] = outputFile
 
 	if len(r.OutputVars) > 0 {
-		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
+		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, r.Run.ShouldTrapOutputCommand)
 	}
 
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
