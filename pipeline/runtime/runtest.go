@@ -65,10 +65,11 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 
 	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
 	if len(r.Outputs) > 0 {
-		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, r.RunTest.ShouldTrapOutputCommand)
+		step.Command[0] = getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, r.RunTest.ShouldTrapOutputCommand) + "\n" + step.Command[0]
 	} else if len(r.OutputVars) > 0 {
-		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, r.RunTest.ShouldTrapOutputCommand)
+		step.Command[0] = getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, r.RunTest.ShouldTrapOutputCommand) + "\n" + step.Command[0]
 	}
+	log.Infoln(fmt.Sprintf("shouldTrapOutputCommand is : %v", r.RunTest.ShouldTrapOutputCommand))
 
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
