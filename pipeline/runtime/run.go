@@ -61,12 +61,13 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	// Plugins can use HARNESS_OUTPUT_FILE to write the output variables to a file.
 	step.Envs["HARNESS_OUTPUT_FILE"] = outputFile
 	step.Envs["DRONE_OUTPUT"] = outputFile
+	shouldTrapOutputCommand := TrapOutputVariableFF(step.Envs)
 
 	//  Here we auto append the run command to write output variables.
 	if len(r.Outputs) > 0 {
-		step.Command[0] = getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, r.Run.ShouldTrapOutputCommand) + "\n" + step.Command[0]
+		step.Command[0] = getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, shouldTrapOutputCommand) + "\n" + step.Command[0]
 	} else if len(r.OutputVars) > 0 {
-		step.Command[0] = getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, r.Run.ShouldTrapOutputCommand) + "\n" + step.Command[0]
+		step.Command[0] = getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, shouldTrapOutputCommand) + "\n" + step.Command[0]
 	}
 
 	var outputSecretsFile string
@@ -92,7 +93,6 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	log := logrus.New()
 	log.Out = out
-	log.Infoln(fmt.Printf("shouldTrapOutputCommand is : %v", r.Run.ShouldTrapOutputCommand))
 
 	// stageRuntimeID is only passed for dlite
 	isHosted := r.StageRuntimeID != ""

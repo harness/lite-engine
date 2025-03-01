@@ -77,6 +77,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
+	shouldTrapOutputCommand := TrapOutputVariableFF(step.Envs)
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
@@ -86,9 +87,9 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step.Envs["DRONE_OUTPUT"] = outputFile
 
 	if len(r.Outputs) > 0 {
-		step.Command[0] = getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, r.RunTestsV2.ShouldTrapOutputCommand) + "\n" + step.Command[0]
+		step.Command[0] = getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, shouldTrapOutputCommand) + "\n" + step.Command[0]
 	} else if len(r.OutputVars) > 0 {
-		step.Command[0] = getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, r.RunTestsV2.ShouldTrapOutputCommand) + "\n" + step.Command[0]
+		step.Command[0] = getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, shouldTrapOutputCommand) + "\n" + step.Command[0]
 	}
 
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)

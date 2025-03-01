@@ -62,11 +62,11 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string, shouldT
 		} else {
 			if !shouldTrapOutputCommand {
 				cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o, o, outputFile)
-			} else {
-				cmd += utils.GetTrapOutputVarCmd(outputVars, outputFile)
 			}
-
 		}
+	}
+	if shouldTrapOutputCommand && len(outputVars) > 0 {
+		cmd += utils.GetTrapOutputVarCmd(outputVars, outputFile)
 	}
 
 	return cmd
@@ -227,4 +227,12 @@ func checkStepSuccess(state *runtime.State, err error) bool {
 		return true
 	}
 	return false
+}
+
+func TrapOutputVariableFF(env map[string]string) bool {
+	value, present := env["HARNESS_CI_ENABLE_OUTPUT_VARIABLES_TRAP_FF"]
+	if !present {
+		return false
+	}
+	return value == "true"
 }
