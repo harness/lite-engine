@@ -14,7 +14,7 @@ func GetTrapOutputVarCmd(pairs []string, outputFile string) string {
 func GetTrapOutputVarCmdFromMap(outputVarsTmp map[string]string, outputFile string) string {
 	cmd := "\ntrap '"
 	for key, value := range outputVarsTmp {
-		cmd += fmt.Sprintf("echo \"%s=%s\" >> %s; ", key, value, outputFile)
+		cmd += fmt.Sprintf("echo \"%s=$%s\" >> %s; ", key, value, outputFile)
 	}
 	cmd += "' EXIT; "
 	return cmd
