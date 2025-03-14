@@ -294,3 +294,4 @@ pipeline:
             description: ""
             required: false
             value: harness
+  allowStageExecutions: true
