@@ -187,6 +187,10 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 	return exec.Run(ctx, step, output)
 }
 
+func (e *Engine) Suspend(ctx context.Context, labels map[string]string) error {
+	return e.docker.Suspend(ctx, labels)
+}
+
 func destroyHelper(cfg *spec.PipelineConfig) {
 	for _, vol := range cfg.Volumes {
 		if vol == nil || vol.HostPath == nil {
