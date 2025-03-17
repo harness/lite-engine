@@ -33,6 +33,7 @@ type Client interface {
 	GetStepLogOutput(ctx context.Context, in *api.StreamOutputRequest, w io.Writer) error
 	Health(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error)
 	RetryHealth(ctx context.Context, timeout time.Duration, performDNSLookup bool) (*api.HealthResponse, error)
+	RetrySuspend(ctx context.Context, request *api.SuspendRequest, timeout time.Duration) (*api.SuspendResponse, error)
 }
 
 type clientCommand struct {
