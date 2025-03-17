@@ -280,6 +280,10 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	return e.startContainer(ctx, step.ID, pipelineConfig.TTY, output)
 }
 
+func (e *Docker) Suspend(ctx context.Context, labels map[string]string) error {
+	return e.destroyStoppedContainers(ctx, labels)
+}
+
 func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, output io.Writer) (*runtime.State, error) {
 	// start the container
 	startTime := time.Now()
@@ -307,6 +311,35 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, ou
 	state, err := e.waitRetry(ctx, stepID)
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on container for step %s, took %.2f seconds", stepID, time.Since(startTime).Seconds()))
 	return state, err
+}
+
+func (e *Docker) destroyStoppedContainers(ctx context.Context, labels map[string]string) error {
+	// Create filter to match containers with the given label
+	filterArgs := filters.NewArgs()
+	for key, value := range labels {
+		filterArgs.Add("label", fmt.Sprintf("%s=%s", key, value))
+	}
+	// Filter only stopped containers
+	filterArgs.Add("status", "exited")
+
+	stoppedPluginContainers, err := e.client.ContainerList(ctx, types.ContainerListOptions{
+		Filters: filterArgs,
+		All:     true, // Required to include stopped containers
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list stopped plugin containers: %w", err)
+	}
+
+	for _, pluginContainer := range stoppedPluginContainers {
+		if err := e.client.ContainerRemove(ctx, pluginContainer.ID, types.ContainerRemoveOptions{}); err != nil {
+			logrus.WithContext(ctx).
+				WithField("container", pluginContainer.ID).
+				WithField("error", err).Warnln("failed to remove container")
+		}
+		// remove container from e.containers matching container.ID
+		e.removeContainerByID(pluginContainer.ID)
+	}
+	return nil
 }
 
 //
@@ -654,4 +687,14 @@ func (e *Docker) softStop(ctx context.Context, name string) {
 		// everything has stopped
 		break
 	}
+}
+
+func (e *Docker) removeContainerByID(id string) {
+	newContainers := e.containers[:0]
+	for _, c := range e.containers {
+		if c.ID != id {
+			newContainers = append(newContainers, c)
+		}
+	}
+	e.containers = newContainers
 }

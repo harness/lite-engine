@@ -66,3 +66,7 @@ func (*NoopClient) Health(ctx context.Context, performDNSLookup bool) (*api.Heal
 func (n *NoopClient) RetryHealth(ctx context.Context, timeout time.Duration, performDNSLookup bool) (*api.HealthResponse, error) {
 	return n.Health(ctx, performDNSLookup)
 }
+
+func (c *NoopClient) RetrySuspend(ctx context.Context, request *api.SuspendRequest, timeout time.Duration) (*api.SuspendResponse, error) {
+	return &api.SuspendResponse{}, nil
+}
