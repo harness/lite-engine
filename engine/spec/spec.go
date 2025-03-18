@@ -177,4 +177,11 @@ type (
 		ClientCertKey     string `json:"client_cert_key,omitempty"`
 		ClientCertDirPath string `json:"client_cert_dir_path,omitempty"`
 	}
+
+	VMImageConfig struct {
+		ImageName string `json:"image_name,omitempty"`
+		Auth      *Auth  `json:"auth,omitempty"`
+		Username  string `json:"username,omitempty"`
+		Password  string `json:"password,omitempty"`
+	}
 )
