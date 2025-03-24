@@ -66,7 +66,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step.Entrypoint = r.RunTestsV2.Entrypoint
 	telemetryData := &types.TelemetryData{}
 
-	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
+	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, step.ID, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), err
 	}
@@ -165,6 +165,12 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
 		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
 	}
+
+	// clean up folders
+	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(r.ID, tiConfig))
+	fs := filesystem.New()
+	fs.Remove(tmpFilePath)
+
 	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
 
@@ -172,6 +178,7 @@ func SetupRunTestV2(
 	ctx context.Context,
 	config *api.RunTestsV2Config,
 	stepID, workspace string,
+	uniqueStepId string,
 	log *logrus.Logger,
 	envs map[string]string,
 	tiConfig *tiCfg.Cfg,
@@ -179,7 +186,8 @@ func SetupRunTestV2(
 ) (string, error) {
 	agentPaths := make(map[string]string)
 	fs := filesystem.New()
-	tmpFilePath := tiConfig.GetDataDir()
+	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepId, tiConfig))
+
 	var preCmd, filterfilePath string
 	if config.IntelligenceMode {
 		// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
@@ -716,7 +724,7 @@ func collectTestReportsAndCg(
 		}
 	}
 
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, testFailed)
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, testFailed)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
