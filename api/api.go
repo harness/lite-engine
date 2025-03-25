@@ -31,6 +31,14 @@ type (
 
 	SetupResponse struct{}
 
+	SuspendRequest struct {
+		LogKey         string            `json:"log_key,omitempty"` // key to write the lite engine logs (optional)
+		Labels         map[string]string `json:"labels,omitempty"`
+		LiteEnginePath string            `json:"lite_engine_path,omitempty"`
+	}
+
+	SuspendResponse struct{}
+
 	DestroyRequest struct {
 		LogDrone       bool   `json:"log_drone,omitempty"`
 		LogKey         string `json:"log_key,omitempty"`          // key to write the lite engine logs (optional)
