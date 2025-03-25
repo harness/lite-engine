@@ -35,17 +35,17 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 
 	encCg, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log)
 	if err != nil {
-		return errors.Wrap(err, "failecd to get avro encoded callgraph")
+		return errors.Wrap(err, "failed to get avro encoded callgraph")
 	}
 
 	c := cfg.GetClient()
 
 	if hasFailed {
-		if cgErr := c.UploadCgFailedTest(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), time.Since(start).Milliseconds(), encCg); cgErr != nil {
+		if cgErr := c.UploadCgFailedTest(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
 			return cgErr
 		}
 	} else {
-		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), time.Since(start).Milliseconds(), encCg); cgErr != nil {
+		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
 			return cgErr
 		}
 	}
