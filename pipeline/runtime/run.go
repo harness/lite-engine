@@ -120,7 +120,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	//only for git-clone-step
 	if buildLangFile, found := r.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
-		err1 := parseBuildInfo(telemetryData, r.WorkingDir+"/"+buildLangFile)
+		err1 := parseBuildInfo(telemetryData, buildLangFile)
 		if err1 != nil {
 			logrus.WithContext(ctx).WithError(err1).Errorln("failed to parse build info")
 		}
