@@ -49,29 +49,29 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		step.Envs["HARNESS_SCRATCH_DIR"] = r.ScratchDir
 	}
 
+	var outputFile string
+	if r.OutputVarFile != "" {
+		// If the output variable file is set, we use it to write the output variables
+		outputFile = r.OutputVarFile
+	} else {
+		// Otherwise, we use the default output file path
+		outputFile = fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
+	}
+
 	useCINewGodotEnvVersion := false
 	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == trueValue {
 		useCINewGodotEnvVersion = true
 	}
 
-	// If the output variable file is set, it means we use the file directly to get the output variables
-	// instead of explicitly modifying the input command.
-	var outputFile string
-	if r.OutputVarFile != "" {
-		// Plugins can use HARNESS_OUTPUT_FILE to write the output variables to a file.
-		step.Envs["HARNESS_OUTPUT_FILE"] = r.OutputVarFile
-		outputFile = r.OutputVarFile
-	} else {
-		// If output variable file is not set, we auto append the run command to write output
-		// variables.
-		outputFile = fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
-		step.Envs["DRONE_OUTPUT"] = outputFile
+	// Plugins can use HARNESS_OUTPUT_FILE to write the output variables to a file.
+	step.Envs["HARNESS_OUTPUT_FILE"] = outputFile
+	step.Envs["DRONE_OUTPUT"] = outputFile
 
-		if len(r.Outputs) > 0 {
-			step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, useCINewGodotEnvVersion)
-		} else if len(r.OutputVars) > 0 {
-			step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, useCINewGodotEnvVersion)
-		}
+	//  Here we auto append the run command to write output variables.
+	if len(r.Outputs) > 0 {
+		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, useCINewGodotEnvVersion)
+	} else if len(r.OutputVars) > 0 {
+		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, useCINewGodotEnvVersion)
 	}
 
 	var outputSecretsFile string
