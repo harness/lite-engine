@@ -90,6 +90,14 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		step.Envs["PLUGIN_CACHE_METRICS_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, cacheMetricsFile)
 	}
 
+	if cacheIntelMetricsFile, found := step.Envs["PLUGIN_CACHE_INTEL_METRICS_FILE"]; found {
+		step.Envs["PLUGIN_CACHE_INTEL_METRICS_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, cacheIntelMetricsFile)
+	}
+
+	if pluginBuildToolFile, found := step.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
+		step.Envs["PLUGIN_BUILD_TOOL_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, pluginBuildToolFile)
+	}
+
 	log := logrus.New()
 	log.Out = out
 

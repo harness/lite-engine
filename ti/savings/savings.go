@@ -3,7 +3,6 @@ package savings
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -116,13 +115,13 @@ func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceE
 }
 
 func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *types.TelemetryData) error {
-	cacheFile := fmt.Sprintf("%s/%s", workspace, cacheIntelFile)
-	if _, err := os.Stat(cacheFile); os.IsNotExist(err) {
+	// Check if the file exists.
+	if _, err := os.Stat(cacheIntelFile); os.IsNotExist(err) {
 		return err
 	}
 
 	// Read the JSON file containing the cache metrics.
-	data, err := os.ReadFile(cacheFile)
+	data, err := os.ReadFile(cacheIntelFile)
 	if err != nil {
 		return err
 	}
