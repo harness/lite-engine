@@ -520,13 +520,28 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 			}
 
 			if jsFFVal, ok := envs["CI_ENABLE_RUNTESTV2_JS_FF"]; ok && jsFFVal == "true" {
-				envs["NODE_OPTIONS"] = fmt.Sprintf("-r %s%slinux/%s", tmpFilePath, dotNetAgentV2Path, javascriptRequireFile)
+				jsAgentPathLinux := fmt.Sprintf("%s%slinux/%s", tmpFilePath, dotNetAgentV2Path, javascriptRequireFile)
+				jsAgentPathAlpine := fmt.Sprintf("%s%salpine/%s", tmpFilePath, dotNetAgentV2Path, javascriptRequireFile)
+
+				envs["NODE_OPTIONS"] = fmt.Sprintf("-r %s", jsAgentPathLinux)
+				envs["NODE_OPTIONS_ALPINE"] = fmt.Sprintf("-r %s", jsAgentPathAlpine)
+				envs["NODE_OPTIONS_LINUX"] = fmt.Sprintf("-r %s", jsAgentPathLinux)
+
+				if !isPsh {
+					preCmd += "\nif cat /etc/os-release | grep -iq alpine ; then export NODE_OPTIONS=$NODE_OPTIONS_ALPINE; fi;"
+				} else {
+					preCmd += "\nIf (Get-Content /etc/os-release | %{$_ -match 'alpine'}) { [System.Environment]::SetEnvironmentVariable('NODE_OPTIONS', [System.Environment]::GetEnvironmentVariable('NODE_OPTIONS_ALPINE')); }"
+				}
 			}
 		}
 
 		if goRuntime.GOOS == "windows" {
 			dotNetAgentPathWindows := fmt.Sprintf("%s%spack/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibWin)
 			envs["CORECLR_PROFILER_PATH"] = dotNetAgentPathWindows
+			if jsFFVal, ok := envs["CI_ENABLE_RUNTESTV2_JS_FF"]; ok && jsFFVal == "true" {
+				jsAgentPathWindows := fmt.Sprintf("%s%spack/%s", tmpFilePath, dotNetAgentV2Path, javascriptRequireFile)
+				envs["NODE_OPTIONS"] = fmt.Sprintf("-r %s", jsAgentPathWindows)
+			}
 		}
 
 		envs["CORECLR_PROFILER"] = dotNetAgentProfilerGUID
