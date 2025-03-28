@@ -48,7 +48,7 @@ func GenerateCert(host string, ca *Certificate) (*Certificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	template.DNSNames = append(template.DNSNames, host)
+	template.Subject.CommonName = host
 
 	tlsCert, err := tls.X509KeyPair(ca.Cert, ca.Key)
 	if err != nil {
