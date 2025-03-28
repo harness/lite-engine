@@ -39,33 +39,23 @@ func (e *Error) Error() string {
 }
 
 func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile string) (*HTTPClient, error) {
-	return NewHTTPClientWithTLSOption(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile, false)
-}
-
-func NewHTTPClientWithTLSOption(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile string, insecure bool) (*HTTPClient, error) {
-	var tlsConfig *tls.Config
-
-	if !insecure {
-		tlsCert, err := tls.X509KeyPair([]byte(tlsCertFile), []byte(tlsKeyFile))
-		if err != nil {
-			return nil, err
-		}
-
-		tlsConfig = &tls.Config{
-			ServerName:   serverName,
-			Certificates: []tls.Certificate{tlsCert},
-			MinVersion:   tls.VersionTLS13,
-		}
-
-		tlsConfig.RootCAs = x509.NewCertPool()
-		tlsConfig.RootCAs.AppendCertsFromPEM([]byte(caCertFile))
+	tlsCert, err := tls.X509KeyPair([]byte(tlsCertFile), []byte(tlsKeyFile))
+	if err != nil {
+		return nil, err
 	}
+	tlsConfig := &tls.Config{
+		ServerName:   serverName,
+		Certificates: []tls.Certificate{tlsCert},
+		MinVersion:   tls.VersionTLS13,
+	}
+
+	tlsConfig.RootCAs = x509.NewCertPool()
+	tlsConfig.RootCAs.AppendCertsFromPEM([]byte(caCertFile))
 
 	dialer := &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
 	}
-
 	return &HTTPClient{
 		Client: &http.Client{
 			Transport: &http.Transport{
@@ -74,7 +64,7 @@ func NewHTTPClientWithTLSOption(endpoint, serverName, caCertFile, tlsCertFile, t
 				ForceAttemptHTTP2:     true,
 				MaxIdleConns:          10,
 				IdleConnTimeout:       30 * time.Second,
-				TLSClientConfig:       tlsConfig, // Will be nil if insecure == true
+				TLSClientConfig:       tlsConfig,
 				TLSHandshakeTimeout:   10 * time.Second,
 				ExpectContinueTimeout: 1 * time.Second,
 			},
