@@ -228,11 +228,44 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration, per
 	}
 }
 
+func (c *HTTPClient) RetrySuspend(ctx context.Context, request *api.SuspendRequest, timeout time.Duration) (*api.SuspendResponse, error) {
+	startTime := time.Now()
+	retryCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var lastErr error
+	for i := 0; ; i++ {
+		select {
+		case <-retryCtx.Done():
+			return &api.SuspendResponse{}, retryCtx.Err()
+		default:
+		}
+		if ret, err := c.suspend(retryCtx, request); err == nil {
+			logger.FromContext(ctx).
+				WithField("duration", time.Since(startTime)).
+				Trace("RetrySuspend: suspend completed")
+			return ret, err
+		} else if lastErr == nil || (lastErr.Error() != err.Error()) {
+			logger.FromContext(ctx).
+				WithField("retry_num", i).WithError(err).Traceln("suspend failed. Retrying")
+			lastErr = err
+		}
+		time.Sleep(time.Millisecond * 10) //nolint:gomnd
+	}
+}
+
 func (c *HTTPClient) healthCheck(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error) {
 	hctx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
 	defer cancel()
 
 	return c.Health(hctx, performDNSLookup)
+}
+
+func (c *HTTPClient) suspend(ctx context.Context, in *api.SuspendRequest) (*api.SuspendResponse, error) {
+	path := "suspend"
+	out := new(api.SuspendResponse)
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) //nolint:bodyclose
+	return out, err
 }
 
 // do is a helper function that posts a http request with the input encoded and response decoded from json.
