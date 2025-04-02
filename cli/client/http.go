@@ -261,10 +261,10 @@ func (c *HTTPClient) healthCheck(ctx context.Context, performDNSLookup bool) (*a
 	return c.Health(hctx, performDNSLookup)
 }
 
-func (c *HTTPClient) suspend(ctx context.Context, request *api.SuspendRequest) (*api.SuspendResponse, error) {
+func (c *HTTPClient) suspend(ctx context.Context, in *api.SuspendRequest) (*api.SuspendResponse, error) {
 	path := "suspend"
 	out := new(api.SuspendResponse)
-	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, nil, out) //nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) //nolint:bodyclose
 	return out, err
 }
 
