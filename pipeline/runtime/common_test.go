@@ -66,3 +66,33 @@ func TestExportedVarsWithNewVersionOfGodotEnv(t *testing.T) {
 		})
 	}
 }
+
+func TestMultilineExportedVarsWithNewGoDotEnvVersion(t *testing.T) {
+	tests := []struct {
+		Name       string
+		OutputFile string
+		EnvMap     map[string]string
+		Error      error
+	}{
+		{
+			Name:       "multiline_simple",
+			OutputFile: "testdata/multiline_simple.txt",
+			EnvMap:     map[string]string{"MULTILINE_SIMPLE": "line1\nline2\nline3"},
+			Error:      nil,
+		},
+		{
+			Name:       "multiline_complex",
+			OutputFile: "testdata/multiline_complex.txt",
+			EnvMap:     map[string]string{"MULTILINE_COMPLEX": "line1 with \"quotes\"\nline2 with special chars: !@#$%^&*()\nline3 with JSON: {\"key\": \"value\"}\nline4 with indentation:\n  - item1\n  - item2"},
+			Error:      nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.Name, func(t *testing.T) {
+			envMap, err := fetchExportedVarsFromEnvFile(tc.OutputFile, os.Stdout, true)
+			assert.Equal(t, tc.EnvMap, envMap)
+			assert.Equal(t, tc.Error, err)
+		})
+	}
+}

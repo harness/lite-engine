@@ -63,15 +63,6 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		useCINewGodotEnvVersion = true
 	}
 
-	log := logrus.New()
-	log.Out = out
-	log.Infof("This is the value of useCINewGodotEnvVersion")
-	log.Infof(step.Envs[ciNewVersionGodotEnv])
-	log.Infof("Printed useCINewGodotEnvVersion value")
-	log.Errorf("This is the value of useCINewGodotEnvVersion")
-	log.Errorf(step.Envs[ciNewVersionGodotEnv])
-	log.Errorf("Printed useCINewGodotEnvVersion value")
-
 	// Plugins can use HARNESS_OUTPUT_FILE to write the output variables to a file.
 	step.Envs["HARNESS_OUTPUT_FILE"] = outputFile
 	step.Envs["DRONE_OUTPUT"] = outputFile
@@ -82,12 +73,6 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	} else if len(r.OutputVars) > 0 {
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, useCINewGodotEnvVersion)
 	}
-	log.Infof("Printing output cmd")
-	log.Infof(step.Command[0])
-	log.Infof("Printed output cmd done")
-	log.Errorf("Printing output cmd")
-	log.Errorf(step.Command[0])
-	log.Errorf("Printed output cmd done")
 
 	var outputSecretsFile string
 	if r.SecretVarFile != "" {
@@ -109,6 +94,9 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	if cacheMetricsFile, found := step.Envs["PLUGIN_CACHE_METRICS_FILE"]; found {
 		step.Envs["PLUGIN_CACHE_METRICS_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, cacheMetricsFile)
 	}
+
+	log := logrus.New()
+	log.Out = out
 
 	// stageRuntimeID is only passed for dlite
 	isHosted := r.StageRuntimeID != ""

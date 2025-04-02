@@ -6,7 +6,6 @@ package runtime
 
 import (
 	"bufio"
-	"bytes"
 	b64 "encoding/base64"
 	"errors"
 	"fmt"
@@ -205,45 +204,12 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer, useCINewGodotEn
 	)
 
 	if useCINewGodotEnvVersion {
-		log.Infof("Inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block")
-		log.Errorf("Inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block")
 		env, err = v4.Read(envFile)
-		if err == nil {
-			log.Infof("Printing env inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block")
-			log.Errorf("Printing env inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block")
-			createKeyValuePairs(env, out)
-			log.Infof("Printing env done inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block")
-			log.Errorf("Printing env done inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block")
-		}
 		if err != nil {
-			log.Infof("Inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block & err != nil block")
-			log.Errorf("Inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block & err != nil block")
 			env, err = v2.Read(envFile)
-			if err == nil {
-				log.Infof("Printing env inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block & err != nil block")
-				log.Errorf("Printing env inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block & err != nil block")
-				createKeyValuePairs(env, out)
-				log.Infof("Printing env done inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block & err != nil block")
-				log.Errorf("Printing env done inside fetchExportedVarsFromEnvFile & useCINewGodotEnvVersion block & err != nil block")
-			} else {
-				log.Infof("Printing ppppppppp")
-				log.Errorf("Printing ppppppppp")
-			}
 		}
 	} else {
-		log.Infof("Inside fetchExportedVarsFromEnvFile & else block")
-		log.Errorf("Inside fetchExportedVarsFromEnvFile & else block")
 		env, err = v2.Read(envFile)
-		if err == nil {
-			log.Infof("Printing env inside Inside fetchExportedVarsFromEnvFile & else block")
-			log.Errorf("Printing env inside Inside fetchExportedVarsFromEnvFile & else block")
-			createKeyValuePairs(env, out)
-			log.Infof("Printing env done inside Inside fetchExportedVarsFromEnvFile & else block")
-			log.Errorf("Printing env done inside fInside fetchExportedVarsFromEnvFile & else block")
-		} else {
-			log.Infof("Printing eeeeeeeeeee")
-			log.Errorf("Printing eeeeeeeeeee")
-		}
 	}
 
 	if err != nil {
@@ -258,17 +224,6 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer, useCINewGodotEn
 		return nil, err
 	}
 	return env, nil
-}
-
-func createKeyValuePairs(m map[string]string, out io.Writer) string {
-	log := logrus.New()
-	log.Out = out
-	b := new(bytes.Buffer)
-	for key, value := range m {
-		log.Infof("%s=\"%s\"\n", key, value)
-		log.Errorf("%s=\"%s\"\n", key, value)
-	}
-	return b.String()
 }
 
 func fetchArtifactDataFromArtifactFile(artifactFile string, out io.Writer) ([]byte, error) {
