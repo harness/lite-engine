@@ -334,8 +334,10 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 
 	log.Println("step.Image======", step.Image)
 	log.Println("step.auth======", step.Auth)
-	log.Println("step.Username======", step.Auth.Username)
-	log.Println("step.Password======", step.Auth.Password)
+	if step.Auth != nil {
+		log.Println("step.Username======", step.Auth.Username)
+		log.Println("step.Password======", step.Auth.Password)
+	}
 
 	if isHosted && (step.Auth == nil || step.Auth.Username == "" || step.Auth.Password == "") {
 		log.Println("step.image=====", step.Image)
