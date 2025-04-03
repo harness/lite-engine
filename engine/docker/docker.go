@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"sync"
@@ -329,7 +330,15 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	// override image registry for internal images
 	// this is short term solution
 	// override to gar if no auth is present
+	log.Println("step.Name======", step.Name)
+
+	log.Println("step.Image======", step.Image)
+	log.Println("step.auth======", step.Auth)
+	log.Println("step.Username======", step.Auth.Username)
+	log.Println("step.Password======", step.Auth.Password)
+
 	if isHosted && (step.Auth == nil || step.Auth.Username == "" || step.Auth.Password == "") {
+		log.Println("step.image=====", step.Image)
 		overriddenImage = image.OverrideRegistry(step.Image)
 	}
 

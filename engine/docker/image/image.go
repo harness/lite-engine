@@ -9,6 +9,7 @@
 package image
 
 import (
+	"log"
 	"net/url"
 	"strings"
 
@@ -110,12 +111,15 @@ func OverrideRegistry(imageWithTag string) string {
 	}
 
 	imageName := parts[0]
+	log.Println("imageName======", imageName)
+
 	tagName := ""
 	if len(parts) == 2 { //nolint:gomnd
 		tagName = parts[1]
 	}
 
 	for _, im := range internalImages {
+		log.Println("im====", im)
 		if imageName == im {
 			if tagName == "" {
 				return garRegistry + imageName
@@ -123,5 +127,7 @@ func OverrideRegistry(imageWithTag string) string {
 			return garRegistry + imageName + ":" + tagName
 		}
 	}
+	log.Println("imageWithTag====", imageWithTag)
+
 	return imageWithTag
 }
