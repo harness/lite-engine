@@ -363,6 +363,11 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		}
 	}
 
+	log.Println("networkID===", pipelineConfig.Network.ID)
+	log.Println("alias===", step.Name)
+	log.Println("portBindings===", step.PortBindings)
+	log.Println("envsss===", step.Envs)
+
 	containerCreateBody, err := e.client.ContainerCreate(ctx,
 		toConfig(pipelineConfig, step, selectedImage),
 		toHostConfig(pipelineConfig, step),
