@@ -58,15 +58,20 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		outputFile = fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
 	}
 
+	useCINewGodotEnvVersion := false
+	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == trueValue {
+		useCINewGodotEnvVersion = true
+	}
+
 	// Plugins can use HARNESS_OUTPUT_FILE to write the output variables to a file.
 	step.Envs["HARNESS_OUTPUT_FILE"] = outputFile
 	step.Envs["DRONE_OUTPUT"] = outputFile
 
 	//  Here we auto append the run command to write output variables.
 	if len(r.Outputs) > 0 {
-		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile)
+		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, useCINewGodotEnvVersion)
 	} else if len(r.OutputVars) > 0 {
-		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile)
+		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, useCINewGodotEnvVersion)
 	}
 
 	var outputSecretsFile string
@@ -124,11 +129,6 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		if err1 != nil {
 			logrus.WithContext(ctx).WithError(err1).Errorln("failed to parse build info")
 		}
-	}
-
-	useCINewGodotEnvVersion := false
-	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == trueValue {
-		useCINewGodotEnvVersion = true
 	}
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)

@@ -15,7 +15,7 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	v2 "github.com/harness/godotenv/v2"
-	v3 "github.com/harness/godotenv/v3"
+	v4 "github.com/harness/godotenv/v4"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/livelog"
@@ -43,46 +43,132 @@ func getNudges() []logstream.Nudge {
 	}
 }
 
-func getOutputVarCmd(entrypoint, outputVars []string, outputFile string) string {
+func getOutputVarCmd(entrypoint, outputVars []string, outputFile string, useNewGoDotEnv bool) string {
 	isPsh := IsPowershell(entrypoint)
 	isPython := isPython(entrypoint)
 
 	cmd := ""
-	if isPsh {
-		cmd += fmt.Sprintf("\nNew-Item %s", outputFile)
-	} else if isPython {
-		cmd += "\nimport os\n"
-	}
-	for _, o := range outputVars {
+	if useNewGoDotEnv {
 		if isPsh {
-			cmd += fmt.Sprintf("\n$val = \"%s=$Env:%s\" \nAdd-Content -Path %s -Value $val", o, o, outputFile)
+			cmd += fmt.Sprintf("\nNew-Item %s", outputFile)
 		} else if isPython {
-			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
-		} else {
-			cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o, o, outputFile)
+			cmd += `
+import os
+import sys
+import json
+def get_env_var(name):
+    """Fetch an environment variable, exiting with an error if not set."""
+    value = os.getenv(name)
+    if value is None:
+        print(f"Error: Output variable '{name}' is not set")
+        sys.exit(1)
+    return value
+`
+		}
+		for _, o := range outputVars {
+			if isPsh {
+				cmd += fmt.Sprintf("\n$val = '%s=\"' + ($Env:%s -replace '\"', '\\\"') + '\"' \nAdd-Content -Path %s -Value $val",
+					o,
+					o,
+					outputFile)
+			} else if isPython {
+				cmd += fmt.Sprintf(`
+try:
+    with open('%s', 'a') as out_file:
+        # Use json.dumps to handle proper quoting of the value
+        value = get_env_var('%s')
+        out_file.write('%s=' + json.dumps(value) + '\n')
+except Exception as e:
+    print(f"Error: {e}")
+    sys.exit(1)
+`, outputFile, o, o)
+			} else {
+				cmd += fmt.Sprintf("\n{ echo -n '%s=\"'; echo -n \"$%s\" | sed 's/\"/\\\\\"/g'; echo '\"'; } >> %s",
+					o,
+					o,
+					outputFile)
+			}
+		}
+	} else {
+		if isPsh {
+			cmd += fmt.Sprintf("\nNew-Item %s", outputFile)
+		} else if isPython {
+			cmd += "\nimport os\n"
+		}
+		for _, o := range outputVars {
+			if isPsh {
+				cmd += fmt.Sprintf("\n$val = \"%s=$Env:%s\" \nAdd-Content -Path %s -Value $val", o, o, outputFile)
+			} else if isPython {
+				cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o, o)
+			} else {
+				cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o, o, outputFile)
+			}
 		}
 	}
 
 	return cmd
 }
 
-func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile string) string {
+func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile string, useNewGoDotEnv bool) string {
 	isPsh := IsPowershell(entrypoint)
 	isPython := isPython(entrypoint)
 
 	cmd := ""
-	if isPsh {
-		cmd += fmt.Sprintf("\nNew-Item %s", outputFile)
-	} else if isPython {
-		cmd += "\nimport os\n"
-	}
-	for _, o := range outputVars {
+	if useNewGoDotEnv {
 		if isPsh {
-			cmd += fmt.Sprintf("\n$val = \"%s=$Env:%s\" \nAdd-Content -Path %s -Value $val", o.Key, o.Value, outputFile)
+			cmd += fmt.Sprintf("\nNew-Item %s", outputFile)
 		} else if isPython {
-			cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o.Key, o.Value)
-		} else {
-			cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o.Key, o.Value, outputFile)
+			cmd += `
+import os
+import sys
+import json
+def get_env_var(name):
+    """Fetch an environment variable, exiting with an error if not set."""
+    value = os.getenv(name)
+    if value is None:
+        print(f"Error: Output variable '{name}' is not set")
+        sys.exit(1)
+    return value
+`
+		}
+		for _, o := range outputVars {
+			if isPsh {
+				cmd += fmt.Sprintf("\n$val = '%s=\"' + ($Env:%s -replace '\"', '\\\"') + '\"' \nAdd-Content -Path %s -Value $val",
+					o.Key,
+					o.Value,
+					outputFile)
+			} else if isPython {
+				cmd += fmt.Sprintf(`
+try:
+    with open('%s', 'a') as out_file:
+        # Using json.dumps to handle proper quoting of the value
+        value = get_env_var('%s')
+        out_file.write('%s=' + json.dumps(value) + '\n')
+except Exception as e:
+    print(f"Error: {e}")
+    sys.exit(1)
+`, outputFile, o.Key, o.Value)
+			} else {
+				cmd += fmt.Sprintf("\n{ echo -n '%s=\"'; echo -n \"$%s\" | sed 's/\"/\\\\\"/g'; echo '\"'; } >> %s",
+					o.Key,
+					o.Value,
+					outputFile)
+			}
+		}
+	} else {
+		if isPsh {
+			cmd += fmt.Sprintf("\nNew-Item %s", outputFile)
+		} else if isPython {
+			cmd += "\nimport os\n"
+		}
+		for _, o := range outputVars {
+			if isPsh {
+				cmd += fmt.Sprintf("\n$val = \"%s=$Env:%s\" \nAdd-Content -Path %s -Value $val", o.Key, o.Value, outputFile)
+			} else if isPython {
+				cmd += fmt.Sprintf("with open('%s', 'a') as out_file:\n\tout_file.write('%s=' + os.getenv('%s') + '\\n')\n", outputFile, o.Key, o.Value)
+			} else {
+				cmd += fmt.Sprintf("\necho \"%s=$%s\" >> %s", o.Key, o.Value, outputFile)
+			}
 		}
 	}
 
@@ -118,7 +204,7 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer, useCINewGodotEn
 	)
 
 	if useCINewGodotEnvVersion {
-		env, err = v3.Read(envFile)
+		env, err = v4.Read(envFile)
 		if err != nil {
 			env, err = v2.Read(envFile)
 		}

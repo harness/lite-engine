@@ -1,0 +1,6 @@
+MULTILINE_COMPLEX="line1 with \"quotes\"
+line2 with special chars: !@#$%^&*()
+line3 with JSON: {\"key\": \"value\"}
+line4 with indentation:
+  - item1
+  - item2"

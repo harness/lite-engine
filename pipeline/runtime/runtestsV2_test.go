@@ -64,10 +64,10 @@ func Test_CollectRunTestsV2Data(t *testing.T) {
 			collectCgFn = func(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, dir string, hasFailed bool) error {
 				return tc.cgErr
 			}
-			collectTestReportsFn = func(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, testMetadata *api.TestIntelligenceMetaData, envs map[string]string) ([]*types.TestCase, error) {
+			collectTestReportsFn = func(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, testMetadata *types.TestIntelligenceMetaData, envs map[string]string) ([]*types.TestCase, error) {
 				return *&[]*types.TestCase{}, tc.crErr
 			}
-			err := collectTestReportsAndCg(ctx, log, &apiReq, time.Now(), stepName, &tiConfig, &api.TelemetryData{}, map[string]string{})
+			err := collectTestReportsAndCg(ctx, log, &apiReq, time.Now(), stepName, &tiConfig, &types.TelemetryData{}, map[string]string{})
 			assert.Equal(t, tc.collectionErr, err)
 		})
 	}
@@ -85,7 +85,7 @@ func Test_createSelectedTestFile(t *testing.T) {
 		envs                     map[string]string
 		runV2Config              *api.RunTestsV2Config
 		filterFilePath           string
-		testIntelligenceMetaData *api.TestIntelligenceMetaData
+		testIntelligenceMetaData *types.TestIntelligenceMetaData
 	}
 	tests := []struct {
 		name    string
