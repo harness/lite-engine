@@ -16,7 +16,7 @@ import (
 
 func TestLineWriterSingle(t *testing.T) {
 	client := new(mockClient)
-	w := New(client, "1", "1", nil, false, false)
+	w := New(client, "1", "1", nil, false, false, false)
 	w.SetInterval(time.Duration(0))
 	w.num = 4
 	_, _ = w.Write([]byte("foo\nbar\n"))
@@ -42,7 +42,7 @@ func TestLineWriterSingle(t *testing.T) {
 
 func TestLineWriterSingleWithTrimNewLineSuffixEnabled(t *testing.T) {
 	client := new(mockClient)
-	w := New(client, "1", "1", nil, false, true)
+	w := New(client, "1", "1", nil, false, true, false)
 	w.SetInterval(time.Duration(0))
 	w.num = 4
 	_, _ = w.Write([]byte("foo\nbar\n"))
@@ -98,7 +98,7 @@ func (m *mockClient) Open(ctx context.Context, key string) error {
 }
 
 // Close closes the data stream.
-func (m *mockClient) Close(ctx context.Context, key string) error {
+func (m *mockClient) Close(ctx context.Context, key string, force bool) error {
 	return nil
 }
 
