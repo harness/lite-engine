@@ -598,7 +598,15 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 		driver = "nat"
 	}
 
-	var err error
+	// Check if the network already exists
+	_, _, err := e.client.NetworkInspectWithRaw(ctx, pipelineConfig.Network.ID, types.NetworkInspectOptions{})
+	if err == nil {
+		return nil
+	} else if !client.IsErrNotFound(err) {
+		// If the error is not "network not found", return it
+		return err
+	}
+
 	for i := 1; i <= networkMaxRetries; i++ {
 		_, err = e.client.NetworkCreate(ctx, pipelineConfig.Network.ID, types.NetworkCreate{
 			Driver:  driver,
