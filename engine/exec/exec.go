@@ -58,10 +58,9 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			logrus.WithContext(ctx).Infoln(fmt.Sprintf("Execution canceled for step %s with error %v, took %.2f seconds", step.ID, ctx.Err(), time.Since(startTime).Seconds()))
 			return nil, ctx.Err()
-		} else {
-			logrus.WithContext(ctx).Infoln(fmt.Sprintf("Context of command completed for step %s with error %v, took %.2f seconds", step.ID, ctx.Err(), time.Since(startTime).Seconds()))
-			return nil, fmt.Errorf("command context completed with error %v", ctx.Err())
 		}
+		logrus.WithContext(ctx).Infoln(fmt.Sprintf("Context of command completed for step %s with error %v, took %.2f seconds", step.ID, ctx.Err(), time.Since(startTime).Seconds()))
+		return nil, fmt.Errorf("command context completed with error %v", ctx.Err())
 	case result := <-cmdSignal:
 		logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on host for step %s, took %.2f seconds", step.ID, time.Since(startTime).Seconds()))
 		return result.state, result.err

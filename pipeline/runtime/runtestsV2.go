@@ -53,7 +53,7 @@ const (
 	javascriptRequireFile   = "ti-agent.cjs"
 )
 
-//nolint:gocritic,gocyclo
+//nolint:gocritic,gocyclo,funlen
 func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer,
 	tiConfig *tiCfg.Cfg) (*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	start := time.Now()
@@ -167,7 +167,15 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
 
-func SetupRunTestV2(ctx context.Context, config *api.RunTestsV2Config, stepID, workspace string, log *logrus.Logger, envs map[string]string, tiConfig *tiCfg.Cfg, testMetadata *types.TestIntelligenceMetaData) (string, error) {
+func SetupRunTestV2(
+	ctx context.Context,
+	config *api.RunTestsV2Config,
+	stepID, workspace string,
+	log *logrus.Logger,
+	envs map[string]string,
+	tiConfig *tiCfg.Cfg,
+	testMetadata *types.TestIntelligenceMetaData,
+) (string, error) {
 	agentPaths := make(map[string]string)
 	fs := filesystem.New()
 	tmpFilePath := tiConfig.GetDataDir()
@@ -519,7 +527,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 				preCmd += "\nIf (Get-Content /etc/os-release | %{$_ -match 'alpine'}) { [System.Environment]::SetEnvironmentVariable('CORECLR_PROFILER_PATH', [System.Environment]::GetEnvironmentVariable('CORECLR_PROFILER_PATH_ALPINE')); }"
 			}
 
-			if jsFFVal, ok := envs["CI_ENABLE_RUNTESTV2_JS_FF"]; ok && jsFFVal == "true" {
+			if jsFFVal, ok := envs["CI_ENABLE_RUNTESTV2_JS_FF"]; ok && jsFFVal == trueValue {
 				jsAgentPathLinux := fmt.Sprintf("%s%slinux/%s", tmpFilePath, dotNetAgentV2Path, javascriptRequireFile)
 				jsAgentPathAlpine := fmt.Sprintf("%s%salpine/%s", tmpFilePath, dotNetAgentV2Path, javascriptRequireFile)
 
@@ -538,18 +546,15 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		if goRuntime.GOOS == "windows" {
 			dotNetAgentPathWindows := fmt.Sprintf("%s%spack/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibWin)
 			envs["CORECLR_PROFILER_PATH"] = dotNetAgentPathWindows
-			if jsFFVal, ok := envs["CI_ENABLE_RUNTESTV2_JS_FF"]; ok && jsFFVal == "true" {
+			if jsFFVal, ok := envs["CI_ENABLE_RUNTESTV2_JS_FF"]; ok && jsFFVal == trueValue {
 				jsAgentPathWindows := fmt.Sprintf("%s%spack/%s", tmpFilePath, dotNetAgentV2Path, javascriptRequireFile)
 				envs["NODE_OPTIONS"] = fmt.Sprintf("-r %s", jsAgentPathWindows)
 			}
 		}
-
 		envs["CORECLR_PROFILER"] = dotNetAgentProfilerGUID
 		envs["CORECLR_ENABLE_PROFILING"] = "1"
 		envs["TI_DOTNET_CONFIG"] = dotNetJSONFilePath
-
 	}
-
 	return preCmd, filterFilePath, nil
 }
 
@@ -674,7 +679,16 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 	return nil
 }
 
-func collectTestReportsAndCg(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *types.TelemetryData, envs map[string]string) error {
+func collectTestReportsAndCg(
+	ctx context.Context,
+	log *logrus.Logger,
+	r *api.StartStepRequest,
+	start time.Time,
+	stepName string,
+	tiConfig *tiCfg.Cfg,
+	telemetryData *types.TelemetryData,
+	envs map[string]string,
+) error {
 	cgStart := time.Now()
 
 	if len(r.TestReport.Junit.Paths) == 0 {

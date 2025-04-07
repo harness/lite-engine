@@ -32,7 +32,7 @@ var (
 	collectTestReportsFn = report.ParseAndUploadTests
 )
 
-func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo
+func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo,funlen
 	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	log := &logrus.Logger{
 		Out:   out,
@@ -94,7 +94,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 
-	outputs, fetchErr := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+	outputs, fetchErr := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion)
 	if outputs == nil {
 		outputs = make(map[string]string)
 	}
@@ -126,7 +126,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 			if report.TestSummaryAsOutputEnabled(r.Envs) {
 				outputsV2 = append(outputsV2, summaryOutputV2...)
 			}
-			// when outputvars are defined and step has suceeded, fetchErr takes priority
+			// when outputvars are defined and step has succeeded, fetchErr takes priority
 			return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), fetchErr
 		}
 		if report.TestSummaryAsOutputEnabled(r.Envs) {
@@ -138,7 +138,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 				// when step has failed return the actual error
 				return exited, outputs, exportEnvs, artifact, summaryOutputV2, telemetryData, string(optimizationState), err
 			}
-			// when outputvars are defined and step has suceeded, fetchErr takes priority
+			// when outputvars are defined and step has succeeded, fetchErr takes priority
 			return exited, outputs, exportEnvs, artifact, nil, telemetryData, string(optimizationState), fetchErr
 		}
 		if len(outputs) != 0 && len(summaryOutputV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {

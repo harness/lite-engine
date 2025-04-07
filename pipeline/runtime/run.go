@@ -123,7 +123,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData)
 	}
 
-	//only for git-clone-step
+	// only for git-clone-step
 	if buildLangFile, found := r.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
 		err1 := parseBuildInfo(telemetryData, buildLangFile)
 		if err1 != nil {
