@@ -20,7 +20,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, stepID string, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, testMetadata *types.TestIntelligenceMetaData, envs map[string]string) ([]*types.TestCase, error) {
+func ParseAndUploadTests(
+	ctx context.Context,
+	report api.TestReport,
+	workDir, stepID string,
+	log *logrus.Logger,
+	start time.Time,
+	tiConfig *tiCfg.Cfg,
+	testMetadata *types.TestIntelligenceMetaData,
+	envs map[string]string,
+) ([]*types.TestCase, error) {
 	if report.Kind != api.Junit {
 		return nil, fmt.Errorf("unknown report type: %s", report.Kind)
 	}
@@ -51,7 +60,7 @@ func ParseAndUploadTests(ctx context.Context, report api.TestReport, workDir, st
 		return nil, err
 	}
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed TI service request to write report for step %s, took %.2f seconds", stepID, time.Since(startTime).Seconds()))
-	//Write tests telemetry data, total test, total test classes,selected test, cselected classes,
+	// Write tests telemetry data, total test, total test classes, selected test, selected classes,
 	testMetadata.TotalTests = len(tests)
 	testMetadata.TotalTestClasses = telemetryutils.CountDistinctClasses(tests)
 	log.Infoln(fmt.Sprintf("Successfully collected test reports in %s time", time.Since(start)))
@@ -88,7 +97,7 @@ func SaveReportSummaryToOutputs(ctx context.Context, tiConfig *tiCfg.Cfg, stepID
 	return nil
 }
 
-func GetSummaryOutputsV2(outputs map[string]string, envs map[string]string) []*api.OutputV2 {
+func GetSummaryOutputsV2(outputs, envs map[string]string) []*api.OutputV2 {
 	outputsV2 := []*api.OutputV2{}
 	if !TestSummaryAsOutputEnabled(envs) {
 		return outputsV2

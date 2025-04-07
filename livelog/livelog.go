@@ -65,7 +65,7 @@ type Writer struct {
 }
 
 // New returns a new writer
-func New(client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout bool, trimNewLineSuffix bool, skipOpeningStream bool) *Writer {
+func New(client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout, trimNewLineSuffix, skipOpeningStream bool) *Writer {
 	b := &Writer{
 		client:            client,
 		key:               key,
@@ -255,7 +255,9 @@ func (b *Writer) flush() error {
 		// print stats if no logs for 10 min
 		thresholdTime := time.Now().Add(-flushThresholdTime)
 		if b.lastFlushTime.Before(thresholdTime) {
-			osstats.DumpProcessInfo()
+			if err := osstats.DumpProcessInfo(); err != nil {
+				logrus.Errorf("failed to dump process info: %v", err)
+			}
 			// reset lastFlushTime if stats were dumped
 			b.lastFlushTime = time.Now()
 		}

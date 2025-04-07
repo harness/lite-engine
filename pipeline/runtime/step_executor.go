@@ -530,10 +530,28 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 
 func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VMTaskExecutionResponse {
 	if r.Error == "" {
-		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success, OutputVars: r.Outputs, Artifact: r.Artifact, Outputs: r.OutputV2, OptimizationState: r.OptimizationState, TelemetryData: r.TelemetryData}
+		return api.VMTaskExecutionResponse{
+			CommandExecutionStatus: api.Success,
+			OutputVars:            r.Outputs,
+			Artifact:              r.Artifact,
+			Outputs:               r.OutputV2,
+			OptimizationState:     r.OptimizationState,
+			TelemetryData:         r.TelemetryData,
+		}
 	}
 	if report.TestSummaryAsOutputEnabled(envs) {
-		return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, OutputVars: r.Outputs, Outputs: r.OutputV2, ErrorMessage: r.Error, OptimizationState: r.OptimizationState, TelemetryData: r.TelemetryData}
+		return api.VMTaskExecutionResponse{
+			CommandExecutionStatus: api.Failure,
+			OutputVars:            r.Outputs,
+			Outputs:               r.OutputV2,
+			ErrorMessage:          r.Error,
+			OptimizationState:     r.OptimizationState,
+			TelemetryData:         r.TelemetryData,
+		}
 	}
-	return api.VMTaskExecutionResponse{CommandExecutionStatus: api.Failure, ErrorMessage: r.Error, OptimizationState: r.OptimizationState}
+	return api.VMTaskExecutionResponse{
+		CommandExecutionStatus: api.Failure,
+		ErrorMessage:          r.Error,
+		OptimizationState:     r.OptimizationState,
+	}
 }

@@ -28,7 +28,8 @@ const (
 	DockerSockVolName  = "_docker"
 	DockerSockUnixPath = "/var/run/docker.sock"
 	DockerSockWinPath  = `\\.\pipe\docker_engine`
-	permissions        = 0777
+	permissions           = 0777
+	defaultFilePermissions = 0644 // File permissions (rw-r--r--)
 	boldYellowColor    = "\u001b[33;1m"
 )
 
@@ -167,7 +168,7 @@ func (e *Engine) Destroy(ctx context.Context) error {
 	return e.docker.Destroy(ctx, cfg)
 }
 
-func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isDrone, isHosted bool) (*runtime.State, error) {
 	e.mu.Lock()
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
@@ -254,7 +255,7 @@ func createFiles(paths []*spec.File) error {
 
 		// make the file writable (if it exists)
 		if _, err := os.Stat(path); err == nil {
-			if err = os.Chmod(path, 0644); err != nil {
+			if err = os.Chmod(path, defaultFilePermissions); err != nil {
 				logrus.Error(errors.Wrap(err,
 					fmt.Sprintf("failed to set permissions for file on host path: %q", path)))
 				continue

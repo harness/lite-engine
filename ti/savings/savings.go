@@ -87,7 +87,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 		}
 		states = append(states, cacheIntelState)
 		if cacheIntelFile, found := envs["PLUGIN_CACHE_INTEL_METRICS_FILE"]; found {
-			err := parseCacheInfo(workspace, cacheIntelFile, telemetryData)
+			err := parseCacheInfo(cacheIntelFile, telemetryData)
 			if err != nil {
 				log.Errorf("skipping cache metrics parsing: %v", err)
 			}
@@ -114,7 +114,7 @@ func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceE
 	return state
 }
 
-func parseCacheInfo(workspace, cacheIntelFile string, telemetryData *types.TelemetryData) error {
+func parseCacheInfo(cacheIntelFile string, telemetryData *types.TelemetryData) error {
 	// Check if the file exists.
 	if _, err := os.Stat(cacheIntelFile); os.IsNotExist(err) {
 		return err
