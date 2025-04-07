@@ -556,7 +556,6 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		envs["TI_DOTNET_CONFIG"] = dotNetJSONFilePath
 
 	}
-
 	return preCmd, filterFilePath, nil
 }
 

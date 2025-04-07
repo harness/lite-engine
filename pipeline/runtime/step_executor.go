@@ -532,11 +532,11 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 	if r.Error == "" {
 		return api.VMTaskExecutionResponse{
 			CommandExecutionStatus: api.Success,
-			OutputVars:            r.Outputs,
-			Artifact:              r.Artifact,
-			Outputs:               r.OutputV2,
-			OptimizationState:     r.OptimizationState,
-			TelemetryData:         r.TelemetryData,
+			OutputVars:             r.Outputs,
+			Artifact:               r.Artifact,
+			Outputs:                r.OutputV2,
+			OptimizationState:      r.OptimizationState,
+			TelemetryData:          r.TelemetryData,
 		}
 	}
 	if report.TestSummaryAsOutputEnabled(envs) {

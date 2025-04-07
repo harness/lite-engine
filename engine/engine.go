@@ -25,12 +25,12 @@ import (
 )
 
 const (
-	DockerSockVolName  = "_docker"
-	DockerSockUnixPath = "/var/run/docker.sock"
-	DockerSockWinPath  = `\\.\pipe\docker_engine`
-	permissions           = 0777
+	DockerSockVolName      = "_docker"
+	DockerSockUnixPath     = "/var/run/docker.sock"
+	DockerSockWinPath      = `\\.\pipe\docker_engine`
+	permissions            = 0777
 	defaultFilePermissions = 0644 // File permissions (rw-r--r--)
-	boldYellowColor    = "\u001b[33;1m"
+	boldYellowColor        = "\u001b[33;1m"
 )
 
 type Engine struct {
