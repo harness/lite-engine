@@ -542,16 +542,16 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 	if report.TestSummaryAsOutputEnabled(envs) {
 		return api.VMTaskExecutionResponse{
 			CommandExecutionStatus: api.Failure,
-			OutputVars:            r.Outputs,
-			Outputs:               r.OutputV2,
-			ErrorMessage:          r.Error,
-			OptimizationState:     r.OptimizationState,
-			TelemetryData:         r.TelemetryData,
+			OutputVars:             r.Outputs,
+			Outputs:                r.OutputV2,
+			ErrorMessage:           r.Error,
+			OptimizationState:      r.OptimizationState,
+			TelemetryData:          r.TelemetryData,
 		}
 	}
 	return api.VMTaskExecutionResponse{
 		CommandExecutionStatus: api.Failure,
-		ErrorMessage:          r.Error,
-		OptimizationState:     r.OptimizationState,
+		ErrorMessage:           r.Error,
+		OptimizationState:      r.OptimizationState,
 	}
 }
