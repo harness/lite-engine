@@ -83,10 +83,9 @@ except Exception as e:
     sys.exit(1)
 `, outputFile, o, o)
 			} else {
-				cmd += fmt.Sprintf("\n{ echo -n '%s=\"'; echo -n \"$%s\" | sed 's/\"/\\\\\"/g'; echo '\"'; } >> %s",
-					o,
-					o,
-					outputFile)
+				cmd += fmt.Sprintf("\nprintf '%s=\"' >> %s", o, outputFile)
+				cmd += fmt.Sprintf("\nprintf \"%%s\" \"$%s\" | sed 's/\"/\\\\\"/g' >> %s", o, outputFile)
+				cmd += fmt.Sprintf("\nprintf '\"\\n' >> %s", outputFile)
 			}
 		}
 	} else {
@@ -149,10 +148,9 @@ except Exception as e:
     sys.exit(1)
 `, outputFile, o.Key, o.Value)
 			} else {
-				cmd += fmt.Sprintf("\n{ echo -n '%s=\"'; echo -n \"$%s\" | sed 's/\"/\\\\\"/g'; echo '\"'; } >> %s",
-					o.Key,
-					o.Value,
-					outputFile)
+				cmd += fmt.Sprintf("\nprintf '%s=\"' >> %s", o.Key, outputFile)
+				cmd += fmt.Sprintf("\nprintf \"%%s\" \"$%s\" | sed 's/\"/\\\\\"/g' >> %s", o.Value, outputFile)
+				cmd += fmt.Sprintf("\nprintf '\"\\n' >> %s", outputFile)
 			}
 		}
 	} else {
