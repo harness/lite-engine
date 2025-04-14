@@ -295,7 +295,7 @@ func (n *JsonNode) populateFrom(htmlNode *html.Node) { //nolint:gocyclo
 	}
 }
 
-func GetMetadataFromGradleMetrics(metrics types.SavingsRequest) (totalTasks, cachedTasks int) {
+func GetMetadataFromGradleMetrics(metrics *types.SavingsRequest) (totalTasks, cachedTasks int) {
 	totalTasks = 0
 	cachedTasks = 0
 
