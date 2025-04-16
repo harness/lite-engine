@@ -46,7 +46,7 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 		}
 	}
 
-	fmt.Println("Parsed Maven cache savings. state=", cacheState)
+	fmt.Println("Parsed Maven cache savings with state:", cacheState)
 	return cacheState, reports, nil
 }
 

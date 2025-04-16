@@ -15,12 +15,12 @@ func ParseCacheSavings(workspace string, log *logrus.Logger) (types.Intelligence
 	// TODO: This assumes that savings data is only present for Gradle. Refactor when more cache options are available
 	cacheState, profiles, buildTime, err := gradle.ParseSavings(workspace, log)
 	if err != nil {
-		log.Warnf("Failed to parse Gradle savings: %s", err)
+		log.Warnf("Gradle savings: %s", err)
 	}
 	savingsRequest.GradleMetrics = gradleTypes.Metrics{Profiles: profiles}
 	mavenCacheState, reports, err := maven.ParseSavings(workspace, log)
 	if err != nil {
-		log.Warnf("Failed to parse Maven savings: %s", err)
+		log.Warnf("Maven savings: %s", err)
 	}
 	if mavenCacheState == types.OPTIMIZED {
 		cacheState = mavenCacheState
