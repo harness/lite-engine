@@ -330,7 +330,8 @@ func (e *Docker) destroyStoppedContainers(ctx context.Context, labels map[string
 		return fmt.Errorf("failed to list stopped plugin containers: %w", err)
 	}
 
-	for _, pluginContainer := range stoppedPluginContainers {
+	for i := range stoppedPluginContainers {
+		pluginContainer := stoppedPluginContainers[i]
 		if err := e.client.ContainerRemove(ctx, pluginContainer.ID, types.ContainerRemoveOptions{}); err != nil {
 			logrus.WithContext(ctx).
 				WithField("container", pluginContainer.ID).

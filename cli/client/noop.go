@@ -67,6 +67,6 @@ func (n *NoopClient) RetryHealth(ctx context.Context, timeout time.Duration, per
 	return n.Health(ctx, performDNSLookup)
 }
 
-func (c *NoopClient) RetrySuspend(ctx context.Context, request *api.SuspendRequest, timeout time.Duration) (*api.SuspendResponse, error) {
+func (n *NoopClient) RetrySuspend(ctx context.Context, request *api.SuspendRequest, timeout time.Duration) (*api.SuspendResponse, error) {
 	return &api.SuspendResponse{}, nil
 }
