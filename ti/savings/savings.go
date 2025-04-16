@@ -35,7 +35,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 				types.BUILD_CACHE, time.Since(tiStart).Seconds())
 		}
 
-		totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(savingsRequest)
+		totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(&savingsRequest)
 		telemetryData.BuildIntelligenceMetaData.BuildTasks = totaltasks
 		telemetryData.BuildIntelligenceMetaData.TasksRestored = cachedtasks
 	}
