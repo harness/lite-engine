@@ -3,12 +3,13 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"time"
+
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/pipeline"
-	"net/http"
-	"time"
 )
 
 // HandleSuspend returns a http.HandlerFunc that suspends a VM
@@ -26,13 +27,13 @@ func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
-		if err := engine.Suspend(request.Context(), suspendRequest.Labels); err != nil {
+		if suspendErr := engine.Suspend(request.Context(), suspendRequest.Labels); suspendErr != nil {
 			logger.FromRequest(request).
 				WithField("latency", time.Since(startTime)).
 				WithField("time", time.Now().Format(time.RFC3339)).
-				WithField("error", err).
+				WithField("error", suspendErr).
 				Infoln("api: failed suspend")
-			WriteError(response, err)
+			WriteError(response, suspendErr)
 			return
 		}
 
