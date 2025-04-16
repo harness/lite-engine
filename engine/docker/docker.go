@@ -602,9 +602,6 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	_, _, err := e.client.NetworkInspectWithRaw(ctx, pipelineConfig.Network.ID, types.NetworkInspectOptions{})
 	if err == nil {
 		return nil
-	} else if !client.IsErrNotFound(err) {
-		// If the error is not "network not found", return it
-		return err
 	}
 
 	for i := 1; i <= networkMaxRetries; i++ {
