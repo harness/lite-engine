@@ -64,5 +64,11 @@ func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime
 		return sr
 	}())
 
+	r.Mount("/suspend", func() http.Handler {
+		sr := chi.NewRouter()
+		sr.Post("/", HandleSuspend(engine))
+		return sr
+	}())
+
 	return r
 }

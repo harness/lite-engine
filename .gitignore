@@ -3,4 +3,5 @@ lite-engine*
 get-docker.sh
 /release/
 .idea/
+.DS_Store
 
