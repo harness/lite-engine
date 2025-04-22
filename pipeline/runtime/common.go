@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -55,7 +56,7 @@ func getOutputVarCmd(entrypoint, outputVars []string, outputFile string, useNewG
 			cmd += `
 import os
 import sys
-import json
+import base64
 def get_env_var(name):
     """Fetch an environment variable, exiting with an error if not set."""
     value = os.getenv(name)
@@ -67,25 +68,25 @@ def get_env_var(name):
 		}
 		for _, o := range outputVars {
 			if isPsh {
-				cmd += fmt.Sprintf("\n$val = '%s=\"' + ($Env:%s -replace '\"', '\\\"') + '\"' \nAdd-Content -Path %s -Value $val",
-					o,
-					o,
-					outputFile)
+				cmd += fmt.Sprintf(
+					"\n$envVal = if ($null -eq $Env:%s) { '' } else { $Env:%s }; $val = '%s=__B64__' + [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($envVal)) \nAdd-Content -Path %s -Value $val",
+					o, o, o, outputFile)
 			} else if isPython {
 				cmd += fmt.Sprintf(`
 try:
     with open('%s', 'a') as out_file:
-        # Use json.dumps to handle proper quoting of the value
         value = get_env_var('%s')
-        out_file.write('%s=' + json.dumps(value) + '\n')
+        b64val = base64.b64encode(value.encode()).decode()
+        out_file.write('%s=__B64__' + b64val + '\n')
 except Exception as e:
     print(f"Error: {e}")
     sys.exit(1)
 `, outputFile, o, o)
 			} else {
-				cmd += fmt.Sprintf("\nprintf '%s=\"' >> %s", o, outputFile)
-				cmd += fmt.Sprintf("\nprintf \"%%s\" \"$%s\" | sed 's/\"/\\\\\"/g' >> %s", o, outputFile)
-				cmd += fmt.Sprintf("\nprintf '\"\\n' >> %s", outputFile)
+				cmd += fmt.Sprintf("\nprintf '%%s=__B64__%%s\\n' '%s' \"$(printf '%%s' \"$%s\" | base64 | tr -d '\\n')\" >> %s",
+					o,
+					o,
+					outputFile)
 			}
 		}
 	} else {
@@ -120,7 +121,7 @@ func getOutputsCmd(entrypoint []string, outputVars []*api.OutputV2, outputFile s
 			cmd += `
 import os
 import sys
-import json
+import base64
 def get_env_var(name):
     """Fetch an environment variable, exiting with an error if not set."""
     value = os.getenv(name)
@@ -132,25 +133,28 @@ def get_env_var(name):
 		}
 		for _, o := range outputVars {
 			if isPsh {
-				cmd += fmt.Sprintf("\n$val = '%s=\"' + ($Env:%s -replace '\"', '\\\"') + '\"' \nAdd-Content -Path %s -Value $val",
-					o.Key,
+				// If value is empty or null, setting it to empty string and then converting it to base64
+				cmd += fmt.Sprintf("\n$envVal = if ($null -eq $Env:%s) { '' } else { $Env:%s }; $val = '%s=__B64__' + [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($envVal)) \nAdd-Content -Path %s -Value $val",
 					o.Value,
+					o.Value,
+					o.Key,
 					outputFile)
 			} else if isPython {
 				cmd += fmt.Sprintf(`
 try:
     with open('%s', 'a') as out_file:
-        # Using json.dumps to handle proper quoting of the value
         value = get_env_var('%s')
-        out_file.write('%s=' + json.dumps(value) + '\n')
+        b64val = base64.b64encode(value.encode()).decode()
+        out_file.write('%s=__B64__' + b64val + '\n')
 except Exception as e:
     print(f"Error: {e}")
     sys.exit(1)
 `, outputFile, o.Key, o.Value)
 			} else {
-				cmd += fmt.Sprintf("\nprintf '%s=\"' >> %s", o.Key, outputFile)
-				cmd += fmt.Sprintf("\nprintf \"%%s\" \"$%s\" | sed 's/\"/\\\\\"/g' >> %s", o.Value, outputFile)
-				cmd += fmt.Sprintf("\nprintf '\"\\n' >> %s", outputFile)
+				cmd += fmt.Sprintf("\nprintf '%%s=__B64__%%s\\n' '%s' \"$(printf '%%s' \"$%s\" | base64 | tr -d '\\n')\" >> %s",
+					o.Key,
+					o.Value,
+					outputFile)
 			}
 		}
 	} else {
@@ -221,6 +225,20 @@ func fetchExportedVarsFromEnvFile(envFile string, out io.Writer, useCINewGodotEn
 		}
 		return nil, err
 	}
+
+	// base64 decode if __B64__ prefix is present
+	for k, v := range env {
+		if strings.HasPrefix(v, "__B64__") {
+			b64Value := v[len("__B64__"):]
+			decodedValue, err := b64.StdEncoding.DecodeString(b64Value)
+			if err != nil {
+				log.WithError(err).Errorln("Failed to decode base64 value")
+			} else {
+				env[k] = string(decodedValue)
+			}
+		}
+	}
+
 	return env, nil
 }
 
