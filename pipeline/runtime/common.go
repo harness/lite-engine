@@ -69,7 +69,9 @@ def get_env_var(name):
 		for _, o := range outputVars {
 			if isPsh {
 				cmd += fmt.Sprintf(
-					"\n$envVal = if ($null -eq $Env:%s) { '' } else { $Env:%s }; $val = '%s=__B64__' + [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($envVal)) \nAdd-Content -Path %s -Value $val",
+					"\n$envVal = if ($null -eq $Env:%s) { '' } else { $Env:%s }; "+
+						"$val = '%s=__B64__' + [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($envVal)) \n"+
+						"Add-Content -Path %s -Value $val",
 					o, o, o, outputFile)
 			} else if isPython {
 				cmd += fmt.Sprintf(`
@@ -134,11 +136,11 @@ def get_env_var(name):
 		for _, o := range outputVars {
 			if isPsh {
 				// If value is empty or null, setting it to empty string and then converting it to base64
-				cmd += fmt.Sprintf("\n$envVal = if ($null -eq $Env:%s) { '' } else { $Env:%s }; $val = '%s=__B64__' + [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($envVal)) \nAdd-Content -Path %s -Value $val",
-					o.Value,
-					o.Value,
-					o.Key,
-					outputFile)
+				cmd += fmt.Sprintf(
+					"\n$envVal = if ($null -eq $Env:%s) { '' } else { $Env:%s }; "+
+						"$val = '%s=__B64__' + [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($envVal)) \n"+
+						"Add-Content -Path %s -Value $val",
+					o.Value, o.Value, o.Key, outputFile)
 			} else if isPython {
 				cmd += fmt.Sprintf(`
 try:
