@@ -6,7 +6,7 @@ package instrumentation
 
 import (
 	"context"
-	"crypto/sha256"
+	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -685,7 +685,7 @@ func toEnv(env map[string]string) []string {
 // It combines accountID, projectID, pipelineID, stageID and step ID to create a unique identifier.
 func GetUniqueHash(stepID string, cfg *tiCfg.Cfg) string {
 	uniqueID := cfg.GetAccountID() + "_" + cfg.GetPipelineID() + "_" + cfg.GetStageID() + "_" + stepID
-	hasher := sha256.New()
+	hasher := sha1.New()
 	hasher.Write([]byte(uniqueID))
 	fullHash := hex.EncodeToString(hasher.Sum(nil))
 	return fmt.Sprintf("s%x", fullHash[:8])
