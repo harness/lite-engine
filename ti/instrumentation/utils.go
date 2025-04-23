@@ -684,7 +684,7 @@ func toEnv(env map[string]string) []string {
 // GetUniqueHash generates a unique 4-character hash from the step ID and TI config.
 // It combines accountID, projectID, pipelineID, stageID and step ID to create a unique identifier.
 func GetUniqueHash(stepID string, cfg *tiCfg.Cfg) string {
-	uniqueID := cfg.GetAccountID() + "_" + cfg.GetPipelineID() + "_" + cfg.GetStageID() + "_" + stepID
+	uniqueID := cfg.GetAccountID() + "_" + cfg.GetPipelineID() + "_" + cfg.GetStageID() + "_" + cfg.GetBuildID() + "_" + stepID
 	hasher := sha1.New()
 	hasher.Write([]byte(uniqueID))
 	fullHash := hex.EncodeToString(hasher.Sum(nil))
