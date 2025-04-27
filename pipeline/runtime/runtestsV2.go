@@ -432,38 +432,23 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
 	envs["JAVA_TOOL_OPTIONS"] = agentArg
-	// Ruby
-	repoPath := filepath.Join(agentPaths["ruby"], "harness", "ruby-agent")
-	repoPathPython := filepath.Join(agentPaths["python"], "harness", "python-agent-v2")
-	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
-	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
-	if shouldWait {
-		err = waitForZipUnlock(waitTimeoutInSec*time.Second, tiConfig) // Wait for up to 10 seconds
-		if err != nil {
-			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
-			return "", "", err
-		}
-	} else {
-		tiConfig.LockZip()
-		repoPath, err = ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
-		if err != nil {
-			log.WithError(err).Errorln("failed to unzip and get test info")
-			return "", "", err
-		}
 
-		repoPathPython, err = python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
+	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
+	if err != nil {
+		log.WithError(err).Errorln("failed to unzip and get test info")
+		return "", "", err
+	}
+
+	repoPathPython, err := python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
+	if err != nil {
+		return "", "", err
+	}
+
+	if agentPath, exists := agentPaths["dotnet"]; exists {
+		err = csharp.Unzip(agentPath, log)
 		if err != nil {
 			return "", "", err
 		}
-
-		if agentPath, exists := agentPaths["dotnet"]; exists {
-			err = csharp.Unzip(agentPath, log)
-			if err != nil {
-				return "", "", err
-			}
-		}
-
-		tiConfig.UnlockZip()
 	}
 
 	if !isPsh {
