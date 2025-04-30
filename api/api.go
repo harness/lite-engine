@@ -83,7 +83,8 @@ type (
 		OutputVarFile string `json:"output_var_file,omitempty"`
 
 		// File to read from to fetch output secret variables
-		SecretVarFile string `json:"secret_var_file,omitempty"`
+		SecretVarFile string   `json:"secret_var_file,omitempty"`
+		Download      Download `json:"download,omitempty"`
 
 		// Directory to be used as a scratch space for plugins. Technically, we could populate the env
 		// variable directly by the user of this library but this is more explicit and gives us more control
@@ -122,6 +123,12 @@ type (
 		Key   string     `json:"key,omitempty"`
 		Value string     `json:"value"`
 		Type  OutputType `json:"type,omitempty"`
+	}
+
+	Download struct {
+		Source   string `json:"source,omitempty"`
+		Target   string `json:"target,omitempty"`
+		Checksum string `json:"checksum,omitempty"`
 	}
 
 	StartStepResponse struct{}

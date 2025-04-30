@@ -6,10 +6,13 @@ package runtime
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -47,6 +50,16 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		// Plugins can use this directory as a scratch space to store temporary files.
 		// It will get cleaned up after a destroy.
 		step.Envs["HARNESS_SCRATCH_DIR"] = r.ScratchDir
+	}
+
+	if r.Download.Source != "" {
+		log := logrus.New()
+		log.Out = out
+
+		err := downloadBinary(r.Download.Source, r.Download.Target, r.Download.Checksum, log)
+		if err != nil {
+			return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("binary download failed: %w", err)
+		}
 	}
 
 	var outputFile string
@@ -235,5 +248,74 @@ func parseBuildInfo(telemetryData *types.TelemetryData, buildFile string) error 
 	}
 
 	telemetryData.BuildInfo = buildInfo
+	return nil
+}
+
+func downloadBinary(source, target, checksum string, log *logrus.Logger) error {
+	log.Infof("Downloading binary from %s to %s", source, target)
+
+	// Create directory for target if it doesn't exist
+	targetDir := filepath.Dir(target)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory for download target: %w", err)
+	}
+
+	// Download the file
+	resp, err := http.Get(source)
+	if err != nil {
+		return fmt.Errorf("failed to download binary: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to download binary, status code: %d", resp.StatusCode)
+	}
+
+	// Create the target file
+	out, err := os.Create(target)
+	if err != nil {
+		return fmt.Errorf("failed to create target file: %w", err)
+	}
+	defer out.Close()
+
+	// Copy the content to the target file
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to write to target file: %w", err)
+	}
+
+	// Make the file executable
+	if err := os.Chmod(target, 0755); err != nil {
+		return fmt.Errorf("failed to make binary executable: %w", err)
+	}
+
+	// Verify checksum if provided
+	if checksum != "" {
+		log.Infof("Verifying checksum: %s", checksum)
+
+		// Reopen the file for checksum calculation
+		file, err := os.Open(target)
+		if err != nil {
+			return fmt.Errorf("failed to open file for checksum verification: %w", err)
+		}
+		defer file.Close()
+
+		// Calculate SHA256 checksum
+		h := sha256.New()
+		if _, err := io.Copy(h, file); err != nil {
+			return fmt.Errorf("failed to calculate checksum: %w", err)
+		}
+
+		calculatedChecksum := fmt.Sprintf("%x", h.Sum(nil))
+		if calculatedChecksum != checksum {
+			// Remove the file if checksum doesn't match
+			os.Remove(target)
+			return fmt.Errorf("checksum verification failed: expected %s, got %s", checksum, calculatedChecksum)
+		}
+
+		log.Infof("Checksum verification successful")
+	}
+
+	log.Infof("Binary download completed successfully")
 	return nil
 }
