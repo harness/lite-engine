@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"errors"
+
 	"github.com/harness/lite-engine/ti/savings/cache/gradle"
 	"github.com/harness/lite-engine/ti/savings/cache/maven"
 	"github.com/harness/ti-client/types"
@@ -13,15 +15,15 @@ func ParseCacheSavings(workspace string, log *logrus.Logger) (types.Intelligence
 	savingsRequest := types.SavingsRequest{}
 
 	// TODO: This assumes that savings data is only present for Gradle. Refactor when more cache options are available
-	cacheState, profiles, buildTime, err := gradle.ParseSavings(workspace, log)
-	if err != nil {
-		log.Warnf("Gradle savings: %s", err)
-	}
+	cacheState, profiles, buildTime, gradleErr := gradle.ParseSavings(workspace, log)
 	savingsRequest.GradleMetrics = gradleTypes.Metrics{Profiles: profiles}
-	mavenCacheState, reports, err := maven.ParseSavings(workspace, log)
-	if err != nil {
-		log.Warnf("Maven savings: %s", err)
+
+	mavenCacheState, reports, mavenErr := maven.ParseSavings(workspace, log)
+
+	if gradleErr != nil && mavenErr != nil {
+		return types.FULL_RUN, 0, savingsRequest, errors.Join(gradleErr, mavenErr)
 	}
+
 	if mavenCacheState == types.OPTIMIZED {
 		cacheState = mavenCacheState
 	}
