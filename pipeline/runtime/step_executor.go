@@ -296,13 +296,15 @@ func (e *StepExecutor) executeStep(ctx context.Context, r *api.StartStepRequest,
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, nil, nil, nil, "", err
 	}
-	// If TI Config has been passed in the step request, use that insetad of relying on the one in the pipeline state
+	// First try to get TI Config from pipeline state, if empty then use the one from step request
 	var tiConfig *tiCfg.Cfg
-	if r.TIConfig.URL != "" {
+	state := pipeline.GetState()
+	if state != nil {
+		tiConfig = state.GetTIConfig()
+	}
+	if tiConfig == nil && r.TIConfig.URL != "" {
 		g := getTiCfg(&r.TIConfig, &r.MtlsConfig)
 		tiConfig = &g
-	} else {
-		tiConfig = pipeline.GetState().GetTIConfig()
 	}
 	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig)
 }
