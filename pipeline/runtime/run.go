@@ -210,6 +210,19 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 		return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), finalErr
 	}
+
+	// Return outputs from file when step fails but output file exists
+	// Presently, we do not return the output variables in case of step failures, which makes it difficult to debug CD plugins
+	// in the unified stage. To solve this, we now return the output variables even in case of step failures.
+	outputMapVars, _ := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+	for k, v := range outputMapVars {
+		summaryOutputsV2 = append(summaryOutputsV2, &api.OutputV2{
+			Key:   k,
+			Value: v,
+			Type:  api.OutputTypeString,
+		})
+	}
+
 	if len(summaryOutputsV2) == 0 || !report.TestSummaryAsOutputEnabled(r.Envs) {
 		return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 	}
