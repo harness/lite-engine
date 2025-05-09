@@ -22,7 +22,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
 	start := time.Now()
-	cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log)
+	cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log, cmdTimeTaken)
 	if err == nil {
 		states = append(states, cacheState)
 		log.Infof("Computed build cache execution details with state %s and time %sms in %0.2f seconds",
