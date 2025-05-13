@@ -1,19 +1,18 @@
 package maven
 
 import (
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/harness/ti-client/types"
 	"github.com/harness/ti-client/types/cache/maven"
-	"github.com/sirupsen/logrus"
 	"github.com/mattn/go-zglob"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -50,8 +49,8 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 
 		reports = append(reports, *report)
 
-		if err := createMarkerFile(markerPath, file); err != nil {
-			log.Printf("failed to create marker file %s: %v", markerPath, err)
+		if markerErr := createMarkerFile(markerPath, file); markerErr != nil {
+			log.Printf("failed to create marker file %s: %v", markerPath, markerErr)
 		}
 
 		// Delete the file after successful parsing so that it is not processed again in another step
@@ -94,7 +93,7 @@ func parseXMLReport(filePath string) (*maven.CacheReport, error) {
 
 // markerFilePath generates a marker file path for a given report file
 func markerFilePath(tmpFilePath, file string) string {
-	h := sha1.New()
+	h := sha1.New() // #nosec G401
 	h.Write([]byte(file))
 	markerName := hex.EncodeToString(h.Sum(nil)) + ".parsed"
 	return filepath.Join(tmpFilePath, markerName)
@@ -108,5 +107,5 @@ func markerExists(markerPath string) bool {
 
 // createMarkerFile creates a marker file with the original file path as content
 func createMarkerFile(markerPath, file string) error {
-	return ioutil.WriteFile(markerPath, []byte(file), 0644)
+	return os.WriteFile(markerPath, []byte(file), 0644)
 }
