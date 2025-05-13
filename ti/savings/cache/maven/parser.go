@@ -107,5 +107,5 @@ func markerExists(markerPath string) bool {
 
 // createMarkerFile creates a marker file with the original file path as content
 func createMarkerFile(markerPath, file string) error {
-	return os.WriteFile(markerPath, []byte(file), 0644)
+	return os.WriteFile(markerPath, []byte(file), 0600)
 }
