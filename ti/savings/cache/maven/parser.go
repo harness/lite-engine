@@ -103,5 +103,9 @@ func markerExists(markerPath string) bool {
 
 // createMarkerFile creates a marker file with the original file path as content
 func createMarkerFile(markerPath, file string) error {
+	// Ensure the directory exists
+	if err := os.MkdirAll(filepath.Dir(markerPath), 0755); err != nil {
+		return fmt.Errorf("failed to create marker directory: %w", err)
+	}
 	return os.WriteFile(markerPath, []byte(file), markerFilePerm)
 }
