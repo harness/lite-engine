@@ -54,11 +54,6 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 			log.Printf("failed to create marker file %s: %v", markerPath, markerErr)
 		}
 
-		// Delete the file after successful parsing so that it is not processed again in another step
-		err = os.Remove(file)
-		if err != nil {
-			log.Printf("failed to delete parsed maven cache report file %s: %v", file, err)
-		}
 		// Check if any project in this report is cached
 		for _, project := range report.Projects {
 			if project.ChecksumMatched && project.LifecycleMatched && project.Source == "REMOTE" {
