@@ -434,7 +434,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 
 	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 	if err != nil {
-		log.WithError(err).Errorln("failed to unzip and get test info")
+		log.WithError(err).Errorln("failed to unzip and get test info for the ruby agent")
 		return "", "", err
 	}
 
