@@ -302,7 +302,7 @@ func (e *StepExecutor) executeStep(ctx context.Context, r *api.StartStepRequest,
 	if state != nil {
 		tiConfig = state.GetTIConfig()
 	}
-	if tiConfig == nil && r.TIConfig.URL != "" {
+	if (tiConfig == nil || tiConfig.GetURL() == "") && r.TIConfig.URL != "" {
 		g := getTiCfg(&r.TIConfig, &r.MtlsConfig)
 		tiConfig = &g
 	}
