@@ -7,37 +7,42 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/harness/lite-engine/common"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/savings/cache"
 	"github.com/harness/lite-engine/ti/savings/cache/gradle"
 	"github.com/harness/lite-engine/ti/savings/dlc"
 	"github.com/harness/ti-client/types"
+
 	"github.com/sirupsen/logrus"
 )
 
 const restoreCacheHarnessStepID = "restore-cache-harness"
 
 func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, stepSuccess bool, cmdTimeTaken int64,
-	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *types.TelemetryData) types.IntelligenceExecutionState {
+	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *types.TelemetryData, stepType string) types.IntelligenceExecutionState {
 	states := make([]types.IntelligenceExecutionState, 0)
 	// Cache Savings
-	start := time.Now()
-	cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log, cmdTimeTaken)
-	if err == nil {
-		states = append(states, cacheState)
-		log.Infof("Computed build cache execution details with state %s and time %sms in %0.2f seconds",
-			cacheState, strconv.Itoa(timeTaken), time.Since(start).Seconds())
 
-		tiStart := time.Now()
-		tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, cacheState, int64(timeTaken), savingsRequest)
-		if tiErr == nil {
-			log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
-				types.BUILD_CACHE, time.Since(tiStart).Seconds())
+	if stepType != common.StepTypePlugin {
+		start := time.Now()
+		cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log, cmdTimeTaken)
+		if err == nil {
+			states = append(states, cacheState)
+			log.Infof("Computed build cache execution details with state %s and time %sms in %0.2f seconds",
+				cacheState, strconv.Itoa(timeTaken), time.Since(start).Seconds())
+
+			tiStart := time.Now()
+			tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, cacheState, int64(timeTaken), savingsRequest)
+			if tiErr == nil {
+				log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
+					types.BUILD_CACHE, time.Since(tiStart).Seconds())
+			}
+
+			totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(&savingsRequest)
+			telemetryData.BuildIntelligenceMetaData.BuildTasks = totaltasks
+			telemetryData.BuildIntelligenceMetaData.TasksRestored = cachedtasks
 		}
-
-		totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(&savingsRequest)
-		telemetryData.BuildIntelligenceMetaData.BuildTasks = totaltasks
-		telemetryData.BuildIntelligenceMetaData.TasksRestored = cachedtasks
 	}
 
 	// TI Savings
