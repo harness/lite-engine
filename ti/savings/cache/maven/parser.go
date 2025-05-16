@@ -37,6 +37,8 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 		return cacheState, nil, fmt.Errorf("no cache reports found")
 	}
 
+	processedFiles := 0
+
 	for _, file := range files {
 		markerPath := markerFilePath(tmpFilePath, file)
 		if markerExists(markerPath) {
@@ -62,6 +64,11 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 				break
 			}
 		}
+		processedFiles++
+	}
+
+	if processedFiles == 0 {
+		return types.DISABLED, nil, fmt.Errorf("no cache reports found for maven")
 	}
 
 	fmt.Println("Parsed Maven cache savings with state:", cacheState)

@@ -22,8 +22,9 @@ const restoreCacheHarnessStepID = "restore-cache-harness"
 func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, stepSuccess bool, cmdTimeTaken int64,
 	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *types.TelemetryData, stepType string) types.IntelligenceExecutionState {
 	states := make([]types.IntelligenceExecutionState, 0)
-	// Cache Savings
 
+	// Cache Savings
+	// Only parse build cache savings if its not a plugin step
 	if stepType != common.StepTypePlugin {
 		start := time.Now()
 		cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log, cmdTimeTaken)
