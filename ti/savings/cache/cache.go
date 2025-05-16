@@ -25,7 +25,7 @@ func joinErrors(errs ...error) error {
 	return errors.New(strings.Join(messages, "; "))
 }
 
-func ParseCacheSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecutionState, int, types.SavingsRequest, error) {
+func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64) (types.IntelligenceExecutionState, int, types.SavingsRequest, error) {
 	savingsRequest := types.SavingsRequest{}
 
 	// TODO: This assumes that savings data is only present for Gradle. Refactor when more cache options are available
@@ -40,6 +40,7 @@ func ParseCacheSavings(workspace string, log *logrus.Logger) (types.Intelligence
 
 	if mavenCacheState == types.OPTIMIZED {
 		cacheState = mavenCacheState
+		buildTime = int(cmdTimeTaken)
 	}
 	savingsRequest.MavenMetrics = mavenTypes.MavenMetrics{Reports: reports}
 	return cacheState, buildTime, savingsRequest, nil

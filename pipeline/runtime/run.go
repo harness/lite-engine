@@ -14,6 +14,7 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/common"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
@@ -120,7 +121,11 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
-		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData)
+		stepType := common.StepTypePlugin
+		if step.Command != nil && len(step.Command) > 0 {
+			stepType = common.StepTypeRun
+		}
+		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, stepType)
 	}
 
 	// only for git-clone-step
@@ -214,7 +219,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	// Return outputs from file when step fails but output file exists
 	// Presently, we do not return the output variables in case of step failures, which makes it difficult to debug CD plugins
 	// in the unified stage. To solve this, we now return the output variables even in case of step failures.
-	outputMapVars, _ := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+	outputMapVars, _ := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion)
 	for k, v := range outputMapVars {
 		summaryOutputsV2 = append(summaryOutputsV2, &api.OutputV2{
 			Key:   k,

@@ -12,6 +12,7 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/common"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti/callgraph"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -88,7 +89,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
-		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData)
+		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, common.StepTypeRunTests)
 	}
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
