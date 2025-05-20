@@ -459,9 +459,9 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	if !isPsh {
-		preCmd = fmt.Sprintf("\nif [ -x '$(which bundle)' ]; then bundle add rspec_junit_formatter; \nbundle add harness_ruby_agent --path %q --version %q; fi;", repoPath, "0.0.1")
+		preCmd = fmt.Sprintf("\nif command -v bundle >/dev/null; then { bundle add rspec_junit_formatter 2>/dev/null && bundle add harness_ruby_agent --path %q --version %q 2>/dev/null; } || echo 'Error: Failed to add rspec_junit_formatter, harness_ruby_agent.'; fi;", repoPath, "0.0.1")
 	} else {
-		preCmd = fmt.Sprintf("\ntry { bundle add rspec_junit_formatter 2>$null } catch { $null };\ntry { bundle add harness_ruby_agent --path %q --version %q 2>$null } catch { $null };", repoPath, "0.0.1")
+		preCmd = fmt.Sprintf("\ntry { bundle add rspec_junit_formatter } catch { Write-Host 'Error: Failed to add rspec_junit_formatter.' };\ntry { bundle add harness_ruby_agent --path %q --version %q } catch { Write-Host 'Error: Failed to add harness_ruby_agent.' };", repoPath, "0.0.1")
 	}
 
 	disableJunitVarName := "TI_DISABLE_JUNIT_INSTRUMENTATION"
@@ -489,9 +489,9 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	if !isPsh {
-		preCmd += fmt.Sprintf("\nif [ -x '$(which python3)' ]; then python3 -m pip install %s; fi;", whlFilePath)
+		preCmd += fmt.Sprintf("\nif command -v python3 >/dev/null; then python3 -m pip install %s 2>/dev/null || echo 'Error: Failed to install Python agent.'; fi;", whlFilePath)
 	} else {
-		preCmd += fmt.Sprintf("\ntry { python3 -m pip install %s 2>$null } catch { $null };", whlFilePath)
+		preCmd += fmt.Sprintf("\ntry { python3 -m pip install %s } catch { Write-Host 'Error: Failed to install Python agent.' };", whlFilePath)
 	}
 
 	if !disablePythonV2CodeModification {
