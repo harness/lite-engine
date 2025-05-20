@@ -1,0 +1,297 @@
+pipeline:
+  name: drone-lite-engine-harness
+  identifier: droneliteengineharness
+  projectIdentifier: Drone_Plugins
+  orgIdentifier: default
+  tags: {}
+  properties:
+    ci:
+      codebase:
+        connectorRef: GitHub_Harness_Org
+        repoName: lite-engine
+        build: <+input>
+        sparseCheckout: []
+  stages:
+    - stage:
+        name: Test
+        identifier: Test
+        description: ""
+        type: CI
+        spec:
+          cloneCodebase: true
+          caching:
+            enabled: false
+            paths: []
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: Test
+                  identifier: Test
+                  spec:
+                    connectorRef: Plugins_Docker_Hub_Connector
+                    image: golang:1.19
+                    shell: Sh
+                    command: |-
+                      go vet ./...
+                      go test -cover ./...
+                      go build -o release/linux/amd64/lite-engine
+              - step:
+                  type: Run
+                  name: golangci-lint
+                  identifier: golangcilint
+                  spec:
+                    connectorRef: Plugins_Docker_Hub_Connector
+                    image: golangci/golangci-lint:v1.51.2
+                    shell: Sh
+                    command: golangci-lint run --timeout 360s
+    - parallel:
+        - stage:
+            name: ubuntu acceptance tests
+            identifier: linuxamd64
+            description: ""
+            type: CI
+            spec:
+              cloneCodebase: true
+              caching:
+                enabled: false
+                paths: []
+              platform:
+                os: Linux
+                arch: Amd64
+              runtime:
+                type: Cloud
+                spec: {}
+              execution:
+                steps:
+                  - step:
+                      type: Run
+                      name: Build binaries
+                      identifier: Build
+                      spec:
+                        connectorRef: Plugins_Docker_Hub_Connector
+                        image: golang:1.19
+                        shell: Sh
+                        command: go build -o lite-engine
+                  - step:
+                      type: Background
+                      name: ServerStep
+                      identifier: ServerStep
+                      spec:
+                        shell: Sh
+                        command: |-
+                          touch .env
+                          echo "SERVER_HTTPS_BIND=localhost:9000" >> .env
+                          echo "CLIENT_HTTPS_BIND=localhost:9000" >> .env
+                          echo "SERVER_INSECURE=true" >> .env
+                          echo "CLIENT_INSECURE=true" >> .env
+                          echo "DEBUG=true" >> .env
+                          echo "TRACE=true" >> .env
+                          ./lite-engine server --env-file=".env"
+                  - step:
+                      type: Run
+                      name: Client
+                      identifier: Client
+                      spec:
+                        shell: Sh
+                        command: |-
+                          sleep 5
+                          cat .env
+                          while ! curl -sf http://localhost:9000/healthz; do sleep 1; done
+                          ./lite-engine client --env-file=".env"
+        - stage:
+            name: ubuntu arm acceptance tests
+            identifier: linuxarm64
+            description: ""
+            type: CI
+            spec:
+              cloneCodebase: true
+              caching:
+                enabled: false
+                paths: []
+              platform:
+                os: Linux
+                arch: Arm64
+              runtime:
+                type: Cloud
+                spec: {}
+              execution:
+                steps:
+                  - step:
+                      type: Run
+                      name: Build binaries
+                      identifier: Build
+                      spec:
+                        connectorRef: Plugins_Docker_Hub_Connector
+                        image: golang:1.19
+                        shell: Sh
+                        command: go build -o lite-engine
+                  - step:
+                      type: Background
+                      name: ServerStep
+                      identifier: ServerStep
+                      spec:
+                        shell: Sh
+                        command: |-
+                          touch .env
+                          echo "SERVER_HTTPS_BIND=localhost:9000" >> .env
+                          echo "CLIENT_HTTPS_BIND=localhost:9000" >> .env
+                          echo "SERVER_INSECURE=true" >> .env
+                          echo "CLIENT_INSECURE=true" >> .env
+                          echo "DEBUG=true" >> .env
+                          echo "TRACE=true" >> .env
+                          ./lite-engine server --env-file=".env"
+                  - step:
+                      type: Run
+                      name: Client
+                      identifier: Client
+                      spec:
+                        shell: Sh
+                        command: |-
+                          sleep 5
+                          cat .env
+                          while ! curl -sf http://localhost:9000/healthz; do sleep 1; done
+                          ./lite-engine client --env-file=".env"
+        - stage:
+            name: windows acceptance tests
+            identifier: windows_acceptance_tests
+            description: ""
+            type: CI
+            spec:
+              cloneCodebase: true
+              caching:
+                enabled: false
+                paths: []
+              platform:
+                os: Windows
+                arch: Amd64
+              runtime:
+                type: Cloud
+                spec: {}
+              execution:
+                steps:
+                  - step:
+                      type: Run
+                      name: Build binaries
+                      identifier: Build
+                      spec:
+                        connectorRef: Plugins_Docker_Hub_Connector
+                        image: golang:1.19
+                        shell: Sh
+                        command: go build -o lite-engine.exe
+                  - step:
+                      type: Background
+                      name: ServerStep
+                      identifier: ServerStep
+                      spec:
+                        shell: Sh
+                        command: |-
+                          echo "SERVER_HTTPS_BIND=localhost:9000" >> .env
+                          echo "CLIENT_HTTPS_BIND=localhost:9000" >> .env
+                          echo "SERVER_INSECURE=true" >> .env
+                          echo "CLIENT_INSECURE=true" >> .env
+                          echo "DEBUG=true" >> .env
+                          echo "TRACE=true" >> .env
+                          tr -d '\r' < .env > .env.tmp && mv .env.tmp .env
+                          ./lite-engine.exe server --env-file=".env"
+                  - step:
+                      type: Run
+                      name: Client
+                      identifier: Client
+                      spec:
+                        shell: Sh
+                        command: |-
+                          sleep 10
+                          cat .env
+                          ./lite-engine.exe client --env-file=".env"
+    - stage:
+        name: Release
+        identifier: Release
+        description: ""
+        type: CI
+        spec:
+          cloneCodebase: true
+          caching:
+            enabled: false
+            paths: []
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Run
+                  name: version
+                  identifier: version
+                  spec:
+                    shell: Sh
+                    command: |-
+                      prefix="v"
+                      VERSION=${DRONE_TAG#"$prefix"}
+                    outputVariables:
+                      - name: VERSION
+                        type: String
+                        value: VERSION
+                  when:
+                    stageStatus: Success
+                    condition: <+codebase.build.type> == "tag"
+              - step:
+                  type: Run
+                  name: Build binaries
+                  identifier: Build
+                  spec:
+                    connectorRef: Plugins_Docker_Hub_Connector
+                    image: golang:1.19
+                    shell: Sh
+                    command: |-
+                      GOOS=linux   GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-amd64
+                      GOOS=linux   GOARCH=arm64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-arm64
+                      GOOS=darwin  GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-darwin-amd64
+                      GOOS=darwin  GOARCH=arm64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-darwin-arm64
+                      GOOS=windows GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-windows-amd64.exe
+                  when:
+                    stageStatus: Success
+                    condition: <+codebase.build.type> == "tag"
+              - step:
+                  type: Plugin
+                  name: Release
+                  identifier: Plugin_1
+                  spec:
+                    connectorRef: Plugins_Docker_Hub_Connector
+                    image: plugins/github-release
+                    settings:
+                      files: release/lite-engine-*
+                      title: <+trigger.tag>
+                      api_key: <+secrets.getValue("ReleasePipeline-GIT_PAT")>
+                  when:
+                    stageStatus: Success
+                    condition: <+codebase.build.type> == "tag"
+              - step:
+                  name: Upload_to_GCS
+                  identifier: Upload_to_GCS
+                  template:
+                    templateRef: Upload_Binary_GCS_TI
+                    versionLabel: v1
+                    templateInputs:
+                      type: GCSUpload
+                      spec:
+                        sourcePath: /harness/release
+                        target: harness-lite-engine/<+pipeline.stages.Release.spec.execution.steps.version.output.outputVariables.VERSION>
+                      when:
+                        condition: <+codebase.build.type> == "tag"
+        variables:
+          - name: DRONE_REPO_OWNER
+            type: String
+            description: ""
+            required: false
+            value: harness
+  allowStageExecutions: true
