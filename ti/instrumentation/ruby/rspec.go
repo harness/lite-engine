@@ -72,7 +72,7 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		if err != nil {
 			return "", err
 		}
-		installAgentCmd = fmt.Sprintf("bundle add harness_ruby_agent --path %q --version %q || true;", repoPath, "0.0.1")
+		installAgentCmd = fmt.Sprintf("if command -v bundle >/dev/null; then bundle add harness_ruby_agent --path %q --version %q 2>/dev/null || echo 'Failed to add harness_ruby_agent.'; fi;", repoPath, "0.0.1")
 		err = WriteHelperFile(workspace, repoPath)
 		if err != nil {
 			m.log.Errorln("Unable to write rspec helper file automatically", err)
@@ -80,7 +80,7 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 	// Run all the tests
 	if userArgs == "" {
-		installReportCmd = "bundle add rspec_junit_formatter || true;"
+		installReportCmd = "if command -v bundle >/dev/null; then bundle add rspec_junit_formatter 2>/dev/null || echo 'Failed to add rspec_junit_formatter.'; fi;"
 		userArgs = fmt.Sprintf("--format RspecJunitFormatter --out %s${HARNESS_NODE_INDEX}", common.HarnessDefaultReportPath)
 	}
 
