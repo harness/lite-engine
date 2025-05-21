@@ -74,9 +74,9 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		}
 		installAgentCmd = fmt.Sprintf(
 			"if command -v bundle >/dev/null; then "+
-			"bundle add harness_ruby_agent --path %q --version %q 2>/dev/null || "+
-			"echo 'Failed to add harness_ruby_agent.'; "+
-			"fi;",
+				"bundle add harness_ruby_agent --path %q --version %q 2>/dev/null || "+
+				"echo 'Failed to add harness_ruby_agent.'; "+
+				"fi;",
 			repoPath, "0.0.1")
 		err = WriteHelperFile(workspace, repoPath)
 		if err != nil {
