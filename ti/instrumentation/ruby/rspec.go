@@ -67,7 +67,7 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	tiFlag := "TI=1"
 	installReportCmd := ""
 	installAgentCmd := ""
-	redirLogsCmd := `if [ "$(printf %%s "$DEBUG_MODE" | tr '[:upper:]' '[:lower:]')" != "true" ]; then redir="2>/dev/null"; else redir=""; fi;`
+	redirLogsCmd := `if [ "$(printf %%s "$DEBUG" | tr '[:upper:]' '[:lower:]')" != "true" ]; then redir="2>/dev/null"; else redir=""; fi;`
 	if !ignoreInstr {
 		repoPath, err := UnzipAndGetTestInfo(agentInstallDir, m.log)
 		if err != nil {
