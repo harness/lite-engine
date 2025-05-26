@@ -67,12 +67,13 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	tiFlag := "TI=1"
 	installReportCmd := ""
 	installAgentCmd := ""
+	redirLogsCmd := `if [ "$(printf %%s "$DEBUG" | tr '[:upper:]' '[:lower:]')" != "true" ]; then redir="2>/dev/null"; else redir=""; fi;`
 	if !ignoreInstr {
 		repoPath, err := UnzipAndGetTestInfo(agentInstallDir, m.log)
 		if err != nil {
 			return "", err
 		}
-		installAgentCmd = fmt.Sprintf("if command -v bundle >/dev/null; then bundle add harness_ruby_agent --path %q --version %q 2>/dev/null || echo 'Failed to add harness_ruby_agent.'; fi;", repoPath, "0.0.1")
+		installAgentCmd = fmt.Sprintf("if command -v bundle >/dev/null; then bundle add harness_ruby_agent --path %q --version %q $redir || echo 'Failed to add harness_ruby_agent.'; fi;", repoPath, "0.0.1")
 		err = WriteHelperFile(workspace, repoPath)
 		if err != nil {
 			m.log.Errorln("Unable to write rspec helper file automatically", err)
@@ -80,7 +81,7 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	}
 	// Run all the tests
 	if userArgs == "" {
-		installReportCmd = "if command -v bundle >/dev/null; then bundle add rspec_junit_formatter 2>/dev/null || echo 'Failed to add rspec_junit_formatter.'; fi;"
+		installReportCmd = "if command -v bundle >/dev/null; then bundle add rspec_junit_formatter $redir || echo 'Failed to add rspec_junit_formatter.'; fi;"
 		userArgs = fmt.Sprintf("--format RspecJunitFormatter --out %s${HARNESS_NODE_INDEX}", common.HarnessDefaultReportPath)
 	}
 
@@ -90,10 +91,10 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 			rspecGlob = "--pattern " + strings.Join(m.testGlobs, " ")
 		}
 		if ignoreInstr {
-			return strings.TrimSpace(fmt.Sprintf("%s %s %s %s", installReportCmd, rspecCmd, userArgs, rspecGlob)), nil
+			return strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s", redirLogsCmd, installReportCmd, rspecCmd, userArgs, rspecGlob)), nil
 		}
-		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s %s",
-			installReportCmd, installAgentCmd, tiFlag, rspecCmd, userArgs, rspecGlob))
+		testCmd = strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s %s %s",
+			redirLogsCmd, installReportCmd, installAgentCmd, tiFlag, rspecCmd, userArgs, rspecGlob))
 		return testCmd, nil
 	}
 
@@ -105,10 +106,10 @@ func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 	testStr := strings.Join(ut, " ")
 
 	if ignoreInstr {
-		return strings.TrimSpace(fmt.Sprintf("%s %s %s %s", installAgentCmd, rspecCmd, userArgs, testStr)), nil
+		return strings.TrimSpace(fmt.Sprintf("%s %s %s %s %s", redirLogsCmd, installAgentCmd, rspecCmd, userArgs, testStr)), nil
 	}
 
-	testCmd = fmt.Sprintf("%s %s %s %s %s %s",
-		installReportCmd, installAgentCmd, tiFlag, rspecCmd, userArgs, testStr)
+	testCmd = fmt.Sprintf("%s %s %s %s %s %s %s",
+		redirLogsCmd, installReportCmd, installAgentCmd, tiFlag, rspecCmd, userArgs, testStr)
 	return testCmd, nil
 }

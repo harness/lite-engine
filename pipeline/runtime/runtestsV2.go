@@ -458,10 +458,15 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 		tiConfig.UnlockZip()
 	}
 
+	// Use DEBUG to redirect error logs as needed
 	if !isPsh {
-		preCmd = fmt.Sprintf("\nif command -v bundle >/dev/null; then { bundle add rspec_junit_formatter 2>/dev/null && bundle add harness_ruby_agent --path %q --version %q 2>/dev/null; } || echo 'Error: Failed to add rspec_junit_formatter, harness_ruby_agent.'; fi;", repoPath, "0.0.1")
+		preCmd = fmt.Sprintf(`if [ "$(printf %%s "$DEBUG" | tr '[:upper:]' '[:lower:]')" != "true" ]; then redir="2>/dev/null"; else redir=""; fi;`)
+	}
+
+	if !isPsh {
+		preCmd += fmt.Sprintf("\nif command -v bundle >/dev/null; then { bundle add rspec_junit_formatter $redir && bundle add harness_ruby_agent --path %q --version %q $redir; } || echo 'Error: Failed to add rspec_junit_formatter, harness_ruby_agent.'; fi;", repoPath, "0.0.1")
 	} else {
-		preCmd = fmt.Sprintf("\ntry { bundle add rspec_junit_formatter } catch { Write-Host 'Error: Failed to add rspec_junit_formatter.' };\ntry { bundle add harness_ruby_agent --path %q --version %q } catch { Write-Host 'Error: Failed to add harness_ruby_agent.' };", repoPath, "0.0.1")
+		preCmd += fmt.Sprintf(`\nif ($env:DEBUG -ieq 'true') { bundle add rspec_junit_formatter; bundle add harness_ruby_agent --path '%s' --version '%s' } else { try { bundle add rspec_junit_formatter 2>$null } catch { Write-Host 'Error: Failed to add rspec_junit_formatter.' }; try { bundle add harness_ruby_agent --path '%s' --version '%s' 2>$null } catch { Write-Host 'Error: Failed to add harness_ruby_agent.' } };`, repoPath, "0.0.1", repoPath, "0.0.1")
 	}
 
 	disableJunitVarName := "TI_DISABLE_JUNIT_INSTRUMENTATION"
@@ -489,9 +494,9 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	}
 
 	if !isPsh {
-		preCmd += fmt.Sprintf("\nif command -v python3 >/dev/null; then python3 -m pip install %s 2>/dev/null || echo 'Error: Failed to install Python agent.'; fi;", whlFilePath)
+		preCmd += fmt.Sprintf("\nif command -v python3 >/dev/null; then python3 -m pip install %s $redir || echo 'Error: Failed to install Python agent.'; fi;", whlFilePath)
 	} else {
-		preCmd += fmt.Sprintf("\ntry { python3 -m pip install %s } catch { Write-Host 'Error: Failed to install Python agent.' };", whlFilePath)
+		preCmd += fmt.Sprintf(`\nif ($env:DEBUG -ieq 'true') { python3 -m pip install %s } else { try { python3 -m pip install %s 2>$null } catch { Write-Host 'Error: Failed to install Python agent.' } };`, whlFilePath, whlFilePath)
 	}
 
 	if !disablePythonV2CodeModification {
