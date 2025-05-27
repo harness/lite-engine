@@ -134,7 +134,7 @@ func toNetConfig(pipelineConfig *spec.PipelineConfig, proc *spec.Step) *network.
 	endpoints := map[string]*network.EndpointSettings{}
 	endpoints[pipelineConfig.Network.ID] = &network.EndpointSettings{
 		NetworkID: pipelineConfig.Network.ID,
-		Aliases:   []string{proc.Name},
+		Aliases:   append([]string{proc.Name}, proc.NetworkAliases...),
 	}
 	return &network.NetworkingConfig{
 		EndpointsConfig: endpoints,

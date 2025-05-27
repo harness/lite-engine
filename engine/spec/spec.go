@@ -45,9 +45,10 @@ type (
 		Labels       map[string]string `json:"labels,omitempty"`
 		MemSwapLimit int64             `json:"memswap_limit,omitempty"`
 		MemLimit     int64             `json:"mem_limit,omitempty"`
-		Name         string            `json:"name,omitempty"`
-		Network      string            `json:"network,omitempty"`
-		Networks     []string          `json:"networks,omitempty"`
+		Name           string            `json:"name,omitempty"`
+		Network        string            `json:"network,omitempty"`
+		Networks       []string          `json:"networks,omitempty"`
+		NetworkAliases []string          `json:"network_aliases,omitempty"`
 		PortBindings map[string]string `json:"port_bindings,omitempty"` // Host port to container port mapping.
 		Privileged   bool              `json:"privileged,omitempty"`
 		Pull         PullPolicy        `json:"pull,omitempty"`
