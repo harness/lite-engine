@@ -91,31 +91,32 @@ type (
 		ScratchDir string `json:"scratch_dir,omitempty"`
 
 		// Valid only for steps running on docker container
-		Auth         *spec.Auth           `json:"auth,omitempty"`
-		CPUPeriod    int64                `json:"cpu_period,omitempty"`
-		CPUQuota     int64                `json:"cpu_quota,omitempty"`
-		CPUShares    int64                `json:"cpu_shares,omitempty"`
-		CPUSet       []string             `json:"cpu_set,omitempty"`
-		Devices      []*spec.VolumeDevice `json:"devices,omitempty"`
-		DNS          []string             `json:"dns,omitempty"`
-		DNSSearch    []string             `json:"dns_search,omitempty"`
-		ExtraHosts   []string             `json:"extra_hosts,omitempty"`
-		IgnoreStdout bool                 `json:"ignore_stderr,omitempty"`
-		IgnoreStderr bool                 `json:"ignore_stdout,omitempty"`
-		Image        string               `json:"image,omitempty"`
-		Labels       map[string]string    `json:"labels,omitempty"`
-		MemSwapLimit int64                `json:"memswap_limit,omitempty"`
-		MemLimit     int64                `json:"mem_limit,omitempty"`
-		Network      string               `json:"network,omitempty"`
-		Networks     []string             `json:"networks,omitempty"`
-		PortBindings map[string]string    `json:"port_bindings,omitempty"` // Host port to container port mapping
-		Privileged   bool                 `json:"privileged,omitempty"`
-		Pull         spec.PullPolicy      `json:"pull,omitempty"`
-		ShmSize      int64                `json:"shm_size,omitempty"`
-		User         string               `json:"user,omitempty"`
-		Volumes      []*spec.VolumeMount  `json:"volumes,omitempty"`
-		Files        []*spec.File         `json:"files,omitempty"`
-		StepStatus   StepStatusConfig     `json:"step_status,omitempty"`
+		Auth           *spec.Auth           `json:"auth,omitempty"`
+		CPUPeriod      int64                `json:"cpu_period,omitempty"`
+		CPUQuota       int64                `json:"cpu_quota,omitempty"`
+		CPUShares      int64                `json:"cpu_shares,omitempty"`
+		CPUSet         []string             `json:"cpu_set,omitempty"`
+		Devices        []*spec.VolumeDevice `json:"devices,omitempty"`
+		DNS            []string             `json:"dns,omitempty"`
+		DNSSearch      []string             `json:"dns_search,omitempty"`
+		ExtraHosts     []string             `json:"extra_hosts,omitempty"`
+		IgnoreStdout   bool                 `json:"ignore_stderr,omitempty"`
+		IgnoreStderr   bool                 `json:"ignore_stdout,omitempty"`
+		Image          string               `json:"image,omitempty"`
+		Labels         map[string]string    `json:"labels,omitempty"`
+		MemSwapLimit   int64                `json:"memswap_limit,omitempty"`
+		MemLimit       int64                `json:"mem_limit,omitempty"`
+		Network        string               `json:"network,omitempty"`
+		Networks       []string             `json:"networks,omitempty"`
+		NetworkAliases []string             `json:"network_aliases,omitempty"`
+		PortBindings   map[string]string    `json:"port_bindings,omitempty"` // Host port to container port mapping
+		Privileged     bool                 `json:"privileged,omitempty"`
+		Pull           spec.PullPolicy      `json:"pull,omitempty"`
+		ShmSize        int64                `json:"shm_size,omitempty"`
+		User           string               `json:"user,omitempty"`
+		Volumes        []*spec.VolumeMount  `json:"volumes,omitempty"`
+		Files          []*spec.File         `json:"files,omitempty"`
+		StepStatus     StepStatusConfig     `json:"step_status,omitempty"`
 	}
 
 	OutputV2 struct {
