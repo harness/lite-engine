@@ -9,6 +9,7 @@
 package docker
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -132,9 +133,10 @@ func toNetConfig(pipelineConfig *spec.PipelineConfig, proc *spec.Step) *network.
 		return &network.NetworkingConfig{}
 	}
 	endpoints := map[string]*network.EndpointSettings{}
+	fmt.Printf("proc.Name: %s, \nproc.NetworkAliases: %v\n", proc.Name, proc.NetworkAliases)
 	endpoints[pipelineConfig.Network.ID] = &network.EndpointSettings{
 		NetworkID: pipelineConfig.Network.ID,
-		Aliases:   []string{proc.Name},
+		Aliases:   append([]string{proc.Name}, proc.NetworkAliases...),
 	}
 	return &network.NetworkingConfig{
 		EndpointsConfig: endpoints,

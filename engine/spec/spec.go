@@ -25,39 +25,40 @@ type (
 
 	// Step defines a pipeline step.
 	Step struct {
-		ID           string            `json:"id,omitempty"`
-		Auth         *Auth             `json:"auth,omitempty"`
-		Command      []string          `json:"args,omitempty"`
-		CPUPeriod    int64             `json:"cpu_period,omitempty"`
-		CPUQuota     int64             `json:"cpu_quota,omitempty"`
-		CPUShares    int64             `json:"cpu_shares,omitempty"`
-		CPUSet       []string          `json:"cpu_set,omitempty"`
-		Detach       bool              `json:"detach,omitempty"`
-		Devices      []*VolumeDevice   `json:"devices,omitempty"`
-		DNS          []string          `json:"dns,omitempty"`
-		DNSSearch    []string          `json:"dns_search,omitempty"`
-		Entrypoint   []string          `json:"entrypoint,omitempty"`
-		Envs         map[string]string `json:"environment,omitempty"`
-		ExtraHosts   []string          `json:"extra_hosts,omitempty"`
-		IgnoreStdout bool              `json:"ignore_stderr,omitempty"`
-		IgnoreStderr bool              `json:"ignore_stdout,omitempty"`
-		Image        string            `json:"image,omitempty"`
-		Labels       map[string]string `json:"labels,omitempty"`
-		MemSwapLimit int64             `json:"memswap_limit,omitempty"`
-		MemLimit     int64             `json:"mem_limit,omitempty"`
-		Name         string            `json:"name,omitempty"`
-		Network      string            `json:"network,omitempty"`
-		Networks     []string          `json:"networks,omitempty"`
-		PortBindings map[string]string `json:"port_bindings,omitempty"` // Host port to container port mapping.
-		Privileged   bool              `json:"privileged,omitempty"`
-		Pull         PullPolicy        `json:"pull,omitempty"`
-		Secrets      []*Secret         `json:"secrets,omitempty"`
-		ShmSize      int64             `json:"shm_size,omitempty"`
-		User         string            `json:"user,omitempty"`
-		Volumes      []*VolumeMount    `json:"volumes,omitempty"`
-		Files        []*File           `json:"files,omitempty"`
-		WorkingDir   string            `json:"working_dir,omitempty"`
-		SoftStop     bool              `json:"soft_stop,omitempty"`
+		ID             string            `json:"id,omitempty"`
+		Auth           *Auth             `json:"auth,omitempty"`
+		Command        []string          `json:"args,omitempty"`
+		CPUPeriod      int64             `json:"cpu_period,omitempty"`
+		CPUQuota       int64             `json:"cpu_quota,omitempty"`
+		CPUShares      int64             `json:"cpu_shares,omitempty"`
+		CPUSet         []string          `json:"cpu_set,omitempty"`
+		Detach         bool              `json:"detach,omitempty"`
+		Devices        []*VolumeDevice   `json:"devices,omitempty"`
+		DNS            []string          `json:"dns,omitempty"`
+		DNSSearch      []string          `json:"dns_search,omitempty"`
+		Entrypoint     []string          `json:"entrypoint,omitempty"`
+		Envs           map[string]string `json:"environment,omitempty"`
+		ExtraHosts     []string          `json:"extra_hosts,omitempty"`
+		IgnoreStdout   bool              `json:"ignore_stderr,omitempty"`
+		IgnoreStderr   bool              `json:"ignore_stdout,omitempty"`
+		Image          string            `json:"image,omitempty"`
+		Labels         map[string]string `json:"labels,omitempty"`
+		MemSwapLimit   int64             `json:"memswap_limit,omitempty"`
+		MemLimit       int64             `json:"mem_limit,omitempty"`
+		Name           string            `json:"name,omitempty"`
+		Network        string            `json:"network,omitempty"`
+		Networks       []string          `json:"networks,omitempty"`
+		NetworkAliases []string          `json:"network_aliases,omitempty"`
+		PortBindings   map[string]string `json:"port_bindings,omitempty"` // Host port to container port mapping.
+		Privileged     bool              `json:"privileged,omitempty"`
+		Pull           PullPolicy        `json:"pull,omitempty"`
+		Secrets        []*Secret         `json:"secrets,omitempty"`
+		ShmSize        int64             `json:"shm_size,omitempty"`
+		User           string            `json:"user,omitempty"`
+		Volumes        []*VolumeMount    `json:"volumes,omitempty"`
+		Files          []*File           `json:"files,omitempty"`
+		WorkingDir     string            `json:"working_dir,omitempty"`
+		SoftStop       bool              `json:"soft_stop,omitempty"`
 	}
 
 	// Secret represents a secret variable.
