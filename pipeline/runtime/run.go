@@ -157,7 +157,9 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 			}
 			// add summary outputs to current outputs map
 			for k, v := range summaryOutputs {
-				outputs[k] = v
+				if _, ok := outputs[k]; !ok {
+					outputs[k] = v
+				}
 			}
 		}
 		outputsV2 := []*api.OutputV2{}
@@ -175,18 +177,14 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 				}
 			}
 			if report.TestSummaryAsOutputEnabled(r.Envs) {
-				outputsV2 = append(outputsV2, summaryOutputsV2...)
+				outputsV2 = report.AppendWithoutDuplicates(outputsV2, summaryOutputsV2)
 			}
 		} else {
 			if len(r.OutputVars) > 0 {
 				// only return err when output vars are expected
 				finalErr = err
 			}
-			if report.TestSummaryAsOutputEnabled(r.Envs) {
-				for k, v := range summaryOutputs {
-					outputs[k] = v
-				}
-			}
+
 			for key, value := range outputs {
 				output := &api.OutputV2{
 					Key:   key,

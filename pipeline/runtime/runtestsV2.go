@@ -132,7 +132,9 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 			}
 
 			for k, v := range summaryOutputs {
-				outputs[k] = v
+				if _, ok := outputs[k]; !ok {
+					outputs[k] = v
+				}
 			}
 		}
 		if len(r.Outputs) > 0 {
@@ -147,7 +149,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 				}
 			}
 			if report.TestSummaryAsOutputEnabled(r.Envs) {
-				outputsV2 = append(outputsV2, summaryOutputsV2...)
+				outputsV2 = report.AppendWithoutDuplicates(outputsV2, summaryOutputsV2)
 			}
 			return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), err
 		} else if len(r.OutputVars) > 0 {

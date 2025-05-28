@@ -108,7 +108,9 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	if report.TestSummaryAsOutputEnabled(r.Envs) && len(summaryOutputV2) > 0 {
 		// copy to outputs, we need a separate summaryOutput map to return when step fials
 		for k, v := range summaryOutputs {
-			outputs[k] = v
+			if _, ok := outputs[k]; !ok {
+				outputs[k] = v
+			}
 		}
 	}
 
@@ -125,7 +127,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 				}
 			}
 			if report.TestSummaryAsOutputEnabled(r.Envs) {
-				outputsV2 = append(outputsV2, summaryOutputV2...)
+				outputsV2 = report.AppendWithoutDuplicates(outputsV2, summaryOutputV2)
 			}
 			// when outputvars are defined and step has succeeded, fetchErr takes priority
 			return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), fetchErr

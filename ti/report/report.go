@@ -121,6 +121,22 @@ func checkAndAddSummary(metricName string, outputs map[string]string, outputsV2 
 	return outputsV2
 }
 
+func AppendWithoutDuplicates(outputsV2 []*api.OutputV2, newOutputs []*api.OutputV2) []*api.OutputV2 {
+	for _, newOutput := range newOutputs {
+		exists := false
+		for _, output := range outputsV2 {
+			if output.Key == newOutput.Key {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			outputsV2 = append(outputsV2, newOutput)
+		}
+	}
+	return outputsV2
+}
+
 func TestSummaryAsOutputEnabled(envs map[string]string) bool {
 	value, present := envs["HARNESS_CI_TEST_SUMMARY_OUTPUT_FF"]
 	if !present {
