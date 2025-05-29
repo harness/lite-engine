@@ -410,6 +410,8 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	envs["TI_V2"] = "1"
 	envs["TI_OUTPUT_PATH"] = outDir
 	envs["TI_FILTER_FILE_PATH"] = filterFilePath
+	envs["PYTEST_ADDOPTS"] = "--cov=. --cov-report=xml"
+	envs["COVERAGE_FILE"] = fmt.Sprintf(".harnesscoverage_%d", splitIdx)
 
 	// Java
 	iniFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
