@@ -121,7 +121,7 @@ func checkAndAddSummary(metricName string, outputs map[string]string, outputsV2 
 	return outputsV2
 }
 
-func AppendWithoutDuplicates(outputsV2 []*api.OutputV2, newOutputs []*api.OutputV2) []*api.OutputV2 {
+func AppendWithoutDuplicates(outputsV2, newOutputs []*api.OutputV2) []*api.OutputV2 {
 	for _, newOutput := range newOutputs {
 		exists := false
 		for _, output := range outputsV2 {
