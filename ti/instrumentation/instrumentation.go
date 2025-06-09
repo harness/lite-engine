@@ -7,6 +7,7 @@ package instrumentation
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -252,13 +253,14 @@ func GetCmd(
 	ctx context.Context,
 	config *api.RunTestConfig,
 	stepID, workspace string,
+	uniqueStepId string,
 	log *logrus.Logger,
 	envs map[string]string,
 	cfg *tiCfg.Cfg,
 	testMetadata *types.TestIntelligenceMetaData,
 ) (string, error) {
 	fs := filesystem.New()
-	tmpFilePath := cfg.GetDataDir()
+	tmpFilePath := filepath.Join(cfg.GetDataDir(), GetUniqueHash(uniqueStepId, cfg))
 
 	if config.TestSplitStrategy == "" {
 		config.TestSplitStrategy = defaultTestSplitStrategy

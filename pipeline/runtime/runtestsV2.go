@@ -66,7 +66,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step.Entrypoint = r.RunTestsV2.Entrypoint
 	telemetryData := &types.TelemetryData{}
 
-	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
+	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, step.ID, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), err
 	}
@@ -167,6 +167,12 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
 		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
 	}
+
+	// clean up folders
+	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(r.ID, tiConfig))
+	fs := filesystem.New()
+	fs.Remove(tmpFilePath)
+
 	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
 
@@ -174,6 +180,7 @@ func SetupRunTestV2(
 	ctx context.Context,
 	config *api.RunTestsV2Config,
 	stepID, workspace string,
+	uniqueStepId string,
 	log *logrus.Logger,
 	envs map[string]string,
 	tiConfig *tiCfg.Cfg,
@@ -181,7 +188,8 @@ func SetupRunTestV2(
 ) (string, error) {
 	agentPaths := make(map[string]string)
 	fs := filesystem.New()
-	tmpFilePath := tiConfig.GetDataDir()
+	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepId, tiConfig))
+
 	var preCmd, filterfilePath string
 	if config.IntelligenceMode {
 		// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
@@ -428,38 +436,23 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
 	envs["JAVA_TOOL_OPTIONS"] = agentArg
-	// Ruby
-	repoPath := filepath.Join(agentPaths["ruby"], "harness", "ruby-agent")
-	repoPathPython := filepath.Join(agentPaths["python"], "harness", "python-agent-v2")
-	stepIdx, _ := instrumentation.GetStepStrategyIteration(envs)
-	shouldWait := instrumentation.IsStepParallelismEnabled(envs) && stepIdx > 0
-	if shouldWait {
-		err = waitForZipUnlock(waitTimeoutInSec*time.Second, tiConfig) // Wait for up to 10 seconds
-		if err != nil {
-			log.WithError(err).Errorln("timed out while unzipping testInfo with retry")
-			return "", "", err
-		}
-	} else {
-		tiConfig.LockZip()
-		repoPath, err = ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
-		if err != nil {
-			log.WithError(err).Errorln("failed to unzip and get test info")
-			return "", "", err
-		}
 
-		repoPathPython, err = python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
+	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
+	if err != nil {
+		log.WithError(err).Errorln("failed to unzip and get test info for the ruby agent")
+		return "", "", err
+	}
+
+	repoPathPython, err := python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
+	if err != nil {
+		return "", "", err
+	}
+
+	if agentPath, exists := agentPaths["dotnet"]; exists {
+		err = csharp.Unzip(agentPath, log)
 		if err != nil {
 			return "", "", err
 		}
-
-		if agentPath, exists := agentPaths["dotnet"]; exists {
-			err = csharp.Unzip(agentPath, log)
-			if err != nil {
-				return "", "", err
-			}
-		}
-
-		tiConfig.UnlockZip()
 	}
 
 	// Use DEBUG to redirect error logs as needed
@@ -725,7 +718,7 @@ func collectTestReportsAndCg(
 		}
 	}
 
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, testFailed)
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, testFailed)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)

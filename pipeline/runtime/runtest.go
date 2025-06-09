@@ -8,11 +8,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/common"
+	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/lite-engine/ti/callgraph"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -46,7 +48,8 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	start := time.Now()
 	optimizationState := types.DISABLED
 	telemetryData := &types.TelemetryData{}
-	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
+
+	cmd, err := instrumentation.GetCmd(ctx, &r.RunTest, r.Name, r.WorkingDir, r.ID, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), err
 	}
@@ -155,13 +158,18 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputV2, telemetryData, string(optimizationState), err
 	}
 
+	// clean up folders
+	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(r.ID, tiConfig))
+	fs := filesystem.New()
+	fs.Remove(tmpFilePath)
+
 	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step
 func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *types.TelemetryData) error {
 	cgStart := time.Now()
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, cgDir, false)
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, cgDir, r.ID, false)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
