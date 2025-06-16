@@ -44,6 +44,7 @@ func (cg *Callgraph) ToStringMap() map[string]interface{} {
 			"callsReflection": v.CallsReflection,
 			"alwaysRun":       v.AlwaysRun,
 			"file":            v.File,
+			"hasFailed":       v.HasFailed,
 		}
 		nodes = append(nodes, data)
 	}
@@ -176,6 +177,7 @@ type Node struct {
 	CallsReflection bool
 	AlwaysRun       bool
 	File            string
+	HasFailed       bool
 }
 
 // Input is the go representation of each line in callgraph file
