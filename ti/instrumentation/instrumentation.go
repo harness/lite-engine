@@ -160,12 +160,14 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 			if splitIdx == 0 {
 				// Error while auto-detecting, run all tests for parallel step 0
 				runOnlySelectedTests = false
-				log.Errorln("Error in auto-detecting tests for splitting, running all tests")
+				log.WithError(err).Errorf("Error in auto-detecting tests for splitting, running all tests")
+				log.Debugf("Workspace %s with test globs %v", workspace, testGlobs)
 			} else {
 				// Error while auto-detecting, no tests for other parallel steps
 				selection.Tests = []ti.RunnableTest{}
 				runOnlySelectedTests = true
 				log.WithError(err).Errorln("Error in auto-detecting tests for splitting, running all tests in parallel step 0")
+				log.Debugf("Workspace %s with test globs %v", workspace, testGlobs)
 			}
 			return runOnlySelectedTests
 		}
@@ -219,12 +221,14 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 			if splitIdx == 0 {
 				// Error while auto-detecting, run all tests for parallel step 0
 				config.RunOnlySelectedTests = false
-				log.Errorln("Error in auto-detecting tests for splitting, running all tests")
+				log.WithError(err).Errorf("Error in auto-detecting tests for splitting, running all tests")
+				log.Debugf("Workspace %s with test globs %v", workspace, testGlobs)
 			} else {
 				// Error while auto-detecting, no tests for other parallel steps
 				selection.Tests = []ti.RunnableTest{}
 				config.RunOnlySelectedTests = true
 				log.WithError(err).Errorln("Error in auto-detecting tests for splitting, running all tests in parallel step 0")
+				log.Debugf("Workspace %s with test globs %v", workspace, testGlobs)
 			}
 			return
 		}
@@ -355,11 +359,14 @@ func AutoDetectTests(ctx context.Context, workspace string, testGlobs []string, 
 	if err != nil {
 		log.WithError(err).Errorln("Could not auto-detect java tests")
 	}
+	log.Debugf("Detected Java tests: %v", tests)
+
 	rubyRunner := ruby.NewRubyRunner(log, fs, testGlobs, envs)
 	rubyTests, err := rubyRunner.AutoDetectTestsV2(ctx, workspace, testGlobs)
 	if err != nil {
 		log.WithError(err).Errorln("Could not auto-detect ruby tests")
 	}
+	log.Debugf("Detected Ruby tests: %v", rubyTests)
 	tests = append(tests, rubyTests...)
 
 	pyRunner := python.NewPytestRunner(log, fs, testGlobs)
@@ -367,6 +374,7 @@ func AutoDetectTests(ctx context.Context, workspace string, testGlobs []string, 
 	if err != nil {
 		log.WithError(err).Errorln("Could not auto-detect python tests")
 	}
+	log.Debugf("Detected Python tests: %v", pyTests)
 	tests = append(tests, pyTests...)
 	return tests, nil
 }
