@@ -16,30 +16,14 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 	// Case: Empty CG
 	dataDir := "testdata/cgdir/emptycg"
 	cgBytes, err := encodeCg(dataDir, log)
-	assert.Nil(t, err)
-
-	// Test deserialize
-	cgString, err := cgSer.Deserialize(cgBytes)
-	assert.Nil(t, err)
-	cg, err := FromStringMap(cgString.(map[string]interface{}))
-	assert.Nil(t, err)
-	assert.Empty(t, cg.Nodes)
-	assert.Empty(t, cg.TestRelations)
-	assert.Empty(t, cg.VisRelations)
+	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), "callgraph is empty")
 
 	// Case: No CG files
 	dataDir = "testdata/cgdir/nocg"
 	cgBytes, err = encodeCg(dataDir, log)
-	assert.Nil(t, err)
-
-	// Test deserialize
-	cgString, err = cgSer.Deserialize(cgBytes)
-	assert.Nil(t, err)
-	cg, err = FromStringMap(cgString.(map[string]interface{}))
-	assert.Nil(t, err)
-	assert.Empty(t, cg.Nodes)
-	assert.Empty(t, cg.TestRelations)
-	assert.Empty(t, cg.VisRelations)
+	assert.NotNil(t, err)
+	assert.Equal(t, err.Error(), "callgraph is empty")
 
 	// Case: CG present
 	dataDir = "testdata/cgdir/cg"
@@ -47,9 +31,9 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Test deserialize
-	cgString, err = cgSer.Deserialize(cgBytes)
+	cgString, err := cgSer.Deserialize(cgBytes)
 	assert.Nil(t, err)
-	cg, err = FromStringMap(cgString.(map[string]interface{}))
+	cg, err := FromStringMap(cgString.(map[string]interface{}))
 	assert.Nil(t, err)
 	assert.NotEmpty(t, cg.Nodes)
 	assert.NotEmpty(t, cg.TestRelations)

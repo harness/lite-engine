@@ -73,6 +73,10 @@ func encodeCg(dataDir string, log *logrus.Logger) ([]byte, error) {
 	}
 	log.Infoln(fmt.Sprintf("Size of Test nodes: %d, Test relations: %d, Vis Relations %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
 
+	if isCgEmpty(cg) {
+		return nil, fmt.Errorf("callgraph is empty")
+	}
+
 	cgMap := cg.ToStringMap()
 	cgSer, err := avro.NewCgphSerialzer(cgSchemaType)
 	if err != nil {
@@ -83,6 +87,13 @@ func encodeCg(dataDir string, log *logrus.Logger) ([]byte, error) {
 		return nil, errors.Wrap(err, "failed to encode callgraph")
 	}
 	return encCg, nil
+}
+
+func isCgEmpty(cg *Callgraph) bool {
+	if len(cg.Nodes) == 0 && len(cg.TestRelations) == 0 && len(cg.VisRelations) == 0 {
+		return true
+	}
+	return false
 }
 
 // get list of all file paths matching a provided regex
