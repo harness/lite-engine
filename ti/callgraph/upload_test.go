@@ -15,8 +15,9 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 
 	// Case: Empty CG
 	dataDir := "testdata/cgdir/emptycg"
-	cgBytes, err := encodeCg(dataDir, log)
+	cgBytes, err, cgIsEmpty := encodeCg(dataDir, log)
 	assert.Nil(t, err)
+	assert.True(t, cgIsEmpty)
 
 	// Test deserialize
 	cgString, err := cgSer.Deserialize(cgBytes)
@@ -29,8 +30,9 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 
 	// Case: No CG files
 	dataDir = "testdata/cgdir/nocg"
-	cgBytes, err = encodeCg(dataDir, log)
+	cgBytes, err, cgIsEmpty = encodeCg(dataDir, log)
 	assert.Nil(t, err)
+	assert.True(t, cgIsEmpty)
 
 	// Test deserialize
 	cgString, err = cgSer.Deserialize(cgBytes)
@@ -43,7 +45,7 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 
 	// Case: CG present
 	dataDir = "testdata/cgdir/cg"
-	cgBytes, err = encodeCg(dataDir, log)
+	cgBytes, err, _ = encodeCg(dataDir, log)
 	assert.Nil(t, err)
 
 	// Test deserialize
