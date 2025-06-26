@@ -33,7 +33,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 	// Create step-specific data directory path
 	stepDataDir := filepath.Join(cfg.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepId, cfg))
 
-	encCg, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log)
+	encCg, err, cgIsEmpty := encodeCg(fmt.Sprintf(dir, stepDataDir), log)
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
 	}
@@ -44,7 +44,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 		if cgErr := c.UploadCgFailedTest(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
 			return cgErr
 		}
-	} else {
+	} else if !cgIsEmpty {
 		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
 			return cgErr
 		}
@@ -55,38 +55,39 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 }
 
 // encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
-func encodeCg(dataDir string, log *logrus.Logger) ([]byte, error) {
+func encodeCg(dataDir string, log *logrus.Logger) ([]byte, error, bool) {
 	var parser Parser
+	var cgIsEmpty bool
 	fs := filesystem.New()
 
 	if dataDir == "" {
-		return nil, fmt.Errorf("dataDir not present in request")
+		return nil, fmt.Errorf("dataDir not present in request"), cgIsEmpty
 	}
 	cgFiles, visFiles, err := getCgFiles(dataDir, "json", "csv", log)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to fetch files inside the directory")
+		return nil, errors.Wrap(err, "failed to fetch files inside the directory"), cgIsEmpty
 	}
 	parser = NewCallGraphParser(log, fs)
 	cg, err := parser.Parse(cgFiles, visFiles)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse visgraph")
+		return nil, errors.Wrap(err, "failed to parse visgraph"), cgIsEmpty
 	}
 	log.Infoln(fmt.Sprintf("Size of Test nodes: %d, Test relations: %d, Vis Relations %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
 
 	if isCgEmpty(cg) {
-		return nil, fmt.Errorf("callgraph is empty")
+		cgIsEmpty = true
 	}
 
 	cgMap := cg.ToStringMap()
 	cgSer, err := avro.NewCgphSerialzer(cgSchemaType)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create serializer")
+		return nil, errors.Wrap(err, "failed to create serializer"), cgIsEmpty
 	}
 	encCg, err := cgSer.Serialize(cgMap)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to encode callgraph")
+		return nil, errors.Wrap(err, "failed to encode callgraph"), cgIsEmpty
 	}
-	return encCg, nil
+	return encCg, nil, cgIsEmpty
 }
 
 func isCgEmpty(cg *Callgraph) bool {
