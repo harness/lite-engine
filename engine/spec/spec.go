@@ -180,9 +180,10 @@ type (
 	}
 
 	VMImageConfig struct {
-		ImageName string `json:"image_name,omitempty"`
-		Auth      *Auth  `json:"auth,omitempty"`
-		Username  string `json:"username,omitempty"`
-		Password  string `json:"password,omitempty"`
+		ImageName    string `json:"image_name,omitempty"`
+		ImageVersion string `json:"image_version,omitempty"`
+		Auth         *Auth  `json:"auth,omitempty"`
+		Username     string `json:"username,omitempty"`
+		Password     string `json:"password,omitempty"`
 	}
 )
