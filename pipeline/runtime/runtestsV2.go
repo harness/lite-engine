@@ -254,19 +254,25 @@ func SetupRunTestV2(
 func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
 	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config) (types.SelectTestsResp, bool) {
 	selection := types.SelectTestsResp{}
-	if isManual {
-		log.Infoln("Manual execution has been detected. Running all the tests")
-		return selection, false
-	}
-	runOnlySelectedTests := true
+	// if isManual {
+	// 	log.Infoln("Manual execution has been detected. Running all the tests")
+	// 	return selection, false
+	// }
+	runOnlySelectedTests := false
 	testGlobs := sanitizeTestGlobsV2(runV2Config.TestGlobs)
 
 	if runV2Config.IntelligenceMode {
-		selection, runOnlySelectedTests = getTestsSelectionWithTiModeEnabled(ctx, fs, stepID, workspace, log, isManual, tiConfig, envs, runV2Config, testGlobs)
+		if isManual {
+			log.Infoln("Manual execution has been detected. Running all the tests")
+			runOnlySelectedTests = false
+		} else {
+			selection, runOnlySelectedTests = getTestsSelectionWithTiModeEnabled(ctx, fs, stepID, workspace, log, isManual, tiConfig, envs, runV2Config, testGlobs)
+		}
 	}
 
 	// Test splitting: only when parallelism is enabled
 	if instrumentation.IsParallelismEnabled(envs) {
+		log.Infoln("Parallelism is enabled!!!!!")
 		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, testGlobs, tiConfig, runOnlySelectedTests, fs)
 	}
 
