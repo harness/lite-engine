@@ -171,7 +171,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	// clean up folders
 	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(r.ID, tiConfig))
 	fs := filesystem.New()
-	_ = fs.Remove(tmpFilePath) // nolint:errcheck // cleanup operation, error doesn't matter
+	fs.Remove(tmpFilePath)
 
 	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
@@ -180,7 +180,7 @@ func SetupRunTestV2(
 	ctx context.Context,
 	config *api.RunTestsV2Config,
 	stepID, workspace string,
-	uniqueStepID string,
+	uniqueStepId string,
 	log *logrus.Logger,
 	envs map[string]string,
 	tiConfig *tiCfg.Cfg,
@@ -188,7 +188,7 @@ func SetupRunTestV2(
 ) (string, error) {
 	agentPaths := make(map[string]string)
 	fs := filesystem.New()
-	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, tiConfig))
+	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepId, tiConfig))
 
 	var preCmd, filterfilePath string
 	if config.IntelligenceMode {
@@ -398,7 +398,7 @@ func createDotNetConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus
 
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
 //
-//nolint:funlen,gocyclo,lll,unparam
+//nolint:funlen,gocyclo,lll
 func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool, tiConfig *tiCfg.Cfg) (preCmd, filterFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
