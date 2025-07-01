@@ -257,14 +257,14 @@ func GetCmd(
 	ctx context.Context,
 	config *api.RunTestConfig,
 	stepID, workspace string,
-	uniqueStepId string,
+	uniqueStepID string,
 	log *logrus.Logger,
 	envs map[string]string,
 	cfg *tiCfg.Cfg,
 	testMetadata *types.TestIntelligenceMetaData,
 ) (string, error) {
 	fs := filesystem.New()
-	tmpFilePath := filepath.Join(cfg.GetDataDir(), GetUniqueHash(uniqueStepId, cfg))
+	tmpFilePath := filepath.Join(cfg.GetDataDir(), GetUniqueHash(uniqueStepID, cfg))
 
 	if config.TestSplitStrategy == "" {
 		config.TestSplitStrategy = defaultTestSplitStrategy
