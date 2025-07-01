@@ -45,7 +45,7 @@ func isLikelyJSONObject(s string) bool {
 }
 
 // Helper function to generate variants of a string that may appear in shell output
-func createSecretVariants(original string) []string { //nolint:funlen
+func createSecretVariants(original string) []string { //nolint:funlen,gocyclo
 	// Include the original string
 	variants := []string{original}
 
@@ -201,7 +201,7 @@ func NewReplacer(w Writer, secrets []string) Writer {
 			part = strings.TrimSpace(part)
 
 			// avoid masking empty or single character strings.
-			if len(part) < minSecretLength { //nolint:gomnd
+			if len(part) < minSecretLength {
 				continue
 			}
 
