@@ -1,0 +1,56 @@
+// Copyright 2022 Drone.IO Inc. All rights reserved.
+// Use of this source code is governed by the Polyform License
+// that can be found in the LICENSE file.
+
+package external
+
+import (
+	"bytes"
+	"strings"
+
+	"github.com/harness/lite-engine/logstream"
+)
+
+// bufferedStreamWriter is a minimal implementation of logstream.Writer that writes to a buffer.
+// It's designed to support MaskString's integration with logstream.NewReplacer().
+type bufferedStreamWriter struct {
+	buf *bytes.Buffer
+}
+
+func newBufferedStreamWriter() *bufferedStreamWriter {
+	return &bufferedStreamWriter{buf: &bytes.Buffer{}}
+}
+
+func (b *bufferedStreamWriter) Write(p []byte) (n int, err error) {
+	return b.buf.Write(p)
+}
+
+func (b *bufferedStreamWriter) Open() error  { return nil }
+func (b *bufferedStreamWriter) Start()       { }
+func (b *bufferedStreamWriter) Close() error { return nil }
+func (b *bufferedStreamWriter) Error() error { return nil }
+
+// MaskString masks secrets in a plain string using the existing replacer infrastructure.
+// Returns a new string with all secrets replaced by asterisks.
+func MaskString(input string, secrets []string) string {
+	if len(secrets) == 0 {
+		return input
+	}
+
+	bufWriter := newBufferedStreamWriter()
+	replacer := logstream.NewReplacer(bufWriter, secrets)
+	_, err := replacer.Write([]byte(input))
+	if err != nil {
+		return input
+	}
+	result := bufWriter.buf.String()
+
+	// Fallback: if any secret is still present after masking, replace it directly
+	for _, secret := range secrets {
+		if secret != "" && strings.Contains(result, secret) {
+			result = strings.ReplaceAll(result, secret, "**************")
+		}
+	}
+
+	return result
+}

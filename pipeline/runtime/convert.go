@@ -11,6 +11,18 @@ import (
 
 // Converts api params to engine.Step
 func toStep(r *api.StartStepRequest) *spec.Step {
+	//// Convert request secrets to step secrets
+	//var stepSecrets []*spec.Secret
+	//for _, secretValue := range r.Secrets {
+	//	if secretValue != "" {
+	//		stepSecrets = append(stepSecrets, &spec.Secret{
+	//			Name: "runtime-secret",
+	//			Data: []byte(secretValue),
+	//			Mask: true,
+	//		})
+	//	}
+	//}
+
 	return &spec.Step{
 		ID:             r.ID,
 		Auth:           r.Auth,
@@ -45,3 +57,8 @@ func toStep(r *api.StartStepRequest) *spec.Step {
 		NetworkAliases: r.NetworkAliases,
 	}
 }
+
+//// ToStepForTest exposes toStep for testing
+//func ToStepForTest(r *api.StartStepRequest) *spec.Step {
+//	return toStep(r)
+//}
