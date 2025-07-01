@@ -61,7 +61,7 @@ func Test_CollectRunTestsV2Data(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			collectCgFn = func(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, dir string, hasFailed bool) error {
+			collectCgFn = func(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, dir string, uniqueStepId string, hasFailed bool) error {
 				return tc.cgErr
 			}
 			collectTestReportsFn = func(
@@ -74,7 +74,7 @@ func Test_CollectRunTestsV2Data(t *testing.T) {
 				testMetadata *types.TestIntelligenceMetaData,
 				envs map[string]string,
 			) ([]*types.TestCase, error) {
-				return *&[]*types.TestCase{}, tc.crErr //nolint:staticcheck
+				return []*types.TestCase{}, tc.crErr
 			}
 			err := collectTestReportsAndCg(ctx, log, &apiReq, time.Now(), stepName, &tiConfig, &types.TelemetryData{}, map[string]string{})
 			assert.Equal(t, tc.collectionErr, err)
