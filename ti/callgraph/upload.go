@@ -63,22 +63,16 @@ func encodeCg(dataDir string, log *logrus.Logger) (data []byte, isEmpty bool, er
 	fs := filesystem.New()
 
 	if dataDir == "" {
-		isEmpty = cgIsEmpty
-		err = fmt.Errorf("dataDir not present in request")
-		return
+		return nil, cgIsEmpty, fmt.Errorf("dataDir not present in request")
 	}
 	cgFiles, visFiles, err := getCgFiles(dataDir, "json", "csv", log)
 	if err != nil {
-		isEmpty = cgIsEmpty
-		err = errors.Wrap(err, "failed to fetch files inside the directory")
-		return
+		return nil, cgIsEmpty, errors.Wrap(err, "failed to fetch files inside the directory")
 	}
 	parser = NewCallGraphParser(log, fs)
 	cg, err := parser.Parse(cgFiles, visFiles)
 	if err != nil {
-		isEmpty = cgIsEmpty
-		err = errors.Wrap(err, "failed to parse visgraph")
-		return
+		return nil, cgIsEmpty, errors.Wrap(err, "failed to parse visgraph")
 	}
 	log.Infoln(fmt.Sprintf("Size of Test nodes: %d, Test relations: %d, Vis Relations %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
 
@@ -89,19 +83,13 @@ func encodeCg(dataDir string, log *logrus.Logger) (data []byte, isEmpty bool, er
 	cgMap := cg.ToStringMap()
 	cgSer, err := avro.NewCgphSerialzer(cgSchemaType)
 	if err != nil {
-		isEmpty = cgIsEmpty
-		err = errors.Wrap(err, "failed to create serializer")
-		return
+		return nil, cgIsEmpty, errors.Wrap(err, "failed to create serializer")
 	}
 	encCg, err := cgSer.Serialize(cgMap)
 	if err != nil {
-		isEmpty = cgIsEmpty
-		err = errors.Wrap(err, "failed to encode callgraph")
-		return
+		return nil, cgIsEmpty, errors.Wrap(err, "failed to encode callgraph")
 	}
-	data = encCg
-	isEmpty = cgIsEmpty
-	return
+	return encCg, cgIsEmpty, nil
 }
 
 func isCgEmpty(cg *Callgraph) bool {
