@@ -74,7 +74,7 @@ func Test_CollectRunTestsV2Data(t *testing.T) {
 				testMetadata *types.TestIntelligenceMetaData,
 				envs map[string]string,
 			) ([]*types.TestCase, error) {
-				return []*types.TestCase{}, tc.crErr //nolint:staticcheck
+				return []*types.TestCase{}, tc.crErr
 			}
 			err := collectTestReportsAndCg(ctx, log, &apiReq, time.Now(), stepName, &tiConfig, &types.TelemetryData{}, map[string]string{})
 			assert.Equal(t, tc.collectionErr, err)

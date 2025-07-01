@@ -171,7 +171,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	// clean up folders
 	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(r.ID, tiConfig))
 	fs := filesystem.New()
-	_ = fs.Remove(tmpFilePath) // nolint:errcheck // cleanup operation, error doesn't matter
+	_ = fs.Remove(tmpFilePath) //nolint:errcheck // cleanup operation, error doesn't matter
 
 	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
