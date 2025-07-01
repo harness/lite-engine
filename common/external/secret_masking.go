@@ -26,7 +26,7 @@ func (b *bufferedStreamWriter) Write(p []byte) (n int, err error) {
 }
 
 func (b *bufferedStreamWriter) Open() error  { return nil }
-func (b *bufferedStreamWriter) Start()       { }
+func (b *bufferedStreamWriter) Start()       {}
 func (b *bufferedStreamWriter) Close() error { return nil }
 func (b *bufferedStreamWriter) Error() error { return nil }
 

@@ -31,8 +31,12 @@ func containsShellSpecialChars(s string) bool {
 	return false
 }
 
+const (
+	minSecretLength = 2 // Minimum length for a secret to be considered for masking
+)
+
 // Helper function to check if a string is likely a JSON object
-func isLikelyJsonObject(s string) bool {
+func isLikelyJSONObject(s string) bool {
 	s = strings.TrimSpace(s)
 	return len(s) > 4 &&
 		strings.HasPrefix(s, "{") &&
@@ -41,12 +45,12 @@ func isLikelyJsonObject(s string) bool {
 }
 
 // Helper function to generate variants of a string that may appear in shell output
-func createSecretVariants(original string) []string {
+func createSecretVariants(original string) []string { //nolint:funlen
 	// Include the original string
 	variants := []string{original}
 
 	// Skip further processing for short strings
-	if len(original) <= 2 {
+	if len(original) <= minSecretLength {
 		return variants
 	}
 
@@ -57,7 +61,7 @@ func createSecretVariants(original string) []string {
 	// 1. Handle double quote stripping
 	if strings.Contains(original, "\"") {
 		doubleQuoteStripped := strings.Replace(original, "\"", "", -1)
-		if !uniq[doubleQuoteStripped] && len(doubleQuoteStripped) > 2 {
+		if !uniq[doubleQuoteStripped] && len(doubleQuoteStripped) > minSecretLength {
 			variants = append(variants, doubleQuoteStripped)
 			uniq[doubleQuoteStripped] = true
 		}
@@ -66,7 +70,7 @@ func createSecretVariants(original string) []string {
 	// 2. Handle single quote stripping
 	if strings.Contains(original, "'") {
 		singleQuoteStripped := strings.Replace(original, "'", "", -1)
-		if !uniq[singleQuoteStripped] && len(singleQuoteStripped) > 2 {
+		if !uniq[singleQuoteStripped] && len(singleQuoteStripped) > minSecretLength {
 			variants = append(variants, singleQuoteStripped)
 			uniq[singleQuoteStripped] = true
 		}
@@ -75,14 +79,14 @@ func createSecretVariants(original string) []string {
 	// 3. Handle escaped quote stripping
 	if strings.Contains(original, "\\\"") {
 		escapedQuoteStripped := strings.Replace(original, "\\\"", "", -1)
-		if !uniq[escapedQuoteStripped] && len(escapedQuoteStripped) > 2 {
+		if !uniq[escapedQuoteStripped] && len(escapedQuoteStripped) > minSecretLength {
 			variants = append(variants, escapedQuoteStripped)
 			uniq[escapedQuoteStripped] = true
 		}
 	}
 
 	// 4. Special JSON handling
-	if isLikelyJsonObject(original) {
+	if isLikelyJSONObject(original) {
 		// Handle removal of quotes around JSON keys and values
 		noQuotesPattern := regexp.MustCompile(`\"([^\"]+)\"\\s*:`)
 		noKeyQuotes := noQuotesPattern.ReplaceAllString(original, "$1:")
@@ -90,14 +94,14 @@ func createSecretVariants(original string) []string {
 		valuePattern := regexp.MustCompile(`:\\s*\"([^\"]*)\"`)
 		noValueQuotes := valuePattern.ReplaceAllString(noKeyQuotes, ":$1")
 
-		if !uniq[noValueQuotes] && len(noValueQuotes) > 2 {
+		if !uniq[noValueQuotes] && len(noValueQuotes) > minSecretLength {
 			variants = append(variants, noValueQuotes)
 			uniq[noValueQuotes] = true
 		}
 
 		// Handle whitespace compaction (JSON to compact)
 		compacted := compactNonStringWhitespace(original)
-		if !uniq[compacted] && len(compacted) > 2 && compacted != original {
+		if !uniq[compacted] && len(compacted) > minSecretLength && compacted != original {
 			variants = append(variants, compacted)
 			uniq[compacted] = true
 		}
@@ -109,7 +113,7 @@ func createSecretVariants(original string) []string {
 		if strings.Contains(original, "$") {
 			varPattern := regexp.MustCompile(`\$\w+`)
 			noVars := varPattern.ReplaceAllString(original, "")
-			if !uniq[noVars] && len(noVars) > 2 {
+			if !uniq[noVars] && len(noVars) > minSecretLength {
 				variants = append(variants, noVars)
 				uniq[noVars] = true
 			}
@@ -119,7 +123,7 @@ func createSecretVariants(original string) []string {
 		if strings.Contains(original, "`") {
 			cmdPattern := regexp.MustCompile("`[^`]+`")
 			noCmds := cmdPattern.ReplaceAllString(original, "")
-			if !uniq[noCmds] && len(noCmds) > 2 {
+			if !uniq[noCmds] && len(noCmds) > minSecretLength {
 				variants = append(variants, noCmds)
 				uniq[noCmds] = true
 			}
@@ -128,21 +132,21 @@ func createSecretVariants(original string) []string {
 
 	// 6. URL encoding variants (from original implementation)
 	urlEncoded := url.QueryEscape(original)
-	if !uniq[urlEncoded] && len(urlEncoded) > 2 {
+	if !uniq[urlEncoded] && len(urlEncoded) > minSecretLength {
 		variants = append(variants, urlEncoded)
 		uniq[urlEncoded] = true
 	}
 
 	// Also handle %20 style encoding (spaces as %20 instead of +)
 	urlEncoded20 := strings.ReplaceAll(url.QueryEscape(original), "+", "%20")
-	if !uniq[urlEncoded20] && len(urlEncoded20) > 2 {
+	if !uniq[urlEncoded20] && len(urlEncoded20) > minSecretLength {
 		variants = append(variants, urlEncoded20)
 		uniq[urlEncoded20] = true
 	}
 
 	// Handle URL path encoding
 	urlPathEncoded := url.PathEscape(original)
-	if !uniq[urlPathEncoded] && len(urlPathEncoded) > 2 {
+	if !uniq[urlPathEncoded] && len(urlPathEncoded) > minSecretLength {
 		variants = append(variants, urlPathEncoded)
 		uniq[urlPathEncoded] = true
 	}
@@ -197,7 +201,7 @@ func NewReplacer(w Writer, secrets []string) Writer {
 			part = strings.TrimSpace(part)
 
 			// avoid masking empty or single character strings.
-			if len(part) < 2 { //nolint:gomnd
+			if len(part) < minSecretLength { //nolint:gomnd
 				continue
 			}
 
@@ -206,7 +210,7 @@ func NewReplacer(w Writer, secrets []string) Writer {
 
 			// Add each unique variant to the replacer
 			for _, variant := range variants {
-				if !uniqPatterns[variant] && len(variant) > 2 {
+				if !uniqPatterns[variant] && len(variant) > minSecretLength {
 					uniqPatterns[variant] = true
 					oldnew = append(oldnew, variant, maskedStr)
 				}
