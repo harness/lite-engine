@@ -299,6 +299,7 @@ func GetReplacer(
 	return logstream.NewReplacer(wc, secrets)
 }
 
+//nolint:unused // may be used for future functionality
 func waitForZipUnlock(timeout time.Duration, tiConfig *tiCfg.Cfg) error {
 	deadline := time.Now().Add(timeout)
 	for {
