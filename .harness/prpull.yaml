@@ -1,0 +1,14 @@
+inputSet:
+  name: pr-pull
+  identifier: prpull
+  orgIdentifier: default
+  projectIdentifier: Drone_Plugins
+  pipeline:
+    identifier: droneliteengineharness
+    properties:
+      ci:
+        codebase:
+          build:
+            type: PR
+            spec:
+              number: <+trigger.prNumber>
