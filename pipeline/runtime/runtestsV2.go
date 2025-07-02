@@ -192,10 +192,6 @@ func SetupRunTestV2(
 
 	var preCmd, filterfilePath string
 
-	// -----------remove this intelligence mode check------------
-	// not needed here, because we do need to download the agents even if intelligence mode is disabled
-	// without agents there should be no test splitting.
-
 	// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
 	// the agents, and would also help in diagnosing issues when needed. The value we look for is specific not a
 	// simple "true" to have something that is more unique and hard to guess.
@@ -254,10 +250,6 @@ func SetupRunTestV2(
 func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
 	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config) (types.SelectTestsResp, bool) {
 	selection := types.SelectTestsResp{}
-	// if isManual {
-	// 	log.Infoln("Manual execution has been detected. Running all the tests")
-	// 	return selection, false
-	// }
 	runOnlySelectedTests := false
 	testGlobs := sanitizeTestGlobsV2(runV2Config.TestGlobs)
 
@@ -272,7 +264,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 
 	// Test splitting: only when parallelism is enabled
 	if instrumentation.IsParallelismEnabled(envs) {
-		log.Infoln("Parallelism is enabled!!!!!")
+		log.Debugln("Parallelism is enabled!")
 		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, testGlobs, tiConfig, runOnlySelectedTests, fs)
 	}
 
