@@ -1,4 +1,4 @@
-// Copyright 2024 Drone.IO Inc. All rights reserved.
+// Copyright 2025 Drone.IO Inc. All rights reserved.
 // Use of this source code is governed by the Polyform License
 // that can be found in the LICENSE file.
 
@@ -18,12 +18,12 @@ func checkBuildToolMarkers(telemetryData *types.TelemetryData, log *logrus.Logge
 	if checkMarkerFileExists("/tmp/bi-maven", log) {
 		telemetryData.BuildIntelligenceMetaData.IsMavenBIUsed = true
 	}
-	
+
 	// Check Gradle marker file
 	if checkMarkerFileExists("/tmp/bi-gradle", log) {
 		telemetryData.BuildIntelligenceMetaData.IsGradleBIUsed = true
 	}
-	
+
 	// Check Bazel marker file
 	if checkMarkerFileExists("/tmp/bi-bazel", log) {
 		telemetryData.BuildIntelligenceMetaData.IsBazelBIUsed = true
