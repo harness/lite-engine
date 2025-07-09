@@ -115,6 +115,11 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		var resp api.VMTaskExecutionResponse
 		var wr logstream.Writer
 
+		timeout := time.Duration(r.Timeout) * time.Second
+		if timeout < defaultStepTimeout {
+			timeout = defaultStepTimeout
+		}
+
 		go func() {
 			if r.StageRuntimeID != "" && r.Image == "" {
 				setPrevStepExportEnvs(r)
@@ -135,7 +140,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		case resp = <-done:
 			e.sendStepStatus(r, &resp)
 			return
-		case <-time.After(defaultStepTimeout):
+		case <-time.After(timeout):
 			// close the log stream if timeout
 			if wr != nil {
 				wr.Close()
