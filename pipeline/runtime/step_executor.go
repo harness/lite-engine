@@ -53,6 +53,7 @@ const (
 	Complete
 	defaultStepTimeout = 10 * time.Hour // default step timeout
 	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
+	maxStepTimeout     = 24 * 7 * time.Hour // 1 week max timeout
 )
 
 type StepExecutor struct {
@@ -115,6 +116,13 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		var resp api.VMTaskExecutionResponse
 		var wr logstream.Writer
 
+		timeout := time.Duration(r.Timeout) * time.Second
+		if timeout < defaultStepTimeout {
+			timeout = defaultStepTimeout
+		} else if timeout > maxStepTimeout {
+			timeout = maxStepTimeout
+		}
+
 		go func() {
 			if r.StageRuntimeID != "" && r.Image == "" {
 				setPrevStepExportEnvs(r)
@@ -135,7 +143,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		case resp = <-done:
 			e.sendStepStatus(r, &resp)
 			return
-		case <-time.After(defaultStepTimeout):
+		case <-time.After(timeout):
 			// close the log stream if timeout
 			if wr != nil {
 				wr.Close()
