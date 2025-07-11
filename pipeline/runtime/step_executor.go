@@ -53,6 +53,7 @@ const (
 	Complete
 	defaultStepTimeout = 10 * time.Hour // default step timeout
 	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
+	maxStepTimeout     = 24 * 7 * time.Hour // 1 week max timeout
 )
 
 type StepExecutor struct {
@@ -118,6 +119,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		timeout := time.Duration(r.Timeout) * time.Second
 		if timeout < defaultStepTimeout {
 			timeout = defaultStepTimeout
+		} else if timeout > maxStepTimeout {
+			timeout = maxStepTimeout
 		}
 
 		go func() {
