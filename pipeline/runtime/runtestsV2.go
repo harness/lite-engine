@@ -106,9 +106,17 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 
 	exited, err := f(ctx, step, out, r.LogDrone, false)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData, r.Envs)
-	if err == nil {
-		err = collectionErr
+
+	if r.RunTestsV2.IntelligenceMode {
+		collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData, r.Envs)
+		if err == nil {
+			err = collectionErr
+		}
+	} else {
+		_, collectReportsErr := collectTestReports(ctx, log, r, step.Name, tiConfig, telemetryData)
+		if err == nil {
+			err = collectReportsErr
+		}
 	}
 
 	if tiConfig.GetParseSavings() {
@@ -697,6 +705,28 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 	return nil
 }
 
+func collectTestReports(
+	ctx context.Context,
+	log *logrus.Logger,
+	r *api.StartStepRequest,
+	stepName string,
+	tiConfig *tiCfg.Cfg,
+	telemetryData *types.TelemetryData,
+) ([]*types.TestCase, error) {
+	if len(r.TestReport.Junit.Paths) == 0 {
+		// If there are no paths specified, set Paths[0] to include all XML files and all TRX files
+		r.TestReport.Junit.Paths = []string{"**/*.xml", "**/*.trx"}
+	}
+
+	reportStart := time.Now()
+	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
+	if crErr != nil {
+		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
+	}
+
+	return tests, crErr
+}
+
 func collectTestReportsAndCg(
 	ctx context.Context,
 	log *logrus.Logger,
@@ -709,16 +739,7 @@ func collectTestReportsAndCg(
 ) error {
 	cgStart := time.Now()
 
-	if len(r.TestReport.Junit.Paths) == 0 {
-		// If there are no paths specified, set Paths[0] to include all XML files and all TRX files
-		r.TestReport.Junit.Paths = []string{"**/*.xml", "**/*.trx"}
-	}
-
-	reportStart := time.Now()
-	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
-	if crErr != nil {
-		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
-	}
+	tests, _ := collectTestReports(ctx, log, r, stepName, tiConfig, telemetryData)
 
 	testFailed := false
 
