@@ -33,6 +33,7 @@ const (
 	permissions            = 0777
 	defaultFilePermissions = 0644 // File permissions (rw-r--r--)
 	boldYellowColor        = "\u001b[33;1m"
+	trueValue              = "true"
 )
 
 type Engine struct {
@@ -260,20 +261,25 @@ func collectAllSecrets(step *spec.Step) []string {
 	return allSecrets
 }
 
-// maskCommandWithReplacer masks secrets in the command string
+// maskCommandWithReplacer masks secrets in the command string with environment variable support
 func maskCommandWithReplacer(command string, step *spec.Step) string {
 	allSecrets := collectAllSecrets(step)
 	if len(allSecrets) == 0 {
 		return command
 	}
-	return external.MaskString(command, allSecrets)
+	return external.MaskStringWithEnvs(command, allSecrets, step.Envs)
 }
 
 func printCommand(step *spec.Step, output io.Writer) {
 	stepCommand := strings.TrimSpace(strings.Join(step.Command, ""))
 	if stepCommand != "" {
-		maskedCommand := maskCommandWithReplacer(stepCommand, step)
-		printCommand := "Executing the following command(s):\n" + maskedCommand
+		printCommand := ""
+		if val, ok := step.Envs["CI_ENABLE_EXTRA_CHARACTERS_SECRETS_MASKING"]; ok && val == trueValue {
+			maskedCommand := maskCommandWithReplacer(stepCommand, step)
+			printCommand = "Executing the following command(s):\n" + maskedCommand
+		} else {
+			printCommand = "Executing the following command(s):\n" + stepCommand
+		}
 		lines := strings.Split(printCommand, "\n")
 		for _, line := range lines {
 			_, _ = output.Write([]byte(boldYellowColor + line + "\n"))

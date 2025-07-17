@@ -30,15 +30,23 @@ func (b *bufferedStreamWriter) Start()       {}
 func (b *bufferedStreamWriter) Close() error { return nil }
 func (b *bufferedStreamWriter) Error() error { return nil }
 
-// MaskString masks secrets in a plain string using the existing replacer infrastructure.
-// Returns a new string with all secrets replaced by asterisks.
+// MaskString masks secrets in the given input string using the logstream replacer.
+// This provides a simple interface for masking secrets in plain strings without
+// needing to set up the full logstream infrastructure.
+//
+// Returns the input string with secrets replaced by asterisks (*******).
+// If no secrets are provided or masking fails, returns the original input.
 func MaskString(input string, secrets []string) string {
+	return MaskStringWithEnvs(input, secrets, nil)
+}
+
+func MaskStringWithEnvs(input string, secrets []string, envs map[string]string) string {
 	if len(secrets) == 0 {
 		return input
 	}
 
 	bufWriter := newBufferedStreamWriter()
-	replacer := logstream.NewReplacer(bufWriter, secrets)
+	replacer := logstream.NewReplacerWithEnvs(bufWriter, secrets, envs)
 	_, err := replacer.Write([]byte(input))
 	if err != nil {
 		return input

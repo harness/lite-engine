@@ -249,7 +249,9 @@ func TestNewReplacer_WithVariants(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sw := &nopWriter{}
-			w := NewReplacer(&nopCloser{sw}, tt.secrets)
+			// Enable advanced secret masking for these tests
+			envs := map[string]string{"CI_ENABLE_EXTRA_CHARACTERS_SECRETS_MASKING": "true"}
+			w := NewReplacerWithEnvs(&nopCloser{sw}, tt.secrets, envs)
 			_, _ = w.Write([]byte(tt.input))
 			w.Close()
 
@@ -260,6 +262,48 @@ func TestNewReplacer_WithVariants(t *testing.T) {
 			got := sw.data[0]
 			if got != tt.expected {
 				t.Errorf("NewReplacer masking failed.\nInput: %v\nSecrets: %v\nGot: %v\nWant: %v", tt.input, tt.secrets, got, tt.expected)
+			}
+		})
+	}
+}
+
+// Test that basic masking still works without the feature flag
+func TestNewReplacer_BasicMasking(t *testing.T) {
+	tests := []struct {
+		name     string
+		secrets  []string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Basic secret masking",
+			secrets:  []string{"secret123"},
+			input:    "password is secret123",
+			expected: "password is **************",
+		},
+		{
+			name:     "JSON secret should NOT be masked without flag",
+			secrets:  []string{`{"token": "secret123"}`},
+			input:    "curl -d '{\"token\":\"secret123\"}' api.example.com",
+			expected: "curl -d '{\"token\":\"secret123\"}' api.example.com", // Should NOT be masked
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sw := &nopWriter{}
+			// Use basic NewReplacer without feature flag
+			w := NewReplacer(&nopCloser{sw}, tt.secrets)
+			_, _ = w.Write([]byte(tt.input))
+			w.Close()
+
+			if len(sw.data) == 0 {
+				t.Fatal("No data written")
+			}
+
+			got := sw.data[0]
+			if got != tt.expected {
+				t.Errorf("Basic masking failed.\nInput: %v\nSecrets: %v\nGot: %v\nWant: %v", tt.input, tt.secrets, got, tt.expected)
 			}
 		})
 	}

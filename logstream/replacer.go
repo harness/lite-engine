@@ -12,6 +12,7 @@ import (
 
 const (
 	maskedStr = "**************"
+	trueValue = "true"
 )
 
 // replacer wraps a stream writer with a replacer
@@ -187,43 +188,86 @@ func compactNonStringWhitespace(jsonString string) string {
 }
 
 // NewReplacer returns a replacer that wraps io.Writer w.
+// Uses basic secret masking without advanced variants for backward compatibility.
 func NewReplacer(w Writer, secrets []string) Writer {
-	var oldnew []string
-	// Track unique strings to avoid duplicates in the replacer
-	uniqPatterns := make(map[string]bool)
+	return NewReplacerWithEnvs(w, secrets, nil)
+}
 
-	for _, secret := range secrets {
-		if secret == "" {
-			continue
+// NewReplacerWithEnvs returns a replacer that wraps io.Writer w with environment variable support.
+// If CI_ENABLE_EXTRA_CHARACTERS_SECRETS_MASKING is set to "true" in envs, uses advanced variant creation.
+func NewReplacerWithEnvs(w Writer, secrets []string, envs map[string]string) Writer {
+	// Check if advanced secret masking is enabled
+	useAdvancedMasking := false
+	if envs != nil {
+		if val, ok := envs["CI_ENABLE_EXTRA_CHARACTERS_SECRETS_MASKING"]; ok && val == trueValue {
+			useAdvancedMasking = true
 		}
+	}
 
-		for _, part := range strings.Split(secret, "\n") {
-			part = strings.TrimSpace(part)
+	if useAdvancedMasking {
+		// Advanced masking with variants and unique pattern tracking
+		var oldnew []string
+		uniqPatterns := make(map[string]bool)
 
-			// avoid masking empty or single character strings.
-			if len(part) < minSecretLength {
+		for _, secret := range secrets {
+			if secret == "" {
 				continue
 			}
 
-			// Get all variants for this part including transformations
-			variants := createSecretVariants(part)
+			for _, part := range strings.Split(secret, "\n") {
+				part = strings.TrimSpace(part)
 
-			// Add each unique variant to the replacer
-			for _, variant := range variants {
-				if !uniqPatterns[variant] && len(variant) > minSecretLength {
-					uniqPatterns[variant] = true
-					oldnew = append(oldnew, variant, maskedStr)
+				// avoid masking empty or single character strings.
+				if len(part) < minSecretLength {
+					continue
+				}
+
+				// Use advanced variant creation with all transformations
+				variants := createSecretVariants(part)
+
+				// Add each unique variant to the replacer
+				for _, variant := range variants {
+					if !uniqPatterns[variant] && len(variant) >= minSecretLength {
+						uniqPatterns[variant] = true
+						oldnew = append(oldnew, variant, maskedStr)
+					}
 				}
 			}
 		}
-	}
 
-	if len(oldnew) == 0 {
-		return w
-	}
-	return &replacer{
-		w: w,
-		r: strings.NewReplacer(oldnew...),
+		if len(oldnew) == 0 {
+			return w
+		}
+		return &replacer{
+			w: w,
+			r: strings.NewReplacer(oldnew...),
+		}
+	} else {
+		// Basic masking - original simple logic when FF is OFF
+		var oldnew []string
+		for _, secret := range secrets {
+			if secret == "" {
+				continue
+			}
+
+			for _, part := range strings.Split(secret, "\n") {
+				part = strings.TrimSpace(part)
+
+				// avoid masking empty or single character strings.
+				if len(part) < 2 { //nolint:gomnd
+					continue
+				}
+
+				oldnew = append(oldnew, part, maskedStr)
+			}
+		}
+		if len(oldnew) == 0 {
+			return w
+		}
+		return &replacer{
+			w: w,
+			r: strings.NewReplacer(oldnew...),
+		}
 	}
 }
 
