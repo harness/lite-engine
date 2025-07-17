@@ -99,8 +99,6 @@ func KillProcessesFromFile(ctx context.Context, path string) error {
 		err := KillProcess(pid) // Using the function from the previous example
 		if err != nil {
 			errors = append(errors, fmt.Sprintf("PID %d: %v", pid, err))
-		} else {
-			fmt.Printf("Successfully killed process %d\n", pid)
 		}
 	}
 
