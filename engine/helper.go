@@ -6,6 +6,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -76,6 +77,10 @@ func RunStep(
 	if err := runHelper(cfg, step); err != nil {
 		return nil, err
 	}
+
+	b, _ := json.MarshalIndent(step, "", "  ")
+
+	output.Write(append([]byte(boldYellowColor+" "), b...))
 
 	if !isDrone && len(step.Command) > 0 {
 		printCommand(step, output)
