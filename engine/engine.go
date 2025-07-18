@@ -239,10 +239,10 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 }
 
 func printCommand(step *spec.Step, output io.Writer) {
-	stepCommand := strings.TrimSpace(strings.Join(step.Command, ""))
 	fmt.Printf("writing command")
+	stepCommand := strings.TrimSpace(strings.Join(step.Command, ""))
 	if stepCommand != "" {
-		printCommand := "Executing the following command(s)\n" + stepCommand
+		printCommand := "Executing the following command(s):\n" + stepCommand
 		lines := strings.Split(printCommand, "\n")
 		for _, line := range lines {
 			_, _ = output.Write([]byte(boldYellowColor + line + "\n"))
