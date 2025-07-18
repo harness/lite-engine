@@ -57,6 +57,8 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 			fmt.Sprintf("failed to create files/folders for pipeline %v", pipelineConfig.Files))
 	}
 	// create volumes
+	fmt.Println("here1:")
+	fmt.Println("Pipeline config:", pipelineConfig)
 	for _, vol := range pipelineConfig.Volumes {
 		if vol == nil || vol.HostPath == nil {
 			continue

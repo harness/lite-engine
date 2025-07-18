@@ -5,6 +5,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/harness/lite-engine/config"
@@ -25,6 +26,7 @@ func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime
 	// Setup stage endpoint
 	r.Mount("/setup", func() http.Handler {
 		sr := chi.NewRouter()
+		fmt.Println("here0:")
 		sr.Post("/", HandleSetup(engine))
 		return sr
 	}())
