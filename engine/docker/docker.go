@@ -106,7 +106,8 @@ func (e *Docker) Ping(ctx context.Context) error {
 func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
-	fmt.Print("Starting setup: ")
+	logr := logrus.WithContext(ctx)
+	logr.Infoln("step received oom kill")
 
 	if _, ok := pipelineConfig.Envs[harnessHTTPSProxy]; ok {
 		e.setProxyInDockerDaemon(ctx, pipelineConfig)
@@ -122,7 +123,7 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 		}
 
 		b, _ := json.MarshalIndent(volumeVolume, "", "  ")
-		fmt.Print("Full PoolYaml JSON: %s", string(b))
+		logr.Infoln("Full PoolYaml JSON: %s", string(b))
 		_, err := e.client.VolumeCreate(ctx, volumeVolume)
 
 		if err != nil {
