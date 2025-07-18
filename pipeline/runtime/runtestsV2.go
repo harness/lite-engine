@@ -493,19 +493,39 @@ fi
 	}
 
 	// Python
-	whlFilePath, err := python.FindWhlFile(repoPathPython)
+	whlFilePath, err := python.FindFileByExtension(repoPathPython, ".whl")
 	if err != nil {
 		return "", "", err
 	}
 
-	disablePythonV2CodeModificationVarName := "TI_DISABLE_PYTHON_CODE_MODIFICATIONS"
+	pyFilePath, err := python.FindFileByExtension(repoPathPython, ".py")
+
 	disablePythonV2CodeModification := false
-	if _, ok := envs[disablePythonV2CodeModificationVarName]; ok {
+	if _, ok := envs["TI_DISABLE_PYTHON_CODE_MODIFICATIONS"]; ok {
 		disablePythonV2CodeModification = true
 	}
 
-	if !isPsh {
-		preCmd += fmt.Sprintf(`
+	if pyFilePath != "" {
+		// .py plugin present — skip wheel install
+		envs["PYTEST_PLUGINS"] = "harness_ti_pytest_plugin"
+		envs["PYTHONPATH"] = filepath.Dir(pyFilePath)
+
+		log.Infof("Found .py plugin file. Setting PYTEST_PLUGINS and PYTHONPATH.")
+
+		// Always run modifytox.py when .py file is present
+		modifyToxFileName := filepath.Join(repoPathPython, "modifytox.py")
+		if !isPsh {
+			preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
+		} else {
+			preCmd += fmt.Sprintf("\ntry { python3 %s %s %s } catch { $null };", modifyToxFileName, workspace, whlFilePath)
+		}
+
+	} else {
+		// .py not found — fall back to .whl install
+		log.Warnln("No .py plugin found. Falling back to .whl install.")
+
+		if !isPsh {
+			preCmd += fmt.Sprintf(`
 if command -v python3 >/dev/null; then
   if [ "$redir" = "2>/dev/null" ]; then
     python3 -m pip install %s 2>/dev/null || echo 'Error: Failed to install Python agent.'
@@ -514,16 +534,18 @@ if command -v python3 >/dev/null; then
   fi
 fi
 `, whlFilePath, whlFilePath)
-	} else {
-		preCmd += fmt.Sprintf(`\nif ($env:DEBUG -ieq 'true') { python3 -m pip install %s } else { try { python3 -m pip install %s 2>$null } catch { Write-Host 'Error: Failed to install Python agent.' } };`, whlFilePath, whlFilePath)
-	}
-
-	if !disablePythonV2CodeModification {
-		modifyToxFileName := filepath.Join(repoPathPython, "modifytox.py")
-		if !isPsh {
-			preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
 		} else {
-			preCmd += fmt.Sprintf("\ntry { python3 %s %s %s } catch { $null };", modifyToxFileName, workspace, whlFilePath)
+			preCmd += fmt.Sprintf(`\nif ($env:DEBUG -ieq 'true') { python3 -m pip install %s } else { try { python3 -m pip install %s 2>$null } catch { Write-Host 'Error: Failed to install Python agent.' } };`, whlFilePath, whlFilePath)
+		}
+
+		// Run modifytox.py only if not disabled
+		if !disablePythonV2CodeModification {
+			modifyToxFileName := filepath.Join(repoPathPython, "modifytox.py")
+			if !isPsh {
+				preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
+			} else {
+				preCmd += fmt.Sprintf("\ntry { python3 %s %s %s } catch { $null };", modifyToxFileName, workspace, whlFilePath)
+			}
 		}
 	}
 

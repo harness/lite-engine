@@ -113,17 +113,32 @@ func UnzipAndGetTestInfoV2(agentInstallDir string, log *logrus.Logger) (scriptPa
 	return scriptPath, nil
 }
 
-func FindWhlFile(folderPath string) (string, error) {
+// func FindWhlFile(folderPath string) (string, error) {
+// 	files, err := os.ReadDir(folderPath)
+// 	if err != nil {
+// 		return "", err
+// 	}
+
+// 	for _, file := range files {
+// 		if !file.IsDir() && strings.HasSuffix(strings.ToLower(file.Name()), ".whl") {
+// 			return filepath.Join(folderPath, file.Name()), nil
+// 		}
+// 	}
+
+// 	return "", fmt.Errorf("no .whl file found in the folder")
+// }
+
+func FindFileByExtension(folderPath string, extension string) (string, error) {
 	files, err := os.ReadDir(folderPath)
 	if err != nil {
 		return "", err
 	}
 
 	for _, file := range files {
-		if !file.IsDir() && strings.HasSuffix(strings.ToLower(file.Name()), ".whl") {
+		if !file.IsDir() && strings.HasSuffix(strings.ToLower(file.Name()), strings.ToLower(extension)) {
 			return filepath.Join(folderPath, file.Name()), nil
 		}
 	}
 
-	return "", fmt.Errorf("no .whl file found in the folder")
+	return "", fmt.Errorf("no file with extension '%s' found in the folder", extension)
 }
