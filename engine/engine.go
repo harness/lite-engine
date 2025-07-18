@@ -240,7 +240,7 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 
 func printCommand(step *spec.Step, output io.Writer) {
 	stepCommand := strings.TrimSpace(strings.Join(step.Command, ""))
-	logrus.Info("printing command")
+	fmt.Printf("writing command")
 	if stepCommand != "" {
 		printCommand := "Executing the following command(s)[testv4]:\n" + stepCommand
 		lines := strings.Split(printCommand, "\n")
