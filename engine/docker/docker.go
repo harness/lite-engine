@@ -10,6 +10,7 @@ package docker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -105,6 +106,7 @@ func (e *Docker) Ping(ctx context.Context) error {
 func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
+	fmt.Print("Starting setup: ")
 
 	if _, ok := pipelineConfig.Envs[harnessHTTPSProxy]; ok {
 		e.setProxyInDockerDaemon(ctx, pipelineConfig)
@@ -114,11 +116,15 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 		if vol.EmptyDir == nil {
 			continue
 		}
-		_, err := e.client.VolumeCreate(ctx, volume.VolumeCreateBody{
-			Name:   vol.EmptyDir.ID,
+		volumeVolume := volume.VolumeCreateBody{Name: vol.EmptyDir.ID,
 			Driver: "local",
 			Labels: vol.EmptyDir.Labels,
-		})
+		}
+
+		b, _ := json.MarshalIndent(volumeVolume, "", "  ")
+		fmt.Print("Full PoolYaml JSON: %s", string(b))
+		_, err := e.client.VolumeCreate(ctx, volumeVolume)
+
 		if err != nil {
 			return errors.TrimExtraInfo(err)
 		}
