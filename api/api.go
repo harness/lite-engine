@@ -91,6 +91,11 @@ type (
 		// over the env variable that we expose to plugins.
 		ScratchDir string `json:"scratch_dir,omitempty"`
 
+		// Whether to delete any internal temporary files created during run step
+		// (e.g. OutputVarFile, SecretVarFile).
+		// See pipeline/runtime/run.go for its usage.
+		DeleteTempStepFiles bool `json:"delete_temp_step_files"`
+
 		// Valid only for steps running on docker container
 		Auth           *spec.Auth           `json:"auth,omitempty"`
 		CPUPeriod      int64                `json:"cpu_period,omitempty"`

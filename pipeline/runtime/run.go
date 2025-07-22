@@ -30,6 +30,7 @@ const (
 func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo,funlen
 	*runtime.State, map[string]string, map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	start := time.Now()
+	var internalTempFiles []string
 	step := toStep(r)
 	step.Command = r.Run.Command
 	step.Entrypoint = r.Run.Entrypoint
@@ -37,6 +38,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	optimizationState := types.DISABLED
 	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
+	internalTempFiles = append(internalTempFiles, exportEnvFile)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 	telemetryData := &types.TelemetryData{}
 
@@ -47,6 +49,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	if r.ScratchDir != "" {
 		// Plugins can use this directory as a scratch space to store temporary files.
 		// It will get cleaned up after a destroy.
+		internalTempFiles = append(internalTempFiles, r.ScratchDir)
 		step.Envs["HARNESS_SCRATCH_DIR"] = r.ScratchDir
 	}
 
@@ -58,6 +61,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		// Otherwise, we use the default output file path
 		outputFile = fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
 	}
+	internalTempFiles = append(internalTempFiles, outputFile)
 
 	useCINewGodotEnvVersion := false
 	if val, ok := step.Envs[ciNewVersionGodotEnv]; ok && val == trueValue {
@@ -81,27 +85,36 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	} else {
 		outputSecretsFile = fmt.Sprintf("%s/%s-output-secrets.env", pipeline.SharedVolPath, step.ID)
 	}
-
+	internalTempFiles = append(internalTempFiles, outputSecretsFile)
 	// Plugins can use HARNESS_OUTPUT_SECRET_FILE to write the output secrets to a file.
 	step.Envs["HARNESS_OUTPUT_SECRET_FILE"] = outputSecretsFile
 
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
+	internalTempFiles = append(internalTempFiles, artifactFile)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
 	if metadataFile, found := step.Envs["PLUGIN_METADATA_FILE"]; found {
-		step.Envs["PLUGIN_METADATA_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
+		pluginMetadataFile := fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
+		step.Envs["PLUGIN_METADATA_FILE"] = pluginMetadataFile
+		internalTempFiles = append(internalTempFiles, pluginMetadataFile)
 	}
 
 	if cacheMetricsFile, found := step.Envs["PLUGIN_CACHE_METRICS_FILE"]; found {
-		step.Envs["PLUGIN_CACHE_METRICS_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, cacheMetricsFile)
+		pluginCacheMetricsFile := fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, cacheMetricsFile)
+		step.Envs["PLUGIN_CACHE_METRICS_FILE"] = pluginCacheMetricsFile
+		internalTempFiles = append(internalTempFiles, pluginCacheMetricsFile)
 	}
 
 	if cacheIntelMetricsFile, found := step.Envs["PLUGIN_CACHE_INTEL_METRICS_FILE"]; found {
-		step.Envs["PLUGIN_CACHE_INTEL_METRICS_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, cacheIntelMetricsFile)
+		pluginCacheIntelMetricsFile := fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, cacheIntelMetricsFile)
+		step.Envs["PLUGIN_CACHE_INTEL_METRICS_FILE"] = pluginCacheIntelMetricsFile
+		internalTempFiles = append(internalTempFiles, pluginCacheIntelMetricsFile)
 	}
 
 	if pluginBuildToolFile, found := step.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
-		step.Envs["PLUGIN_BUILD_TOOL_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, pluginBuildToolFile)
+		pluginBuildToolFilepath := fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, pluginBuildToolFile)
+		step.Envs["PLUGIN_BUILD_TOOL_FILE"] = pluginBuildToolFilepath
+		internalTempFiles = append(internalTempFiles, pluginBuildToolFilepath)
 	}
 
 	log := logrus.New()
@@ -213,6 +226,10 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 			}
 		}
 
+		if r.DeleteTempStepFiles {
+			// Remove temporary internal step files
+			removeFiles(internalTempFiles, log)
+		}
 		return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), finalErr
 	}
 
@@ -228,6 +245,10 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		})
 	}
 
+	if r.DeleteTempStepFiles {
+		// Remove temporary internal step files
+		removeFiles(internalTempFiles, log)
+	}
 	if len(summaryOutputsV2) == 0 || !report.TestSummaryAsOutputEnabled(r.Envs) {
 		return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 	}
@@ -254,4 +275,19 @@ func parseBuildInfo(telemetryData *types.TelemetryData, buildFile string) error 
 
 	telemetryData.BuildInfo = buildInfo
 	return nil
+}
+
+// RemoveFiles attempts to delete each file or folder in the provided list.
+func removeFiles(internalTempFiles []string, log *logrus.Logger) {
+	for _, path := range internalTempFiles {
+		// Check if file exists
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			// Skip if file doesn't exist
+			continue
+		}
+		// Try to remove the file
+		if err := os.RemoveAll(path); err != nil {
+			log.WithError(err).WithField("path", path).Errorln("failed to remove temporary step file or folder")
+		}
+	}
 }

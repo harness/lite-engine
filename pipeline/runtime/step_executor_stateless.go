@@ -66,6 +66,7 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 	// Temporary: this should be removed once we have a better way of handling test intelligence.
 	tiConfig := getTiCfg(&r.TIConfig, &r.MtlsConfig)
 
+	r.DeleteTempStepFiles = true
 	return executeStepHelper(ctx, r, runFunc, writer, &tiConfig)
 }
 
