@@ -493,26 +493,25 @@ fi
 	}
 
 	// Python
-	whlFilePath, err := python.FindFileByExtension(repoPathPython, ".whl")
+	whlFilePath, err := python.FindWhlFile(repoPathPython)
 	if err != nil {
 		return "", "", err
 	}
 
-	pyFilePath, err := python.FindFileByExtension(repoPathPython, ".py")
+	pyPluginFilePath, _ := python.FindPyPluginFile(repoPathPython)
 
 	disablePythonV2CodeModification := false
 	if _, ok := envs["TI_DISABLE_PYTHON_CODE_MODIFICATIONS"]; ok {
 		disablePythonV2CodeModification = true
 	}
 
-	if pyFilePath != "" {
+	if pyPluginFilePath != "" {
 		// .py plugin present — skip wheel install
-		envs["PYTEST_PLUGINS"] = "harness_ti_pytest_plugin"
-		envs["PYTHONPATH"] = filepath.Dir(pyFilePath)
-
 		log.Infof("Found .py plugin file. Setting PYTEST_PLUGINS and PYTHONPATH.")
+		envs["PYTEST_PLUGINS"] = "harness_ti_pytest_plugin"
+		envs["PYTHONPATH"] = filepath.Dir(pyPluginFilePath)
 
-		// Always run modifytox.py when .py file is present
+		// Always run modifytox.py when .py plugin file is present
 		modifyToxFileName := filepath.Join(repoPathPython, "modifytox.py")
 		if !isPsh {
 			preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
@@ -521,8 +520,8 @@ fi
 		}
 
 	} else {
-		// .py not found — fall back to .whl install
-		log.Warnln("No .py plugin found. Falling back to .whl install.")
+		// .py plugin file not found — fall back to .whl install
+		log.Warnln("No .py plugin file found. Falling back to .whl install.")
 
 		if !isPsh {
 			preCmd += fmt.Sprintf(`
