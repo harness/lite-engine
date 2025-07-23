@@ -19,7 +19,7 @@ const (
 )
 
 func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecutionState, []gradleTypes.Profile, int, error) {
-	cacheState := types.FULL_RUN
+	cacheState := types.DISABLED
 	profiles := make([]gradleTypes.Profile, 0)
 	totalBuildTime := 0
 
@@ -37,6 +37,8 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 			totalBuildTime += int(profile.BuildTimeMs)
 			if cached {
 				cacheState = types.OPTIMIZED
+			} else {
+				cacheState = types.FULL_RUN
 			}
 			profiles = append(profiles, profile)
 		}

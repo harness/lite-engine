@@ -161,8 +161,6 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		}
 	}
 	summaryOutputsV2 := report.GetSummaryOutputsV2(summaryOutputs, r.Envs)
-	// Check for build tool marker files before returning telemetry data
-	checkBuildToolMarkers(telemetryData, log)
 
 	if exited != nil && exited.Exited && exited.ExitCode == 0 {
 		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet

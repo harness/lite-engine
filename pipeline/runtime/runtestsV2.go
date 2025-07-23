@@ -114,8 +114,6 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	if tiConfig.GetParseSavings() {
 		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, common.StepTypeRunTestsV2)
 	}
-	// Check for build tool marker files before returning telemetry data
-	checkBuildToolMarkers(telemetryData, log)
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)

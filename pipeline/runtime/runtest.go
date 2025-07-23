@@ -90,9 +90,6 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 		err = collectionErr
 	}
 
-	// Check for build tool marker files before returning telemetry data
-	checkBuildToolMarkers(telemetryData, log)
-
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
 		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, common.StepTypeRunTests)
@@ -136,9 +133,6 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 				outputsV2 = report.AppendWithoutDuplicates(outputsV2, summaryOutputV2)
 			}
 			// when outputvars are defined and step has succeeded, fetchErr takes priority
-			// Check for build tool marker files before returning telemetry data
-			checkBuildToolMarkers(telemetryData, log)
-
 			return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), fetchErr
 		}
 		if report.TestSummaryAsOutputEnabled(r.Envs) {
