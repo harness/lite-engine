@@ -145,7 +145,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	if buildLangFile, found := r.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
 		err1 := parseBuildInfo(telemetryData, buildLangFile)
 		if err1 != nil {
-			logrus.WithContext(ctx).WithError(err1).Errorln("failed to parse build info")
+			logrus.WithContext(ctx).WithError(err1).Errorln("skipped parsing build info")
 		}
 	}
 
