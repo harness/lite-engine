@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	gradleProfilePathRegex = "build/reports/profile/*.html"
+	gradleProfilePathRegex = "**/build/reports/profile/*.html"
 )
 
 func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecutionState, []gradleTypes.Profile, int, error) {
