@@ -7,7 +7,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 )
 
 // ReadPIDsFromFile reads process IDs (PIDs) from a file at the specified path.
@@ -82,33 +84,6 @@ func ReadPIDsFromFile(path string) ([]int, error) {
 	return pids, nil
 }
 
-// Example usage and helper function to combine with the kill function
-func KillProcessesFromFile(ctx context.Context, path string) error {
-	pids, err := ReadPIDsFromFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read PIDs from file: %w", err)
-	}
-
-	if len(pids) == 0 {
-		fmt.Println("No valid PIDs found in file")
-		return nil
-	}
-
-	var errors []string
-	for _, pid := range pids {
-		err := KillProcess(pid) // Using the function from the previous example
-		if err != nil {
-			errors = append(errors, fmt.Sprintf("PID %d: %v", pid, err))
-		}
-	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("failed to kill some processes: %s", strings.Join(errors, "; "))
-	}
-
-	return nil
-}
-
 // AppendPIDToFile appends a process ID to a file at the specified path
 // Creates the file if it doesn't exist
 // PIDs are stored as comma-separated values
@@ -161,35 +136,88 @@ func AppendPIDToFile(pid int, path string) error {
 	return nil
 }
 
-// KillProcess forcefully terminates a process by its PID
-// Works on Windows, Linux, and macOS
-func KillProcess(pid int) error {
-	if pid <= 0 {
-		return fmt.Errorf("invalid PID: %d", pid)
-	}
-
-	// Find the process
-	process, err := os.FindProcess(pid)
+// KillProcessesFromFile forcefully terminates all processes with PIDs found in a file.
+// It takes a path to the file containing the PIDs and a timeout duration.
+// It will return an error if it fails to kill any processes.
+// The file can be empty, and the function will return nil in that case.
+// The function is goroutine-safe and will wait for all goroutines to finish
+// before returning.
+func KillProcessesFromFile(ctx context.Context, path string, timeout time.Duration) error {
+	pids, err := ReadPIDsFromFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to find process %d: %w", pid, err)
+		return fmt.Errorf("failed to read PIDs from file: %w", err)
 	}
 
-	// Kill the process based on the operating system
-	switch runtime.GOOS {
-	case "windows":
-		// On Windows, os.Process.Kill() sends a terminate signal
-		err = process.Kill()
-	case "linux", "darwin":
-		// On Unix-like systems, send SIGKILL for forceful termination
-		err = process.Signal(syscall.SIGKILL)
-	default:
-		// Fallback for other Unix-like systems
-		err = process.Kill()
+	if len(pids) == 0 {
+		fmt.Println("No valid PIDs found in file")
+		return nil
 	}
 
-	if err != nil {
-		return fmt.Errorf("failed to kill process %d: %w", pid, err)
+	var wg sync.WaitGroup
+	var errors []string
+	var mu sync.Mutex // for synchronizing access to errors slice
+
+	for _, pid := range pids {
+		wg.Add(1)
+		go func(pid int) {
+			defer wg.Done()
+			err := killProcessWithGracePeriod(pid, timeout)
+			if err != nil {
+				mu.Lock()
+				errors = append(errors, fmt.Sprintf("PID %d: %v", pid, err))
+				mu.Unlock()
+			}
+		}(pid)
+	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to kill some processes: %s", strings.Join(errors, "; "))
 	}
 
 	return nil
+}
+
+// killProcessWithGracePeriod sends a signal to a process to exit cleanly, then waits for the process to exit or a timeout to expire.
+// If the process does not exit within the given timeout, it sends a SIGKILL signal to force the process to exit.
+// The function returns an error if the process cannot be found or if either signal fails to be sent.
+func killProcessWithGracePeriod(pid int, timeout time.Duration) error {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+
+	// Send signal to allow the process to exit cleanly
+	var signal os.Signal
+	if runtime.GOOS == "windows" {
+		signal = os.Interrupt
+	} else {
+		signal = syscall.SIGTERM
+	}
+	err = process.Signal(signal)
+	if err != nil {
+		return err
+	}
+
+	// Wait for the process to exit or timeout to expire
+	done := make(chan error)
+	go func() {
+		_, err := process.Wait()
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			return err
+		}
+		return nil
+	case <-time.After(timeout):
+		// If timeout has expired, send SIGKILL
+		err = process.Signal(os.Kill)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 }
