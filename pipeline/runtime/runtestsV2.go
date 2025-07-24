@@ -190,11 +190,11 @@ func SetupRunTestV2(
 	tiConfig *tiCfg.Cfg,
 	testMetadata *types.TestIntelligenceMetaData,
 ) (string, error) {
-	// agentPaths := make(map[string]string)
+	agentPaths := make(map[string]string)
 	fs := filesystem.New()
 	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, tiConfig))
 
-	var preCmd, filterfilePath string
+	var preCmd, filterfilePath, skipTestsFilePath string
 	if config.IntelligenceMode {
 		// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
 		// the agents, and would also help in diagnosing issues when needed. The value we look for is specific not a
@@ -209,44 +209,43 @@ func SetupRunTestV2(
 		if len(links) < agentV2LinkLength {
 			return preCmd, fmt.Errorf("error: Could not get agent V2 links from TI")
 		}
-		// client := tiConfig.GetClient()
-		// err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log, client)
-		// if err != nil {
-		// 	return preCmd, fmt.Errorf("failed to download Java agent")
-		// }
+		client := tiConfig.GetClient()
+		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log, client)
+		if err != nil {
+			return preCmd, fmt.Errorf("failed to download Java agent")
+		}
 
-		// rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log, client)
-		// if err != nil || rubyArtifactDir == "" {
-		// 	return preCmd, fmt.Errorf("failed to download Ruby agent")
-		// }
-		// agentPaths["ruby"] = rubyArtifactDir
+		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log, client)
+		if err != nil || rubyArtifactDir == "" {
+			return preCmd, fmt.Errorf("failed to download Ruby agent")
+		}
+		agentPaths["ruby"] = rubyArtifactDir
 
-		// pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log, client)
-		// if err != nil {
-		// 	return preCmd, fmt.Errorf("failed to download Python agent")
-		// }
-		// agentPaths["python"] = pythonArtifactDir
+		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log, client)
+		if err != nil {
+			return preCmd, fmt.Errorf("failed to download Python agent")
+		}
+		agentPaths["python"] = pythonArtifactDir
 
-		// if len(links) > dotNetAgentLinkIndex {
-		// 	var dotNetArtifactDir string
-		// 	dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log, client)
-		// 	if err == nil {
-		// 		agentPaths["dotnet"] = dotNetArtifactDir
-		// 	} else {
-		// 		log.Warningln(".net agent installation failed. Continuing without .net support.")
-		// 	}
-		// }
-		// isPsh := IsPowershell(config.Entrypoint)
-		// preCmd, filterfilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
-		// if err != nil || pythonArtifactDir == "" {
-		// 	return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
-		// }
+		if len(links) > dotNetAgentLinkIndex {
+			var dotNetArtifactDir string
+			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log, client)
+			if err == nil {
+				agentPaths["dotnet"] = dotNetArtifactDir
+			} else {
+				log.Warningln(".net agent installation failed. Continuing without .net support.")
+			}
+		}
+		isPsh := IsPowershell(config.Entrypoint)
+		preCmd, filterfilePath, skipTestsFilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
+		if err != nil || pythonArtifactDir == "" {
+			return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
+		}
 		preCmd := ""
 
-		//calculate and send checksums to ti-service
-		log.Infof("Sending git file checksums from %s to ti-service", workspace)
-		if checksumErr := sendFileChecksumsToTI(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs); checksumErr != nil {
-			log.WithError(checksumErr).Warnf("Failed to send file checksums to ti-service, continuing...")
+		err = createSkipTestsFile(ctx, fs, stepID, workspace, log, tiConfig, skipTestsFilePath, envs, config)
+		if err != nil {
+			return preCmd, fmt.Errorf("error while creating skip tests file %s", err)
 		}
 
 		err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath, testMetadata)
@@ -257,8 +256,74 @@ func SetupRunTestV2(
 	return preCmd, nil
 }
 
-// getGitFileChecksums executes git ls-tree command in the specified directory
-// and returns a map of file paths to their 64-bit checksums for ti-service integration
+func createSkipTestsFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
+	log *logrus.Logger, tiConfig *tiCfg.Cfg, skipTestsFilePath string, envs map[string]string, config *api.RunTestsV2Config) error {
+
+	// Get file checksums from git repository using workspace
+	fileChecksums, err := getGitFileChecksums(ctx, workspace, log)
+	if err != nil {
+		return fmt.Errorf("failed to get git file checksums: %w", err)
+	}
+
+	log.Infof("Sending git file checksums from %s to ti-service", workspace)
+	skipTests, err := sendFileChecksumsToTI(ctx, fs, stepID, workspace, log, tiConfig, envs, fileChecksums)
+	if err != nil {
+		log.WithError(err).Warnf("Failed to send file checksums to ti-service, continuing...")
+		return nil
+	}
+
+	// Log the skip recommendations
+	if len(skipTests) > 0 {
+		log.Infof("TI service recommends skipping %d files: %v", len(skipTests), skipTests)
+	} else {
+		log.Infof("TI service recommends processing all files (no skips)")
+	}
+
+	// Write skipTests to a text file on disk
+	if err := writeSkipTestsToFile(fs, skipTests, skipTestsFilePath, log); err != nil {
+		return fmt.Errorf("failed to write skip tests file: %w", err)
+	}
+
+	return nil
+}
+
+// writeSkipTestsToFile writes the list of skip tests to a text file on disk
+// Each test is written on a separate line. Creates an empty file if no tests to skip.
+func writeSkipTestsToFile(fs filesystem.FileSystem, skipTests []string, skipTestsFilePath string, log *logrus.Logger) error {
+
+	if len(skipTests) > 0 {
+		// Create the content with each test on a new line
+		content := strings.Join(skipTests, "\n") + "\n"
+
+		// Create and write to file
+		file, err := fs.Create(skipTestsFilePath)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to create skip tests file at %s", skipTestsFilePath)
+			return fmt.Errorf("failed to create skip tests file: %w", err)
+		}
+		defer file.Close()
+
+		if _, err := file.WriteString(content); err != nil {
+			log.WithError(err).Errorf("Failed to write skip tests to file %s", skipTestsFilePath)
+			return fmt.Errorf("failed to write skip tests to file: %w", err)
+		}
+
+		log.Infof("Successfully wrote %d skip tests to file: %s", len(skipTests), skipTestsFilePath)
+	} else {
+		// Create empty file to indicate no tests to skip
+		file, err := fs.Create(skipTestsFilePath)
+		if err != nil {
+			log.WithError(err).Errorf("Failed to create empty skip tests file at %s", skipTestsFilePath)
+			return fmt.Errorf("failed to create empty skip tests file: %w", err)
+		}
+		file.Close()
+
+		log.Infof("Created empty skip tests file (no tests to skip): %s", skipTestsFilePath)
+	}
+
+	return nil
+}
+
 func getGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger) (map[string]uint64, error) {
 	log.Infof("Getting git file checksums from directory: %s", repoDir)
 
@@ -314,51 +379,32 @@ func getGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 // sendFileChecksumsToTI gets git file checksums from the specified repository
 // and sends them to ti-service to get skip recommendations for test intelligence
 func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
-	log *logrus.Logger, tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string) error {
+	log *logrus.Logger, tiConfig *tiCfg.Cfg, envs map[string]string, fileChecksums map[string]uint64) ([]string, error) {
 
 	startTime := time.Now()
 	log.Infof("Starting TI service request to get skip recommendations for step %s", stepID)
 
-	// Get file checksums from git repository using workspace
-	fileChecksums, err := getGitFileChecksums(ctx, workspace, log)
-	if err != nil {
-		return fmt.Errorf("failed to get git file checksums: %w", err)
-	}
-
 	if len(fileChecksums) == 0 {
 		log.Warnf("No files found in git repository: %s", workspace)
-		return nil
-	}
-
-	// Create checksum cache directory under tmpFilepath (following createSelectedTestFile pattern)
-	checksumCacheDir := fmt.Sprintf("%s/checksum_cache", tmpFilepath)
-	err = fs.MkdirAll(checksumCacheDir, os.ModePerm)
-	if err != nil {
-		log.WithError(err).Errorln(fmt.Sprintf("could not create checksum cache directory %s", checksumCacheDir))
-		return err
+		return nil, nil
 	}
 
 	// Get ti-service client
 	c := tiConfig.GetClient()
 
+	log.Infof("fileChecksums: %s", fmt.Sprintf("%#v", fileChecksums))
 	log.Infof("Sending %d file checksums to ti-service for skip analysis", len(fileChecksums))
 
 	// Call tiClient.GetSkipTests method to get files to skip
 	skipResponse, err := c.GetSkipTests(ctx, fileChecksums)
 	if err != nil {
-		return fmt.Errorf("failed to get skip recommendations from ti-service: %w", err)
-	}
-
-	// Log the skip recommendations
-	if len(skipResponse.SkipTests) > 0 {
-		log.Infof("TI service recommends skipping %d files: %v", len(skipResponse.SkipTests), skipResponse.SkipTests)
-	} else {
-		log.Infof("TI service recommends processing all files (no skips)")
+		return nil, fmt.Errorf("failed to get skip recommendations from ti-service: %w", err)
 	}
 
 	log.Infof("Completed TI service request for skip recommendations for step %s, took %.2f seconds",
 		stepID, time.Since(startTime).Seconds())
-	return nil
+
+	return skipResponse.SkipTests, nil
 }
 
 // Second parameter in return type (bool) is will be used to decide whether the filter file should be created or not.
@@ -441,6 +487,15 @@ func getFilterFilePath(tmpDir string, splitIdx int) string {
 	return filterfilePath
 }
 
+func getSkipTestsFilePath(tmpDir string, splitIdx int) string {
+	skipTestsFileDir := fmt.Sprintf(filterV2Dir, tmpDir)
+
+	// skipTestsFilePath will look like /tmp/engine/ti/v2/skip/skip_1...
+	skipTestsFilePath := fmt.Sprintf("%s/skip_tests_%d", skipTestsFileDir, splitIdx)
+
+	return skipTestsFilePath
+}
+
 func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger, filterfilePath, outDir string, splitIdx int) (string, error) {
 	iniFileDir := fmt.Sprintf(configV2Dir, tmpDir)
 	err := fs.MkdirAll(iniFileDir, os.ModePerm)
@@ -515,7 +570,7 @@ func createDotNetConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
 //
 //nolint:funlen,gocyclo,lll,unparam
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool, tiConfig *tiCfg.Cfg) (preCmd, filterFilePath string, err error) {
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool, tiConfig *tiCfg.Cfg) (preCmd, filterFilePath, skipTestsFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
@@ -525,15 +580,17 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	outDir, err := createOutDir(tmpFilePath, fs, log)
 	if err != nil {
 		log.WithError(err).Errorln("failed to create outDir")
-		return "", "", err
+		return "", "", "", err
 	}
 
 	filterFilePath = getFilterFilePath(tmpFilePath, splitIdx)
+	skipTestsFilePath = getSkipTestsFilePath(tmpFilePath, splitIdx)
 
 	envs["TI"] = "1"
 	envs["TI_V2"] = "1"
 	envs["TI_OUTPUT_PATH"] = outDir
 	envs["TI_FILTER_FILE_PATH"] = filterFilePath
+	envs["TI_SKIP_TESTS_FILE_PATH"] = skipTestsFilePath
 	envs["PYTEST_ADDOPTS"] = "--cov=. --cov-report=xml"
 	envs["COVERAGE_FILE"] = fmt.Sprintf(".harnesscoverage_%d", splitIdx)
 
@@ -541,13 +598,13 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	iniFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create java agent config file in path %s", iniFilePath))
-		return "", "", err
+		return "", "", "", err
 	}
 
 	err = writetoBazelrcFile(log, fs)
 	if err != nil {
 		log.WithError(err).Errorln("failed to write in .bazelrc file")
-		return "", "", err
+		return "", "", "", err
 	}
 	javaAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, javaAgentV2Path, javaAgentV2Jar)
 	agentArg := fmt.Sprintf(javaAgentV2Arg, javaAgentPath, iniFilePath)
@@ -556,18 +613,18 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	repoPath, err := ruby.UnzipAndGetTestInfo(agentPaths["ruby"], log)
 	if err != nil {
 		log.WithError(err).Errorln("failed to unzip and get test info for the ruby agent")
-		return "", "", err
+		return "", "", "", err
 	}
 
 	repoPathPython, err := python.UnzipAndGetTestInfoV2(agentPaths["python"], log)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	if agentPath, exists := agentPaths["dotnet"]; exists {
 		err = csharp.Unzip(agentPath, log)
 		if err != nil {
-			return "", "", err
+			return "", "", "", err
 		}
 	}
 
@@ -603,13 +660,13 @@ fi
 	err = ruby.WriteRspecFile(workspace, repoPath, splitIdx, disableJunitInstrumentation)
 	if err != nil {
 		log.Errorln("Unable to write rspec-local file automatically", err)
-		return "", "", err
+		return "", "", "", err
 	}
 
 	// Python
 	whlFilePath, err := python.FindWhlFile(repoPathPython)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	disablePythonV2CodeModificationVarName := "TI_DISABLE_PYTHON_CODE_MODIFICATIONS"
@@ -646,7 +703,7 @@ fi
 		dotNetJSONFilePath, err := createDotNetConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not create dotnet agent config file in path %s", dotNetJSONFilePath))
-			return "", "", err
+			return "", "", "", err
 		}
 
 		dotNetAgentPath := fmt.Sprintf("%s%s%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibLinux)
@@ -694,7 +751,7 @@ fi
 		envs["CORECLR_ENABLE_PROFILING"] = "1"
 		envs["TI_DOTNET_CONFIG"] = dotNetJSONFilePath
 	}
-	return preCmd, filterFilePath, nil
+	return preCmd, filterFilePath, skipTestsFilePath, nil
 }
 
 func downloadJavaAgent(ctx context.Context, path, javaAgentV2Url string, fs filesystem.FileSystem, log *logrus.Logger, client tiClient.Client) error {
