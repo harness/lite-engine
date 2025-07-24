@@ -83,16 +83,6 @@ github.com/harness/godotenv/v3 v3.0.1 h1:7QPEOkpx6SLLrYRRzPBp50d6c0XIxq721iqoFxb
 github.com/harness/godotenv/v3 v3.0.1/go.mod h1:UIXXJtTM7NkSYMYknHYOO2d8BfDlAWMYZRuRsXcDDR0=
 github.com/harness/godotenv/v4 v4.0.2 h1:w1ejcvR28wP67gKoMQ2aKRf+kI0Xorg/BetCwoG9KFs=
 github.com/harness/godotenv/v4 v4.0.2/go.mod h1:qpW/aRsktzrskWfKSHclHlvIp6+DJlmlYZXHQT+HBlE=
-github.com/harness/ti-client v0.0.0-20250211085345-7c82b29d1b3c h1:fAVNZiSrO9i8lQUo1joeEiOxHyqYwRxtVQivjrMeHpE=
-github.com/harness/ti-client v0.0.0-20250211085345-7c82b29d1b3c/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
-github.com/harness/ti-client v0.0.0-20250413041129-d4a896752d44 h1:rxunS2xQB3Wv31SfkFzd1QA3FUCep+nN+Dt5f55KWzA=
-github.com/harness/ti-client v0.0.0-20250413041129-d4a896752d44/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
-github.com/harness/ti-client v0.0.0-20250415222455-1feda5858e23 h1:cIvDa75fXeNQu4l9levHvtjplxV8tcUvkOmxvUwrsS0=
-github.com/harness/ti-client v0.0.0-20250415222455-1feda5858e23/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
-github.com/harness/ti-client v0.0.0-20250707090107-ed46aa7599a3 h1:Ir1jyCNoJBS42JcgsgWW7+3UCHLWT2WNy/lDbHe6/Dc=
-github.com/harness/ti-client v0.0.0-20250707090107-ed46aa7599a3/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
-github.com/harness/ti-client v0.0.0-20250708104420-4db64d875426 h1:/ctu33DN13hfRS8CK+94IMM62nB3GtkqK2tytSpY9lw=
-github.com/harness/ti-client v0.0.0-20250708104420-4db64d875426/go.mod h1:/ow4f34mPgr5KPkzKxmBUB4cC09OjzStcLX6R8+43TI=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/errwrap v1.1.0 h1:OxrOeh75EUXMY8TBjag2fzXGZ40LB6IKw45YeGUDY2I=
 github.com/hashicorp/errwrap v1.1.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
