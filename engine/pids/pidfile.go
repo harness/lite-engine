@@ -84,6 +84,8 @@ func ReadPIDsFromFile(path string) ([]int, error) {
 	return pids, nil
 }
 
+var pidFileMutexes = make(map[string]*sync.Mutex)
+
 // AppendPIDToFile appends a process ID to a file at the specified path
 // Creates the file if it doesn't exist
 // PIDs are stored as comma-separated values
@@ -92,6 +94,13 @@ func AppendPIDToFile(pid int, path string) error {
 	if pid <= 0 {
 		return fmt.Errorf("invalid PID: %d (must be positive)", pid)
 	}
+	mu, ok := pidFileMutexes[path]
+	if !ok {
+		mu = &sync.Mutex{}
+		pidFileMutexes[path] = mu
+	}
+	mu.Lock()
+	defer mu.Unlock()
 
 	// Check if file exists
 	fileExists := true
