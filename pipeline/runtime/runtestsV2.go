@@ -511,14 +511,6 @@ fi
 		envs["PYTEST_PLUGINS"] = "harness_ti_pytest_plugin"
 		envs["PYTHONPATH"] = filepath.Dir(pyPluginFilePath)
 
-		// Always run modifytox.py when .py plugin file is present
-		modifyToxFileName := filepath.Join(repoPathPython, "modifytox.py")
-		if !isPsh {
-			preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
-		} else {
-			preCmd += fmt.Sprintf("\ntry { python3 %s %s %s } catch { $null };", modifyToxFileName, workspace, whlFilePath)
-		}
-
 	} else {
 		// .py plugin file not found — fall back to .whl install
 		log.Warnln("No .py plugin file found. Falling back to .whl install.")
@@ -536,15 +528,15 @@ fi
 		} else {
 			preCmd += fmt.Sprintf(`\nif ($env:DEBUG -ieq 'true') { python3 -m pip install %s } else { try { python3 -m pip install %s 2>$null } catch { Write-Host 'Error: Failed to install Python agent.' } };`, whlFilePath, whlFilePath)
 		}
+	}
 
-		// Run modifytox.py only if not disabled
-		if !disablePythonV2CodeModification {
-			modifyToxFileName := filepath.Join(repoPathPython, "modifytox.py")
-			if !isPsh {
-				preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
-			} else {
-				preCmd += fmt.Sprintf("\ntry { python3 %s %s %s } catch { $null };", modifyToxFileName, workspace, whlFilePath)
-			}
+	// Run modifytox.py only if not disabled
+	if !disablePythonV2CodeModification {
+		modifyToxFileName := filepath.Join(repoPathPython, "modifytox.py")
+		if !isPsh {
+			preCmd += fmt.Sprintf("\npython3 %s %s %s || true;", modifyToxFileName, workspace, whlFilePath)
+		} else {
+			preCmd += fmt.Sprintf("\ntry { python3 %s %s %s } catch { $null };", modifyToxFileName, workspace, whlFilePath)
 		}
 	}
 
