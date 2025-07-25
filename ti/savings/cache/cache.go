@@ -38,7 +38,7 @@ func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64,
 	checkBuildToolMarkers(telemetryData, log)
 
 	if gradleCacheState == types.DISABLED && telemetryData.BuildIntelligenceMetaData.IsGradleBIUsed {
-		log.Infof("Savings data is unavailable. To view savings data in the UI, please add the --profile flag to your Gradle command.")
+		log.Infof("Build Intelligence savings data is unavailable. To view savings data in the UI, please add the --profile flag to your Gradle command.")
 	}
 
 	mavenCacheState, reports, mavenErr := maven.ParseSavings(workspace, log)
