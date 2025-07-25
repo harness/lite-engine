@@ -25,12 +25,21 @@ func joinErrors(errs ...error) error {
 	return errors.New(strings.Join(messages, "; "))
 }
 
-func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64) (types.IntelligenceExecutionState, int, types.SavingsRequest, error) {
+func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64, telemetryData *types.TelemetryData) (types.IntelligenceExecutionState, int, types.SavingsRequest, error) {
 	savingsRequest := types.SavingsRequest{}
 
+	cacheState := types.DISABLED
+
 	// TODO: This assumes that savings data is only present for Gradle. Refactor when more cache options are available
-	cacheState, profiles, buildTime, gradleErr := gradle.ParseSavings(workspace, log)
+	gradleCacheState, profiles, buildTime, gradleErr := gradle.ParseSavings(workspace, log)
 	savingsRequest.GradleMetrics = gradleTypes.Metrics{Profiles: profiles}
+
+	// Check for build tool marker files before returning telemetry data
+	checkBuildToolMarkers(telemetryData, log)
+
+	if gradleCacheState == types.DISABLED && telemetryData.BuildIntelligenceMetaData.IsGradleBIUsed {
+		log.Infof("Build Intelligence savings data is unavailable. To view savings data in the UI, please add the --profile flag to your Gradle command.")
+	}
 
 	mavenCacheState, reports, mavenErr := maven.ParseSavings(workspace, log)
 

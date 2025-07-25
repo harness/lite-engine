@@ -2,7 +2,7 @@
 // Use of this source code is governed by the Polyform License
 // that can be found in the LICENSE file.
 
-package runtime
+package cache
 
 import (
 	"os"
@@ -31,9 +31,15 @@ func checkBuildToolMarkers(telemetryData *types.TelemetryData, log *logrus.Logge
 }
 
 // checkMarkerFileExists checks if a marker file exists and logs if found
+// After reading the marker file, it renames the file to prevent subsequent reads
 func checkMarkerFileExists(path string, log *logrus.Logger) bool {
 	if _, err := os.Stat(path); err == nil {
-		log.Debugf("Build tool marker detected: %s", path)
+		log.Infof("Build tool marker detected: %s", path)
+		// Rename the file to indicate it's been processed
+		processedPath := path + ".processed"
+		if err := os.Rename(path, processedPath); err != nil {
+			log.Warnf("Failed to mark file %s as processed: %v", path, err)
+		}
 		return true
 	}
 	return false
