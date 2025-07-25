@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
+	"github.com/harness/lite-engine/engine/pids"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/sirupsen/logrus"
 )
@@ -23,7 +24,7 @@ type cmdResult struct {
 	err   error
 }
 
-func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State, error) {
+func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath string) (*runtime.State, error) {
 	if len(step.Entrypoint) == 0 {
 		return nil, errors.New("step entrypoint cannot be empty")
 	}
@@ -32,6 +33,8 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	cmdArgs = append(cmdArgs, step.Command...)
 
 	cmd := exec.CommandContext(ctx, step.Entrypoint[0], cmdArgs...) //nolint:gosec
+
+	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on host for step %s: %s", step.ID, cmd.Args))
 
 	if step.User != "" {
 		if userID, err := strconv.Atoi(step.User); err == nil {
@@ -48,6 +51,11 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on host for step %s %s", step.ID, step.Name))
 	if err := cmd.Start(); err != nil {
 		return nil, err
+	}
+	if pidFilePath != "" {
+		if err := pids.AppendPIDToFile(cmd.Process.Pid, pidFilePath); err != nil {
+			logrus.WithContext(ctx).Errorf(fmt.Sprintf("Failed to append PID %s to file %s: ", cmd.Process.Pid, pidFilePath), err)
+		}
 	}
 
 	cmdSignal := make(chan cmdResult, 1)
