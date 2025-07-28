@@ -127,3 +127,18 @@ func FindWhlFile(folderPath string) (string, error) {
 
 	return "", fmt.Errorf("no .whl file found in the folder")
 }
+
+func FindPyPluginFile(folderPath string) (string, error) {
+	files, err := os.ReadDir(folderPath)
+	if err != nil {
+		return "", err
+	}
+
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(strings.ToLower(file.Name()), ".py") && strings.HasPrefix(strings.ToLower(file.Name()), "harness_ti_pytest_plugin") {
+			return filepath.Join(folderPath, file.Name()), nil
+		}
+	}
+
+	return "", fmt.Errorf("py plugin file not found in the folder")
+}
