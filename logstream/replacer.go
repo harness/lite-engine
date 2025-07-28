@@ -242,7 +242,7 @@ func NewReplacerWithEnvs(w Writer, secrets []string, envs map[string]string) Wri
 			w: w,
 			r: strings.NewReplacer(oldnew...),
 		}
-	} else {
+	} else { //nolint:revive
 		// Basic masking - original simple logic when FF is OFF
 		var oldnew []string
 		for _, secret := range secrets {
