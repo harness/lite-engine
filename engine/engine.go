@@ -17,9 +17,11 @@ import (
 	"sync"
 
 	"github.com/drone/runner-go/pipeline/runtime"
+	"github.com/harness/lite-engine/common/external"
 	"github.com/harness/lite-engine/engine/docker"
 	"github.com/harness/lite-engine/engine/exec"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/pipeline"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -31,6 +33,7 @@ const (
 	permissions            = 0777
 	defaultFilePermissions = 0644 // File permissions (rw-r--r--)
 	boldYellowColor        = "\u001b[33;1m"
+	trueValue              = "true"
 )
 
 type Engine struct {
@@ -238,10 +241,45 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 	return nil
 }
 
+// collectAllSecrets collects secrets from all available sources
+func collectAllSecrets(step *spec.Step) []string {
+	var allSecrets []string
+
+	// Get secrets from pipeline state
+	pipelineState := pipeline.GetState()
+	if pipelineState != nil {
+		allSecrets = append(allSecrets, pipelineState.GetSecrets()...)
+	}
+
+	// Get secrets from step-level secrets
+	for _, secret := range step.Secrets {
+		if len(secret.Data) > 0 {
+			allSecrets = append(allSecrets, string(secret.Data))
+		}
+	}
+
+	return allSecrets
+}
+
+// maskCommandWithReplacer masks secrets in the command string with environment variable support
+func maskCommandWithReplacer(command string, step *spec.Step) string {
+	allSecrets := collectAllSecrets(step)
+	if len(allSecrets) == 0 {
+		return command
+	}
+	return external.MaskStringWithEnvs(command, allSecrets, step.Envs)
+}
+
 func printCommand(step *spec.Step, output io.Writer) {
 	stepCommand := strings.TrimSpace(strings.Join(step.Command, ""))
 	if stepCommand != "" {
-		printCommand := "Executing the following command(s):\n" + stepCommand
+		printCommand := ""
+		if val, ok := step.Envs["CI_ENABLE_EXTRA_CHARACTERS_SECRETS_MASKING"]; ok && val == trueValue {
+			maskedCommand := maskCommandWithReplacer(stepCommand, step)
+			printCommand = "Executing the following command(s):\n" + maskedCommand
+		} else {
+			printCommand = "Executing the following command(s):\n" + stepCommand
+		}
 		lines := strings.Split(printCommand, "\n")
 		for _, line := range lines {
 			_, _ = output.Write([]byte(boldYellowColor + line + "\n"))

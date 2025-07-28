@@ -43,5 +43,21 @@ func toStep(r *api.StartStepRequest) *spec.Step {
 		Files:          r.Files,
 		SoftStop:       r.SoftStop,
 		NetworkAliases: r.NetworkAliases,
+		Secrets:        convertRequestSecretsToStepSecrets(r),
 	}
+}
+
+// convertRequestSecretsToStepSecrets converts runtime secrets from StartStepRequest to spec.Secret objects
+func convertRequestSecretsToStepSecrets(r *api.StartStepRequest) []*spec.Secret {
+	var stepSecrets []*spec.Secret
+	for _, secretValue := range r.Secrets {
+		if secretValue != "" {
+			stepSecrets = append(stepSecrets, &spec.Secret{
+				Name: "runtime-secret",
+				Data: []byte(secretValue),
+				Mask: true,
+			})
+		}
+	}
+	return stepSecrets
 }
