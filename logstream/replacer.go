@@ -195,7 +195,7 @@ func NewReplacer(w Writer, secrets []string) Writer {
 
 // NewReplacerWithEnvs returns a replacer that wraps io.Writer w with environment variable support.
 // If CI_ENABLE_EXTRA_CHARACTERS_SECRETS_MASKING is set to "true" in envs, uses advanced variant creation.
-func NewReplacerWithEnvs(w Writer, secrets []string, envs map[string]string) Writer {
+func NewReplacerWithEnvs(w Writer, secrets []string, envs map[string]string) Writer { //nolint:gocyclo
 	// Check if advanced secret masking is enabled
 	useAdvancedMasking := false
 	if envs != nil {
