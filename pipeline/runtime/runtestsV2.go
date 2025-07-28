@@ -280,7 +280,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 }
 
 func getTestsSelectionWithTiModeEnabled(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
-	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config, testGlobs []string) (types.SelectTestsResp, bool) {
+	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config, testGlobs []string) (types.SelectTestsResp, bool) { //nolint:unparam
 	selection := types.SelectTestsResp{}
 	// Question : Here i can see feature state is being defined in Runtest but here we don't have runOnlySelected tests so should we always defined as optimized state
 	var files []types.File
