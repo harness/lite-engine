@@ -54,7 +54,7 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath str
 	}
 	if pidFilePath != "" {
 		if err := pids.AppendPIDToFile(cmd.Process.Pid, pidFilePath); err != nil {
-			logrus.WithContext(ctx).Errorf(fmt.Sprintf("Failed to append PID %s to file %s: ", cmd.Process.Pid, pidFilePath), err)
+			logrus.WithContext(ctx).Errorf(fmt.Sprintf("Failed to append PID %d to file %s: ", cmd.Process.Pid, pidFilePath), err)
 		}
 	}
 
