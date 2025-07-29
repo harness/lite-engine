@@ -5,6 +5,7 @@
 package logstream
 
 import (
+	"encoding/base64"
 	"net/url"
 	"regexp"
 	"strings"
@@ -152,6 +153,13 @@ func createSecretVariants(original string) []string { //nolint:funlen,gocyclo
 		uniq[urlPathEncoded] = true
 	}
 
+	// Handle base64 encoded secret
+	base64Encoded := base64.StdEncoding.EncodeToString([]byte(original))
+	if !uniq[base64Encoded] && len(base64Encoded) > minSecretLength {
+		variants = append(variants, base64Encoded)
+		uniq[base64Encoded] = true
+	}
+
 	return variants
 }
 
@@ -259,6 +267,10 @@ func NewReplacerWithEnvs(w Writer, secrets []string, envs map[string]string) Wri
 				}
 
 				oldnew = append(oldnew, part, maskedStr)
+
+				// Add base64 encoded variant
+				encoded := base64.StdEncoding.EncodeToString([]byte(part))
+				oldnew = append(oldnew, encoded, maskedStr)
 			}
 		}
 		if len(oldnew) == 0 {
