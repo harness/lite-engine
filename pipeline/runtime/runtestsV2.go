@@ -770,7 +770,6 @@ func collectTestReportsAndCg(
 	telemetryData *types.TelemetryData,
 	envs map[string]string,
 ) error {
-	cgStart := time.Now()
 
 	tests, _ := collectTestReports(ctx, log, r, stepName, tiConfig, telemetryData)
 
@@ -787,7 +786,10 @@ func collectTestReportsAndCg(
 		}
 	}
 
+	cgStart := time.Now()
+	log.Infoln(fmt.Sprintf("Starting to collect callgraph for step %s", stepName))
 	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, testFailed, tests)
+	log.Infoln(fmt.Sprintf("Completed to collect callgraph for step %s, took %.2f seconds", stepName, time.Since(cgStart).Seconds()))
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
