@@ -102,7 +102,7 @@ func Test_AvroSerialize(t *testing.T) {
 	cg, _ := cgParser.Parse([]string{"testdata/avro_cg.json"}, []string{})
 
 	cgMap := cg.ToStringMap()
-	cgSer, err := avro.NewCgphSerialzer(cgSchemaType)
+	cgSer, err := avro.NewCgphSerialzer(cgSchemaType, "1_1")
 	assert.Equal(t, nil, err)
 
 	encCg, _ := cgSer.Serialize(cgMap)
