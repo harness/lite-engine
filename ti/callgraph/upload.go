@@ -34,7 +34,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 	// Create step-specific data directory path
 	stepDataDir := filepath.Join(cfg.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, cfg))
 
-	encCg, cgIsEmpty, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests)
+	encCg, cgIsEmpty, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "1_1")
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
 	}
@@ -47,7 +47,17 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 		}
 	} else if !cgIsEmpty {
 		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
-			return cgErr
+			log.Warnln("Failed to upload callgraph with latest version, trying with older version", cgErr)
+			// try with version ""
+			encCg, cgIsEmpty, avroErr := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "")
+			if avroErr != nil {
+				return errors.Wrap(avroErr, "failed to get avro encoded callgraph")
+			}
+			if !cgIsEmpty {
+				if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
+					return cgErr
+				}
+			}
 		}
 	}
 
@@ -56,7 +66,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 }
 
 // encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
-func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase) (data []byte, isEmpty bool, err error) {
+func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, version string) (data []byte, isEmpty bool, err error) {
 	var parser Parser
 	var cgIsEmpty bool
 	fs := filesystem.New()
@@ -89,7 +99,7 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase) (data
 	}
 
 	cgMap := cg.ToStringMap()
-	cgSer, err := avro.NewCgphSerialzer(cgSchemaType)
+	cgSer, err := avro.NewCgphSerialzer(cgSchemaType, version)
 	if err != nil {
 		return nil, cgIsEmpty, errors.Wrap(err, "failed to create serializer")
 	}

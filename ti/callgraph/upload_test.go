@@ -11,7 +11,7 @@ import (
 
 func TestCallGraphParser_EncodeCg(t *testing.T) {
 	log := logrus.New()
-	cgSer, err := avro.NewCgphSerialzer(cgSchemaType)
+	cgSer, err := avro.NewCgphSerialzer(cgSchemaType, "1_1")
 	assert.Nil(t, err)
 
 	// Case: Empty CG
