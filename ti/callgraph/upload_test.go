@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/harness/lite-engine/ti/avro"
+	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -15,7 +16,7 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 
 	// Case: Empty CG
 	dataDir := "testdata/cgdir/emptycg"
-	cgBytes, cgIsEmpty, err := encodeCg(dataDir, log)
+	cgBytes, cgIsEmpty, err := encodeCg(dataDir, log, []*types.TestCase{})
 	assert.Nil(t, err)
 	assert.True(t, cgIsEmpty)
 
@@ -30,7 +31,7 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 
 	// Case: No CG files
 	dataDir = "testdata/cgdir/nocg"
-	cgBytes, cgIsEmpty, err = encodeCg(dataDir, log)
+	cgBytes, cgIsEmpty, err = encodeCg(dataDir, log, []*types.TestCase{})
 	assert.Nil(t, err)
 	assert.True(t, cgIsEmpty)
 
@@ -45,7 +46,7 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 
 	// Case: CG present
 	dataDir = "testdata/cgdir/cg"
-	cgBytes, _, err = encodeCg(dataDir, log)
+	cgBytes, _, err = encodeCg(dataDir, log, []*types.TestCase{})
 	assert.Nil(t, err)
 
 	// Test deserialize
