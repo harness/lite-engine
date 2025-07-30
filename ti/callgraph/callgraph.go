@@ -103,6 +103,8 @@ func FromStringMap(data map[string]interface{}) (*Callgraph, error) { //nolint:g
 							node.Type = v.(string)
 						case "file":
 							node.File = v.(string)
+						case "hasFailed":
+							node.HasFailed = v.(bool)
 						default:
 							return nil, fmt.Errorf("unknown field received: %s", f)
 						}
