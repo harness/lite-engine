@@ -97,7 +97,6 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, versi
 	if isCgEmpty(cg) {
 		cgIsEmpty = true
 	}
-
 	cgMap := cg.ToStringMap()
 	cgSer, err := avro.NewCgphSerialzer(cgSchemaType, version)
 	if err != nil {
