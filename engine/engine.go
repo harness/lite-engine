@@ -313,6 +313,13 @@ func createFiles(paths []*spec.File) error {
 			continue
 		}
 
+		dir := filepath.Dir(path)
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			if err := os.MkdirAll(dir, fs.FileMode(f.Mode)); err != nil {
+				return errors.Wrap(err, fmt.Sprintf("failed to create directory: for path %q", path))
+			}
+		}
+
 		// Create (or overwrite) the file
 		file, err := os.Create(path)
 		if err != nil {
