@@ -20,7 +20,7 @@
                         {"name" : "type", "type" : "string"},
                         {"name": "callsReflection", "type" : "boolean"},
                         {"name": "alwaysRun", "type" : "boolean"},
-                        {"name": "file", "type" : "string"},'
+                        {"name": "file", "type" : "string"},
                         {"name": "hasFailed", "type": "boolean", "default": false}
                     ]
                 }
