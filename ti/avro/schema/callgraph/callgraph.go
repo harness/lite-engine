@@ -1,3 +1,7 @@
+// Copyright 2025 Harness Inc. All rights reserved.
+// Use of this source code is governed by the Polyform License
+// that can be found in the LICENSE file
+
 // Code generated for package main by go-bindata DO NOT EDIT. (@generated)
 // sources:
 // callgraph.avsc
