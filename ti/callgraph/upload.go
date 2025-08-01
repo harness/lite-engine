@@ -5,7 +5,7 @@
 package callgraph
 
 import (
-	"context" // Added for logging deserialized callgraph
+	"context"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -26,6 +26,8 @@ const (
 )
 
 // Upload method uploads the callgraph.
+//
+//nolint:gocritic // paramTypeCombine: keeping separate string parameters for clarity
 func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, hasFailed bool, tests []*types.TestCase) error {
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
