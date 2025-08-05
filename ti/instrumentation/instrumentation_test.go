@@ -344,7 +344,7 @@ func TestFilterSelection(t *testing.T) {
 		Tests:         rts2,
 	}
 
-	filteredTests := filterTestsAfterSelection(selection, testGlob, make([]string, 0))
+	filteredTests := filterTestsAfterSelection(selection, testGlob, make([]string, 0), make(map[string]string))
 	assert.Equal(t, filteredTests.Tests, rts2)
 
 	testGlob = []string{"abc"}
@@ -358,7 +358,7 @@ func TestFilterSelection(t *testing.T) {
 		Tests:         rts2,
 	}
 
-	filteredTests = filterTestsAfterSelection(selection, testGlob, make([]string, 0))
+	filteredTests = filterTestsAfterSelection(selection, testGlob, make([]string, 0), make(map[string]string))
 	assert.Equal(t, filteredTests.Tests, rts2)
 
 	testGlob = []string{"c1"}
@@ -372,7 +372,7 @@ func TestFilterSelection(t *testing.T) {
 		Tests:         rts2,
 	}
 
-	filteredTests = filterTestsAfterSelection(selection, testGlob, make([]string, 0))
+	filteredTests = filterTestsAfterSelection(selection, testGlob, make([]string, 0), make(map[string]string))
 	assert.Equal(t, filteredTests.Tests, []ti.RunnableTest{rts[0]})
 
 	testGlob = []string{"c*"}
@@ -385,7 +385,7 @@ func TestFilterSelection(t *testing.T) {
 		SelectAll:     false,
 		Tests:         rts2,
 	}
-	filteredTests = filterTestsAfterSelection(selection, testGlob, make([]string, 0))
+	filteredTests = filterTestsAfterSelection(selection, testGlob, make([]string, 0), make(map[string]string))
 	assert.Equal(t, filteredTests.Tests, rts)
 
 	testGlob = []string{"**/*"}
@@ -399,6 +399,6 @@ func TestFilterSelection(t *testing.T) {
 		Tests:         rts2,
 	}
 
-	filteredTests = filterTestsAfterSelection(selection, testGlob, []string{"**/vendor/**/*.rb"})
+	filteredTests = filterTestsAfterSelection(selection, testGlob, []string{"**/vendor/**/*.rb"}, make(map[string]string))
 	assert.Equal(t, filteredTests.Tests, rts)
 }
