@@ -34,7 +34,7 @@ const (
 )
 
 func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTestConfig, fs filesystem.FileSystem,
-	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg) (testSelection ti.SelectTestsResp, moduleList []string) {
+	stepID, workspace string, log *logrus.Logger, isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string) (testSelection ti.SelectTestsResp, moduleList []string) {
 	selection := ti.SelectTestsResp{}
 	if isManual {
 		// Manual run
@@ -92,7 +92,8 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	filesWithPkg := runner.ReadPackages(workspace, files)
 	testGlobs, excludeGlobs := runner.GetTestGlobs()
 	selection, err = SelectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, testGlobs, fs, tiConfig)
-	selection = filterTestsAfterSelection(selection, testGlobs, excludeGlobs)
+	selection = filterTestsAfterSelection(selection, testGlobs, excludeGlobs, envs)
+	selection = FilterPreviousFailures(selection, envs)
 	if err != nil {
 		log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
 		config.RunOnlySelectedTests = false // run all the tests if an error was encountered
@@ -291,7 +292,7 @@ func GetCmd(
 	var artifactDir, iniFilePath string
 	if !cfg.GetIgnoreInstr() {
 		// Get the tests and module test targets that need to be run if we are running selected tests
-		selection, modules = getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg)
+		selection, modules = getTestSelection(ctx, runner, config, fs, stepID, workspace, log, isManual, cfg, envs)
 		// Install agent artifacts if not present
 		artifactDir, err = installAgents(ctx, tmpFilePath, config.Language, runtime.GOOS, runtime.GOARCH, config.BuildTool, fs, log, cfg)
 		if err != nil {
