@@ -313,9 +313,10 @@ func createFiles(paths []*spec.File) error {
 			continue
 		}
 
+		// For creating directories if not exists
 		dir := filepath.Dir(path)
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			if err := os.MkdirAll(dir, fs.FileMode(f.Mode)); err != nil {
+			if err := os.MkdirAll(dir, fs.FileMode(permissions)); err != nil {
 				return errors.Wrap(err, fmt.Sprintf("failed to create directory: for path %q", path))
 			}
 		}
