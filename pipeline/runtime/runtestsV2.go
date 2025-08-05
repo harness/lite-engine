@@ -52,6 +52,7 @@ const (
 	dotNetAgentV2Path       = "/dotnet/v2/"
 	dotNetConfigV2Dir       = "%s/ti/v2/dotnet/config"
 	javascriptRequireFile   = "ti-agent.cjs"
+	ciTiRerunFailedTestFF   = "CI_TI_RERUN_FAILED_TEST_FF"
 )
 
 //nolint:gocritic,gocyclo,funlen
@@ -287,6 +288,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 	filesWithpkg := java.ReadPkgs(log, fs, workspace, files)
 	testGlobs := sanitizeTestGlobsV2(runV2Config.TestGlobs)
 	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, testGlobs, fs, tiConfig)
+	selection = instrumentation.FilterPreviousFailures(selection, envs)
 	if err != nil {
 		log.WithError(err).Errorln("An unexpected error occurred during test selection. Running all tests.")
 		runOnlySelectedTests = false
@@ -737,6 +739,7 @@ func collectTestReportsAndCg(
 	}
 
 	testFailed := false
+	rerunFailedTests := false
 
 	if envValue, ok := envs["DISABLE_CG_UPLOAD_ON_FAILURE_FF"]; ok {
 		if envValue == "true" && tests != nil {
@@ -749,8 +752,14 @@ func collectTestReportsAndCg(
 		}
 	}
 
+	if envValue, ok := envs[rerunFailedTestsFF]; ok {
+		if envValue == "true" {
+			rerunFailedTests = true
+		}
+	}
+
 	cgStart := time.Now()
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, testFailed, tests)
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, testFailed, tests, rerunFailedTests)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)

@@ -33,6 +33,7 @@ const (
 var (
 	collectCgFn          = callgraph.Upload
 	collectTestReportsFn = report.ParseAndUploadTests
+	rerunFailedTestsFF   = "CI_TI_RERUN_FAILED_TEST_FF"
 )
 
 func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo,funlen
@@ -176,7 +177,14 @@ func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartSte
 	}
 
 	cgStart := time.Now()
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, cgDir, r.ID, false, tests)
+	rerunFailedTests := false
+	if envValue, ok := r.Envs[rerunFailedTestsFF]; ok {
+		if envValue == "true" {
+			rerunFailedTests = true
+		}
+	}
+
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, cgDir, r.ID, false, tests, rerunFailedTests)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
