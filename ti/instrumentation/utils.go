@@ -30,6 +30,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
+	"github.com/harness/ti-client/types"
 	ti "github.com/harness/ti-client/types"
 
 	tiClient "github.com/harness/ti-client/client"
@@ -47,10 +48,11 @@ const (
 	outDir       = "%s/ti/callgraph/" // path passed as outDir in the config.ini file
 	tiConfigPath = ".ticonfig.yaml"
 	// Parallelism environment variables
-	harnessStepIndex  = "HARNESS_STEP_INDEX"
-	harnessStepTotal  = "HARNESS_STEP_TOTAL"
-	harnessStageIndex = "HARNESS_STAGE_INDEX"
-	harnessStageTotal = "HARNESS_STAGE_TOTAL"
+	harnessStepIndex      = "HARNESS_STEP_INDEX"
+	harnessStepTotal      = "HARNESS_STEP_TOTAL"
+	harnessStageIndex     = "HARNESS_STAGE_INDEX"
+	harnessStageTotal     = "HARNESS_STAGE_TOTAL"
+	ciTiRerunFailedTestFF = "CI_TI_RERUN_FAILED_TEST_FF"
 )
 
 func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) (TestRunner, bool, error) {
@@ -437,7 +439,7 @@ func SelectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
 }
 
-func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs, excludeGlobs []string) ti.SelectTestsResp {
+func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs, excludeGlobs []string, envs map[string]string) ti.SelectTestsResp {
 	if selection.SelectAll || len(testGlobs) == 0 {
 		return selection
 	}
@@ -449,6 +451,27 @@ func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs, excludeG
 	}
 	selection.SelectedTests = len(filteredTests)
 	selection.Tests = filteredTests
+	return selection
+}
+
+func FilterPreviousFailures(selection ti.SelectTestsResp, envs map[string]string) ti.SelectTestsResp {
+	filteredSelection := []ti.RunnableTest{}
+	// Check if feature flag is enabled
+	featureFlagEnabled := false
+	if val, ok := envs[ciTiRerunFailedTestFF]; ok && val == "true" {
+		featureFlagEnabled = true
+	}
+	for i := range selection.Tests {
+		test := selection.Tests[i]
+		// Include test if:
+		// 1. It's not a previous failure test, OR
+		// 2. It's a previous failure test AND the feature flag is enabled
+		if test.Selection != types.SelectPreviousFailure || featureFlagEnabled {
+			filteredSelection = append(filteredSelection, test)
+		}
+	}
+	selection.SelectedTests = len(filteredSelection)
+	selection.Tests = filteredSelection
 	return selection
 }
 

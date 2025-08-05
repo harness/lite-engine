@@ -28,7 +28,7 @@ const (
 // Upload method uploads the callgraph.
 //
 //nolint:gocritic // paramTypeCombine: keeping separate string parameters for clarity
-func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, hasFailed bool, tests []*types.TestCase) error {
+func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, hasFailed bool, tests []*types.TestCase, rerunFailedTests bool) error {
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
 		return nil
@@ -36,7 +36,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 	// Create step-specific data directory path
 	stepDataDir := filepath.Join(cfg.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, cfg))
 
-	encCg, cgIsEmpty, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "1_1")
+	encCg, cgIsEmpty, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "1_1", rerunFailedTests)
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
 	}
@@ -51,7 +51,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
 			log.Warnln("Failed to upload callgraph with latest version, trying with older version", cgErr)
 			// try with version ""
-			encCg, cgIsEmpty, avroErr := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "")
+			encCg, cgIsEmpty, avroErr := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "", rerunFailedTests)
 			if avroErr != nil {
 				return errors.Wrap(avroErr, "failed to get avro encoded callgraph")
 			}
@@ -68,7 +68,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 }
 
 // encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
-func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, version string) (data []byte, isEmpty bool, err error) {
+func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, version string, rerunFailedTests bool) (data []byte, isEmpty bool, err error) {
 	var parser Parser
 	var cgIsEmpty bool
 	fs := filesystem.New()
@@ -82,12 +82,14 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, versi
 	}
 	parser = NewCallGraphParser(log, fs)
 	cg, err := parser.Parse(cgFiles, visFiles)
-	for i := range cg.Nodes {
-		cg.Nodes[i].HasFailed = false // Initialize HasFailed for the current node
-		for _, test := range tests {
-			fqcn := fmt.Sprintf("%s.%s", cg.Nodes[i].Package, cg.Nodes[i].Class)
-			if fqcn == test.ClassName && cg.Nodes[i].Method == test.Name {
-				cg.Nodes[i].HasFailed = string(test.Result.Status) == string(types.StatusFailed)
+	if rerunFailedTests {
+		for i := range cg.Nodes {
+			cg.Nodes[i].HasFailed = false // Initialize HasFailed for the current node
+			for _, test := range tests {
+				fqcn := fmt.Sprintf("%s.%s", cg.Nodes[i].Package, cg.Nodes[i].Class)
+				if fqcn == test.ClassName && cg.Nodes[i].Method == test.Name {
+					cg.Nodes[i].HasFailed = string(test.Result.Status) == string(types.StatusFailed)
+				}
 			}
 		}
 	}
