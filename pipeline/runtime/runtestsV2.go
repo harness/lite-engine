@@ -529,7 +529,6 @@ fi
 		log.Infof("Found .py plugin file. Setting PYTEST_PLUGINS and PYTHONPATH.")
 		envs["PYTEST_PLUGINS"] = "harness_ti_pytest_plugin"
 		envs["PYTHONPATH"] = filepath.Dir(pyPluginFilePath)
-
 	} else {
 		// .py plugin file not found — fall back to .whl install
 		log.Warnln("No .py plugin file found. Falling back to .whl install.")
