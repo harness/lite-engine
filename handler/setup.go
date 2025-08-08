@@ -31,10 +31,6 @@ var (
 const OSWindows = "windows"
 const OSLinux = "linux"
 const OSMac = "darwin"
-const ArchAMD64 = "amd64"
-const ArchARM64 = "arm64"
-
-// HandleExecuteStep returns an http.HandlerFunc that executes a step
 
 func GetNetrc(os string) string {
 	switch os {
@@ -45,8 +41,8 @@ func GetNetrc(os string) string {
 	}
 }
 
-func GetNetrcFile(goOS string, env map[string]string) (*spec.File, error) {
-	netrcName := GetNetrc(goOS)
+func GetNetrcFile(env map[string]string) (*spec.File, error) {
+	netrcName := GetNetrc(runtime.GOOS)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Printf("Error getting home directory: %v\n", err)
@@ -65,6 +61,7 @@ func GetNetrcFile(goOS string, env map[string]string) (*spec.File, error) {
 	}, nil
 }
 
+// HandleExecuteStep returns an http.HandlerFunc that executes a step
 func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
@@ -91,7 +88,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		s.Volumes = append(s.Volumes, getSharedVolume())
 
 		if val, ok := s.Envs["DRONE_PERSIST_CREDS"]; ok && val == "true" {
-			netrcFile, err := GetNetrcFile(OSLinux, s.Envs)
+			netrcFile, err := GetNetrcFile(s.Envs)
 			if err != nil {
 				fmt.Printf("Skipping netrc file creation: %v\n", err)
 			} else {
