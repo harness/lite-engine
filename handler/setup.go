@@ -49,13 +49,11 @@ func GetNetrcFile(goOS string, env map[string]string) (*spec.File, error) {
 	netrcName := GetNetrc(goOS)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		// Log error but return nil so caller can skip adding the file
 		fmt.Printf("Error getting home directory: %v\n", err)
 		return nil, err
 	}
 
 	path := filepath.Join(homeDir, netrcName)
-	fmt.Printf("home path: %s", path)
 
 	data := fmt.Sprintf("machine %s\nlogin %s\npassword %s\n", env["DRONE_NETRC_MACHINE"], env["DRONE_NETRC_USERNAME"], env["DRONE_NETRC_PASSWORD"])
 
@@ -92,19 +90,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		}
 		s.Volumes = append(s.Volumes, getSharedVolume())
 
-		
-		netrcFile, err := GetNetrcFile(OSLinux, s.Envs)
-		if err != nil {
-			fmt.Printf("Skipping netrc file creation: %v\n", err)
-		} else {
-			s.Files = append(s.Files, netrcFile)
+		if val, ok := s.Envs["DRONE_PERSIST_CREDS"]; ok && val == "true" {
+			netrcFile, err := GetNetrcFile(OSLinux, s.Envs)
+			if err != nil {
+				fmt.Printf("Skipping netrc file creation: %v\n", err)
+			} else {
+				s.Files = append(s.Files, netrcFile)
+			}
 		}
-
-		b, _ := json.MarshalIndent(s, "", "  ")
-
-		logger.FromRequest(r).
-			WithField("request: ", string(b)).
-			Infoln("here1: request after appending shared volume")
 
 		cfg := &spec.PipelineConfig{
 			Envs:    s.Envs,
