@@ -7,8 +7,10 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -26,7 +28,45 @@ var (
 	harnessEnableDebugLogs = "HARNESS_ENABLE_DEBUG_LOGS"
 )
 
+const OSWindows = "windows"
+const OSLinux = "linux"
+const OSMac = "darwin"
+const ArchAMD64 = "amd64"
+const ArchARM64 = "arm64"
+
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
+
+func GetNetrc(os string) string {
+	switch os {
+	case OSWindows:
+		return "_netrc"
+	default:
+		return ".netrc"
+	}
+}
+
+func GetNetrcFile(goOS string, env map[string]string) (*spec.File, error) {
+	netrcName := GetNetrc(goOS)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		// Log error but return nil so caller can skip adding the file
+		fmt.Printf("Error getting home directory: %v\n", err)
+		return nil, err
+	}
+
+	path := filepath.Join(homeDir, netrcName)
+	fmt.Printf("home path: %s", path)
+
+	data := fmt.Sprintf("machine %s\nlogin %s\npassword %s\n", env["DRONE_NETRC_MACHINE"], env["DRONE_NETRC_USERNAME"], env["DRONE_NETRC_PASSWORD"])
+
+	return &spec.File{
+		Path:  path,
+		Mode:  777,
+		IsDir: false,
+		Data:  data,
+	}, nil
+}
+
 func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
@@ -51,6 +91,21 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			s.Volumes = append(s.Volumes, getDockerSockVolume())
 		}
 		s.Volumes = append(s.Volumes, getSharedVolume())
+
+		
+		netrcFile, err := GetNetrcFile(OSLinux, s.Envs)
+		if err != nil {
+			fmt.Printf("Skipping netrc file creation: %v\n", err)
+		} else {
+			s.Files = append(s.Files, netrcFile)
+		}
+
+		b, _ := json.MarshalIndent(s, "", "  ")
+
+		logger.FromRequest(r).
+			WithField("request: ", string(b)).
+			Infoln("here1: request after appending shared volume")
+
 		cfg := &spec.PipelineConfig{
 			Envs:    s.Envs,
 			Network: s.Network,
