@@ -276,7 +276,7 @@ func printCommand(step *spec.Step, output io.Writer) {
 		printCommand := ""
 		if val, ok := step.Envs["CI_ENABLE_EXTRA_CHARACTERS_SECRETS_MASKING"]; ok && val == trueValue {
 			maskedCommand := maskCommandWithReplacer(stepCommand, step)
-			printCommand = "Executing the following masked command(s):\n" + maskedCommand
+			printCommand = "Executing the following command(s):\n" + maskedCommand
 		} else {
 			printCommand = "Executing the following command(s):\n" + stepCommand
 		}
