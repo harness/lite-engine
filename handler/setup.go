@@ -7,8 +7,10 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -25,6 +27,39 @@ var (
 	statsInterval          = 30 * time.Second
 	harnessEnableDebugLogs = "HARNESS_ENABLE_DEBUG_LOGS"
 )
+
+const OSWindows = "windows"
+const OSLinux = "linux"
+const OSMac = "darwin"
+
+func GetNetrc(os string) string {
+	switch os {
+	case OSWindows:
+		return "_netrc"
+	default:
+		return ".netrc"
+	}
+}
+
+func GetNetrcFile(env map[string]string) (*spec.File, error) {
+	netrcName := GetNetrc(runtime.GOOS)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Printf("Error getting home directory: %v\n", err)
+		return nil, err
+	}
+
+	path := filepath.Join(homeDir, netrcName)
+
+	data := fmt.Sprintf("machine %s\nlogin %s\npassword %s\n", env["DRONE_NETRC_MACHINE"], env["DRONE_NETRC_USERNAME"], env["DRONE_NETRC_PASSWORD"])
+
+	return &spec.File{
+		Path:  path,
+		Mode:  777,
+		IsDir: false,
+		Data:  data,
+	}, nil
+}
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
 func HandleSetup(engine *engine.Engine) http.HandlerFunc {
@@ -51,6 +86,16 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			s.Volumes = append(s.Volumes, getDockerSockVolume())
 		}
 		s.Volumes = append(s.Volumes, getSharedVolume())
+
+		if val, ok := s.Envs["DRONE_PERSIST_CREDS"]; ok && val == "true" {
+			netrcFile, err := GetNetrcFile(s.Envs)
+			if err != nil {
+				fmt.Printf("Skipping netrc file creation: %v\n", err)
+			} else {
+				s.Files = append(s.Files, netrcFile)
+			}
+		}
+
 		cfg := &spec.PipelineConfig{
 			Envs:    s.Envs,
 			Network: s.Network,
