@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+const (
+	// filePermission defines the permission for creating/writing PID files
+	filePermission = 0644
+)
+
 // ReadPIDsFromFile reads process IDs (PIDs) from a file at the specified path.
 // The file should contain PIDs as comma-separated values.
 // It returns a slice of integers representing the PIDs.
@@ -109,7 +114,7 @@ func AppendPIDToFile(pid int, path string) error {
 	}
 
 	// Open file for appending, create if it doesn't exist
-	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePermission)
 	if err != nil {
 		return fmt.Errorf("failed to open file %s: %w", path, err)
 	}
@@ -119,9 +124,9 @@ func AppendPIDToFile(pid int, path string) error {
 	var content string
 	if fileExists {
 		// If file exists, check if it's empty or needs a comma separator
-		fileInfo, err := file.Stat()
-		if err != nil {
-			return fmt.Errorf("failed to get file info: %w", err)
+		fileInfo, statErr := file.Stat()
+		if statErr != nil {
+			return fmt.Errorf("failed to get file info: %w", statErr)
 		}
 
 		if fileInfo.Size() > 0 {
@@ -212,13 +217,13 @@ func killProcessWithGracePeriod(pid int, timeout time.Duration) error {
 	// Wait for the process to exit or timeout to expire
 	done := make(chan error)
 	go func() {
-		_, err := process.Wait()
-		done <- err
+		_, waitErr := process.Wait()
+		done <- waitErr
 	}()
 	select {
-	case err := <-done:
-		if err != nil {
-			return err
+	case waitErr := <-done:
+		if waitErr != nil {
+			return waitErr
 		}
 		return nil
 	case <-time.After(timeout):
