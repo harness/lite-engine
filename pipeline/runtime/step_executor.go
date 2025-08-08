@@ -413,7 +413,7 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 	client := pipelineState.GetLogStreamClient()
 
 	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false, pipelineState.GetLogConfig().TrimNewLineSuffix, pipelineState.GetLogConfig().SkipOpeningStream)
-	wr := logstream.NewReplacerWithEnvs(wc, secrets, r.Envs)
+	wr := logstream.NewReplacer(wc, secrets)
 	go wr.Open() //nolint:errcheck
 	return wr
 }
