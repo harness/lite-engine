@@ -41,7 +41,9 @@ func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step, image string
 		config.Env = spec.ToEnv(step.Envs)
 	}
 	for _, sec := range step.Secrets {
-		config.Env = append(config.Env, sec.Env+"="+string(sec.Data))
+		if sec.Env != "" {
+			config.Env = append(config.Env, sec.Env+"="+string(sec.Data))
+		}
 	}
 
 	if len(step.Entrypoint) != 0 {
