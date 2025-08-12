@@ -29,8 +29,6 @@ var (
 )
 
 const OSWindows = "windows"
-const OSLinux = "linux"
-const OSMac = "darwin"
 
 func GetNetrc(os string) string {
 	switch os {
