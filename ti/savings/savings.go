@@ -41,7 +41,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 					types.BUILD_CACHE, time.Since(tiStart).Seconds())
 			} else {
 				log.Errorf("Failed to upload savings for feature %s: %v", types.BUILD_CACHE, tiErr)
-				fmt.Println("Failed to upload savings for feature %s: %v", types.BUILD_CACHE, tiErr)
+				fmt.Println("Failed to upload savings for feature :", types.BUILD_CACHE, tiErr)
 			}
 
 			totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(&savingsRequest)
