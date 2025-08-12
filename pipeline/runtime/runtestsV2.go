@@ -106,17 +106,9 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 
 	exited, err := f(ctx, step, out, r.LogDrone, false)
 	timeTakenMs := time.Since(start).Milliseconds()
-
-	if r.RunTestsV2.IntelligenceMode {
-		collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData, r.Envs)
-		if err == nil {
-			err = collectionErr
-		}
-	} else {
-		_, collectReportsErr := collectTestReports(ctx, log, r, step.Name, tiConfig, telemetryData)
-		if err == nil {
-			err = collectReportsErr
-		}
+	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData, r.Envs)
+	if err == nil {
+		err = collectionErr
 	}
 
 	if tiConfig.GetParseSavings() {
@@ -199,57 +191,57 @@ func SetupRunTestV2(
 	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, tiConfig))
 
 	var preCmd, filterfilePath string
+	if config.IntelligenceMode {
+		// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
+		// the agents, and would also help in diagnosing issues when needed. The value we look for is specific not a
+		// simple "true" to have something that is more unique and hard to guess.
+		qaEnvValue, ok := envs["HARNESS_TI_QA_ENV"]
+		useQAEnv := ok && qaEnvValue == "QA_ENV_ENABLED"
 
-	// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
-	// the agents, and would also help in diagnosing issues when needed. The value we look for is specific not a
-	// simple "true" to have something that is more unique and hard to guess.
-	qaEnvValue, ok := envs["HARNESS_TI_QA_ENV"]
-	useQAEnv := ok && qaEnvValue == "QA_ENV_ENABLED"
+		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig, useQAEnv)
+		if err != nil {
+			return preCmd, fmt.Errorf("failed to get AgentV2 URL from TI")
+		}
+		if len(links) < agentV2LinkLength {
+			return preCmd, fmt.Errorf("error: Could not get agent V2 links from TI")
+		}
+		client := tiConfig.GetClient()
+		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log, client)
+		if err != nil {
+			return preCmd, fmt.Errorf("failed to download Java agent")
+		}
 
-	links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig, useQAEnv)
-	if err != nil {
-		return preCmd, fmt.Errorf("failed to get AgentV2 URL from TI")
-	}
-	if len(links) < agentV2LinkLength {
-		return preCmd, fmt.Errorf("error: Could not get agent V2 links from TI")
-	}
-	client := tiConfig.GetClient()
-	err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log, client)
-	if err != nil {
-		return preCmd, fmt.Errorf("failed to download Java agent")
-	}
+		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log, client)
+		if err != nil || rubyArtifactDir == "" {
+			return preCmd, fmt.Errorf("failed to download Ruby agent")
+		}
+		agentPaths["ruby"] = rubyArtifactDir
 
-	rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log, client)
-	if err != nil || rubyArtifactDir == "" {
-		return preCmd, fmt.Errorf("failed to download Ruby agent")
-	}
-	agentPaths["ruby"] = rubyArtifactDir
+		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log, client)
+		if err != nil {
+			return preCmd, fmt.Errorf("failed to download Python agent")
+		}
+		agentPaths["python"] = pythonArtifactDir
 
-	pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log, client)
-	if err != nil {
-		return preCmd, fmt.Errorf("failed to download Python agent")
-	}
-	agentPaths["python"] = pythonArtifactDir
-
-	if len(links) > dotNetAgentLinkIndex {
-		var dotNetArtifactDir string
-		dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log, client)
-		if err == nil {
-			agentPaths["dotnet"] = dotNetArtifactDir
-		} else {
-			log.Warningln(".net agent installation failed. Continuing without .net support.")
+		if len(links) > dotNetAgentLinkIndex {
+			var dotNetArtifactDir string
+			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log, client)
+			if err == nil {
+				agentPaths["dotnet"] = dotNetArtifactDir
+			} else {
+				log.Warningln(".net agent installation failed. Continuing without .net support.")
+			}
+		}
+		isPsh := IsPowershell(config.Entrypoint)
+		preCmd, filterfilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
+		if err != nil || pythonArtifactDir == "" {
+			return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
+		}
+		err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath, testMetadata)
+		if err != nil {
+			return preCmd, fmt.Errorf("error while creating filter file %s", err)
 		}
 	}
-	isPsh := IsPowershell(config.Entrypoint)
-	preCmd, filterfilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
-	if err != nil || pythonArtifactDir == "" {
-		return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
-	}
-	err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath, testMetadata)
-	if err != nil {
-		return preCmd, fmt.Errorf("error while creating filter file %s", err)
-	}
-
 	return preCmd, nil
 }
 
@@ -258,34 +250,15 @@ func SetupRunTestV2(
 func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
 	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config) (types.SelectTestsResp, bool) {
 	selection := types.SelectTestsResp{}
-	runOnlySelectedTests := false
-	testGlobs := sanitizeTestGlobsV2(runV2Config.TestGlobs)
-
-	if runV2Config.IntelligenceMode {
-		if isManual {
-			log.Infoln("Manual execution has been detected. Running all the tests")
-			runOnlySelectedTests = false
-		} else {
-			selection, runOnlySelectedTests = getTestsSelectionWithTiModeEnabled(ctx, fs, stepID, workspace, log, isManual, tiConfig, envs, runV2Config, testGlobs)
-		}
+	if isManual {
+		log.Infoln("Manual execution has been detected. Running all the tests")
+		return selection, false
 	}
-
-	// Test splitting: only when parallelism is enabled
-	if instrumentation.IsParallelismEnabled(envs) {
-		log.Debugln("Parallelism is enabled!")
-		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, testGlobs, tiConfig, runOnlySelectedTests, fs)
-	}
-
-	return selection, runOnlySelectedTests
-}
-
-func getTestsSelectionWithTiModeEnabled(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
-	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config, testGlobs []string) (types.SelectTestsResp, bool) { //nolint:unparam
-	selection := types.SelectTestsResp{}
 	// Question : Here i can see feature state is being defined in Runtest but here we don't have runOnlySelected tests so should we always defined as optimized state
 	var files []types.File
 	var err error
 	runOnlySelectedTests := true
+
 	if instrumentation.IsPushTriggerExecution(tiConfig) {
 		lastSuccessfulCommitID, commitErr := instrumentation.GetCommitInfo(ctx, stepID, tiConfig)
 		if commitErr != nil {
@@ -311,8 +284,8 @@ func getTestsSelectionWithTiModeEnabled(ctx context.Context, fs filesystem.FileS
 			return selection, false // TI selected all the tests to be run
 		}
 	}
-
 	filesWithpkg := java.ReadPkgs(log, fs, workspace, files)
+	testGlobs := sanitizeTestGlobsV2(runV2Config.TestGlobs)
 	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, testGlobs, fs, tiConfig)
 	if err != nil {
 		log.WithError(err).Errorln("An unexpected error occurred during test selection. Running all tests.")
@@ -324,6 +297,12 @@ func getTestsSelectionWithTiModeEnabled(ctx context.Context, fs filesystem.FileS
 		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
 		runOnlySelectedTests = true
 	}
+
+	// Test splitting: only when parallelism is enabled
+	if instrumentation.IsParallelismEnabled(envs) {
+		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, testGlobs, tiConfig, runOnlySelectedTests, fs)
+	}
+
 	return selection, runOnlySelectedTests
 }
 
@@ -664,15 +643,13 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string, testMetadata *types.TestIntelligenceMetaData) error {
 	isManualExecution := instrumentation.IsManualExecution(tiConfig)
 	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig, envs, runV2Config)
-	if runV2Config.IntelligenceMode {
-		if tiConfig.GetParseSavings() {
-			if isFilterFilePresent {
-				// TI selected subset of tests
-				tiConfig.WriteFeatureState(stepID, types.TI, types.OPTIMIZED)
-			} else {
-				// TI selected all tests or returned an error which resulted in full run
-				tiConfig.WriteFeatureState(stepID, types.TI, types.FULL_RUN)
-			}
+	if tiConfig.GetParseSavings() {
+		if isFilterFilePresent {
+			// TI selected subset of tests
+			tiConfig.WriteFeatureState(stepID, types.TI, types.OPTIMIZED)
+		} else {
+			// TI selected all tests or returned an error which resulted in full run
+			tiConfig.WriteFeatureState(stepID, types.TI, types.FULL_RUN)
 		}
 	}
 
@@ -737,28 +714,6 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 	return nil
 }
 
-func collectTestReports(
-	ctx context.Context,
-	log *logrus.Logger,
-	r *api.StartStepRequest,
-	stepName string,
-	tiConfig *tiCfg.Cfg,
-	telemetryData *types.TelemetryData,
-) ([]*types.TestCase, error) {
-	if len(r.TestReport.Junit.Paths) == 0 {
-		// If there are no paths specified, set Paths[0] to include all XML files and all TRX files
-		r.TestReport.Junit.Paths = []string{"**/*.xml", "**/*.trx"}
-	}
-
-	reportStart := time.Now()
-	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
-	if crErr != nil {
-		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
-	}
-
-	return tests, crErr
-}
-
 func collectTestReportsAndCg(
 	ctx context.Context,
 	log *logrus.Logger,
@@ -771,7 +726,16 @@ func collectTestReportsAndCg(
 ) error {
 	cgStart := time.Now()
 
-	tests, _ := collectTestReports(ctx, log, r, stepName, tiConfig, telemetryData)
+	if len(r.TestReport.Junit.Paths) == 0 {
+		// If there are no paths specified, set Paths[0] to include all XML files and all TRX files
+		r.TestReport.Junit.Paths = []string{"**/*.xml", "**/*.trx"}
+	}
+
+	reportStart := time.Now()
+	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
+	if crErr != nil {
+		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
+	}
 
 	testFailed := false
 
