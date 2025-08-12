@@ -3,6 +3,7 @@ package savings
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -38,6 +39,9 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			if tiErr == nil {
 				log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
 					types.BUILD_CACHE, time.Since(tiStart).Seconds())
+			} else {
+				log.Errorf("Failed to upload savings for feature %s: %v", types.BUILD_CACHE, tiErr)
+				fmt.Println("Failed to upload savings for feature %s: %v", types.BUILD_CACHE, tiErr)
 			}
 
 			totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(&savingsRequest)
