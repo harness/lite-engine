@@ -235,9 +235,20 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 		return err
 	}
 
+	// If we are running on Windows, convert
+	// the volume paths to windows paths
 	for _, vol := range step.Volumes {
 		vol.Path = pathConverter(vol.Path)
 	}
+
+	for _, vol := range cfg.Volumes {
+		if vol == nil || vol.HostPath == nil {
+			continue
+		}
+		path := vol.HostPath.Path
+		vol.HostPath.Path = pathConverter(path)
+	}
+
 	return nil
 }
 
