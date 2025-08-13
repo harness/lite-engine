@@ -2,10 +2,12 @@ package engine
 
 import (
 	"bytes"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRun(t *testing.T) {
@@ -53,5 +55,45 @@ func TestRun(t *testing.T) {
 				t.Errorf("expected output to contain:\n%q\ngot:\n%s", tc.wantOut, gotOut)
 			}
 		})
+	}
+}
+
+func TestRunHelper(t *testing.T) {
+	cfg := &spec.PipelineConfig{
+		Envs: map[string]string{
+			"GLOBAL_KEY": "global_value",
+		},
+		Volumes: []*spec.Volume{
+			{
+				HostPath: &spec.VolumeHostPath{Path: "/some/path"},
+			},
+		},
+	}
+
+	step := &spec.Step{
+		Envs: map[string]string{
+			"STEP_KEY": "step_value",
+		},
+		WorkingDir: "/work/dir",
+		Volumes: []*spec.VolumeMount{
+			{Name: "myMount", Path: "/mount/path"},
+		},
+		Files: []*spec.File{},
+	}
+
+	// Act
+	err := runHelper(cfg, step)
+
+	// Assert
+	assert.NoError(t, err)
+	// Env vars should be merged
+	assert.Equal(t, "global_value", step.Envs["GLOBAL_KEY"])
+	assert.Equal(t, "step_value", step.Envs["STEP_KEY"])
+	if runtime.GOOS == "windows" {
+		assert.Equal(t, "c:\\some\\path", cfg.Volumes[0].HostPath.Path)
+		assert.Equal(t, "c:\\mount\\path", step.Volumes[0].Path)
+	} else {
+		assert.Equal(t, "/some/path", cfg.Volumes[0].HostPath.Path)
+		assert.Equal(t, "/mount/path", step.Volumes[0].Path)
 	}
 }
