@@ -91,9 +91,8 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	// Call TI svc only when there is a chance of running selected tests
 	filesWithPkg := runner.ReadPackages(workspace, files)
 	testGlobs, excludeGlobs := runner.GetTestGlobs()
-	selection, err = SelectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, testGlobs, fs, tiConfig)
+	selection, err = SelectTests(ctx, workspace, filesWithPkg, config.RunOnlySelectedTests, stepID, testGlobs, fs, tiConfig, false)
 	selection = filterTestsAfterSelection(selection, testGlobs, excludeGlobs, envs)
-	selection = FilterPreviousFailures(selection, envs)
 	if err != nil {
 		log.WithError(err).Errorln("There was some issue in trying to intelligently figure out tests to run. Running all the tests")
 		config.RunOnlySelectedTests = false // run all the tests if an error was encountered
@@ -378,4 +377,8 @@ func AutoDetectTests(ctx context.Context, workspace string, testGlobs []string, 
 	log.Debugf("Detected Python tests: %v", pyTests)
 	tests = append(tests, pyTests...)
 	return tests, nil
+}
+
+func IsRerunFailedTestsEnabled(envs map[string]string) bool {
+	return envs[ciTiRerunFailedTestFF] == "true"
 }

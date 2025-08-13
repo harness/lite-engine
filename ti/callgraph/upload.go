@@ -28,7 +28,7 @@ const (
 // Upload method uploads the callgraph.
 //
 //nolint:gocritic // paramTypeCombine: keeping separate string parameters for clarity
-func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, hasFailed bool, tests []*types.TestCase, rerunFailedTests bool) error {
+func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, tests []*types.TestCase, rerunFailedTests bool) error {
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
 		return nil
@@ -43,12 +43,8 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 
 	c := cfg.GetClient()
 
-	if hasFailed {
-		if cgErr := c.UploadCgFailedTest(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
-			return cgErr
-		}
-	} else if !cgIsEmpty {
-		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
+	if !cgIsEmpty {
+		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests); cgErr != nil {
 			log.Warnln("Failed to upload callgraph with latest version, trying with older version", cgErr)
 			// try with version ""
 			encCg, cgIsEmpty, avroErr := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "", rerunFailedTests)
@@ -56,7 +52,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 				return errors.Wrap(avroErr, "failed to get avro encoded callgraph")
 			}
 			if !cgIsEmpty {
-				if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
+				if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests); cgErr != nil {
 					return cgErr
 				}
 			}

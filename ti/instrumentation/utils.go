@@ -30,7 +30,6 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
-	"github.com/harness/ti-client/types"
 	ti "github.com/harness/ti-client/types"
 
 	tiClient "github.com/harness/ti-client/client"
@@ -427,7 +426,7 @@ func getAllJavaFilesInsideDirectory(directory string, changedFiles []ti.File, fi
 // selectTests takes a list of files which were changed as input and gets the tests
 // to be run corresponding to that.
 func SelectTests(ctx context.Context, workspace string, files []ti.File, runSelected bool, stepID string, testGlobs []string,
-	fs filesystem.FileSystem, cfg *tiCfg.Cfg) (ti.SelectTestsResp, error) {
+	fs filesystem.FileSystem, cfg *tiCfg.Cfg, rerunFailedTests bool) (ti.SelectTestsResp, error) {
 	Log := logrus.New() // Revert
 	Log.Infoln("Info: starting test selection")
 	tiConfigYaml, err := getTiConfig(workspace, fs)
@@ -436,7 +435,7 @@ func SelectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	}
 	req := &ti.SelectTestsReq{SelectAll: !runSelected, Files: files, TiConfig: tiConfigYaml, TestGlobs: testGlobs}
 	c := cfg.GetClient()
-	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
+	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req, rerunFailedTests)
 }
 
 func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs, excludeGlobs []string, envs map[string]string) ti.SelectTestsResp {
@@ -451,27 +450,6 @@ func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs, excludeG
 	}
 	selection.SelectedTests = len(filteredTests)
 	selection.Tests = filteredTests
-	return selection
-}
-
-func FilterPreviousFailures(selection ti.SelectTestsResp, envs map[string]string) ti.SelectTestsResp {
-	filteredSelection := []ti.RunnableTest{}
-	// Check if feature flag is enabled
-	featureFlagEnabled := false
-	if val, ok := envs[ciTiRerunFailedTestFF]; ok && val == "true" {
-		featureFlagEnabled = true
-	}
-	for i := range selection.Tests {
-		test := selection.Tests[i]
-		// Include test if:
-		// 1. It's not a previous failure test, OR
-		// 2. It's a previous failure test AND the feature flag is enabled
-		if test.Selection != types.SelectPreviousFailure || featureFlagEnabled {
-			filteredSelection = append(filteredSelection, test)
-		}
-	}
-	selection.SelectedTests = len(filteredSelection)
-	selection.Tests = filteredSelection
 	return selection
 }
 

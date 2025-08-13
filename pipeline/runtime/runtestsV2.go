@@ -54,7 +54,6 @@ const (
 	javascriptRequireFile   = "ti-agent.cjs"
 	nativeJavaAgentV2Name   = "java-agent-trampoline.jar"
 	pythonAgentScript       = "harness_ti_plugin"
-	ciTiRerunFailedTestFF   = "CI_TI_RERUN_FAILED_TEST_FF"
 )
 
 //nolint:gocritic,gocyclo,funlen
@@ -321,8 +320,8 @@ func getTestsSelectionWithTiModeEnabled(ctx context.Context, fs filesystem.FileS
 	}
 
 	filesWithpkg := java.ReadPkgs(log, fs, workspace, files)
-	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, testGlobs, fs, tiConfig)
-	selection = instrumentation.FilterPreviousFailures(selection, envs)
+	rerunFailedTests := instrumentation.IsRerunFailedTestsEnabled(envs) && instrumentation.IsPushTriggerExecution(tiConfig)
+	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, testGlobs, fs, tiConfig, rerunFailedTests)
 	if err != nil {
 		log.WithError(err).Errorln("An unexpected error occurred during test selection. Running all tests.")
 		runOnlySelectedTests = false
@@ -826,19 +825,7 @@ func collectTestReportsAndCg(
 
 	tests, _ := collectTestReports(ctx, log, r, stepName, tiConfig, telemetryData)
 
-	testFailed := false
 	rerunFailedTests := false
-
-	if envValue, ok := envs["DISABLE_CG_UPLOAD_ON_FAILURE_FF"]; ok {
-		if envValue == "true" && tests != nil {
-			for _, test := range tests {
-				if test.Result.Status == types.StatusFailed {
-					testFailed = true
-					break
-				}
-			}
-		}
-	}
 
 	if envValue, ok := envs[rerunFailedTestsFF]; ok {
 		if envValue == "true" {
@@ -847,7 +834,7 @@ func collectTestReportsAndCg(
 	}
 
 	cgStart := time.Now()
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, testFailed, tests, rerunFailedTests)
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, rerunFailedTests)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
