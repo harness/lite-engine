@@ -36,7 +36,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 	// Create step-specific data directory path
 	stepDataDir := filepath.Join(cfg.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, cfg))
 
-	encCg, cgIsEmpty, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "1_1", rerunFailedTests)
+	encCg, cgIsEmpty, matched, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "1_1", rerunFailedTests)
 	if err != nil {
 		return errors.Wrap(err, "failed to get avro encoded callgraph")
 	}
@@ -44,15 +44,15 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 	c := cfg.GetClient()
 
 	if !cgIsEmpty {
-		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests); cgErr != nil {
+		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched); cgErr != nil {
 			log.Warnln("Failed to upload callgraph with latest version, trying with older version", cgErr)
 			// try with version ""
-			encCg, cgIsEmpty, avroErr := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "", rerunFailedTests)
+			encCg, cgIsEmpty, matched, avroErr := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "", rerunFailedTests)
 			if avroErr != nil {
 				return errors.Wrap(avroErr, "failed to get avro encoded callgraph")
 			}
 			if !cgIsEmpty {
-				if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests); cgErr != nil {
+				if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched); cgErr != nil {
 					return cgErr
 				}
 			}
@@ -64,20 +64,21 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 }
 
 // encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
-func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, version string, rerunFailedTests bool) (data []byte, isEmpty bool, err error) {
+func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, version string, rerunFailedTests bool) (data []byte, isEmpty bool, matched bool, err error) {
 	var parser Parser
 	var cgIsEmpty bool
 	fs := filesystem.New()
 
 	if dataDir == "" {
-		return nil, cgIsEmpty, fmt.Errorf("dataDir not present in request")
+		return nil, cgIsEmpty, false, fmt.Errorf("dataDir not present in request")
 	}
 	cgFiles, visFiles, err := getCgFiles(dataDir, "json", "csv", log)
 	if err != nil {
-		return nil, cgIsEmpty, errors.Wrap(err, "failed to fetch files inside the directory")
+		return nil, cgIsEmpty, false, errors.Wrap(err, "failed to fetch files inside the directory")
 	}
 	parser = NewCallGraphParser(log, fs)
 	cg, err := parser.Parse(cgFiles, visFiles)
+	matched = false
 	if rerunFailedTests {
 		for i := range cg.Nodes {
 			cg.Nodes[i].HasFailed = false // Initialize HasFailed for the current node
@@ -85,12 +86,13 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, versi
 				fqcn := fmt.Sprintf("%s.%s", cg.Nodes[i].Package, cg.Nodes[i].Class)
 				if fqcn == test.ClassName && cg.Nodes[i].Method == test.Name {
 					cg.Nodes[i].HasFailed = string(test.Result.Status) == string(types.StatusFailed)
+					matched = true
 				}
 			}
 		}
 	}
 	if err != nil {
-		return nil, cgIsEmpty, errors.Wrap(err, "failed to parse visgraph")
+		return nil, cgIsEmpty, matched, errors.Wrap(err, "failed to parse visgraph")
 	}
 	log.Infoln(fmt.Sprintf("Size of Test nodes: %d, Test relations: %d, Vis Relations %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
 
@@ -100,13 +102,13 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, versi
 	cgMap := cg.ToStringMap()
 	cgSer, err := avro.NewCgphSerialzer(cgSchemaType, version)
 	if err != nil {
-		return nil, cgIsEmpty, errors.Wrap(err, "failed to create serializer")
+		return nil, cgIsEmpty, matched, errors.Wrap(err, "failed to create serializer")
 	}
 	encCg, err := cgSer.Serialize(cgMap)
 	if err != nil {
-		return nil, cgIsEmpty, errors.Wrap(err, "failed to encode callgraph")
+		return nil, cgIsEmpty, matched, errors.Wrap(err, "failed to encode callgraph")
 	}
-	return encCg, cgIsEmpty, nil
+	return encCg, cgIsEmpty, matched, nil
 }
 
 func isCgEmpty(cg *Callgraph) bool {
