@@ -64,7 +64,6 @@ func ParseAndUploadTests(
 	if len(tests) == 0 {
 		return tests, nil
 	}
-	log.Infoln(fmt.Sprintf("Successfully parsed %d test cases", len(tests)))
 
 	startTime := time.Now()
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting TI service request to write report for step %s", stepID))
