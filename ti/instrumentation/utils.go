@@ -438,7 +438,7 @@ func SelectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req, rerunFailedTests)
 }
 
-func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs, excludeGlobs []string, envs map[string]string) ti.SelectTestsResp {
+func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs, excludeGlobs []string) ti.SelectTestsResp {
 	if selection.SelectAll || len(testGlobs) == 0 {
 		return selection
 	}
