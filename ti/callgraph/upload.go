@@ -42,7 +42,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 	// Create step-specific data directory path
 	stepDataDir := filepath.Join(cfg.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, cfg))
 
-	cg, err := parseCallgraphFiles(fmt.Sprintf(dir, stepDataDir), log)
+	cg, err := parseCallgraphFiles(stepDataDir, log)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse callgraph files")
 	}
@@ -320,10 +320,25 @@ func CreateUploadPayload(cg *Callgraph, fileHashPairs []tiClientTypes.FilehashPa
 				}
 				tests = append(tests, test)
 
+				// Create filtered file hash pairs for only the source paths in this test's indicative chain
+				var filteredHashPairs []tiClientTypes.FilehashPair
+				for _, sourcePath := range sourcePaths {
+					// Find the hash for this source path in the fileHashPairs slice
+					for _, pair := range fileHashPairs {
+						if pair.Path == sourcePath {
+							filteredHashPairs = append(filteredHashPairs, tiClientTypes.FilehashPair{
+								Path:     sourcePath,
+								Checksum: pair.Checksum,
+							})
+							break // Found the match, no need to continue searching
+						}
+					}
+				}
+
 				// Create corresponding chain entry
 				chain := types.Chain{
 					Path:      testPath,
-					Checksum:  strconv.FormatUint(tiClientUtils.ChainChecksum(fileHashPairs), 10),
+					Checksum:  strconv.FormatUint(tiClientUtils.ChainChecksum(filteredHashPairs), 10),
 					State:     types.TestState("SUCCESS"), // Always set to success as requested
 					ExtraInfo: map[string]string{},
 				}
