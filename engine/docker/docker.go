@@ -55,9 +55,15 @@ const (
 	running                          = "running"
 )
 
+var (
+	globalDockerClient     *client.Client
+	globalDockerClientLock sync.Mutex
+)
+
 // Opts configures the Docker engine.
 type Opts struct {
-	HidePull bool
+	HidePull          bool
+	ReuseDockerClient bool
 }
 
 // Docker implements a Docker pipeline engine.
@@ -88,7 +94,19 @@ func New(client client.APIClient, opts Opts) *Docker {
 
 // NewEnv returns a new Engine from the environment.
 func NewEnv(opts Opts) (*Docker, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	var cli client.APIClient
+	var err error
+	if opts.ReuseDockerClient {
+		globalDockerClientLock.Lock()
+		defer globalDockerClientLock.Unlock()
+		// Try to (re)initialize if not set
+		if globalDockerClient == nil {
+			globalDockerClient, err = client.NewClientWithOpts(client.FromEnv)
+		}
+		cli = globalDockerClient
+	} else {
+		cli, err = client.NewClientWithOpts(client.FromEnv)
+	}
 	if err != nil {
 		return nil, err
 	}

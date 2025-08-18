@@ -10,6 +10,7 @@ import (
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
+	"github.com/harness/lite-engine/engine/docker"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/logstream"
@@ -61,7 +62,7 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 ) (*runtime.State, map[string]string,
 	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	runFunc := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
-		return engine.RunStep(ctx, engine.Opts{}, step, output, cfg, isDrone, isHosted)
+		return engine.RunStep(ctx, engine.Opts{Opts: docker.Opts{ReuseDockerClient: true}}, step, output, cfg, isDrone, isHosted)
 	}
 	// Temporary: this should be removed once we have a better way of handling test intelligence.
 	tiConfig := getTiCfg(&r.TIConfig, &r.MtlsConfig)
