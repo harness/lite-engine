@@ -242,6 +242,11 @@ func SetupRunTestV2(
 	}
 	isPsh := IsPowershell(config.Entrypoint)
 	preCmd, filterfilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
+
+	if isPython(config.Entrypoint) {
+		preCmd = ""
+	}
+
 	if err != nil || pythonArtifactDir == "" {
 		return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 	}
