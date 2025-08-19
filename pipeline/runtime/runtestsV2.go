@@ -18,6 +18,7 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/common"
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -26,6 +27,8 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
+	"github.com/harness/lite-engine/ti/report"
+	"github.com/harness/lite-engine/ti/savings"
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
 	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
 	"github.com/harness/ti-client/types"
@@ -103,76 +106,76 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		step.Envs["PLUGIN_METADATA_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
 	}
 
-	// exited, err := f(ctx, step, out, r.LogDrone, false)
-	// timeTakenMs := time.Since(start).Milliseconds()
+	exited, err := f(ctx, step, out, r.LogDrone, false)
+	timeTakenMs := time.Since(start).Milliseconds()
 	collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData, r.Envs)
 	if err == nil {
 		err = collectionErr
 	}
 
-	// if tiConfig.GetParseSavings() {
-	// 	optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, common.StepTypeRunTestsV2)
-	// }
+	if tiConfig.GetParseSavings() {
+		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, common.StepTypeRunTestsV2)
+	}
 
-	// exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
-	// artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
+	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
+	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 
-	// summaryOutputs := make(map[string]string)
-	// reportSaveErr := report.SaveReportSummaryToOutputs(ctx, tiConfig, step.Name, summaryOutputs, log, r.Envs)
-	// if reportSaveErr != nil {
-	// 	log.Errorf("Error while saving report summary to outputs %s", reportSaveErr.Error())
-	// }
-	// summaryOutputsV2 := report.GetSummaryOutputsV2(summaryOutputs, r.Envs)
-	// if exited != nil && exited.Exited && exited.ExitCode == 0 {
-	// 	outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
-	// 	if report.TestSummaryAsOutputEnabled(r.Envs) {
-	// 		if outputs == nil {
-	// 			outputs = make(map[string]string)
-	// 		}
+	summaryOutputs := make(map[string]string)
+	reportSaveErr := report.SaveReportSummaryToOutputs(ctx, tiConfig, step.Name, summaryOutputs, log, r.Envs)
+	if reportSaveErr != nil {
+		log.Errorf("Error while saving report summary to outputs %s", reportSaveErr.Error())
+	}
+	summaryOutputsV2 := report.GetSummaryOutputsV2(summaryOutputs, r.Envs)
+	if exited != nil && exited.Exited && exited.ExitCode == 0 {
+		outputs, err := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion) //nolint:govet
+		if report.TestSummaryAsOutputEnabled(r.Envs) {
+			if outputs == nil {
+				outputs = make(map[string]string)
+			}
 
-	// 		for k, v := range summaryOutputs {
-	// 			if _, ok := outputs[k]; !ok {
-	// 				outputs[k] = v
-	// 			}
-	// 		}
-	// 	}
-	// 	if len(r.Outputs) > 0 {
-	// 		outputsV2 := []*api.OutputV2{}
-	// 		for _, output := range r.Outputs {
-	// 			if _, ok := outputs[output.Key]; ok {
-	// 				outputsV2 = append(outputsV2, &api.OutputV2{
-	// 					Key:   output.Key,
-	// 					Value: outputs[output.Key],
-	// 					Type:  output.Type,
-	// 				})
-	// 			}
-	// 		}
-	// 		if report.TestSummaryAsOutputEnabled(r.Envs) {
-	// 			outputsV2 = report.AppendWithoutDuplicates(outputsV2, summaryOutputsV2)
-	// 		}
-	// 		return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), err
-	// 	} else if len(r.OutputVars) > 0 {
-	// 		// only return err when output vars are expected
-	// 		if report.TestSummaryAsOutputEnabled(r.Envs) {
-	// 			return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
-	// 		}
-	// 		return exited, outputs, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
-	// 	}
-	// 	if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
-	// 		return exited, outputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), nil
-	// 	}
-	// 	return exited, outputs, exportEnvs, artifact, nil, telemetryData, string(optimizationState), nil
-	// }
-	// if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
-	// 	return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
-	// }
+			for k, v := range summaryOutputs {
+				if _, ok := outputs[k]; !ok {
+					outputs[k] = v
+				}
+			}
+		}
+		if len(r.Outputs) > 0 {
+			outputsV2 := []*api.OutputV2{}
+			for _, output := range r.Outputs {
+				if _, ok := outputs[output.Key]; ok {
+					outputsV2 = append(outputsV2, &api.OutputV2{
+						Key:   output.Key,
+						Value: outputs[output.Key],
+						Type:  output.Type,
+					})
+				}
+			}
+			if report.TestSummaryAsOutputEnabled(r.Envs) {
+				outputsV2 = report.AppendWithoutDuplicates(outputsV2, summaryOutputsV2)
+			}
+			return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), err
+		} else if len(r.OutputVars) > 0 {
+			// only return err when output vars are expected
+			if report.TestSummaryAsOutputEnabled(r.Envs) {
+				return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
+			}
+			return exited, outputs, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
+		}
+		if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
+			return exited, outputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), nil
+		}
+		return exited, outputs, exportEnvs, artifact, nil, telemetryData, string(optimizationState), nil
+	}
+	if len(summaryOutputsV2) != 0 && report.TestSummaryAsOutputEnabled(r.Envs) {
+		return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
+	}
 
-	// // clean up folders
-	// tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(r.ID, tiConfig))
-	// fs := filesystem.New()
-	// _ = fs.Remove(tmpFilePath)
+	// clean up folders
+	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(r.ID, tiConfig))
+	fs := filesystem.New()
+	_ = fs.Remove(tmpFilePath)
 
-	return nil, nil, nil, nil, nil, nil, string(optimizationState), err
+	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
 
 func SetupRunTestV2(
@@ -253,6 +256,34 @@ func SetupRunTestV2(
 
 func createSkipTestsFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
 	log *logrus.Logger, tiConfig *tiCfg.Cfg, skipTestsFilePath string, envs map[string]string, config *api.RunTestsV2Config) error {
+
+	// Debug logging for the file path
+	log.Infof("Creating skip tests file at path: %s", skipTestsFilePath)
+
+	// Ensure the directory exists before creating the file - use the same approach as createSelectedTestFile
+	skipTestsFileDir := filepath.Dir(skipTestsFilePath)
+	log.Infof("Extracted directory path: %s", skipTestsFileDir)
+
+	// Check if directory already exists
+	if _, err := os.Stat(skipTestsFileDir); os.IsNotExist(err) {
+		log.Infof("Directory does not exist, creating: %s", skipTestsFileDir)
+	} else {
+		log.Infof("Directory already exists: %s", skipTestsFileDir)
+	}
+
+	err := fs.MkdirAll(skipTestsFileDir, os.ModePerm)
+	if err != nil {
+		log.WithError(err).Errorf("MkdirAll failed for directory %s", skipTestsFileDir)
+		return fmt.Errorf("failed to create skip tests directory: %w", err)
+	}
+
+	// Verify directory was created successfully
+	if _, err := os.Stat(skipTestsFileDir); os.IsNotExist(err) {
+		log.Errorf("Directory still does not exist after MkdirAll: %s", skipTestsFileDir)
+		return fmt.Errorf("directory creation verification failed: %s", skipTestsFileDir)
+	}
+
+	log.Infof("Successfully created/verified directory: %s", skipTestsFileDir)
 
 	// Get file checksums from git repository using workspace
 	fileChecksums, err := getGitFileChecksums(ctx, workspace, log)
@@ -899,24 +930,24 @@ func collectTestReportsAndCg(
 		r.TestReport.Junit.Paths = []string{"**/*.xml", "**/*.trx"}
 	}
 
-	// reportStart := time.Now()
-	// tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
-	// if crErr != nil {
-	// 	log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
-	// }
+	reportStart := time.Now()
+	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
+	if crErr != nil {
+		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
+	}
 
 	testFailed := false
 
-	// if envValue, ok := envs["DISABLE_CG_UPLOAD_ON_FAILURE_FF"]; ok {
-	// 	if envValue == "true" && tests != nil {
-	// 		for _, test := range tests {
-	// 			if test.Result.Status == types.StatusFailed {
-	// 				testFailed = true
-	// 				break
-	// 			}
-	// 		}
-	// 	}
-	// }
+	if envValue, ok := envs["DISABLE_CG_UPLOAD_ON_FAILURE_FF"]; ok {
+		if envValue == "true" && tests != nil {
+			for _, test := range tests {
+				if test.Result.Status == types.StatusFailed {
+					testFailed = true
+					break
+				}
+			}
+		}
+	}
 
 	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, testFailed, r)
 	if cgErr != nil {

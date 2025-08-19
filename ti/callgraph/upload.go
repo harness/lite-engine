@@ -7,10 +7,8 @@ package callgraph
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -20,7 +18,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/harness/ti-client/chrysalis/types"
 	tiClientUtils "github.com/harness/ti-client/chrysalis/utils"
-	tiClientTypes "github.com/harness/ti-client/types"
+	tiClient "github.com/harness/ti-client/client"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -28,7 +26,7 @@ import (
 
 const (
 	cgSchemaType = "callgraph"
-	cgDir        = "%s/ti/callgraph/" // path where callgraph files will be generated
+	cgDir        = "%s/ti/callgraph/"
 )
 
 // Upload method uploads the callgraph.
@@ -39,20 +37,27 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
 		return nil
 	}
-	// Create step-specific data directory path
 	stepDataDir := filepath.Join(cfg.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, cfg))
 
-	cg, err := parseCallgraphFiles(stepDataDir, log)
+	cg, err := parseCallgraphFiles(fmt.Sprintf(dir, stepDataDir), log)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse callgraph files")
 	}
 
-	fileHashPairs, err := getGitFileChecksums(ctx, r.WorkingDir, log)
+	fileChecksums, err := instrumentation.GetGitFileChecksums(ctx, r.WorkingDir, log)
 	if err != nil {
 		return errors.Wrap(err, "failed to get file hashes")
 	}
 
-	uploadPayload := CreateUploadPayload(cg, fileHashPairs, r.TIConfig.Repo, cfg.GetAccountID(), cfg.GetOrgID(), cfg.GetProjectID(), r.TIConfig.Sha, log)
+	var repo, sha string
+	if httpClient, ok := cfg.GetClient().(*tiClient.HTTPClient); ok {
+		repo = httpClient.Repo
+		sha = httpClient.Sha
+	} else {
+		repo = ""
+		sha = ""
+	}
+	uploadPayload := CreateUploadPayload(cg, fileChecksums, repo, cfg.GetAccountID(), cfg.GetOrgID(), cfg.GetProjectID(), sha, log)
 
 	err = cfg.GetClient().UploadCgV2(ctx, *uploadPayload)
 	if err != nil {
@@ -93,6 +98,8 @@ func parseCallgraphFiles(dataDir string, log *logrus.Logger) (*Callgraph, error)
 		return nil, errors.Wrap(err, "failed to fetch files inside the directory")
 	}
 	parser = NewCallGraphParser(log, fs)
+	log.Infoln(fmt.Sprintf("Found callgraph files: %v", cgFiles))
+
 	cg, err := parser.Parse(cgFiles, visFiles)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse visgraph")
@@ -153,63 +160,7 @@ func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string,
 	return cgFiles, visFiles, nil
 }
 
-func getGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger) ([]tiClientTypes.FilehashPair, error) {
-	log.Infof("Getting git file checksums from directory: %s", repoDir)
-
-	// Execute git ls-tree -r HEAD . command in the specified directory
-	cmd := exec.CommandContext(ctx, "git", "ls-tree", "-r", "HEAD", ".")
-	cmd.Dir = repoDir
-
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute git ls-tree command: %w", err)
-	}
-
-	// Parse the output and create file:checksum map
-	fileHashPairs := make([]tiClientTypes.FilehashPair, 0)
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		// Git ls-tree output format: "<mode> <type> <checksum>\t<filepath>"
-		// Example: "100644 blob a1b2c3d4e5f6... path/to/file.txt"
-		parts := strings.Fields(line)
-		if len(parts) < 4 {
-			log.Warnf("Skipping malformed git ls-tree line: %s", line)
-			continue
-		}
-
-		// Extract checksum (3rd field) and filepath (4th field onwards, joined with spaces)
-		fullChecksum := parts[2]
-		filepath := strings.Join(parts[3:], " ")
-
-		// Take first 16 characters of 160-bit checksum and convert to uint64
-		if len(fullChecksum) < 16 {
-			log.Warnf("Skipping file with short checksum: %s (checksum: %s)", filepath, fullChecksum)
-			continue
-		}
-
-		checksum64, err := strconv.ParseUint(fullChecksum[:16], 16, 64)
-		if err != nil {
-			log.Warnf("Failed to parse checksum for file %s: %v", filepath, err)
-			continue
-		}
-
-		fileHashPairs = append(fileHashPairs, tiClientTypes.FilehashPair{
-			Path:     filepath,
-			Checksum: checksum64,
-		})
-	}
-
-	log.Infof("Successfully processed %d files from git repository", len(fileHashPairs))
-	return fileHashPairs, nil
-}
-
-func CreateUploadPayload(cg *Callgraph, fileHashPairs []tiClientTypes.FilehashPair, repo, account, org, project, commitSha string, log *logrus.Logger) *types.UploadCgRequest {
-	// Create repository information
+func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo, account, org, project, commitSha string, log *logrus.Logger) *types.UploadCgRequest {
 	repoInfo := types.Identifier{
 		AccountID: account,
 		OrgID:     org,
@@ -217,12 +168,10 @@ func CreateUploadPayload(cg *Callgraph, fileHashPairs []tiClientTypes.FilehashPa
 		Repo:      repo,
 	}
 
-	// Extract tests from call graph
 	var tests []types.Test
 	var chains []types.Chain
 
 	if cg != nil {
-		// Create a map of node ID to node for quick lookup
 		nodeMap := make(map[int]Node)
 		for _, node := range cg.Nodes {
 			nodeMap[node.ID] = node
@@ -230,16 +179,12 @@ func CreateUploadPayload(cg *Callgraph, fileHashPairs []tiClientTypes.FilehashPa
 
 		// Process call graph nodes to extract test information
 		for _, node := range cg.Nodes {
-			if node.Type == "test" { // Assuming test nodes have a specific type
-				// Find connected sources for this test
+			if node.Type == "test" {
 				var sourcePaths []string
 				for _, relation := range cg.TestRelations {
-					// Check if this test is in the relation's tests
 					for _, testID := range relation.Tests {
 						if testID == node.ID {
-							// Found a source connected to this test
 							if sourceNode, exists := nodeMap[relation.Source]; exists {
-								// Use the source file path if available, otherwise package + class
 								if sourceNode.File != "" {
 									sourcePaths = append(sourcePaths, sourceNode.File)
 								} else {
@@ -251,7 +196,6 @@ func CreateUploadPayload(cg *Callgraph, fileHashPairs []tiClientTypes.FilehashPa
 									} else if sourceNode.Class != "" {
 										sourcePaths = append(sourcePaths, sourceNode.Class)
 									}
-									// If both are empty, skip adding this source path
 								}
 							}
 							break
@@ -259,7 +203,6 @@ func CreateUploadPayload(cg *Callgraph, fileHashPairs []tiClientTypes.FilehashPa
 					}
 				}
 
-				// De-duplicate source paths to prevent redundant data
 				uniquePaths := make(map[string]struct{})
 				dedupedSourcePaths := make([]string, 0)
 				for _, path := range sourcePaths {
@@ -269,14 +212,12 @@ func CreateUploadPayload(cg *Callgraph, fileHashPairs []tiClientTypes.FilehashPa
 					}
 				}
 
-				// If no sources found, use empty slice
 				if len(dedupedSourcePaths) == 0 {
 					sourcePaths = []string{}
 				} else {
 					sourcePaths = dedupedSourcePaths
 				}
 
-				// Use test file path if available, otherwise method name - validate not empty
 				testPath := ""
 				if node.File != "" {
 					testPath = node.File
@@ -296,50 +237,31 @@ func CreateUploadPayload(cg *Callgraph, fileHashPairs []tiClientTypes.FilehashPa
 					}
 				}
 
-				// Skip if testPath is still empty (shouldn't happen with fallbacks above)
 				if testPath == "" {
 					log.Warnf("Skipping test node with empty path: node_id=%d, type=%s", node.ID, node.Type)
 					continue
 				}
 
-				// Validate commitSha - provide fallback if empty
 				validCommitSha := commitSha
 				if validCommitSha == "" {
 					validCommitSha = "unknown_commit"
 				}
 
-				// Create test entry
 				test := types.Test{
 					Path:      testPath,
 					ExtraInfo: map[string]string{},
 					IndicativeChains: []types.IndicativeChain{
 						{
-							SourcePaths: sourcePaths, // Use connected source paths
+							SourcePaths: sourcePaths,
 						},
 					},
 				}
 				tests = append(tests, test)
 
-				// Create filtered file hash pairs for only the source paths in this test's indicative chain
-				var filteredHashPairs []tiClientTypes.FilehashPair
-				for _, sourcePath := range sourcePaths {
-					// Find the hash for this source path in the fileHashPairs slice
-					for _, pair := range fileHashPairs {
-						if pair.Path == sourcePath {
-							filteredHashPairs = append(filteredHashPairs, tiClientTypes.FilehashPair{
-								Path:     sourcePath,
-								Checksum: pair.Checksum,
-							})
-							break // Found the match, no need to continue searching
-						}
-					}
-				}
-
-				// Create corresponding chain entry
 				chain := types.Chain{
 					Path:      testPath,
-					Checksum:  strconv.FormatUint(tiClientUtils.ChainChecksum(filteredHashPairs), 10),
-					State:     types.TestState("SUCCESS"), // Always set to success as requested
+					Checksum:  strconv.FormatUint(tiClientUtils.ChainChecksum(sourcePaths, fileChecksums), 10),
+					State:     types.TestState("SUCCESS"),
 					ExtraInfo: map[string]string{},
 				}
 				chains = append(chains, chain)
