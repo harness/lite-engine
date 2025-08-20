@@ -55,15 +55,12 @@ const (
 	running                          = "running"
 )
 
-var (
-	globalDockerClient     *client.Client
-	globalDockerClientLock sync.Mutex
-)
-
 // Opts configures the Docker engine.
 type Opts struct {
-	HidePull          bool
-	ReuseDockerClient bool
+	HidePull bool
+	// Callers can pass a non-nil client.APIClient here, and it
+	// will be used instead of creating a new docker client
+	DockerClient client.APIClient
 }
 
 // Docker implements a Docker pipeline engine.
@@ -95,20 +92,14 @@ func New(client client.APIClient, opts Opts) *Docker {
 // NewEnv returns a new Engine from the environment.
 func NewEnv(opts Opts) (*Docker, error) {
 	var cli client.APIClient
-	var err error
-	if opts.ReuseDockerClient {
-		globalDockerClientLock.Lock()
-		defer globalDockerClientLock.Unlock()
-		// Try to (re)initialize if not set
-		if globalDockerClient == nil {
-			globalDockerClient, err = client.NewClientWithOpts(client.FromEnv)
-		}
-		cli = globalDockerClient
+	if opts.DockerClient != nil {
+		cli = opts.DockerClient
 	} else {
+		var err error
 		cli, err = client.NewClientWithOpts(client.FromEnv)
-	}
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 	return New(cli, opts), nil
 }
@@ -143,36 +134,6 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	}
 
 	err := e.createNetworkWithRetries(ctx, pipelineConfig)
-
-	// launches the inernal setup steps
-	// for _, step := range pipelineConfig.Internal {
-	// 	if err := e.create(ctx, spec, step, ioutil.Discard); err != nil {
-	// 		logger.FromContext(ctx).
-	// 			WithError(err).
-	// 			WithField("container", step.ID).
-	// 			Errorln("cannot create tmate container")
-	// 		return err
-	// 	}
-	// 	if err := e.start(ctx, step.ID); err != nil {
-	// 		logger.FromContext(ctx).
-	// 			WithError(err).
-	// 			WithField("container", step.ID).
-	// 			Errorln("cannot start tmate container")
-	// 		return err
-	// 	}
-	// 	if !step.Detach {
-	// 		// the internal containers perform short-lived tasks
-	// 		// and should not require > 1 minute to execute.
-	// 		//
-	// 		// just to be on the safe side we apply a timeout to
-	// 		// ensure we never block pipeline execution because we
-	// 		// are waiting on an internal task.
-	// 		ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	// 		defer cancel()
-	// 		e.wait(ctx, step.ID)
-	// 	}
-	// }
-
 	return errors.TrimExtraInfo(err)
 }
 

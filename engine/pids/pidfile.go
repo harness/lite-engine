@@ -150,18 +150,13 @@ func AppendPIDToFile(pid int, path string) error {
 	return nil
 }
 
-// KillProcessesFromFile forcefully terminates all processes with PIDs found in a file.
-// It takes a path to the file containing the PIDs and a timeout duration.
+// KillProcessesFromFile forcefully terminates all processes with the passed PIDs.
+// It takes a list of PIDs and a timeout duration.
 // It will return an error if it fails to kill any processes.
-// The file can be empty, and the function will return nil in that case.
+// The PID list can be empty, and the function will return nil in that case.
 // The function is goroutine-safe and will wait for all goroutines to finish
 // before returning.
-func KillProcessesFromFile(ctx context.Context, path string, timeout time.Duration) error {
-	pids, err := ReadPIDsFromFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read PIDs from file: %w", err)
-	}
-
+func KillProcesses(ctx context.Context, pids []int, timeout time.Duration) error {
 	if len(pids) == 0 {
 		fmt.Println("No valid PIDs found in file")
 		return nil
