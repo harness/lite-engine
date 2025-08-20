@@ -382,7 +382,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	// this is short term solution
 	// override to gar if no auth is present
 	if isHosted && (step.Auth == nil || step.Auth.Username == "" || step.Auth.Password == "") {
-		overriddenImage = image.OverrideRegistry(step.Image)
+		overriddenImage = image.OverrideRegistry(step.Image, os.Getenv(spec.CloudDriver))
 	}
 
 	selectedImage := overriddenImage

@@ -24,6 +24,11 @@ const (
 	PullNever
 )
 
+// CloudDriver defines the cloud driver.
+const (
+	CloudDriver = "CLOUD_DRIVER"
+)
+
 func (p PullPolicy) String() string {
 	return pullPolicyID[p]
 }
