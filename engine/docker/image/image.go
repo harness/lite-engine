@@ -20,6 +20,7 @@ var (
 		"plugins/gar", "plugins/gcs", "plugins/s3", "harness/sto-plugin", "plugins/artifactory", "plugins/cache",
 		"harness/ssca-plugin", "harness/slsa-plugin", "harness/ssca-compliance-plugin", "harness/harness-cache-server"}
 	garRegistry = "us-docker.pkg.dev/gar-prod-setup/harness-public/"
+	ecrRegistry = "public.ecr.aws/harness/"
 )
 
 // Trim returns the short image name without tag.
@@ -103,7 +104,7 @@ func IsLatest(s string) bool {
 }
 
 // Overrides registry if image is an internal image
-func OverrideRegistry(imageWithTag string) string {
+func OverrideRegistry(imageWithTag, cloudDriver string) string {
 	parts := strings.Split(imageWithTag, ":")
 	if len(parts) < 1 || len(parts) > 2 {
 		return imageWithTag
@@ -115,12 +116,21 @@ func OverrideRegistry(imageWithTag string) string {
 		tagName = parts[1]
 	}
 
+	// Select registry based on cloud driver
+	var registry string
+	switch cloudDriver {
+	case "amazon":
+		registry = ecrRegistry
+	default:
+		registry = garRegistry // fallback to current flow
+	}
+
 	for _, im := range internalImages {
 		if imageName == im {
 			if tagName == "" {
-				return garRegistry + imageName
+				return registry + imageName
 			}
-			return garRegistry + imageName + ":" + tagName
+			return registry + imageName + ":" + tagName
 		}
 	}
 	return imageWithTag
