@@ -41,9 +41,21 @@ func ParseAndUploadTests(
 	// Append working dir to the paths. In k8s, we specify the workDir in the YAML but this is
 	// needed in case of VMs.
 	for idx, p := range report.Junit.Paths {
+		if p == "" {
+			log.Warnf("Empty path found at index %d, skipping", idx)
+			continue
+		}
+
+		// Check if path starts with special characters
 		if p[0] != '~' && p[0] != '/' && p[0] != '\\' {
 			if !strings.HasPrefix(p, workDir) {
-				report.Junit.Paths[idx] = filepath.Join(workDir, p)
+				// Join workDir with path and handle any potential errors
+				joined := filepath.Join(workDir, p)
+				if joined == "" {
+					log.Errorf("Failed to join workDir with path at index %d", idx)
+					continue
+				}
+				report.Junit.Paths[idx] = joined
 			}
 		}
 	}
