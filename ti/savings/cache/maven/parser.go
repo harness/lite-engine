@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	mavenReportPathRegex = "/harness/**/target/maven-incremental/*.xml"
+	mavenReportPathRegex = "./**/target/maven-incremental/*.xml"
 	tmpFilePath          = "/tmp/maven-cache-marker"
 	markerFilePerm       = 0600
 	markerDirPerm        = 0755
