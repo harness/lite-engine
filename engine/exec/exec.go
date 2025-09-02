@@ -34,8 +34,6 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath str
 
 	cmd := exec.CommandContext(ctx, step.Entrypoint[0], cmdArgs...) //nolint:gosec
 
-	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on host for step %s: %s", step.ID, cmd.Args))
-
 	if step.User != "" {
 		if userID, err := strconv.Atoi(step.User); err == nil {
 			SetUserID(cmd, uint32(userID))
