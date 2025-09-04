@@ -21,6 +21,10 @@ import (
 	"github.com/docker/go-connections/nat"
 )
 
+const (
+	buildCacheStepName = "harness-build-cache"
+)
+
 // returns a container configuration.
 func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step, image string) *container.Config {
 	config := &container.Config{
@@ -131,7 +135,7 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 func toNetConfig(pipelineConfig *spec.PipelineConfig, proc *spec.Step) *network.NetworkingConfig {
 	// if the user overrides the default network we do not
 	// attach to the user-defined network.
-	if proc.Network != "" {
+	if proc.Network != "" && proc.Name != buildCacheStepName {
 		return &network.NetworkingConfig{}
 	}
 	endpoints := map[string]*network.EndpointSettings{}

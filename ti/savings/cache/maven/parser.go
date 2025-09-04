@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	mavenReportPathRegex = "/harness/**/target/maven-incremental/*.xml"
+	mavenReportPathRegex = "**/target/maven-incremental/*.xml"
 	tmpFilePath          = "/tmp/maven-cache-marker"
 	markerFilePerm       = 0600
 	markerDirPerm        = 0755
@@ -28,7 +28,8 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 
 	fmt.Println("Parsing Maven cache savings...")
 	// Find all XML files in any maven-incremental directory recursively using mavenReportPathRegex
-	files, err := zglob.Glob(mavenReportPathRegex)
+	path := fmt.Sprintf("%s/%s", workspace, mavenReportPathRegex)
+	files, err := zglob.Glob(path)
 	if err != nil {
 		return cacheState, nil, fmt.Errorf("failed to find cache reports: %w", err)
 	}
