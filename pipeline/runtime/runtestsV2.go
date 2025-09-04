@@ -52,6 +52,7 @@ const (
 	dotNetAgentV2Path       = "/dotnet/v2/"
 	dotNetConfigV2Dir       = "%s/ti/v2/dotnet/config"
 	javascriptRequireFile   = "ti-agent.cjs"
+	pythonAgentScript       = "harness_ti_plugin"
 )
 
 //nolint:gocritic,gocyclo,funlen
@@ -613,6 +614,23 @@ fi
 					preCmd += "\nif cat /etc/os-release | grep -iq alpine ; then export NODE_OPTIONS=$NODE_OPTIONS_ALPINE; fi;"
 				} else {
 					preCmd += "\nIf (Get-Content /etc/os-release | %{$_ -match 'alpine'}) { [System.Environment]::SetEnvironmentVariable('NODE_OPTIONS', [System.Environment]::GetEnvironmentVariable('NODE_OPTIONS_ALPINE')); }"
+				}
+			}
+
+			if pythonFFVal, ok := envs["CI_ENABLE_RUNTESTV2_PYTHON_V2_FF"]; ok && pythonFFVal == trueValue {
+				pythonAgentPathLinux := fmt.Sprintf("%s%slinux/%s", tmpFilePath, dotNetAgentV2Path, pythonAgentScript)
+				pythonAgentPathAlpine := fmt.Sprintf("%s%salpine/%s", tmpFilePath, dotNetAgentV2Path, pythonAgentScript)
+
+				envs["PYTEST_PLUGINS"] = pythonAgentScript
+
+				envs["PYTHONPATH"] = filepath.Dir(pythonAgentPathLinux)
+				envs["PYTHONPATH_ALPINE"] = filepath.Dir(pythonAgentPathAlpine)
+				envs["PYTHONPATH_LINUX"] = filepath.Dir(pythonAgentPathLinux)
+
+				if !isPsh {
+					preCmd += "\nif cat /etc/os-release | grep -iq alpine ; then export PYTHONPATH=$PYTHONPATH_ALPINE; fi;"
+				} else {
+					preCmd += "\nIf (Get-Content /etc/os-release | %{$_ -match 'alpine'}) { [System.Environment]::SetEnvironmentVariable('PYTHONPATH', [System.Environment]::GetEnvironmentVariable('PYTHONPATH_ALPINE')); }"
 				}
 			}
 		}
