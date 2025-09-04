@@ -52,6 +52,7 @@ const (
 	dotNetAgentV2Path       = "/dotnet/v2/"
 	dotNetConfigV2Dir       = "%s/ti/v2/dotnet/config"
 	javascriptRequireFile   = "ti-agent.cjs"
+	nativeJavaAgentV2Name   = "java-agent-trampoline.jar"
 	pythonAgentScript       = "harness_ti_plugin"
 )
 
@@ -614,6 +615,21 @@ fi
 					preCmd += "\nif cat /etc/os-release | grep -iq alpine ; then export NODE_OPTIONS=$NODE_OPTIONS_ALPINE; fi;"
 				} else {
 					preCmd += "\nIf (Get-Content /etc/os-release | %{$_ -match 'alpine'}) { [System.Environment]::SetEnvironmentVariable('NODE_OPTIONS', [System.Environment]::GetEnvironmentVariable('NODE_OPTIONS_ALPINE')); }"
+				}
+			}
+
+			if javaFFVal, ok := envs["CI_ENABLE_RUNTESTV2_JAVA_V2_FF"]; ok && javaFFVal == trueValue {
+				javaAgentPathLinux := fmt.Sprintf("%s%slinux/%s", tmpFilePath, dotNetAgentV2Path, nativeJavaAgentV2Name)
+				javaAgentPathAlpine := fmt.Sprintf("%s%salpine/%s", tmpFilePath, dotNetAgentV2Path, nativeJavaAgentV2Name)
+
+				envs["JAVA_TOOL_OPTIONS"] = fmt.Sprintf("-javaagent:%s", javaAgentPathLinux)
+				envs["JAVA_TOOL_OPTIONS_ALPINE"] = fmt.Sprintf("-javaagent:%s", javaAgentPathAlpine)
+				envs["JAVA_TOOL_OPTIONS_LINUX"] = fmt.Sprintf("-javaagent:%s", javaAgentPathLinux)
+
+				if !isPsh {
+					preCmd += "\nif cat /etc/os-release | grep -iq alpine ; then export JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS_ALPINE; fi;"
+				} else {
+					preCmd += "\nIf (Get-Content /etc/os-release | %{$_ -match 'alpine'}) { [System.Environment]::SetEnvironmentVariable('JAVA_TOOL_OPTIONS', [System.Environment]::GetEnvironmentVariable('JAVA_TOOL_OPTIONS_ALPINE')); }"
 				}
 			}
 
