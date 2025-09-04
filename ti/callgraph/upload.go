@@ -161,7 +161,7 @@ func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string,
 }
 
 func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo, account, org, project, commitSha string, log *logrus.Logger) *types.UploadCgRequest {
-	repoInfo := types.Identifier{
+	identifier := types.Identifier{
 		AccountID: account,
 		OrgID:     org,
 		ProjectID: project,
@@ -261,7 +261,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo, a
 				chain := types.Chain{
 					Path:      testPath,
 					Checksum:  strconv.FormatUint(tiClientUtils.ChainChecksum(sourcePaths, fileChecksums), 10),
-					State:     types.TestState("SUCCESS"),
+					State:     types.SUCCESS,
 					ExtraInfo: map[string]string{},
 				}
 				chains = append(chains, chain)
@@ -270,7 +270,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo, a
 	}
 
 	return &types.UploadCgRequest{
-		Identifier: repoInfo,
+		Identifier: identifier,
 		Tests:      tests,
 		Chains:     chains,
 	}
