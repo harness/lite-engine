@@ -4,8 +4,6 @@ go 1.19
 
 replace github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
 
-replace github.com/harness/ti-client => /Users/avijeet/repos/ti-client
-
 require (
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/cenkalti/backoff/v4 v4.2.0
@@ -18,7 +16,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/harness/ti-client v0.0.0-20250814053404-1c2ee976ec37
+	github.com/harness/ti-client v0.0.0-20250819181849-5d5b7a9981b4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/linkedin/goavro/v2 v2.12.0
