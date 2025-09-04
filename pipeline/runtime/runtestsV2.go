@@ -501,7 +501,7 @@ if command -v bundle >/dev/null; then
 fi
 `, repoPath, "0.0.1", repoPath, "0.0.1")
 	} else {
-		preCmd += fmt.Sprintf(`\nif ($env:DEBUG -ieq 'true') { bundle add rspec_junit_formatter; bundle add harness_ruby_agent --path '%s' --version '%s' } else { try { bundle add rspec_junit_formatter 2>$null } catch { Write-Host 'Error: Failed to add rspec_junit_formatter.' }; try { bundle add harness_ruby_agent --path '%s' --version '%s' 2>$null } catch { Write-Host 'Error: Failed to add harness_ruby_agent.' } };`, repoPath, "0.0.1", repoPath, "0.0.1")
+		preCmd += fmt.Sprintf("\nif ($env:DEBUG -ieq 'true') { bundle add rspec_junit_formatter; bundle add harness_ruby_agent --path '%s' --version '%s' } else { try { bundle add rspec_junit_formatter 2>$null } catch { Write-Host 'Error: Failed to add rspec_junit_formatter.' }; try { bundle add harness_ruby_agent --path '%s' --version '%s' 2>$null } catch { Write-Host 'Error: Failed to add harness_ruby_agent.' } };", repoPath, "0.0.1", repoPath, "0.0.1")
 	}
 
 	disableJunitVarName := "TI_DISABLE_JUNIT_INSTRUMENTATION"
@@ -549,7 +549,7 @@ if command -v python3 >/dev/null; then
 fi
 `, whlFilePath, whlFilePath)
 		} else {
-			preCmd += fmt.Sprintf(`\nif ($env:DEBUG -ieq 'true') { python3 -m pip install %s } else { try { python3 -m pip install %s 2>$null } catch { Write-Host 'Error: Failed to install Python agent.' } };`, whlFilePath, whlFilePath)
+			preCmd += fmt.Sprintf("\nif ($env:DEBUG -ieq 'true') { python3 -m pip install %s } else { try { python3 -m pip install %s 2>$null } catch { Write-Host 'Error: Failed to install Python agent.' } };", whlFilePath, whlFilePath)
 		}
 	}
 
