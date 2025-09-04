@@ -201,8 +201,8 @@ func SetupRunTestV2(
 	agentPaths := make(map[string]string)
 	fs := filesystem.New()
 	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, tiConfig))
+	var preCmd, skipTestsFilePath string
 
-	var preCmd, filterfilePath, skipTestsFilePath string
 	if config.IntelligenceMode {
 		// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
 		// the agents, and would also help in diagnosing issues when needed. The value we look for is specific not a
@@ -245,7 +245,7 @@ func SetupRunTestV2(
 			}
 		}
 		isPsh := IsPowershell(config.Entrypoint)
-		preCmd, filterfilePath, skipTestsFilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
+		preCmd, _, skipTestsFilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
 		if err != nil || pythonArtifactDir == "" {
 			return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 		}
@@ -256,16 +256,44 @@ func SetupRunTestV2(
 			return preCmd, fmt.Errorf("error while creating skip tests file %s", err)
 		}
 
-		err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath, testMetadata)
-		if err != nil {
-			return preCmd, fmt.Errorf("error while creating filter file %s", err)
-		}
+		// err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath, testMetadata)
+		// if err != nil {
+		// 	return preCmd, fmt.Errorf("error while creating filter file %s", err)
+		// }
 	}
 	return preCmd, nil
 }
 
 func createSkipTestsFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
 	log *logrus.Logger, tiConfig *tiCfg.Cfg, skipTestsFilePath string, envs map[string]string, config *api.RunTestsV2Config) error {
+
+	// Debug logging for the file path
+	log.Infof("Creating skip tests file at path: %s", skipTestsFilePath)
+
+	// Ensure the directory exists before creating the file - use the same approach as createSelectedTestFile
+	skipTestsFileDir := filepath.Dir(skipTestsFilePath)
+	log.Infof("Extracted directory path: %s", skipTestsFileDir)
+
+	// Check if directory already exists
+	if _, err := os.Stat(skipTestsFileDir); os.IsNotExist(err) {
+		log.Infof("Directory does not exist, creating: %s", skipTestsFileDir)
+	} else {
+		log.Infof("Directory already exists: %s", skipTestsFileDir)
+	}
+
+	err := fs.MkdirAll(skipTestsFileDir, os.ModePerm)
+	if err != nil {
+		log.WithError(err).Errorf("MkdirAll failed for directory %s", skipTestsFileDir)
+		return fmt.Errorf("failed to create skip tests directory: %w", err)
+	}
+
+	// Verify directory was created successfully
+	if _, err := os.Stat(skipTestsFileDir); os.IsNotExist(err) {
+		log.Errorf("Directory still does not exist after MkdirAll: %s", skipTestsFileDir)
+		return fmt.Errorf("directory creation verification failed: %s", skipTestsFileDir)
+	}
+
+	log.Infof("Successfully created/verified directory: %s", skipTestsFileDir)
 
 	// Get file checksums from git repository using workspace
 	fileChecksums, err := getGitFileChecksums(ctx, workspace, log)
