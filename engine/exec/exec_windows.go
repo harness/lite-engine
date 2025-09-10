@@ -10,6 +10,6 @@ import (
 	"os/exec"
 )
 
-func SetUserID(cmd *exec.Cmd, userID uint32) {
-	//TODO
+func SetSysProcAttr(cmd *exec.Cmd, userIDStr string) {
+	// This is a no-op on Windows
 }

@@ -8,13 +8,17 @@ package exec
 
 import (
 	"os/exec"
+	"strconv"
 	"syscall"
 )
 
-func SetUserID(cmd *exec.Cmd, userID uint32) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &syscall.Credential{
-			Uid: userID,
-		},
+func SetSysProcAttr(cmd *exec.Cmd, userIDStr string) {
+	sysProcAttr := &syscall.SysProcAttr{}
+	if userIDStr != "" {
+		if userID, err := strconv.Atoi(userIDStr); err == nil {
+			sysProcAttr.Credential = &syscall.Credential{Uid: uint32(userID)}
+		}
 	}
+	sysProcAttr.Setpgid = true
+	cmd.SysProcAttr = sysProcAttr
 }
