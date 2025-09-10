@@ -616,6 +616,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	envs["TI_V2"] = "1"
 	envs["TI_OUTPUT_PATH"] = outDir
 	envs["TI_FILTER_FILE_PATH"] = filterFilePath
+	envs["TI_SKIP_FILE_PATH"] = skipTestsFilePath
 	envs["TI_SKIP_TESTS_FILE_PATH"] = skipTestsFilePath
 	envs["PYTEST_ADDOPTS"] = "--cov=. --cov-report=xml"
 	envs["COVERAGE_FILE"] = fmt.Sprintf(".harnesscoverage_%d", splitIdx)
@@ -936,20 +937,7 @@ func collectTestReportsAndCg(
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
 	}
 
-	testFailed := false
-
-	if envValue, ok := envs["DISABLE_CG_UPLOAD_ON_FAILURE_FF"]; ok {
-		if envValue == "true" && tests != nil {
-			for _, test := range tests {
-				if test.Result.Status == types.StatusFailed {
-					testFailed = true
-					break
-				}
-			}
-		}
-	}
-
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, testFailed, r)
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, r)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)

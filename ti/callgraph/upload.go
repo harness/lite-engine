@@ -8,7 +8,9 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -19,6 +21,7 @@ import (
 	"github.com/harness/ti-client/chrysalis/types"
 	tiClientUtils "github.com/harness/ti-client/chrysalis/utils"
 	tiClient "github.com/harness/ti-client/client"
+	tiClientTypes "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -32,7 +35,7 @@ const (
 // Upload method uploads the callgraph.
 //
 //nolint:gocritic // paramTypeCombine: keeping separate string parameters for clarity
-func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, hasFailed bool, r *api.StartStepRequest) error {
+func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, tests []*tiClientTypes.TestCase, r *api.StartStepRequest) error {
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
 		return nil
@@ -57,9 +60,12 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 		repo = ""
 		sha = ""
 	}
-	uploadPayload := CreateUploadPayload(cg, fileChecksums, repo, cfg.GetAccountID(), cfg.GetOrgID(), cfg.GetProjectID(), sha, log)
+	uploadPayload, err := CreateUploadPayload(cg, fileChecksums, repo, cfg, sha, tests, log)
+	if err != nil {
+		return errors.Wrap(err, "failed to create upload payload")
+	}
 
-	err = cfg.GetClient().UploadCgV2(ctx, *uploadPayload)
+	err = cfg.GetClient().UploadCgV2(ctx, *uploadPayload, stepID, timeMs, cfg.GetSourceBranch(), cfg.GetTargetBranch())
 	if err != nil {
 		return errors.Wrap(err, "failed to upload callgraph")
 	}
@@ -160,16 +166,37 @@ func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string,
 	return cgFiles, visFiles, nil
 }
 
-func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo, account, org, project, commitSha string, log *logrus.Logger) *types.UploadCgRequest {
+func matchFilesToTests(tests []*tiClientTypes.TestCase, node Node, numTestsMap map[string]int, log *logrus.Logger) {
+	filePath := node.File
+
+	if _, exists := numTestsMap[filePath]; exists {
+		return
+	}
+	numTestsMap[filePath] = 0
+	fcqn := fmt.Sprintf("%s.%s", node.Package, node.Class)
+	if strings.HasSuffix(node.Class, ".py") { // for python
+		fcqn = strings.Replace(filePath, "/", ".", -1)
+		fcqn = strings.TrimSuffix(fcqn, ".py")
+	}
+
+	for _, test := range tests {
+		if test.FileName == filePath || test.ClassName == fcqn {
+			numTestsMap[filePath]++
+		}
+	}
+}
+
+func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo string, cfg *tiCfg.Cfg, commitSha string, reportTests []*tiClientTypes.TestCase, log *logrus.Logger) (*types.UploadCgRequest, error) {
 	repoInfo := types.Identifier{
-		AccountID: account,
-		OrgID:     org,
-		ProjectID: project,
+		AccountID: cfg.GetAccountID(),
+		OrgID:     cfg.GetOrgID(),
+		ProjectID: cfg.GetProjectID(),
 		Repo:      repo,
 	}
 
 	var tests []types.Test
 	var chains []types.Chain
+	numTestsMap := make(map[string]int)
 
 	if cg != nil {
 		nodeMap := make(map[int]Node)
@@ -217,6 +244,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo, a
 				} else {
 					sourcePaths = dedupedSourcePaths
 				}
+				sort.Strings(sourcePaths)
 
 				testPath := ""
 				if node.File != "" {
@@ -242,11 +270,6 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo, a
 					continue
 				}
 
-				validCommitSha := commitSha
-				if validCommitSha == "" {
-					validCommitSha = "unknown_commit"
-				}
-
 				test := types.Test{
 					Path:      testPath,
 					ExtraInfo: map[string]string{},
@@ -258,20 +281,29 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo, a
 				}
 				tests = append(tests, test)
 
+				if _, exists := fileChecksums[testPath]; !exists {
+					return nil, fmt.Errorf("file checksum not found for %s", testPath)
+				}
+				testChecksum := fileChecksums[testPath]
+
 				chain := types.Chain{
-					Path:      testPath,
-					Checksum:  strconv.FormatUint(tiClientUtils.ChainChecksum(sourcePaths, fileChecksums), 10),
-					State:     types.TestState("SUCCESS"),
-					ExtraInfo: map[string]string{},
+					Path:         testPath,
+					TestChecksum: strconv.FormatUint(testChecksum, 10),
+					Checksum:     strconv.FormatUint(tiClientUtils.ChainChecksum(sourcePaths, fileChecksums), 10),
+					State:        types.TestState("SUCCESS"),
+					ExtraInfo:    map[string]string{},
 				}
 				chains = append(chains, chain)
+				matchFilesToTests(reportTests, node, numTestsMap, log)
 			}
 		}
 	}
 
 	return &types.UploadCgRequest{
-		Identifier: repoInfo,
-		Tests:      tests,
-		Chains:     chains,
-	}
+		Identifier:       repoInfo,
+		Tests:            tests,
+		Chains:           chains,
+		PathToTestNumMap: numTestsMap,
+		TotalTests:       len(reportTests),
+	}, nil
 }

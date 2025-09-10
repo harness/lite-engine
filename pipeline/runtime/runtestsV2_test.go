@@ -61,7 +61,7 @@ func Test_CollectRunTestsV2Data(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			collectCgFn = func(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, dir string, uniqueStepId string, hasFailed bool) error {
+			collectCgFn = func(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, tests []*types.TestCase, r *api.StartStepRequest) error {
 				return tc.cgErr
 			}
 			collectTestReportsFn = func(
@@ -162,13 +162,14 @@ func Test_getPreCmd(t *testing.T) {
 		args    args
 		want    string
 		want1   string
+		want2   string
 		wantErr bool
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.agentPaths, false, tt.args.tiConfig)
+			got, got1, got2, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.agentPaths, false, tt.args.tiConfig)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getPreCmd() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -178,6 +179,9 @@ func Test_getPreCmd(t *testing.T) {
 			}
 			if got1 != tt.want1 {
 				t.Errorf("getPreCmd() got1 = %v, want %v", got1, tt.want1)
+			}
+			if got2 != tt.want2 {
+				t.Errorf("getPreCmd() got2 = %v, want %v", got2, tt.want2)
 			}
 		})
 	}
