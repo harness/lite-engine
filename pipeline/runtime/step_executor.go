@@ -185,7 +185,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 		ctx, cancel = context.WithCancel(ctx)
 	}
 
-	stepLog := NewStepLog(ctx) // step output will terminate when the ctx is canceled
+	stepLog := NewStepLog(ctx) // step output will terminate when the ctx is canceled/ drone
 
 	logr := logrus.
 		WithField("id", r.ID).
@@ -278,9 +278,9 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest) (*runtime.State, map
 
 	// close the stream. If the session is a remote session, the
 	// full log buffer is uploaded to the remote server.
-	if err = wr.Close(); err != nil {
-		result = multierror.Append(result, err)
-	}
+	// if err = wr.Close(); err != nil {
+	// 	result = multierror.Append(result, err)
+	// }
 
 	// if the context was canceled and returns a canceled or
 	// DeadlineExceeded error this indicates the step was timed out.

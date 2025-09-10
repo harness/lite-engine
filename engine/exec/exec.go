@@ -26,7 +26,7 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*runtime.State
 	cmd.Dir = step.WorkingDir
 	cmd.Env = toEnv(step.Envs)
 	cmd.Stderr = output
-	cmd.Stdout = output
+	cmd.Stdout = output //
 
 	if err := cmd.Start(); err != nil {
 		return nil, err
