@@ -14,17 +14,17 @@ import (
 	"syscall"
 	"time"
 
-	pipeline "github.com/drone/runner-go/pipeline/runtime"
+	pruntime "github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/sirupsen/logrus"
 )
 
 type cmdResult struct {
-	state *pipeline.State
+	state *pruntime.State
 	err   error
 }
 
-func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath string) (*pipeline.State, error) {
+func Run(ctx context.Context, step *spec.Step, output io.Writer, killProcessOnCtxCancel bool) (*pruntime.State, error) {
 	if len(step.Entrypoint) == 0 {
 		return nil, errors.New("step entrypoint cannot be empty")
 	}
@@ -34,7 +34,7 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath str
 
 	cmd := exec.Command(step.Entrypoint[0], cmdArgs...) //nolint:gosec
 
-	SetSysProcAttr(cmd, step.User)
+	SetSysProcAttr(cmd, step.User, killProcessOnCtxCancel)
 
 	cmd.Dir = step.WorkingDir
 	cmd.Env = spec.ToEnv(step.Envs)
@@ -46,16 +46,26 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath str
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
+	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Started command on host for step %s %s  [PID: %d]", step.ID, step.Name, cmd.Process.Pid))
 
 	cmdSignal := make(chan cmdResult, 1)
 	go waitForCmd(cmd, cmdSignal)
 
 	select {
 	case <-ctx.Done():
-		if runtime.GOOS != "windows" {
-			// Kill process group
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) // TODO: Use SIGTERM or SIGKILL?
-		} // TODO: Else, handle Windows process termination
+		if killProcessOnCtxCancel {
+			if runtime.GOOS == "windows" {
+				// TODO: Handle Windows process termination
+				// Most likely, calling the following lines should take care of killing
+				// the subprocess and all its children on Windows:
+				// killCmd := exec.Command("taskkill.exe", "/t", "/f", "/pid", strconv.Itoa(cmd.Process.Pid))
+				// _ = killCmd.Run()
+				// We just need to validate this carefully on Windows before uncommenting it here
+			} else {
+				// Kill process group
+				_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM) // TODO: Use SIGTERM or SIGKILL?
+			}
+		}
 		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			logrus.WithContext(ctx).Infoln(fmt.Sprintf("Execution canceled for step %s with error %v, took %.2f seconds", step.ID, ctx.Err(), time.Since(startTime).Seconds()))
 			return nil, ctx.Err()
@@ -71,11 +81,11 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath str
 func waitForCmd(cmd *exec.Cmd, cmdSignal chan<- cmdResult) {
 	err := cmd.Wait()
 	if err == nil {
-		cmdSignal <- cmdResult{state: &pipeline.State{ExitCode: 0, Exited: true}, err: nil}
+		cmdSignal <- cmdResult{state: &pruntime.State{ExitCode: 0, Exited: true}, err: nil}
 		return
 	}
 	if exitErr, ok := err.(*exec.ExitError); ok {
-		cmdSignal <- cmdResult{state: &pipeline.State{ExitCode: exitErr.ExitCode(), Exited: true}, err: nil}
+		cmdSignal <- cmdResult{state: &pruntime.State{ExitCode: exitErr.ExitCode(), Exited: true}, err: nil}
 		return
 	}
 	cmdSignal <- cmdResult{state: nil, err: err}

@@ -12,13 +12,18 @@ import (
 	"syscall"
 )
 
-func SetSysProcAttr(cmd *exec.Cmd, userIDStr string) {
+func SetSysProcAttr(cmd *exec.Cmd, userIDStr string, setPgid bool) {
+	if userIDStr == "" && !setPgid {
+		return
+	}
 	sysProcAttr := &syscall.SysProcAttr{}
 	if userIDStr != "" {
 		if userID, err := strconv.Atoi(userIDStr); err == nil {
 			sysProcAttr.Credential = &syscall.Credential{Uid: uint32(userID)}
 		}
 	}
-	sysProcAttr.Setpgid = true
+	if setPgid {
+		sysProcAttr.Setpgid = true
+	}
 	cmd.SysProcAttr = sysProcAttr
 }
