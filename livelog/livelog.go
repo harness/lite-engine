@@ -196,45 +196,55 @@ func (b *Writer) Open() error {
 
 // Close closes the writer and uploads the full contents to
 // the server.
+// func (b *Writer) Close() error {
+// 	if b.stop() {
+// 		// Flush anything waiting on a new line
+// 		if len(b.prev) > 0 {
+// 			b.Write([]byte("\n")) //nolint:errcheck
+// 		}
+// 		b.flush()
+// 	}
+
+// 	b.checkErrInLogs()
+
+// 	var err error
+// 	if !b.skipOpeningStream {
+// 		// In case skipOpeningStream is `true` it means the log stream
+// 		// was already opened before by some other class or service.
+// 		// In this case, we should not call the blob-upload endpoint here,
+// 		// as it would delete logs previously sent by the other class or service.
+// 		// TODO: We can get rid of this logic by implementing a "append" parameter
+// 		//       in the log-service `upload` API. Then we can just call `upload`
+// 		//       with `append=true` here, and previously written logs will be kept.
+// 		err = b.upload()
+// 		if err != nil {
+// 			logrus.WithError(err).WithField("key", b.key).
+// 				Errorln("failed to upload logs")
+// 		}
+// 	}
+
+// 	// Close the log stream once upload has completed. Log in case of any error
+
+// 	if errc := b.client.Close(context.Background(), b.key, b.skipOpeningStream); errc != nil {
+// 		// In case skipOpeningStream is true, we call the stream-close endpoint passing
+// 		// `snapshot=true`, which will close the stream and snapshot its content into a blob.
+// 		// TODO: we can get rid of using `snapshot=true` here once we are able to append logs
+// 		//       to blob via log-service.
+// 		logrus.WithError(errc).WithField("key", b.key).
+// 			Errorln("failed to close log stream")
+// 	}
+// 	logrus.WithField("name", b.name).Infoln("successfully closed log stream")
+// 	return err
+// }
+
 func (b *Writer) Close() error {
-	if b.stop() {
-		// Flush anything waiting on a new line
-		if len(b.prev) > 0 {
-			b.Write([]byte("\n")) //nolint:errcheck
-		}
-		b.flush()
+	// Flush anything waiting on a new line
+	if len(b.prev) > 0 {
+		b.Write([]byte("\n")) //nolint:errcheck
 	}
+	b.flush()
 
-	b.checkErrInLogs()
-
-	var err error
-	if !b.skipOpeningStream {
-		// In case skipOpeningStream is `true` it means the log stream
-		// was already opened before by some other class or service.
-		// In this case, we should not call the blob-upload endpoint here,
-		// as it would delete logs previously sent by the other class or service.
-		// TODO: We can get rid of this logic by implementing a "append" parameter
-		//       in the log-service `upload` API. Then we can just call `upload`
-		//       with `append=true` here, and previously written logs will be kept.
-		err = b.upload()
-		if err != nil {
-			logrus.WithError(err).WithField("key", b.key).
-				Errorln("failed to upload logs")
-		}
-	}
-
-	// Close the log stream once upload has completed. Log in case of any error
-
-	if errc := b.client.Close(context.Background(), b.key, b.skipOpeningStream); errc != nil {
-		// In case skipOpeningStream is true, we call the stream-close endpoint passing
-		// `snapshot=true`, which will close the stream and snapshot its content into a blob.
-		// TODO: we can get rid of using `snapshot=true` here once we are able to append logs
-		//       to blob via log-service.
-		logrus.WithError(errc).WithField("key", b.key).
-			Errorln("failed to close log stream")
-	}
-	logrus.WithField("name", b.name).Infoln("successfully closed log stream")
-	return err
+	return b.upload()
 }
 
 // upload uploads the full log history to the server.
