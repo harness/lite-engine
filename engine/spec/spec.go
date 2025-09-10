@@ -21,9 +21,6 @@ type (
 		EnableDockerSetup *bool             `json:"mount_docker_socket"`
 		TTY               bool              `json:"tty,omitempty" default:"false"`
 		MtlsConfig        MtlsConfig        `json:"mtls_config,omitempty"`
-		// Path to the file where process IDs are stored. Process IDs
-		// are used to track running processes launched by run step on host.
-		ProcessIdsFilePath string `json:"process_ids_file_path,omitempty"`
 	}
 
 	// Step defines a pipeline step.
