@@ -363,9 +363,9 @@ func executeStepHelper( //nolint:gocritic
 	if err != nil || !r.Detach {
 		// close the stream. If the session is a remote session, the
 		// full log buffer is uploaded to the remote server.
-		if err = wr.Close(); err != nil {
-			result = multierror.Append(result, err)
-		}
+		// if err = wr.Close(); err != nil {
+		// 	result = multierror.Append(result, err)
+		// }
 	}
 
 	// if the context was canceled and returns a canceled or
