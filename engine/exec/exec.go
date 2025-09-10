@@ -46,7 +46,7 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, killProcessOnCt
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Started command on host for step %s %s  [PID: %d]", step.ID, step.Name, cmd.Process.Pid))
+	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Started command on host for step %s %s [PID: %d]", step.ID, step.Name, cmd.Process.Pid))
 
 	cmdSignal := make(chan cmdResult, 1)
 	go waitForCmd(cmd, cmdSignal)
