@@ -42,6 +42,7 @@ type Writer struct {
 	// This is useful for skipping the opening of the stream
 	// in case it was already opened before by another service.
 	skipOpeningStream bool
+	skipClosingStream bool
 
 	num    int
 	now    time.Time
@@ -65,12 +66,13 @@ type Writer struct {
 }
 
 // New returns a new writer
-func New(client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout, trimNewLineSuffix, skipOpeningStream bool) *Writer {
+func New(client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout, trimNewLineSuffix, skipOpeningStream, skipClosingStream bool) *Writer {
 	b := &Writer{
 		client:            client,
 		key:               key,
 		name:              name,
 		skipOpeningStream: skipOpeningStream,
+		skipClosingStream: skipClosingStream,
 		now:               time.Now(),
 		printToStdout:     printToStdout,
 		limit:             defaultLimit,
@@ -197,6 +199,11 @@ func (b *Writer) Open() error {
 // Close closes the writer and uploads the full contents to
 // the server.
 func (b *Writer) Close() error {
+
+	if b.skipClosingStream {
+		return b.uploadWithoutClose()
+	}
+
 	if b.stop() {
 		// Flush anything waiting on a new line
 		if len(b.prev) > 0 {
@@ -234,6 +241,23 @@ func (b *Writer) Close() error {
 			Errorln("failed to close log stream")
 	}
 	logrus.WithField("name", b.name).Infoln("successfully closed log stream")
+	return err
+}
+
+func (b *Writer) uploadWithoutClose() error {
+	// Flush anything waiting on a new line
+	if len(b.prev) > 0 {
+		b.Write([]byte("\n")) //nolint:errcheck
+	}
+	b.flush()
+	b.checkErrInLogs()
+
+	var err error
+	err = b.upload()
+	if err != nil {
+		logrus.WithError(err).WithField("key", b.key).
+			Errorln("failed to upload logs")
+	}
 	return err
 }
 

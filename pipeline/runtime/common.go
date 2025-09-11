@@ -295,7 +295,7 @@ func GetReplacer(
 	cfg api.LogConfig, logKey, name string, secrets []string,
 ) logstream.Writer {
 	client := getLogServiceClient(cfg)
-	wc := livelog.New(client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream)
+	wc := livelog.New(client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream)
 	return logstream.NewReplacer(wc, secrets)
 }
 
