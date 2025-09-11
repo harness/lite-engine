@@ -163,13 +163,14 @@ func Test_getPreCmd(t *testing.T) {
 		want    string
 		want1   string
 		want2   string
+		want3   string
 		wantErr bool
 	}{
 		// TODO: Add test cases.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, got2, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.agentPaths, false, tt.args.tiConfig)
+			got, got1, got2, got3, err := getPreCmd(tt.args.workspace, tt.args.tmpFilePath, tt.args.fs, tt.args.log, tt.args.envs, tt.args.agentPaths, false, tt.args.tiConfig)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getPreCmd() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -182,6 +183,9 @@ func Test_getPreCmd(t *testing.T) {
 			}
 			if got2 != tt.want2 {
 				t.Errorf("getPreCmd() got2 = %v, want %v", got2, tt.want2)
+			}
+			if got3 != tt.want3 {
+				t.Errorf("getPreCmd() got3 = %v, want %v", got3, tt.want3)
 			}
 		})
 	}
