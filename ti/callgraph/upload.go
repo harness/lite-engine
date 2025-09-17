@@ -242,6 +242,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 		OrgID:     cfg.GetOrgID(),
 		ProjectID: cfg.GetProjectID(),
 		Repo:      repo,
+		ExtraInfo: map[string]string{},
 	}
 
 	var tests []types.Test
@@ -321,8 +322,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 				}
 
 				test := types.Test{
-					Path:      testPath,
-					ExtraInfo: map[string]string{},
+					Path: testPath,
 					IndicativeChains: []types.IndicativeChain{
 						{
 							SourcePaths: sourcePaths,
@@ -342,7 +342,6 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 					TestChecksum: strconv.FormatUint(testChecksum, 10),
 					Checksum:     strconv.FormatUint(tiClientUtils.ChainChecksum(sourcePaths, fileChecksums), 10),
 					State:        getTestStatus(filteredTests),
-					ExtraInfo:    map[string]string{},
 				}
 				chains = append(chains, chain)
 				matchFilesToTests(filteredTests, node, numTestsMap)

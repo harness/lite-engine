@@ -90,6 +90,8 @@ github.com/harness/ti-client v0.0.0-20250911055513-e6c596d36f60 h1:QZ6aOgMzdpMFR
 github.com/harness/ti-client v0.0.0-20250911055513-e6c596d36f60/go.mod h1:dGKnH3sg7UvBL2OztrqIusmsiBknSNy1Y5+9M2J241Q=
 github.com/harness/ti-client v0.0.0-20250911072257-97c13c96f9f9 h1:cyNExO6NQPuXJvJ4beeyHrCnqQjqgN5EcW4QO5yTkB0=
 github.com/harness/ti-client v0.0.0-20250911072257-97c13c96f9f9/go.mod h1:dGKnH3sg7UvBL2OztrqIusmsiBknSNy1Y5+9M2J241Q=
+github.com/harness/ti-client v0.0.0-20250917151902-8f7006cf606c h1:J448od1GIVYI8xWg8Dm2eZ7KxjpKpc7xkD/WuNrb/P8=
+github.com/harness/ti-client v0.0.0-20250917151902-8f7006cf606c/go.mod h1:dGKnH3sg7UvBL2OztrqIusmsiBknSNy1Y5+9M2J241Q=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
 github.com/hashicorp/errwrap v1.1.0 h1:OxrOeh75EUXMY8TBjag2fzXGZ40LB6IKw45YeGUDY2I=
 github.com/hashicorp/errwrap v1.1.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
