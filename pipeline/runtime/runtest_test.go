@@ -58,7 +58,7 @@ func Test_CollectRunTestData(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			collectCgFn = func(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, tests []*types.TestCase, rerunFailedTests bool) error {
+			collectCgFn = func(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, tiConfig *tiCfg.Cfg, dir string, uniqueStepId string, hasFailed bool) error {
 				return tc.cgErr
 			}
 			collectTestReportsFn = func(

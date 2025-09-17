@@ -47,11 +47,10 @@ const (
 	outDir       = "%s/ti/callgraph/" // path passed as outDir in the config.ini file
 	tiConfigPath = ".ticonfig.yaml"
 	// Parallelism environment variables
-	harnessStepIndex      = "HARNESS_STEP_INDEX"
-	harnessStepTotal      = "HARNESS_STEP_TOTAL"
-	harnessStageIndex     = "HARNESS_STAGE_INDEX"
-	harnessStageTotal     = "HARNESS_STAGE_TOTAL"
-	ciTiRerunFailedTestFF = "CI_TI_RERUN_FAILED_TEST_FF"
+	harnessStepIndex  = "HARNESS_STEP_INDEX"
+	harnessStepTotal  = "HARNESS_STEP_TOTAL"
+	harnessStageIndex = "HARNESS_STAGE_INDEX"
+	harnessStageTotal = "HARNESS_STAGE_TOTAL"
 )
 
 func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) (TestRunner, bool, error) {
@@ -426,7 +425,7 @@ func getAllJavaFilesInsideDirectory(directory string, changedFiles []ti.File, fi
 // selectTests takes a list of files which were changed as input and gets the tests
 // to be run corresponding to that.
 func SelectTests(ctx context.Context, workspace string, files []ti.File, runSelected bool, stepID string, testGlobs []string,
-	fs filesystem.FileSystem, cfg *tiCfg.Cfg, rerunFailedTests bool) (ti.SelectTestsResp, error) {
+	fs filesystem.FileSystem, cfg *tiCfg.Cfg) (ti.SelectTestsResp, error) {
 	Log := logrus.New() // Revert
 	Log.Infoln("Info: starting test selection")
 	tiConfigYaml, err := getTiConfig(workspace, fs)
@@ -435,7 +434,7 @@ func SelectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	}
 	req := &ti.SelectTestsReq{SelectAll: !runSelected, Files: files, TiConfig: tiConfigYaml, TestGlobs: testGlobs}
 	c := cfg.GetClient()
-	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req, rerunFailedTests)
+	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req)
 }
 
 func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs, excludeGlobs []string) ti.SelectTestsResp {
