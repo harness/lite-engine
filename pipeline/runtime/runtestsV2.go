@@ -822,7 +822,6 @@ func collectTestReportsAndCg(
 	telemetryData *types.TelemetryData,
 	envs map[string]string,
 ) error {
-
 	tests, _ := collectTestReports(ctx, log, r, stepName, tiConfig, telemetryData)
 
 	rerunFailedTests := false

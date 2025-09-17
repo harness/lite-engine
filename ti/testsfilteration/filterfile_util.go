@@ -13,6 +13,7 @@ import (
 	"github.com/harness/ti-client/types"
 )
 
+//nolint:gocritic // hugeParam: keeping struct parameter for API consistency
 func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filterFilePath string, fs filesystem.FileSystem, isFilterFilePresent bool) error {
 	if !isFilterFilePresent { // If filter file is not present then we will simply run all the test cases
 		log.Println("Filter File not present running all the tests")
