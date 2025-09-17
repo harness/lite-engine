@@ -252,13 +252,13 @@ func (b *Writer) uploadWithoutClose() error {
 	b.flush()
 	b.checkErrInLogs()
 
-	var err error
-	err = b.upload()
-	if err != nil {
-		logrus.WithError(err).WithField("key", b.key).
-			Errorln("failed to upload logs")
-	}
-	return err
+	// var err error
+	// err = b.upload()
+	// if err != nil {
+	// 	logrus.WithError(err).WithField("key", b.key).
+	// 		Errorln("failed to upload logs")
+	// }
+	return nil
 }
 
 // upload uploads the full log history to the server.
