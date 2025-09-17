@@ -27,8 +27,17 @@ const (
 
 // Upload method uploads the callgraph.
 //
-//nolint:gocritic // paramTypeCombine: keeping separate string parameters for clarity
-func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, tests []*types.TestCase, rerunFailedTests bool) error {
+func Upload(
+	ctx context.Context,
+	stepID string,
+	timeMs int64,
+	log *logrus.Logger,
+	start time.Time,
+	cfg *tiCfg.Cfg,
+	dir, uniqueStepID string,
+	tests []*types.TestCase,
+	rerunFailedTests bool,
+) error {
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
 		return nil
@@ -64,7 +73,7 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 }
 
 // encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
-func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, version string, rerunFailedTests bool) (data []byte, isEmpty bool, allMatched bool, err error) {
+func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, version string, rerunFailedTests bool) (data []byte, isEmpty, allMatched bool, err error) {
 	var parser Parser
 	var cgIsEmpty bool
 	fs := filesystem.New()
