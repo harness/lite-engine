@@ -93,6 +93,17 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata}
+
+		ffEnabled := isAnnotationsEnabled(r.Envs)
+		if state.ExitCode == 0 && ffEnabled {
+			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
+			go e.postAnnotationsToPipeline(context.Background(), r)
+		} else if !ffEnabled {
+			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: feature flag disabled; skipping annotations post")
+		} else if state.ExitCode != 0 {
+			logrus.WithContext(ctx).WithFields(logrus.Fields{"id": r.ID, "exitCode": state.ExitCode}).Infoln("ANNOTATIONS: non-zero exit; skipping annotations post")
+		}
+
 		e.mu.Lock()
 		e.stepStatus[r.ID] = status
 		channels := e.stepWaitCh[r.ID]
@@ -131,6 +142,15 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 			pollResponse := convertStatus(status)
+			ffEnabled := isAnnotationsEnabled(r.Envs)
+			if state.ExitCode == 0 && ffEnabled {
+				logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
+				go e.postAnnotationsToPipeline(context.Background(), r)
+			} else if !ffEnabled {
+				logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: feature flag disabled; skipping annotations post")
+			} else if state.ExitCode != 0 {
+				logrus.WithContext(ctx).WithFields(logrus.Fields{"id": r.ID, "exitCode": state.ExitCode}).Infoln("ANNOTATIONS: non-zero exit; skipping annotations post")
+			}
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
 			}

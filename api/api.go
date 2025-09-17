@@ -73,6 +73,9 @@ type (
 		TIConfig   TIConfig        `json:"ti_config,omitempty"`
 		MtlsConfig spec.MtlsConfig `json:"mtls_config,omitempty"`
 
+		// Configuration for annotations posting (e.g., dedicated token)
+		AnnotationsConfig AnnotationsConfig `json:"annotations_config,omitempty"`
+
 		OutputVars        []string    `json:"output_vars,omitempty"`
 		TestReport        TestReport  `json:"test_report,omitempty"`
 		Timeout           int         `json:"timeout,omitempty"` // step timeout in seconds
@@ -224,6 +227,13 @@ type (
 		CommitBranch string `json:"commit_branch,omitempty"`
 		CommitLink   string `json:"commit_link,omitempty"`
 		ParseSavings bool   `json:"parse_savings,omitempty"`
+	}
+
+	// AnnotationsConfig carries configuration for posting annotations to Pipeline Service
+	// using a dedicated token.
+	AnnotationsConfig struct {
+		Token   string `json:"token,omitempty"`
+		BaseURL string `json:"base_url,omitempty"`
 	}
 
 	TestReport struct {
