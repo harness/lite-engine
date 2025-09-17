@@ -320,8 +320,7 @@ func getTestsSelectionWithTiModeEnabled(ctx context.Context, fs filesystem.FileS
 	}
 
 	filesWithpkg := java.ReadPkgs(log, fs, workspace, files)
-	rerunFailedTests := instrumentation.IsRerunFailedTestsEnabled(envs) && instrumentation.IsPushTriggerExecution(tiConfig)
-	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, testGlobs, fs, tiConfig, rerunFailedTests)
+	selection, err = instrumentation.SelectTests(ctx, workspace, filesWithpkg, runOnlySelectedTests, stepID, testGlobs, fs, tiConfig)
 	if err != nil {
 		log.WithError(err).Errorln("An unexpected error occurred during test selection. Running all tests.")
 		runOnlySelectedTests = false
@@ -822,19 +821,24 @@ func collectTestReportsAndCg(
 	telemetryData *types.TelemetryData,
 	envs map[string]string,
 ) error {
+	cgStart := time.Now()
 
 	tests, _ := collectTestReports(ctx, log, r, stepName, tiConfig, telemetryData)
 
-	rerunFailedTests := false
+	testFailed := false
 
-	if envValue, ok := envs[rerunFailedTestsFF]; ok {
-		if envValue == "true" {
-			rerunFailedTests = true
+	if envValue, ok := envs["DISABLE_CG_UPLOAD_ON_FAILURE_FF"]; ok {
+		if envValue == "true" && tests != nil {
+			for _, test := range tests {
+				if test.Result.Status == types.StatusFailed {
+					testFailed = true
+					break
+				}
+			}
 		}
 	}
 
-	cgStart := time.Now()
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, rerunFailedTests)
+	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, testFailed)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)

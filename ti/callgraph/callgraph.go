@@ -44,7 +44,6 @@ func (cg *Callgraph) ToStringMap() map[string]interface{} {
 			"callsReflection": v.CallsReflection,
 			"alwaysRun":       v.AlwaysRun,
 			"file":            v.File,
-			"hasFailed":       v.HasFailed,
 		}
 		nodes = append(nodes, data)
 	}
@@ -103,8 +102,6 @@ func FromStringMap(data map[string]interface{}) (*Callgraph, error) { //nolint:g
 							node.Type = v.(string)
 						case "file":
 							node.File = v.(string)
-						case "hasFailed":
-							node.HasFailed = v.(bool)
 						default:
 							return nil, fmt.Errorf("unknown field received: %s", f)
 						}
@@ -179,7 +176,6 @@ type Node struct {
 	CallsReflection bool
 	AlwaysRun       bool
 	File            string
-	HasFailed       bool
 }
 
 // Input is the go representation of each line in callgraph file

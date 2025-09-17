@@ -11,7 +11,6 @@ import (
 	"github.com/pkg/errors"
 
 	cg "github.com/harness/lite-engine/ti/avro/schema/callgraph"
-	cg_1_1 "github.com/harness/lite-engine/ti/avro/schema/callgraph_1_1"
 )
 
 // Serialzer is the interface for encoding and decoding structs
@@ -28,26 +27,20 @@ type CgphSerialzer struct {
 }
 
 const (
-	cgType             = "callgraph"
-	cgSrcFile          = "callgraph.avsc"
-	cgSrcFileVersioned = "callgraph_%s.avsc"
+	cgType    = "callgraph"
+	cgSrcFile = "callgraph.avsc"
 	// vgType    = "visgraph"
 	// vgSrcFile = "visgraph.avsc"
 )
 
 // NewCgphSerialzer returns new CgphSerialzer object with the codec
 // based on the schema received in the input
-func NewCgphSerialzer(typ string, version string) (*CgphSerialzer, error) {
+func NewCgphSerialzer(typ string) (*CgphSerialzer, error) {
 	var schema []byte
 	var err error
 	switch typ {
 	case cgType:
-		switch version {
-		case "":
-			schema, err = cg.Asset(cgSrcFile)
-		case "1_1":
-			schema, err = cg_1_1.Asset(fmt.Sprintf(cgSrcFileVersioned, version))
-		}
+		schema, err = cg.Asset(cgSrcFile)
 	default:
 		return nil, fmt.Errorf("type %s is not supported", typ)
 	}
