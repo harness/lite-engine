@@ -131,6 +131,9 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 			pollResponse := convertStatus(status)
+			if state.ExitCode == 0 && isAnnotationsEnabled(r.Envs) {
+				go e.postAnnotationsToPipeline(context.Background(), r)
+			}
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
 			}
