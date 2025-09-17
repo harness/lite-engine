@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 
@@ -45,6 +46,7 @@ type StepStatus struct {
 	OutputV2          []*api.OutputV2
 	OptimizationState string
 	TelemetryData     *types.TelemetryData
+	Annotations       json.RawMessage
 }
 
 const (
@@ -132,6 +134,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 			pollResponse := convertStatus(status)
+			// Attach annotations JSON from file if available
+			pollResponse.Annotations = e.readAnnotationsJSON(r.ID)
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
 			}
@@ -149,6 +153,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				wr.Close()
 			}
 			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
+			// Best-effort attach annotations on timeout as well
+			resp.Annotations = e.readAnnotationsJSON(r.ID)
 			e.sendStepStatus(r, &resp)
 			return
 		}
@@ -171,7 +177,10 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 
 	if s.Status == Complete {
 		e.mu.Unlock()
-		return convertStatus(s), nil
+		resp := convertStatus(s)
+		// Attach annotations JSON from file if available
+		resp.Annotations = e.readAnnotationsJSON(id)
+		return resp, nil
 	}
 
 	ch := make(chan StepStatus, 1)
@@ -183,7 +192,10 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 	e.mu.Unlock()
 
 	status := <-ch
-	return convertStatus(status), nil
+	resp := convertStatus(status)
+	// Attach annotations JSON from file if available
+	resp.Annotations = e.readAnnotationsJSON(id)
+	return resp, nil
 }
 
 func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequest) (oldOut []byte, newOut <-chan []byte, err error) {
@@ -512,6 +524,7 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 		OutputV2:          status.OutputV2,
 		OptimizationState: status.OptimizationState,
 		TelemetryData:     status.TelemetryData,
+		Annotations:       status.Annotations,
 	}
 
 	stepErr := status.StepErr
@@ -546,6 +559,7 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 			Outputs:                r.OutputV2,
 			OptimizationState:      r.OptimizationState,
 			TelemetryData:          r.TelemetryData,
+			Annotations:            r.Annotations,
 		}
 	}
 	if report.TestSummaryAsOutputEnabled(envs) {
@@ -556,11 +570,48 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 			ErrorMessage:           r.Error,
 			OptimizationState:      r.OptimizationState,
 			TelemetryData:          r.TelemetryData,
+			Annotations:            r.Annotations,
 		}
 	}
 	return api.VMTaskExecutionResponse{
 		CommandExecutionStatus: api.Failure,
 		ErrorMessage:           r.Error,
 		OptimizationState:      r.OptimizationState,
+		Annotations:            r.Annotations,
 	}
+}
+
+// readAnnotationsJSON best-effort reads the annotations JSON file written by the step (if present)
+// and returns it as a raw JSON blob to be included in API responses. It validates JSON and caps size.
+func (e *StepExecutor) readAnnotationsJSON(stepID string) json.RawMessage {
+	if stepID == "" {
+		return nil
+	}
+	path := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, stepID)
+	info, err := os.Stat(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Debugln("annotations: stat failed")
+		}
+		return nil
+	}
+	const maxSize = 10 * 1024 * 1024 // 5MB cap
+	if info.Size() <= 0 {
+		return nil
+	}
+	if info.Size() > maxSize {
+		logrus.WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Warnln("annotations: file too large, skipping")
+		return nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Debugln("annotations: read failed")
+		return nil
+	}
+	if !json.Valid(data) {
+		logrus.WithField("step_id", stepID).WithField("path", path).Warnln("annotations: invalid JSON, skipping")
+		return nil
+	}
+	logrus.WithField("step_id", stepID).WithField("path", path).WithField("bytes", len(data)).Debugln("annotations: attached JSON")
+	return json.RawMessage(data)
 }
