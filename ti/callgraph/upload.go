@@ -26,7 +26,6 @@ const (
 )
 
 // Upload method uploads the callgraph.
-//
 func Upload(
 	ctx context.Context,
 	stepID string,
