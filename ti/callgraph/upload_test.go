@@ -19,7 +19,7 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 	cgBytes, cgIsEmpty, matched, err := encodeCg(dataDir, log, []*types.TestCase{}, "1_1", false)
 	assert.Nil(t, err)
 	assert.True(t, cgIsEmpty)
-	assert.False(t, matched)
+	assert.True(t, matched)
 
 	// Test deserialize
 	cgString, err := cgSer.Deserialize(cgBytes)
@@ -35,7 +35,7 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 	cgBytes, cgIsEmpty, matched, err = encodeCg(dataDir, log, []*types.TestCase{}, "1_1", false)
 	assert.Nil(t, err)
 	assert.True(t, cgIsEmpty)
-	assert.False(t, matched)
+	assert.True(t, matched)
 
 	// Test deserialize
 	cgString, err = cgSer.Deserialize(cgBytes)
@@ -50,9 +50,21 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 	dataDir = "testdata/cgdir/cg"
 	cgBytes, _, matched, err = encodeCg(dataDir, log, []*types.TestCase{}, "1_1", false)
 	assert.Nil(t, err)
-	assert.False(t, matched)
+	assert.True(t, matched)
 
 	// Test deserialize
+	cgString, err = cgSer.Deserialize(cgBytes)
+	assert.Nil(t, err)
+	cg, err = FromStringMap(cgString.(map[string]interface{}))
+	assert.Nil(t, err)
+	assert.NotEmpty(t, cg.Nodes)
+	assert.NotEmpty(t, cg.TestRelations)
+
+	dataDir = "testdata/cgdir/cg"
+	cgBytes, _, matched, err = encodeCg(dataDir, log, []*types.TestCase{}, "1_1", true)
+	assert.Nil(t, err)
+	assert.False(t, matched)
+
 	cgString, err = cgSer.Deserialize(cgBytes)
 	assert.Nil(t, err)
 	cg, err = FromStringMap(cgString.(map[string]interface{}))
