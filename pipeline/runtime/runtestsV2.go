@@ -617,7 +617,6 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	envs["TI_OUTPUT_PATH"] = outDir
 	envs["TI_FILTER_FILE_PATH"] = filterFilePath
 	envs["TI_SKIP_FILE_PATH"] = skipTestsFilePath
-	envs["TI_SKIP_TESTS_FILE_PATH"] = skipTestsFilePath
 	envs["PYTEST_ADDOPTS"] = "--cov=. --cov-report=xml"
 	envs["COVERAGE_FILE"] = fmt.Sprintf(".harnesscoverage_%d", splitIdx)
 
