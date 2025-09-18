@@ -194,6 +194,7 @@ type (
 		// be used in cases where more than 5k lines of logs are written by the logger. Otherwise,
 		// the final logs blob may have missing logs.
 		SkipOpeningStream bool `json:"skip_opening_stream,omitempty"`
+		SkipClosingStream bool `json:"skip_closing_stream,omitempty"`
 	}
 
 	TIConfig struct {
