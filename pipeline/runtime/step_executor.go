@@ -136,6 +136,15 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			pollResponse := convertStatus(status)
 			// Attach annotations JSON from file if available
 			pollResponse.Annotations = e.readAnnotationsJSON(r.ID)
+			// [ANN_STEP] Emit per-step log to indicate whether annotations were found
+			if wr != nil {
+				annotationsPath := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, r.ID)
+				if pollResponse.Annotations != nil {
+					wr.Write([]byte(fmt.Sprintf("[ANN_STEP] annotations found; bytes=%d; path=%s\n", len(pollResponse.Annotations), annotationsPath)))
+				} else {
+					wr.Write([]byte(fmt.Sprintf("[ANN_STEP] annotations not found or invalid; path=%s\n", annotationsPath)))
+				}
+			}
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
 			}
@@ -148,13 +157,15 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			e.sendStepStatus(r, &resp)
 			return
 		case <-time.After(timeout):
-			// close the log stream if timeout
+			// close the log stream if timeout (restore original order)
 			if wr != nil {
 				wr.Close()
 			}
 			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
 			// Best-effort attach annotations on timeout as well
 			resp.Annotations = e.readAnnotationsJSON(r.ID)
+			// [ANN_LE] Emit engine-level log with annotations size on timeout
+			logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).WithField("annotations_bytes", len(resp.Annotations)).Infoln("[ANN_LE] timeout path; annotations bytes")
 			e.sendStepStatus(r, &resp)
 			return
 		}
@@ -463,12 +474,16 @@ func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *deleg
 
 func (e *StepExecutor) sendRunnerResponseStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	logrus.WithField("id", r.ID).Infoln("Sending runner step status")
+	// [ANN_LE] Log the size of annotations being sent
+	logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).WithField("annotations_bytes", len(response.Annotations)).Infoln("[ANN_LE] sending runner step status; annotations bytes")
 	taskResponse := getRunnerTaskResponse(r, response)
 	return delegateClient.SendRunnerStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
 }
 
 func (e *StepExecutor) sendResponseStatusV2(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	logrus.WithField("id", r.ID).Infoln("Sending step status to V2 Endpoint")
+	// [ANN_LE] Log the size of annotations being sent
+	logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).WithField("annotations_bytes", len(response.Annotations)).Infoln("[ANN_LE] sending step status; annotations bytes")
 	taskResponse := getRunnerTaskResponse(r, response)
 	return delegateClient.SendStatusV2(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
 }
@@ -478,6 +493,8 @@ func (e *StepExecutor) sendResponseStatus(r *api.StartStepRequest, delegateClien
 	if response.CommandExecutionStatus == api.Timeout {
 		response.CommandExecutionStatus = api.Failure
 	}
+	// [ANN_LE] Log the size of annotations being sent
+	logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).WithField("annotations_bytes", len(response.Annotations)).Infoln("[ANN_LE] sending legacy step status; annotations bytes")
 	jsonData, err := json.Marshal(response)
 	if err != nil {
 		return err
@@ -505,6 +522,8 @@ func getRunnerTaskResponse(r *api.StartStepRequest, response *api.VMTaskExecutio
 		response.ErrorMessage = "Failed to marshal the response data"
 		status = client.Failure
 	}
+	// [ANN_LE] Log marshalled response annotations size
+	logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).WithField("annotations_bytes", len(response.Annotations)).Infoln("[ANN_LE] response marshalled; annotations bytes")
 
 	return &client.RunnerTaskResponse{
 		ID:    r.StepStatus.TaskID,
@@ -590,28 +609,36 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) json.RawMessage {
 	path := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, stepID)
 	info, err := os.Stat(path)
 	if err != nil {
-		if !os.IsNotExist(err) {
+		if os.IsNotExist(err) {
+			logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).Infoln("[ANN_LE] annotations: file not found")
+		} else {
 			logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Debugln("annotations: stat failed")
+			logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithError(err).Infoln("[ANN_LE] annotations: stat failed")
 		}
 		return nil
 	}
 	const maxSize = 10 * 1024 * 1024 // 5MB cap
 	if info.Size() <= 0 {
+		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).Infoln("[ANN_LE] annotations: file empty")
 		return nil
 	}
 	if info.Size() > maxSize {
 		logrus.WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Warnln("annotations: file too large, skipping")
+		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Infoln("[ANN_LE] annotations: file too large, skipping")
 		return nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Debugln("annotations: read failed")
+		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithError(err).Infoln("[ANN_LE] annotations: read failed")
 		return nil
 	}
 	if !json.Valid(data) {
 		logrus.WithField("step_id", stepID).WithField("path", path).Warnln("annotations: invalid JSON, skipping")
+		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).Infoln("[ANN_LE] annotations: invalid JSON, skipping")
 		return nil
 	}
 	logrus.WithField("step_id", stepID).WithField("path", path).WithField("bytes", len(data)).Debugln("annotations: attached JSON")
+	logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithField("bytes", len(data)).Infoln("[ANN_LE] annotations: attached JSON")
 	return json.RawMessage(data)
 }

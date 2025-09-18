@@ -47,6 +47,8 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	step.Envs["HARNESS_ANNOTATIONS_FILE"] = annotationsFile
 	// Not deleting annotations file by default to aid debugging; it lives in shared volume
 	logrus.WithField("step_id", step.ID).WithField("annotations_file", annotationsFile).Debugln("annotations file path set for step")
+	// [ANN_LE] Emit info-level log for visibility in engine logs
+	logrus.WithField("tag", "ANN_LE").WithField("step_id", step.ID).WithField("annotations_file", annotationsFile).Infoln("[ANN_LE] annotations file path set for step")
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
