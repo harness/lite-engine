@@ -41,8 +41,8 @@ type Writer struct {
 	// Whether to open the log stream in log-service.
 	// This is useful for skipping the opening of the stream
 	// in case it was already opened before by another service.
-	skipOpeningStream bool
-	skipClosingStream bool
+	skipOpeningStream bool //this param determine whether to skip opening the log stream in LE
+	skipClosingStream bool //this param determine whether to skip closing the log stream in LE
 
 	num    int
 	now    time.Time
@@ -201,7 +201,7 @@ func (b *Writer) Open() error {
 func (b *Writer) Close() error {
 
 	if b.skipClosingStream {
-		return b.uploadWithoutClose()
+		return b.writeWithoutClose()
 	}
 
 	if b.stop() {
@@ -244,20 +244,17 @@ func (b *Writer) Close() error {
 	return err
 }
 
-func (b *Writer) uploadWithoutClose() error {
+func (b *Writer) writeWithoutClose() error {
 	// Flush anything waiting on a new line
 	if len(b.prev) > 0 {
 		b.Write([]byte("\n")) //nolint:errcheck
 	}
-	b.flush()
+	err := b.flush()
+	if err != nil {
+		logrus.WithError(err).WithField("key", b.key).
+			Errorln("failed to flush the stream")
+	}
 	b.checkErrInLogs()
-
-	// var err error
-	// err = b.upload()
-	// if err != nil {
-	// 	logrus.WithError(err).WithField("key", b.key).
-	// 		Errorln("failed to upload logs")
-	// }
 	return nil
 }
 
