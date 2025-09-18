@@ -41,8 +41,8 @@ type Writer struct {
 	// Whether to open the log stream in log-service.
 	// This is useful for skipping the opening of the stream
 	// in case it was already opened before by another service.
-	skipOpeningStream bool //this param determine whether to skip opening the log stream in LE
-	skipClosingStream bool //this param determine whether to skip closing the log stream in LE
+	skipOpeningStream bool // this param determine whether to skip opening the log stream in LE
+	skipClosingStream bool // this param determine whether to skip closing the log stream in LE
 
 	num    int
 	now    time.Time
@@ -199,11 +199,9 @@ func (b *Writer) Open() error {
 // Close closes the writer and uploads the full contents to
 // the server.
 func (b *Writer) Close() error {
-
 	if b.skipClosingStream {
 		return b.writeWithoutClose()
 	}
-
 	if b.stop() {
 		// Flush anything waiting on a new line
 		if len(b.prev) > 0 {
