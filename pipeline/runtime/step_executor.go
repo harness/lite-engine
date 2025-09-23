@@ -410,8 +410,31 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 
 	// Create a log stream for step logs
 	client := pipelineState.GetLogStreamClient()
+	var logConfig *api.LogConfig
+	skipOpeningStream := false
+	skipClosingStream := false
 
-	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false, pipelineState.GetLogConfig().TrimNewLineSuffix, pipelineState.GetLogConfig().SkipOpeningStream, pipelineState.GetLogConfig().SkipClosingStream) //nolint:lll
+	if pipelineState != nil {
+		logConfig = pipelineState.GetLogConfig()
+	}
+
+	// Pipeline config takes priority if true, else use request api Log config.
+	// From runner side, we are sending log config through StartStepRequest for Hosted infra.
+	// So LogConfig should from "pipelineState" should have empty struct for Hosted infra.
+	// This flow is not coming for local infra. However ensuring backward compatibility.
+	if logConfig != nil && logConfig.SkipOpeningStream {
+		skipOpeningStream = logConfig.SkipOpeningStream
+	} else {
+		skipOpeningStream = r.LogConfig.SkipOpeningStream
+	}
+
+	if logConfig != nil && logConfig.SkipClosingStream {
+		skipClosingStream = logConfig.SkipClosingStream
+	} else {
+		skipClosingStream = r.LogConfig.SkipClosingStream
+	}
+
+	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false, pipelineState.GetLogConfig().TrimNewLineSuffix, skipOpeningStream, skipClosingStream) //nolint:lll
 	wr := logstream.NewReplacerWithEnvs(wc, secrets, r.Envs)
 	go wr.Open() //nolint:errcheck
 	return wr
