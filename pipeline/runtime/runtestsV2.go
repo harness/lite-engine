@@ -9,10 +9,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	goRuntime "runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -286,7 +284,7 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 	log.Infof("Successfully created/verified directory: %s", skipTestsFileDir)
 
 	// Get file checksums from git repository using workspace
-	fileChecksums, err := getGitFileChecksums(ctx, workspace, log)
+	fileChecksums, err := instrumentation.GetGitFileChecksums(ctx, workspace, log)
 	if err != nil {
 		return fmt.Errorf("failed to get git file checksums: %w", err)
 	}
@@ -360,58 +358,6 @@ func writeResultToFile(fs filesystem.FileSystem, results []string, resultFilePat
 	}
 
 	return nil
-}
-
-func getGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger) (map[string]uint64, error) {
-	log.Infof("Getting git file checksums from directory: %s", repoDir)
-
-	// Execute git ls-tree -r HEAD . command in the specified directory
-	cmd := exec.CommandContext(ctx, "git", "ls-tree", "-r", "HEAD", ".")
-	cmd.Dir = repoDir
-
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute git ls-tree command: %w", err)
-	}
-
-	// Parse the output and create file:checksum map
-	fileChecksums := make(map[string]uint64)
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-
-	for _, line := range lines {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		// Git ls-tree output format: "<mode> <type> <checksum>\t<filepath>"
-		// Example: "100644 blob a1b2c3d4e5f6... path/to/file.txt"
-		parts := strings.Fields(line)
-		if len(parts) < 4 {
-			log.Warnf("Skipping malformed git ls-tree line: %s", line)
-			continue
-		}
-
-		// Extract checksum (3rd field) and filepath (4th field onwards, joined with spaces)
-		fullChecksum := parts[2]
-		filepath := strings.Join(parts[3:], " ")
-
-		// Take first 16 characters of 160-bit checksum and convert to uint64
-		if len(fullChecksum) < 16 {
-			log.Warnf("Skipping file with short checksum: %s (checksum: %s)", filepath, fullChecksum)
-			continue
-		}
-
-		checksum64, err := strconv.ParseUint(fullChecksum[:16], 16, 64)
-		if err != nil {
-			log.Warnf("Failed to parse checksum for file %s: %v", filepath, err)
-			continue
-		}
-
-		fileChecksums[filepath] = checksum64
-	}
-
-	log.Infof("Successfully processed %d files from git repository", len(fileChecksums))
-	return fileChecksums, nil
 }
 
 // sendFileChecksumsToTI gets git file checksums from the specified repository
