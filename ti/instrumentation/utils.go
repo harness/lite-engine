@@ -51,6 +51,7 @@ const (
 	harnessStepTotal  = "HARNESS_STEP_TOTAL"
 	harnessStageIndex = "HARNESS_STAGE_INDEX"
 	harnessStageTotal = "HARNESS_STAGE_TOTAL"
+	constantChecksum  = 1
 )
 
 func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) (TestRunner, bool, error) {
@@ -788,6 +789,11 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 	// Execute git ls-tree -r HEAD . command in the specified directory
 	cmd := execCmdCtx(ctx, gitBin, "ls-tree", "-r", "HEAD", ".")
 	cmd.Dir = repoDir
+	tiConfig, err := getTiConfig(repoDir, filesystem.New())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ti config: %w", err)
+	}
+	ignoreList := tiConfig.Config.Ignore
 
 	output, err := cmd.Output()
 	if err != nil {
@@ -815,6 +821,12 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 		fullChecksum := parts[2]
 		filepath := strings.Join(parts[3:], " ")
 
+		// When a file is in ignore list, we will assign a constant checksum to it so any change is never detected for the file.
+		if isFileInIgnoreList(filepath, ignoreList) {
+			fileChecksums[filepath] = constantChecksum
+			continue
+		}
+
 		// Take first 16 characters of 160-bit checksum and convert to uint64
 		if len(fullChecksum) < 16 {
 			log.Warnf("Skipping file with short checksum: %s (checksum: %s)", filepath, fullChecksum)
@@ -832,4 +844,14 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 
 	log.Infof("Successfully processed %d files from git repository", len(fileChecksums))
 	return fileChecksums, nil
+}
+
+func isFileInIgnoreList(filePath string, ignoreList []string) bool {
+	for _, ignore := range ignoreList {
+		matched, _ := zglob.Match(ignore, filePath)
+		if matched {
+			return true
+		}
+	}
+	return false
 }
