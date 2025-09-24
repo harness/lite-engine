@@ -158,6 +158,14 @@ type (
 	RunConfig struct {
 		Command    []string `json:"commands,omitempty"`
 		Entrypoint []string `json:"entrypoint,omitempty"`
+		Binary     Binary   `json:"binary,omitempty"`
+	}
+
+	Binary struct {
+		Name    string   `json:"name,omitempty"`
+		Version string   `json:"version,omitempty"`
+		Source  []string `json:"source,omitempty"`
+		Args    []string `json:"args,omitempty"`
 	}
 
 	RunTestsV2Config struct {
