@@ -80,10 +80,8 @@ func RunStep(
 		printCommand(step, output)
 	}
 	if step.Image != "" {
-		_, _ = output.Write([]byte("Running step on Container...\n"))
 		return d.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
-	_, _ = output.Write([]byte("Running step on Host...\n"))
 	return exec.Run(ctx, step, output, true)
 }
