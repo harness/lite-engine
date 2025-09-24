@@ -821,6 +821,7 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 		fullChecksum := parts[2]
 		filepath := strings.Join(parts[3:], " ")
 
+		// When a file is in ignore list, we will assign a constant checksum to it so any change is never detected for the file.
 		if isFileInIgnoreList(filepath, ignoreList) {
 			fileChecksums[filepath] = constantChecksum
 			continue
