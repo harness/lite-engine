@@ -6,12 +6,11 @@ package engine
 
 import (
 	"context"
-	"io"
-
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/engine/docker"
 	"github.com/harness/lite-engine/engine/exec"
 	"github.com/harness/lite-engine/engine/spec"
+	"io"
 )
 
 type Opts struct {
@@ -81,8 +80,10 @@ func RunStep(
 		printCommand(step, output)
 	}
 	if step.Image != "" {
+		_, _ = output.Write([]byte("Running step on Container...\n"))
 		return d.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
+	_, _ = output.Write([]byte("Running step on Host...\n"))
 	return exec.Run(ctx, step, output, true)
 }

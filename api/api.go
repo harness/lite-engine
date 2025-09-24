@@ -162,10 +162,11 @@ type (
 	}
 
 	Binary struct {
-		Name    string   `json:"name,omitempty"`
-		Version string   `json:"version,omitempty"`
-		Source  []string `json:"source,omitempty"`
-		Args    []string `json:"args,omitempty"`
+		Name       string   `json:"name,omitempty"`
+		Version    string   `json:"version,omitempty"`
+		Source     []string `json:"source,omitempty"`
+		Args       []string `json:"args,omitempty"`
+		Compressed bool     `json:"compressed,omitempty"`
 	}
 
 	RunTestsV2Config struct {
