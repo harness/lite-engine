@@ -6,11 +6,12 @@ package engine
 
 import (
 	"context"
+	"io"
+
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/engine/docker"
 	"github.com/harness/lite-engine/engine/exec"
 	"github.com/harness/lite-engine/engine/spec"
-	"io"
 )
 
 type Opts struct {
