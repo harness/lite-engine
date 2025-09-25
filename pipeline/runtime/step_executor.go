@@ -416,7 +416,10 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 	// SkipOpeningStream and SkipClosingStream from pipelineState.LogConfig are not being set during setup (init) time.
 	// Consuming SkipOpeningStream and SkipClosingStream params during execution time through StartStepRequest.
 	// For local infra we are not going through this flow, everything is handled from runner side.
-	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false, pipelineState.GetLogConfig().TrimNewLineSuffix, r.LogConfig.SkipOpeningStream, r.LogConfig.SkipClosingStream) //nolint:lll
+	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false,
+		pipelineState.GetLogConfig().TrimNewLineSuffix,
+		r.LogConfig.SkipOpeningStream,
+		r.LogConfig.SkipClosingStream)
 	wr := logstream.NewReplacerWithEnvs(wc, secrets, r.Envs)
 	go wr.Open() //nolint:errcheck
 	return wr
