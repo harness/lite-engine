@@ -80,7 +80,7 @@ func waitOnProcessGroup(ctx context.Context, cmd *exec.Cmd, cmdSignal chan<- cmd
 	}
 	// Collect group leader's exit status
 	waitForCmd(cmd, cmdSignal)
-	logrus.WithContext(ctx).Errorf("all processes in process group %d exited", pgid)
+	logrus.WithContext(ctx).Debugf("all processes in process group %d exited", pgid)
 }
 
 // Waits for a process to terminate but does *not* collect its exit status,
