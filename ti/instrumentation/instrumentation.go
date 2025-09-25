@@ -282,6 +282,10 @@ func GetCmd(
 	config.Language = strings.ToLower(config.Language)
 	config.BuildTool = strings.ToLower(config.BuildTool)
 	testGlobs := sanitizeTestGlob(config.TestGlobs)
+	if testMetadata.Language == nil {
+		testMetadata.Language = make([]string, 0)
+	}
+	testMetadata.Language = append(testMetadata.Language, config.Language)
 	runner, useYaml, err := getTiRunner(config.Language, config.BuildTool, log, fs, testGlobs, envs)
 	if err != nil {
 		return "", err

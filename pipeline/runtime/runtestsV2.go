@@ -27,6 +27,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
+	"github.com/harness/lite-engine/ti/callgraph"
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
 	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
 	"github.com/harness/ti-client/types"
@@ -837,6 +838,15 @@ func collectTestReportsAndCg(
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
+	}
+
+	detectedLang := callgraph.DetectLanguageFromCallgraphFiles(ctx, stepName, tiConfig, outDir, r.ID)
+	
+	if detectedLang != "unknown" {
+		if telemetryData.TestIntelligenceMetaData.Language == nil {
+			telemetryData.TestIntelligenceMetaData.Language = make([]string, 0)
+		}
+		telemetryData.TestIntelligenceMetaData.Language = append(telemetryData.TestIntelligenceMetaData.Language, detectedLang)
 	}
 	return cgErr
 }
