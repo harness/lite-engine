@@ -59,6 +59,7 @@ type (
 		Files          []*File           `json:"files,omitempty"`
 		WorkingDir     string            `json:"working_dir,omitempty"`
 		SoftStop       bool              `json:"soft_stop,omitempty"`
+		ProcessConfig  ProcessConfig     `json:"process_config,omitempty"`
 	}
 
 	// Secret represents a secret variable.
@@ -185,5 +186,13 @@ type (
 		Auth         *Auth  `json:"auth,omitempty"`
 		Username     string `json:"username,omitempty"`
 		Password     string `json:"password,omitempty"`
+	}
+
+	ProcessConfig struct {
+		WaitOnProcessGroup                 bool `json:"wait_on_process_group,omitempty"`
+		KillProcessOnContextCancel         bool `json:"kill_process_on_context_cancel,omitempty"`
+		KillProcessMaxSigtermAttempts      int  `json:"kill_process_max_sigterm_attempts,omitempty"`
+		KillProcessRetryIntervalSecs       int  `json:"kill_process_retry_interval_secs,omitempty" default:"60"`
+		KillProcessUseExplicitTreeStrategy bool `json:"kill_process_use_explicit_tree_strategy,omitempty"`
 	}
 )
