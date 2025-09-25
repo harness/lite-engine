@@ -23,11 +23,22 @@ func SetSysProcAttr(cmd *exec.Cmd, userIDStr string, useNewProcessGroup bool) {
 	}
 }
 
+func WaitForProcess(ctx context.Context, cmd *exec.Cmd, cmdSignal chan<- cmdResult, shouldWaitOnProcessGroup bool) {
+	if cmd.Process == nil {
+		logrus.WithContext(ctx).Warnln("wait for process requested but cmd.Process is nil")
+		return
+	}
+	// TODO: We still need to refine process waiting mechanism for Windows.
+	// Currently we wait only on the leading process to exit, not for its children.
+	// For now, we just call the old `waitForCmd` here.
+	waitForCmd(cmd, cmdSignal)
+}
+
 // AbortProcess leverages taskkill.exe in Windows to make subprocesses exit.
 // Here we use the following flags:
 // /t (tree) -> also terminate all child processes spawned by the PID (recursively)
 // /f (force) -> forcibly terminates the process
-func AbortProcess(ctx context.Context, cmd *exec.Cmd, cmdSignal <-chan cmdResult) {
+func AbortProcess(ctx context.Context, cmd *exec.Cmd, cmdSignal <-chan cmdResult, retryIntervalSecs, maxSigtermAttempts int, useExplicitProcessTree bool) {
 	if cmd.Process == nil {
 		logrus.WithContext(ctx).Warnln("abort requested but cmd.Process is nil")
 		return

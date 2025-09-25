@@ -123,6 +123,7 @@ type (
 		Volumes        []*spec.VolumeMount  `json:"volumes,omitempty"`
 		Files          []*spec.File         `json:"files,omitempty"`
 		StepStatus     StepStatusConfig     `json:"step_status,omitempty"`
+		ProcessConfig  spec.ProcessConfig   `json:"process_config,omitempty"`
 	}
 
 	OutputV2 struct {

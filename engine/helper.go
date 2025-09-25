@@ -84,5 +84,5 @@ func RunStep(
 		return d.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
-	return exec.Run(ctx, step, output, true)
+	return exec.Run(ctx, step, output)
 }

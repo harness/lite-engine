@@ -22,7 +22,7 @@ type cmdResult struct {
 	err   error
 }
 
-func Run(ctx context.Context, step *spec.Step, output io.Writer, killProcessOnCtxCancel bool) (*pruntime.State, error) {
+func Run(ctx context.Context, step *spec.Step, output io.Writer) (*pruntime.State, error) {
 	if len(step.Entrypoint) == 0 {
 		return nil, errors.New("step entrypoint cannot be empty")
 	}
@@ -32,7 +32,7 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, killProcessOnCt
 
 	cmd := exec.Command(step.Entrypoint[0], cmdArgs...) //nolint:gosec // nosemgrep
 
-	SetSysProcAttr(cmd, step.User, killProcessOnCtxCancel)
+	SetSysProcAttr(cmd, step.User, step.ProcessConfig.KillProcessOnContextCancel)
 
 	cmd.Dir = step.WorkingDir
 	cmd.Env = spec.ToEnv(step.Envs)
@@ -47,12 +47,13 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, killProcessOnCt
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Started command on host for step %s %s [PID: %d]", step.ID, step.Name, cmd.Process.Pid))
 
 	cmdSignal := make(chan cmdResult, 1)
-	go waitForCmd(cmd, cmdSignal)
+	go WaitForProcess(ctx, cmd, cmdSignal, step.ProcessConfig.WaitOnProcessGroup)
 
 	select {
 	case <-ctx.Done():
-		if killProcessOnCtxCancel {
-			AbortProcess(ctx, cmd, cmdSignal)
+		if step.ProcessConfig.KillProcessOnContextCancel {
+			AbortProcess(ctx, cmd, cmdSignal, step.ProcessConfig.KillProcessRetryIntervalSecs,
+				step.ProcessConfig.KillProcessMaxSigtermAttempts, step.ProcessConfig.KillProcessUseExplicitTreeStrategy)
 		}
 		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			logrus.WithContext(ctx).Infoln(fmt.Sprintf("Execution canceled for step %s with error %v, took %.2f seconds", step.ID, ctx.Err(), time.Since(startTime).Seconds()))
@@ -64,17 +65,4 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, killProcessOnCt
 		logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on host for step %s, took %.2f seconds", step.ID, time.Since(startTime).Seconds()))
 		return result.state, result.err
 	}
-}
-
-func waitForCmd(cmd *exec.Cmd, cmdSignal chan<- cmdResult) {
-	err := cmd.Wait()
-	if err == nil {
-		cmdSignal <- cmdResult{state: &pruntime.State{ExitCode: 0, Exited: true}, err: nil}
-		return
-	}
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		cmdSignal <- cmdResult{state: &pruntime.State{ExitCode: exitErr.ExitCode(), Exited: true}, err: nil}
-		return
-	}
-	cmdSignal <- cmdResult{state: nil, err: err}
 }
