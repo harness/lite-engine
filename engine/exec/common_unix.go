@@ -36,7 +36,7 @@ func SetSysProcAttr(cmd *exec.Cmd, userIDStr string, useNewProcessGroup bool) {
 // by sending SIGTERM to the process group, and escalates to SIGKILL after a timeout
 // if the process has not exited. The function relies on the cmdSignal channel to detect
 // whether the process has already terminated.
-func abortProcessGroup(ctx context.Context, pgid int, retryIntervalSecs int, maxSigtermAttempts int, cmdSignal <-chan cmdResult) {
+func abortProcessGroup(ctx context.Context, pgid, retryIntervalSecs, maxSigtermAttempts int, cmdSignal <-chan cmdResult) {
 	// Default process abort strategy is to send SIGTERM to the step's process group;
 	// We send it a a number of times (`maxSigtermAttempts`) in intervals of (`retryIntervalSecs`).
 	// If process group still has not exited after these, we escalate to SIGKILL.
@@ -58,7 +58,7 @@ func abortProcessGroup(ctx context.Context, pgid int, retryIntervalSecs int, max
 				logrus.WithContext(ctx).Warnf("process group %d shutdown retry interval reached (%ds). Retrying graceful shutdown (attempt %d of %d)", pgid, retryIntervalSecs, sigtermAttempts, maxSigtermAttempts)
 				sendKillSignalToProcessGroup(ctx, pgid, "SIGTERM", syscall.SIGTERM)
 			} else {
-				// max graceful shutdown attemtps reached. Escalating to SIGKILL
+				// max graceful shutdown attempts reached. Escalating to SIGKILL
 				logrus.WithContext(ctx).Warnf("process group %d did not shutdown with SIGTERM after %d attempts. Escalating to SIGKILL", pgid, maxSigtermAttempts)
 				sendKillSignalToProcessGroup(ctx, pgid, "SIGKILL", syscall.SIGKILL)
 				return
