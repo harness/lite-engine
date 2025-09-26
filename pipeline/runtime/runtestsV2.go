@@ -385,16 +385,16 @@ func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID
 		return nil, nil, fmt.Errorf("failed to get skip recommendations from ti-service: %w", err)
 	}
 
-	// Check if NonCodeFileMarker is in the skip list
+	// Check if NonCodeChainPath is in the skip list
 	found := false
 	for _, skipTest := range skipResponse.SkipTests {
-		if skipTest == instrumentation.NonCodeFileMarker {
+		if skipTest == instrumentation.NonCodeChainPath {
 			found = true
 			break
 		}
 	}
 
-	// If NonCodeFileMarker is not found in skip list, return empty skip list and faild tests
+	// If NonCodeChainPath is not found in skip list, return empty skip list and faild tests - Run all tests
 	if !found {
 		log.Infof("A non code file has changed, running all tests")
 		return []string{}, []string{}, nil

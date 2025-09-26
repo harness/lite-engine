@@ -278,8 +278,8 @@ func fetchFailedTests(filePath string) ([]string, error) {
 	return lines, nil
 }
 
-func populateNonCodeEntities(fileChecksums map[string]uint64) (types.Test, types.Chain) {
-	const nonCodeMarker = instrumentation.NonCodeFileMarker
+func populateNonCodeEntities(fileChecksums map[string]uint64, alreadyProcessed map[string]struct{}) (types.Test, types.Chain) {
+	const nonCodeMarker = instrumentation.NonCodeChainPath
 
 	// Filter out non-code files (files that don't have code extensions)
 	var nonCodePaths []string
@@ -295,7 +295,9 @@ func populateNonCodeEntities(fileChecksums map[string]uint64) (types.Test, types
 
 		// If it's not a code file, add it to non-code paths
 		if !isCodeFile {
-			nonCodePaths = append(nonCodePaths, filePath)
+			if _, exists := alreadyProcessed[filePath]; !exists {
+				nonCodePaths = append(nonCodePaths, filePath)
+			}
 		}
 	}
 
@@ -339,6 +341,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 	var tests []types.Test
 	var chains []types.Chain
 	numTestsMap := make(map[string]int)
+	alreadyProcessed := make(map[string]struct{})
 
 	if cg != nil {
 		nodeMap := make(map[int]Node)
@@ -377,6 +380,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 				for _, path := range sourcePaths {
 					if _, exists := uniquePaths[path]; !exists {
 						uniquePaths[path] = struct{}{}
+						alreadyProcessed[path] = struct{}{}
 						dedupedSourcePaths = append(dedupedSourcePaths, path)
 					}
 				}
@@ -450,7 +454,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 	}
 
 	// Add non-code entities to tests and chains
-	nonCodeTest, nonCodeChain := populateNonCodeEntities(fileChecksums)
+	nonCodeTest, nonCodeChain := populateNonCodeEntities(fileChecksums, alreadyProcessed)
 	tests = append(tests, nonCodeTest)
 	chains = append(chains, nonCodeChain)
 

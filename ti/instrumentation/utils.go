@@ -55,7 +55,7 @@ const (
 	// revamp constants
 	constantChecksum        = 1
 	NonCodeConstantChecksum = 2
-	NonCodeFileMarker       = "HARNESS_TI_NON_CODE_MARKER"
+	NonCodeChainPath        = "HARNESS_TI_NON_CODE_CHAIN_PATH"
 )
 
 func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) (TestRunner, bool, error) {
@@ -845,7 +845,7 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 
 		fileChecksums[filepath] = checksum64
 	}
-	fileChecksums[NonCodeFileMarker] = NonCodeConstantChecksum
+	fileChecksums[NonCodeChainPath] = NonCodeConstantChecksum
 	log.Infof("Successfully processed %d files from git repository", len(fileChecksums))
 	return fileChecksums, nil
 }
