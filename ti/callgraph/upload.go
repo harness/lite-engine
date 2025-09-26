@@ -34,6 +34,48 @@ const (
 	cgDir        = "%s/ti/callgraph/"
 )
 
+// Code file extensions that are considered "code" files
+var codeFileExtensions = []string{
+	// Java
+	".java",
+	".class",
+	".jar",
+
+	// Python
+	".py",
+	".pyx", // Cython
+	".pyi", // Type hints
+	".pyc", // Python compiled files
+
+	// Kotlin
+	".kt",
+	".kts", // Kotlin script
+
+	// Scala
+	".scala",
+	".sc", // Scala script
+
+	// C#
+	".cs",
+	".csx", // C# script
+
+	// Ruby
+	".rb",
+	".rbw", // Ruby Windows
+
+	// JavaScript
+	".js",
+	".mjs", // ES modules
+	".jsx", // React JSX
+
+	// TypeScript
+	".ts",
+	".tsx",  // React TSX
+	".d.ts", // TypeScript definitions
+
+	".ticonfig.yaml", // TI config file
+}
+
 // Upload method uploads the callgraph.
 //
 //nolint:gocritic // paramTypeCombine: keeping separate string parameters for clarity
@@ -236,6 +278,57 @@ func fetchFailedTests(filePath string) ([]string, error) {
 	return lines, nil
 }
 
+func populateNonCodeEntities(fileChecksums map[string]uint64, alreadyProcessed map[string]struct{}) (types.Test, types.Chain) {
+	const nonCodeMarker = instrumentation.NonCodeChainPath
+
+	// Filter out non-code files (files that don't have code extensions)
+	var nonCodePaths []string
+	for filePath := range fileChecksums {
+		// Check if the file has a code extension
+		isCodeFile := false
+		for _, ext := range codeFileExtensions {
+			if strings.HasSuffix(filePath, ext) {
+				isCodeFile = true
+				break
+			}
+		}
+
+		// If it's not a code file, add it to non-code paths
+		if !isCodeFile {
+			if _, exists := alreadyProcessed[filePath]; !exists {
+				nonCodePaths = append(nonCodePaths, filePath)
+			}
+		}
+	}
+
+	// Sort paths for consistency
+	sort.Strings(nonCodePaths)
+
+	// Create the test structure
+	test := types.Test{
+		Path: nonCodeMarker,
+		IndicativeChains: []types.IndicativeChain{
+			{
+				SourcePaths: nonCodePaths,
+			},
+		},
+	}
+
+	chainChecksum := uint64(0)
+	if len(nonCodePaths) > 1 {
+		chainChecksum = tiClientUtils.ChainChecksum(nonCodePaths, fileChecksums)
+	}
+
+	chain := types.Chain{
+		Path:         nonCodeMarker,
+		TestChecksum: strconv.FormatUint(instrumentation.NonCodeConstantChecksum, 10),
+		Checksum:     strconv.FormatUint(chainChecksum, 10),
+		State:        types.SUCCESS, // Default to success for non-code entities
+	}
+
+	return test, chain
+}
+
 func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo string, cfg *tiCfg.Cfg, commitSha string, reportTests []*tiClientTypes.TestCase, log *logrus.Logger, envs map[string]string) (*types.UploadCgRequest, error) {
 	repoInfo := types.Identifier{
 		AccountID: cfg.GetAccountID(),
@@ -248,6 +341,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 	var tests []types.Test
 	var chains []types.Chain
 	numTestsMap := make(map[string]int)
+	alreadyProcessed := make(map[string]struct{})
 
 	if cg != nil {
 		nodeMap := make(map[int]Node)
@@ -286,6 +380,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 				for _, path := range sourcePaths {
 					if _, exists := uniquePaths[path]; !exists {
 						uniquePaths[path] = struct{}{}
+						alreadyProcessed[path] = struct{}{}
 						dedupedSourcePaths = append(dedupedSourcePaths, path)
 					}
 				}
@@ -357,6 +452,12 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 			return nil, err
 		}
 	}
+
+	// Add non-code entities to tests and chains
+	nonCodeTest, nonCodeChain := populateNonCodeEntities(fileChecksums, alreadyProcessed)
+	tests = append(tests, nonCodeTest)
+	chains = append(chains, nonCodeChain)
+
 	return &types.UploadCgRequest{
 		Identifier:       repoInfo,
 		Tests:            tests,
