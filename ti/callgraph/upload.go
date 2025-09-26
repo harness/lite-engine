@@ -79,21 +79,21 @@ var codeFileExtensions = []string{
 // Upload method uploads the callgraph.
 //
 //nolint:gocritic // paramTypeCombine: keeping separate string parameters for clarity
-func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, tests []*tiClientTypes.TestCase, r *api.StartStepRequest) error {
+func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time, cfg *tiCfg.Cfg, dir string, uniqueStepID string, tests []*tiClientTypes.TestCase, r *api.StartStepRequest) (*Callgraph, error) {
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
-		return nil
+		return nil, nil
 	}
 	stepDataDir := filepath.Join(cfg.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, cfg))
 
 	cg, err := parseCallgraphFiles(fmt.Sprintf(dir, stepDataDir), log)
 	if err != nil {
-		return errors.Wrap(err, "failed to parse callgraph files")
+		return nil, errors.Wrap(err, "failed to parse callgraph files")
 	}
 
 	fileChecksums, err := instrumentation.GetGitFileChecksums(ctx, r.WorkingDir, log)
 	if err != nil {
-		return errors.Wrap(err, "failed to get file hashes")
+		return nil, errors.Wrap(err, "failed to get file hashes")
 	}
 
 	var repo, sha string
@@ -106,33 +106,33 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 	}
 	uploadPayload, err := CreateUploadPayload(cg, fileChecksums, repo, cfg, sha, tests, log, r.Envs)
 	if err != nil {
-		return errors.Wrap(err, "failed to create upload payload")
+		return nil, errors.Wrap(err, "failed to create upload payload")
 	}
 
 	err = cfg.GetClient().UploadCgV2(ctx, *uploadPayload, stepID, timeMs, cfg.GetSourceBranch(), cfg.GetTargetBranch())
 	if err != nil {
-		return errors.Wrap(err, "failed to upload callgraph")
+		return nil, errors.Wrap(err, "failed to upload callgraph")
 	}
 
 	/*encCg, cgIsEmpty, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log)
 	if err != nil {
-		return errors.Wrap(err, "failed to get avro encoded callgraph")
+		return nil, errors.Wrap(err, "failed to get avro encoded callgraph")
 	}
 
 	c := cfg.GetClient()
 
 	if hasFailed {
 		if cgErr := c.UploadCgFailedTest(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
-			return cgErr
+			return nil, cgErr
 		}
 	} else if !cgIsEmpty {
 		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
-			return cgErr
+			return nil, cgErr
 		}
 	}*/
 
 	log.Infoln(fmt.Sprintf("Successfully uploaded callgraph in %s time", time.Since(start)))
-	return nil
+	return cg, nil
 }
 
 // parseCallgraphFiles parses callgraph files from the specified data directory

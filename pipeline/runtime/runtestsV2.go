@@ -296,6 +296,10 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 		return nil
 	}
 
+	if instrumentation.IsParallelismEnabled(envs) {
+
+	}
+
 	// Log the skip recommendations
 	if len(skipTests) > 0 {
 		log.Infof("TI service recommends skipping %d files: %v", len(skipTests), skipTests)
@@ -915,16 +919,65 @@ func collectTestReportsAndCg(
 	}
 
 	reportStart := time.Now()
-	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
-	if crErr != nil {
-		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
-	}
 
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, r)
+	// Parse tests from report files
+	tests, parseErr := report.ParseTests(r.TestReport, r.WorkingDir, log, r.Envs)
+
+	cg, cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, r)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
 	}
+
+	// Populate FileName in tests using callgraph data if tests don't have file information
+	if len(tests) > 0 && tests[0].FileName == "" && cg != nil {
+		// Create a map of Class to File from callgraph nodes
+		classToFileMap := make(map[string]string)
+		for _, node := range cg.Nodes {
+			if node.Class != "" && node.File != "" {
+				classToFileMap[node.Class] = node.File
+			}
+		}
+
+		// Populate FileName in tests using the map
+		for i := range tests {
+			if tests[i].FileName == "" && tests[i].ClassName != "" {
+				if fileName, exists := classToFileMap[tests[i].ClassName]; exists {
+					tests[i].FileName = fileName
+				}
+			}
+		}
+	}
+
+	if parseErr != nil {
+		log.WithField("error", parseErr).Errorln(fmt.Sprintf("Failed to parse test reports. Time taken: %s", time.Since(reportStart)))
+		// Continue with empty tests slice for callgraph collection
+		tests = []*types.TestCase{}
+	}
+
+	// Upload tests to TI service (only if parsing was successful)
+	var uploadErr error
+	if parseErr == nil && len(tests) > 0 {
+		uploadErr = report.UploadTests(ctx, tests, stepName, r.TestReport.Kind, tiConfig)
+		if uploadErr != nil {
+			log.WithField("error", uploadErr).Errorln(fmt.Sprintf("Failed to upload test reports. Time taken: %s", time.Since(reportStart)))
+		}
+	}
+
+	// Update telemetry data
+	if len(tests) > 0 {
+		telemetryData.TestIntelligenceMetaData.TotalTests = len(tests)
+		telemetryData.TestIntelligenceMetaData.TotalTestClasses = telemetryutils.CountDistinctClasses(tests)
+	}
+
+	// Log overall success/failure
+	if parseErr != nil || uploadErr != nil {
+		log.WithField("parseError", parseErr).WithField("uploadError", uploadErr).
+			Errorln(fmt.Sprintf("Test report collection completed with errors. Time taken: %s", time.Since(reportStart)))
+	} else {
+		log.Infoln(fmt.Sprintf("Successfully collected test reports in %s time", time.Since(reportStart)))
+	}
+
 	return cgErr
 }
 
