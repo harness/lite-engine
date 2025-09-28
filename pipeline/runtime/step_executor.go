@@ -12,23 +12,22 @@ import (
 	"sync"
 	"time"
 
+	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
+	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/ti-client/types"
-
-	"github.com/drone/runner-go/pipeline/runtime"
-	"github.com/wings-software/dlite/client"
-	"github.com/wings-software/dlite/delegate"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
+	"github.com/wings-software/dlite/client"
+	"github.com/wings-software/dlite/delegate"
 )
 
 type ExecutionStatus int
@@ -89,7 +88,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.stepStatus[r.ID] = StepStatus{Status: Running}
 	e.mu.Unlock()
 
-	go func() {
+	safego.SafeGoWithContext("step_executor", ctx, func(ctx context.Context) {
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(ctx, r, wr)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
@@ -102,7 +101,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		for _, ch := range channels {
 			ch <- status
 		}
-	}()
+	})
 	return nil
 }
 
@@ -111,7 +110,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		return &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 
-	go func() {
+	safego.SafeGo("vm_task_executor", func() {
 		done := make(chan api.VMTaskExecutionResponse, 1)
 		var resp api.VMTaskExecutionResponse
 		var wr logstream.Writer
@@ -123,7 +122,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			timeout = maxStepTimeout
 		}
 
-		go func() {
+		safego.SafeGo("step_execution", func() {
 			if r.StageRuntimeID != "" && r.Image == "" {
 				setPrevStepExportEnvs(r)
 			}
@@ -137,7 +136,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			}
 			resp = convertPollResponse(pollResponse, r.Envs)
 			done <- resp
-		}()
+		})
 
 		select {
 		case resp = <-done:
@@ -152,7 +151,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			e.sendStepStatus(r, &resp)
 			return
 		}
-	}()
+	})
 	return nil
 }
 
@@ -227,7 +226,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 		return
 	}
 
-	go func() {
+	safego.SafeGoWithContext("stream_cleanup", ctx, func(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			// the api request has finished/aborted
@@ -236,7 +235,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 		}
 		close(chData)
 		stepLog.Unsubscribe(chData)
-	}()
+	})
 
 	newOut = chData
 
@@ -331,7 +330,7 @@ func executeStepHelper( //nolint:gocritic
 	// from the main process and executed separately.
 	// We do here only for non-container step.
 	if r.Detach && r.Image == "" {
-		go func() {
+		safego.SafeGo("detached_step", func() {
 			ctx = context.Background()
 			var cancel context.CancelFunc
 			if r.Timeout > 0 {
@@ -340,7 +339,7 @@ func executeStepHelper( //nolint:gocritic
 			}
 			run(ctx, f, r, wr, tiCfg) //nolint:errcheck
 			wr.Close()
-		}()
+		})
 		return &runtime.State{Exited: false}, nil, nil, nil, nil, nil, "", nil
 	}
 

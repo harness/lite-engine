@@ -15,6 +15,7 @@ import (
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/docker"
 	"github.com/harness/lite-engine/handler"
+	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/pipeline/runtime"
 	"github.com/harness/lite-engine/server"
@@ -77,7 +78,7 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 		signal.Stop(s)
 		cancel()
 	}()
-	go func() {
+	safego.SafeGo("signal_handler", func() {
 		select {
 		case val := <-s:
 			logrus.Infof("received OS Signal to exit server: %s", val)
@@ -85,7 +86,7 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 		case <-ctx.Done():
 			logrus.Infoln("received a done signal to exit server")
 		}
-	}()
+	})
 
 	logrus.Infof(fmt.Sprintf("server listening at port %s", loadedConfig.Server.Bind))
 	// run the setup checks / installation

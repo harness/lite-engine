@@ -10,6 +10,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/harness/lite-engine/internal/safego"
 )
 
 const (
@@ -167,16 +169,14 @@ func KillProcesses(ctx context.Context, pids []int, timeout time.Duration) error
 	var mu sync.Mutex // for synchronizing access to errors slice
 
 	for _, pid := range pids {
-		wg.Add(1)
-		go func(pid int) {
-			defer wg.Done()
+		safego.SafeGoWithWaitGroup("kill_process", &wg, func() {
 			err := killProcessWithGracePeriod(pid, timeout)
 			if err != nil {
 				mu.Lock()
 				errors = append(errors, fmt.Sprintf("PID %d: %v", pid, err))
 				mu.Unlock()
 			}
-		}(pid)
+		})
 	}
 
 	wg.Wait()
@@ -211,10 +211,10 @@ func killProcessWithGracePeriod(pid int, timeout time.Duration) error {
 
 	// Wait for the process to exit or timeout to expire
 	done := make(chan error)
-	go func() {
+	safego.SafeGo("process_wait", func() {
 		_, waitErr := process.Wait()
 		done <- waitErr
-	}()
+	})
 	select {
 	case waitErr := <-done:
 		if waitErr != nil {
