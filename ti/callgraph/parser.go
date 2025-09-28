@@ -159,22 +159,12 @@ func parseCg(cgStr []string) (*Callgraph, error) {
 		err error
 		inp []Input
 	)
-	for i, line := range cgStr {
+	for _, line := range cgStr {
 		tinp := &Input{}
 		err = json.Unmarshal([]byte(line), tinp)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("data unmarshalling to json failed for line [%s]", line))
 		}
-		
-		// Log first 3 lines of call graph for debugging
-		if i < 3 {
-			fmt.Printf("Call graph line %d: Test[%s.%s.%s] -> Source[%s.%s.%s] -> Resource[%s.%s.%s]\n",
-				i+1,
-				tinp.Test.Package, tinp.Test.Class, tinp.Test.Method,
-				tinp.Source.Package, tinp.Source.Class, tinp.Source.Method,
-				tinp.Resource.Package, tinp.Resource.Class, tinp.Resource.Method)
-		}
-		
 		inp = append(inp, *tinp)
 	}
 	return process(inp), nil
