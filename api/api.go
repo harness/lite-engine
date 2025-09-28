@@ -123,6 +123,7 @@ type (
 		Volumes        []*spec.VolumeMount  `json:"volumes,omitempty"`
 		Files          []*spec.File         `json:"files,omitempty"`
 		StepStatus     StepStatusConfig     `json:"step_status,omitempty"`
+		ProcessConfig  spec.ProcessConfig   `json:"process_config,omitempty"`
 	}
 
 	OutputV2 struct {
@@ -158,6 +159,15 @@ type (
 	RunConfig struct {
 		Command    []string `json:"commands,omitempty"`
 		Entrypoint []string `json:"entrypoint,omitempty"`
+		Binary     Binary   `json:"binary,omitempty"`
+	}
+
+	Binary struct {
+		Name       string   `json:"name,omitempty"`
+		Version    string   `json:"version,omitempty"`
+		Source     []string `json:"source,omitempty"`
+		Args       []string `json:"args,omitempty"`
+		Compressed bool     `json:"compressed,omitempty"`
 	}
 
 	RunTestsV2Config struct {
@@ -194,6 +204,7 @@ type (
 		// be used in cases where more than 5k lines of logs are written by the logger. Otherwise,
 		// the final logs blob may have missing logs.
 		SkipOpeningStream bool `json:"skip_opening_stream,omitempty"`
+		SkipClosingStream bool `json:"skip_closing_stream,omitempty"`
 	}
 
 	TIConfig struct {

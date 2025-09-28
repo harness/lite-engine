@@ -37,7 +37,7 @@ const (
 
 // NewCgphSerialzer returns new CgphSerialzer object with the codec
 // based on the schema received in the input
-func NewCgphSerialzer(typ string, version string) (*CgphSerialzer, error) {
+func NewCgphSerialzer(typ, version string) (*CgphSerialzer, error) {
 	var schema []byte
 	var err error
 	switch typ {

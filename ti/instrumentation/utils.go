@@ -438,6 +438,7 @@ func SelectTests(ctx context.Context, workspace string, files []ti.File, runSele
 	return c.SelectTests(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), req, rerunFailedTests)
 }
 
+//nolint:gocritic // hugeParam: keeping struct parameter for API consistency
 func filterTestsAfterSelection(selection ti.SelectTestsResp, testGlobs, excludeGlobs []string) ti.SelectTestsResp {
 	if selection.SelectAll || len(testGlobs) == 0 {
 		return selection

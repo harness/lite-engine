@@ -10,21 +10,19 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
-	"strconv"
 	"time"
 
-	"github.com/drone/runner-go/pipeline/runtime"
-	"github.com/harness/lite-engine/engine/pids"
+	pruntime "github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/sirupsen/logrus"
 )
 
 type cmdResult struct {
-	state *runtime.State
+	state *pruntime.State
 	err   error
 }
 
-func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath string) (*runtime.State, error) {
+func Run(ctx context.Context, step *spec.Step, output io.Writer) (*pruntime.State, error) {
 	if len(step.Entrypoint) == 0 {
 		return nil, errors.New("step entrypoint cannot be empty")
 	}
@@ -32,13 +30,9 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath str
 	cmdArgs := step.Entrypoint[1:]
 	cmdArgs = append(cmdArgs, step.Command...)
 
-	cmd := exec.CommandContext(ctx, step.Entrypoint[0], cmdArgs...) //nolint:gosec
+	cmd := exec.Command(step.Entrypoint[0], cmdArgs...) //nolint:gosec // nosemgrep
 
-	if step.User != "" {
-		if userID, err := strconv.Atoi(step.User); err == nil {
-			SetUserID(cmd, uint32(userID))
-		}
-	}
+	SetSysProcAttr(cmd, step.User, step.ProcessConfig.KillProcessOnContextCancel)
 
 	cmd.Dir = step.WorkingDir
 	cmd.Env = spec.ToEnv(step.Envs)
@@ -50,17 +44,17 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath str
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
-	if pidFilePath != "" {
-		if err := pids.AppendPIDToFile(cmd.Process.Pid, pidFilePath); err != nil {
-			logrus.WithContext(ctx).Errorf(fmt.Sprintf("Failed to append PID %d to file %s: ", cmd.Process.Pid, pidFilePath), err)
-		}
-	}
+	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Started command on host for step %s %s [PID: %d]", step.ID, step.Name, cmd.Process.Pid))
 
 	cmdSignal := make(chan cmdResult, 1)
-	go waitForCmd(cmd, cmdSignal)
+	go WaitForProcess(ctx, cmd, cmdSignal, step.ProcessConfig.WaitOnProcessGroup)
 
 	select {
 	case <-ctx.Done():
+		if step.ProcessConfig.KillProcessOnContextCancel {
+			AbortProcess(ctx, cmd, cmdSignal, step.ProcessConfig.KillProcessRetryIntervalSecs,
+				step.ProcessConfig.KillProcessMaxSigtermAttempts, step.ProcessConfig.KillProcessUseExplicitTreeStrategy)
+		}
 		if errors.Is(ctx.Err(), context.Canceled) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			logrus.WithContext(ctx).Infoln(fmt.Sprintf("Execution canceled for step %s with error %v, took %.2f seconds", step.ID, ctx.Err(), time.Since(startTime).Seconds()))
 			return nil, ctx.Err()
@@ -71,17 +65,4 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer, pidFilePath str
 		logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on host for step %s, took %.2f seconds", step.ID, time.Since(startTime).Seconds()))
 		return result.state, result.err
 	}
-}
-
-func waitForCmd(cmd *exec.Cmd, cmdSignal chan<- cmdResult) {
-	err := cmd.Wait()
-	if err == nil {
-		cmdSignal <- cmdResult{state: &runtime.State{ExitCode: 0, Exited: true}, err: nil}
-		return
-	}
-	if exitErr, ok := err.(*exec.ExitError); ok {
-		cmdSignal <- cmdResult{state: &runtime.State{ExitCode: exitErr.ExitCode(), Exited: true}, err: nil}
-		return
-	}
-	cmdSignal <- cmdResult{state: nil, err: err}
 }
