@@ -10,6 +10,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/harness/lite-engine/ti/report/parser/junit/gojunit"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -345,6 +346,165 @@ func Test_GetRootSuiteName(t *testing.T) {
 			if got := getRootSuiteName(tt.args.envs); got != tt.want {
 				t.Errorf("getRootSuiteName() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestProcessTestSuites(t *testing.T) {
+	tests := []struct {
+		name           string
+		suites         []gojunit.Suite
+		expectedCounts TestCounts
+	}{
+		{
+			name: "Single suite with mixed results",
+			suites: []gojunit.Suite{
+				{
+					Name: "TestSuite1",
+					Tests: []gojunit.Test{
+						{
+							Name:     "test1",
+							Result:   ti.Result{Status: ti.StatusPassed},
+							Filename: "test1.go",
+						},
+						{
+							Name:     "test2",
+							Result:   ti.Result{Status: ti.StatusFailed},
+							Filename: "test2.go",
+						},
+						{
+							Name:     "test3",
+							Result:   ti.Result{Status: ti.StatusSkipped},
+							Filename: "test3.go",
+						},
+					},
+				},
+			},
+			expectedCounts: TestCounts{
+				Total:   3,
+				Passed:  1,
+				Failed:  1,
+				Skipped: 1,
+				Error:   0,
+				Unknown: 0,
+			},
+		},
+		{
+			name: "Multiple suites",
+			suites: []gojunit.Suite{
+				{
+					Name: "TestSuite1",
+					Tests: []gojunit.Test{
+						{
+							Name:     "test1",
+							Result:   ti.Result{Status: ti.StatusPassed},
+							Filename: "test1.go",
+						},
+						{
+							Name:     "test2",
+							Result:   ti.Result{Status: ti.StatusError},
+							Filename: "test2.go",
+						},
+					},
+				},
+				{
+					Name: "TestSuite2",
+					Tests: []gojunit.Test{
+						{
+							Name:     "test3",
+							Result:   ti.Result{Status: ti.StatusPassed},
+							Filename: "test3.go",
+						},
+					},
+				},
+			},
+			expectedCounts: TestCounts{
+				Total:   3,
+				Passed:  2,
+				Failed:  0,
+				Skipped: 0,
+				Error:   1,
+				Unknown: 0,
+			},
+		},
+		{
+			name: "Nested suites",
+			suites: []gojunit.Suite{
+				{
+					Name: "ParentSuite",
+					Tests: []gojunit.Test{
+						{
+							Name:     "parentTest",
+							Result:   ti.Result{Status: ti.StatusPassed},
+							Filename: "parent.go",
+						},
+					},
+					Suites: []gojunit.Suite{
+						{
+							Name: "ChildSuite",
+							Tests: []gojunit.Test{
+								{
+									Name:     "childTest",
+									Result:   ti.Result{Status: ti.StatusFailed},
+									Filename: "child.go",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedCounts: TestCounts{
+				Total:   2,
+				Passed:  1,
+				Failed:  1,
+				Skipped: 0,
+				Error:   0,
+				Unknown: 0,
+			},
+		},
+		{
+			name: "Empty test name should be ignored",
+			suites: []gojunit.Suite{
+				{
+					Name: "TestSuite1",
+					Tests: []gojunit.Test{
+						{
+							Name:     "validTest",
+							Result:   ti.Result{Status: ti.StatusPassed},
+							Filename: "test.go",
+						},
+						{
+							Name:     "", // Empty name should be ignored
+							Result:   ti.Result{Status: ti.StatusPassed},
+							Filename: "test.go",
+						},
+					},
+				},
+			},
+			expectedCounts: TestCounts{
+				Total:   1,
+				Passed:  1,
+				Failed:  0,
+				Skipped: 0,
+				Error:   0,
+				Unknown: 0,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a test slice
+			var testCases []*ti.TestCase
+			// Call the function
+			counts := processTestSuites(&testCases, tt.suites)
+			// Verify counts
+			assert.Equal(t, tt.expectedCounts.Total, counts.Total, "Total count mismatch")
+			assert.Equal(t, tt.expectedCounts.Passed, counts.Passed, "Passed count mismatch")
+			assert.Equal(t, tt.expectedCounts.Failed, counts.Failed, "Failed count mismatch")
+			assert.Equal(t, tt.expectedCounts.Skipped, counts.Skipped, "Skipped count mismatch")
+			assert.Equal(t, tt.expectedCounts.Error, counts.Error, "Error count mismatch")
+			// Verify that the correct number of test cases were sent to the channel
+			assert.Equal(t, tt.expectedCounts.Total, len(testCases), "Number of test cases sent to channel should match total count")
 		})
 	}
 }

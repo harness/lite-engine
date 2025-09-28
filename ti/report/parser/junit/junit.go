@@ -39,7 +39,7 @@ func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*t
 		log.Errorln("could not find any files matching the provided report path")
 	}
 	fileMap := make(map[string]int)
-	totalTests := 0
+	overallCounts := TestCounts{}
 	var tests []*ti.TestCase
 	for _, file := range files {
 		suites, err := gojunit.IngestFile(file, getRootSuiteName(envs))
@@ -48,31 +48,68 @@ func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*t
 				Errorln(fmt.Sprintf("could not parse file %s", file))
 			continue
 		}
-		testsInFile := processTestSuites(&tests, suites)
-		totalTests += testsInFile
-		fileMap[file] = testsInFile
+		fileCounts := processTestSuites(&tests, suites)
+		overallCounts.Total += fileCounts.Total
+		overallCounts.Passed += fileCounts.Passed
+		overallCounts.Failed += fileCounts.Failed
+		overallCounts.Skipped += fileCounts.Skipped
+		overallCounts.Error += fileCounts.Error
+		overallCounts.Unknown += fileCounts.Unknown
+		fileMap[file] = fileCounts.Total
 	}
 
 	log.Infoln("Number of cases parsed in each file: ", fileMap)
-	log.WithField("num_cases", totalTests).Infoln(fmt.Sprintf("Parsed %d test cases", totalTests))
+	log.Infoln(fmt.Sprintf("parsed %d test cases", overallCounts.Total), "num_cases", overallCounts.Total)
+	// Print formatted test report
+	printTestReport(overallCounts, log)
 	return tests
+}
+
+type TestCounts struct {
+	Total  int
+	Passed int
+
+	Failed  int
+	Skipped int
+	Error   int
+	Unknown int
 }
 
 // processTestSuites recusively writes the test data from parsed data to the
 // input channel and returns the total number of tests written to the channel
-func processTestSuites(tests *[]*ti.TestCase, suites []gojunit.Suite) int {
-	totalTests := 0
+func processTestSuites(tests *[]*ti.TestCase, suites []gojunit.Suite) TestCounts {
+	counts := TestCounts{}
 	for _, suite := range suites { //nolint:gocritic
 		for _, test := range suite.Tests { //nolint:gocritic
 			ct := convert(test, suite)
 			if ct.Name != "" {
 				*tests = append(*tests, ct)
-				totalTests++
+				counts.Total += 1
+				// Count by status
+				switch test.Result.Status {
+				case ti.StatusPassed:
+					counts.Passed++
+				case ti.StatusFailed:
+					counts.Failed++
+				case ti.StatusSkipped:
+					counts.Skipped++
+				case ti.StatusError:
+					counts.Error++
+				default:
+					// This is not printed for now
+					counts.Unknown++
+				}
 			}
 		}
-		totalTests += processTestSuites(tests, suite.Suites)
+		nestedCounts := processTestSuites(tests, suite.Suites)
+		counts.Total += nestedCounts.Total
+		counts.Passed += nestedCounts.Passed
+		counts.Failed += nestedCounts.Failed
+		counts.Skipped += nestedCounts.Skipped
+		counts.Error += nestedCounts.Error
+		counts.Unknown += nestedCounts.Unknown
 	}
-	return totalTests
+	return counts
 }
 
 // getFiles returns uniques file paths provided in the input after expanding the input paths
@@ -124,6 +161,41 @@ func convert(testCase gojunit.Test, testSuite gojunit.Suite) *ti.TestCase { //no
 		SystemOut:  restrictLength(testCase.SystemOut),
 		SystemErr:  restrictLength(testCase.SystemErr),
 	}
+}
+
+// printTestReport prints a formatted test report table
+func printTestReport(counts TestCounts, log *logrus.Logger) {
+	// Only print the report if there are tests to report
+	if counts.Total == 0 {
+		return
+	}
+	log.Info("\n================= Harness Test Report =================")
+	// Determine overall status message
+	if counts.Failed == 0 && counts.Error == 0 {
+		log.Info("✔ All tests passed.")
+	} else {
+		log.Infof("✗ %d test(s) failed.", counts.Failed+counts.Error)
+	}
+	log.Info("+-----------+----------------+------+")
+	if counts.Passed > 0 {
+		log.Infof("| Passed    | first run      | %3d  |", counts.Passed)
+		// log.Infof("|           | on retry       | %3d  |", 0) // No retry info available
+		log.Info("+-----------+----------------+------+")
+	}
+	if counts.Failed > 0 || counts.Error > 0 {
+		log.Infof("| Failed    | total          | %3d  |", counts.Failed+counts.Error)
+		log.Info("+-----------+----------------+------+")
+	}
+	if counts.Skipped > 0 {
+		// TI will map this information in later iteration
+		// log.Infof("| Skipped   | by TI logic    | %3d  |", 0) // No TI logic info available
+		log.Infof("|           | by user action | %3d  |", counts.Skipped)
+		log.Info("+-----------+----------------+------+")
+	}
+	// Total
+	log.Infof("| TOTAL     | all tests      | %3d  |", counts.Total)
+	log.Info("+-----------+----------------+------+")
+	log.Info("")
 }
 
 // restrictLength trims string to last strMaxsize characters
