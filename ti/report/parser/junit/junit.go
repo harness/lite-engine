@@ -183,13 +183,13 @@ func printTestReport(counts TestCounts, log *logrus.Logger) {
 		log.Info("+-----------+----------------+------+")
 	}
 	if counts.Failed > 0 || counts.Error > 0 {
-		log.Infof("| Failed    | total          | %3d  |", counts.Failed+counts.Error)
+		log.Infof("| Failed    |                | %3d  |", counts.Failed+counts.Error)
 		log.Info("+-----------+----------------+------+")
 	}
 	if counts.Skipped > 0 {
 		// TI will map this information in later iteration
 		// log.Infof("| Skipped   | by TI logic    | %3d  |", 0) // No TI logic info available
-		log.Infof("| Skipped   | by user action | %3d  |", counts.Skipped)
+		log.Infof("| Skipped   |                | %3d  |", counts.Skipped)
 		log.Info("+-----------+----------------+------+")
 	}
 	// Total
