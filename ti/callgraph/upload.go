@@ -25,6 +25,11 @@ const (
 	cgDir        = "%s/ti/callgraph/" // path where callgraph files will be generated
 )
 
+var (
+	// DetectedLanguages stores languages detected from callgraph for runtestV2
+	DetectedLanguages []string
+)
+
 // Upload method uploads the callgraph.
 func Upload(
 	ctx context.Context,
@@ -37,6 +42,9 @@ func Upload(
 	tests []*types.TestCase,
 	rerunFailedTests bool,
 ) error {
+	// Reset detected languages at start of each upload
+	DetectedLanguages = []string{}
+	
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
 		return nil
@@ -86,6 +94,25 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, versi
 	}
 	parser = NewCallGraphParser(log, fs)
 	cg, err := parser.Parse(cgFiles, visFiles)
+	if err != nil {
+		return nil, cgIsEmpty, false, errors.Wrap(err, "failed to parse callgraph")
+	}
+	
+	// Extract test file extensions for language metadata
+	log.Infof("Callgraph parsing completed. Total nodes: %d", len(cg.Nodes))
+	if len(cg.Nodes) > 0 {
+		languages := ExtractTestLanguages(cg)
+		if len(languages) > 0 {
+			log.Infof("Detected test language from callgraph: %v", languages)
+			// Store in global variable for runtestV2 to access
+			DetectedLanguages = languages
+		} else {
+			log.Warnf("No test languages detected from callgraph nodes")
+		}
+	} else {
+		log.Warnf("No callgraph nodes found for language detection")
+	}
+	
 	totalMatched := 0
 	totalTests := 0
 	if rerunFailedTests {
@@ -109,9 +136,6 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, versi
 		}
 	}
 	allMatched = totalMatched == totalTests // To consider a report valid, all test nodes should be matched with valid reports
-	if err != nil {
-		return nil, cgIsEmpty, allMatched, errors.Wrap(err, "failed to parse visgraph")
-	}
 	log.Infoln(fmt.Sprintf("Size of Test nodes: %d, Test relations: %d, Vis Relations %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
 
 	if isCgEmpty(cg) {

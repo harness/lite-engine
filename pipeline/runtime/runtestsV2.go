@@ -20,6 +20,7 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/harness/lite-engine/ti/callgraph"
 	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
@@ -838,6 +839,16 @@ func collectTestReportsAndCg(
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
 	}
+	
+	// Assign detected languages from callgraph to testMetadata
+	log.Infof("Checking detected languages after callgraph collection: %v", callgraph.DetectedLanguages)
+	if len(callgraph.DetectedLanguages) > 0 {
+		telemetryData.TestIntelligenceMetaData.Language = callgraph.DetectedLanguages
+		log.Infof("Successfully assigned callgraph languages to testMetadata: %v", callgraph.DetectedLanguages)
+	} else {
+		log.Warnf("No languages detected from callgraph to assign to testMetadata")
+	}
+	
 	return cgErr
 }
 

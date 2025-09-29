@@ -10,6 +10,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -192,6 +193,29 @@ func process(inps []Input) *Callgraph {
 		Nodes:         nodes,
 		TestRelations: relns,
 	}
+}
+
+// ExtractTestLanguages extracts file extension from first test node
+func ExtractTestLanguages(cg *Callgraph) []string {
+	testNodeCount := 0
+	for _, node := range cg.Nodes {
+		if node.Type == "test" {
+			testNodeCount++
+			if node.File != "" {
+				ext := filepath.Ext(node.File)
+				if ext != "" {
+					return []string{ext}
+				}
+			}
+		}
+	}
+	// Log debug info if no languages found
+	if testNodeCount == 0 {
+		fmt.Printf("ExtractTestLanguages: No test nodes found in callgraph\n")
+	} else {
+		fmt.Printf("ExtractTestLanguages: Found %d test nodes but no file extensions\n", testNodeCount)
+	}
+	return []string{}
 }
 
 func convCgph(inps []Input) (map[int][]int, map[int]Node) { //nolint:gocritic
