@@ -8,6 +8,7 @@ import (
 
 	lttb "github.com/dgryski/go-lttb"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/logger"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
@@ -65,7 +66,7 @@ func New(ctx context.Context, interval time.Duration, logProcess bool) *StatsCol
 
 func (s *StatsCollector) Start() {
 	s.st = time.Now()
-	go s.collectStats()
+	safego.SafeGo("stats_collector", s.collectStats)
 }
 
 func (s *StatsCollector) Stop() {

@@ -13,6 +13,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/harness/lite-engine/internal/safego"
 )
 
 // IngestFile will parse the given XML file and return a slice of all contained
@@ -47,10 +49,10 @@ func IngestReader(reader io.Reader, rootSuiteName string, trxFormat bool) ([]Sui
 		return nil, err
 	}
 
-	go func() {
+	safego.SafeGo("junit_parser", func() {
 		findSuites(nodes, suiteChan, "", rootSuiteName)
 		close(suiteChan)
-	}()
+	})
 
 	for suite := range suiteChan {
 		suites = append(suites, suite)

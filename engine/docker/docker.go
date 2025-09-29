@@ -22,6 +22,7 @@ import (
 	"github.com/harness/lite-engine/internal/docker/errors"
 	"github.com/harness/lite-engine/internal/docker/jsonmessage"
 	"github.com/harness/lite-engine/internal/docker/stdcopy"
+	"github.com/harness/lite-engine/internal/safego"
 	"github.com/sirupsen/logrus"
 
 	"github.com/docker/docker/api/types"
@@ -242,7 +243,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	}
 	// start the execution in go routine if it's a detach step and not drone
 	if !isDrone && step.Detach {
-		go func() {
+		safego.SafeGoWithContext("detached_container", ctx, func(ctx context.Context) {
 			ctxBg := context.Background()
 			var cancel context.CancelFunc
 			if deadline, ok := ctx.Deadline(); ok {
@@ -253,7 +254,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 			if wr, ok := output.(logstream.Writer); ok {
 				wr.Close()
 			}
-		}()
+		})
 		return &runtime.State{Exited: false}, nil
 	}
 	return e.startContainer(ctx, step.ID, pipelineConfig.TTY, output)
