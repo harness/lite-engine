@@ -35,8 +35,8 @@ func getRootSuiteName(envs map[string]string) string {
 }
 
 // ParseTests parses XMLs and writes relevant data to the channel
-// If envFilePath is provided, exports test statistics to that file
-func ParseTests(paths []string, log *logrus.Logger, envs map[string]string, envFilePath ...string) []*ti.TestCase {
+// If envFile is provided, exports test statistics to that file
+func ParseTests(paths []string, log *logrus.Logger, envs map[string]string, envFile string) []*ti.TestCase {
 	files := getFiles(paths, log)
 
 	log.Debugln(fmt.Sprintf("list of files to collect test reports from: %s", files))
@@ -68,13 +68,9 @@ func ParseTests(paths []string, log *logrus.Logger, envs map[string]string, envF
 	// Print formatted test report
 	printTestReport(overallCounts, log)
 
-	// Export statistics if envFilePath is provided
-	if len(envFilePath) > 0 && envFilePath[0] != "" {
-		if err := ExportTestStatistics(tests, overallCounts, envFilePath[0]); err != nil {
-			log.WithError(err).WithField("envFilePath", envFilePath[0]).Warnln("failed to export test statistics")
-		} else {
-			log.WithField("envFilePath", envFilePath[0]).Infoln("successfully exported test statistics")
-		}
+	// Export statistics if envFile is provided
+	if envFile != "" {
+		ExportTestStatistics(tests, overallCounts, envFile, log)
 	}
 
 	return tests
@@ -246,7 +242,8 @@ func expandTilde(path string) (string, error) {
 }
 
 // ExportTestStatistics writes test statistics to an environment file that can be consumed by fetchExportedVarsFromEnvFile
-func ExportTestStatistics(tests []*ti.TestCase, counts TestCounts, envFilePath string) error {
+// This function is safe and will not return errors - it logs any failures instead
+func ExportTestStatistics(tests []*ti.TestCase, counts TestCounts, envFilePath string, log *logrus.Logger) {
 	// Calculate additional statistics
 	totalDurationMs := int64(0)
 	slowTests := make([]*ti.TestCase, 0)
@@ -257,7 +254,6 @@ func ExportTestStatistics(tests []*ti.TestCase, counts TestCounts, envFilePath s
 		slowTests = append(slowTests, test)
 	}
 
-	// Sort tests by duration (descending) to get slowest tests
 	sort.Slice(slowTests, func(i, j int) bool {
 		return slowTests[i].DurationMs > slowTests[j].DurationMs
 	})
@@ -269,10 +265,8 @@ func ExportTestStatistics(tests []*ti.TestCase, counts TestCounts, envFilePath s
 		if slowTests[i].ClassName != "" {
 			testName = slowTests[i].ClassName + "#" + testName
 		}
-		// Convert milliseconds to seconds
 		durationSeconds := slowTests[i].DurationMs / 1000
 		if slowTests[i].DurationMs%1000 != 0 {
-			// If there are remaining milliseconds, round up
 			durationSeconds++
 		}
 		topFiveSlowests = append(topFiveSlowests, fmt.Sprintf("\"%s: %ds\"", testName, durationSeconds))
@@ -305,20 +299,30 @@ func ExportTestStatistics(tests []*ti.TestCase, counts TestCounts, envFilePath s
 	// Write to environment file
 	file, err := os.Create(envFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to create env file %s: %w", envFilePath, err)
+		log.WithError(err).WithField("envFilePath", envFilePath).Errorln("failed to create env file for test statistics")
+		return
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			log.WithError(closeErr).WithField("envFilePath", envFilePath).Warnln("failed to close env file")
+		}
+	}()
 
 	writer := bufio.NewWriter(file)
-	defer writer.Flush()
+	defer func() {
+		if flushErr := writer.Flush(); flushErr != nil {
+			log.WithError(flushErr).WithField("envFilePath", envFilePath).Warnln("failed to flush env file")
+		}
+	}()
 
 	// Write each environment variable in KEY=VALUE format
 	for key, value := range envVars {
 		_, err := writer.WriteString(fmt.Sprintf("%s=%s\n", key, value))
 		if err != nil {
-			return fmt.Errorf("failed to write to env file: %w", err)
+			log.WithError(err).WithField("envFilePath", envFilePath).WithField("key", key).Errorln("failed to write variable to env file")
+			return
 		}
 	}
 
-	return nil
+	log.WithField("envFilePath", envFilePath).Infoln("successfully exported test statistics to env file")
 }

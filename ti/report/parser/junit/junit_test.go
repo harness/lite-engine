@@ -217,7 +217,7 @@ func TestGetTests_All(t *testing.T) {
 	paths = append(paths, getBaseDir()+"**/*.xml") // Regex to get all reports
 	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New(), envs)
+	tests := ParseTests(paths, logrus.New(), envs, "")
 	exp := []*ti.TestCase{expectedPassedTest(), expectedErrorTest(), expectedFailedTest(), expectedSkippedTest()}
 	exp = append(exp, expectedNestedTests()...)
 	assert.ElementsMatch(t, exp, tests)
@@ -243,7 +243,7 @@ func TestGetTests_All_MultiplePaths(t *testing.T) {
 	paths = append(paths, basePath+"a/*/*.xml", basePath+"a/**/*.xml", basePath+"a/b/c/d/*.xml") // Regex to get both reports
 	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New(), envs)
+	tests := ParseTests(paths, logrus.New(), envs, "")
 	exp := []*ti.TestCase{expectedPassedTest(), expectedErrorTest(), expectedFailedTest(), expectedSkippedTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -267,7 +267,7 @@ func TestGetTests_FirstRegex(t *testing.T) {
 	paths = append(paths, basePath+"a/b/*.xml") // Regex to get both reports
 	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New(), envs)
+	tests := ParseTests(paths, logrus.New(), envs, "")
 	exp := []*ti.TestCase{expectedPassedTest(), expectedFailedTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -291,7 +291,7 @@ func TestGetTests_SecondRegex(t *testing.T) {
 	paths = append(paths, basePath+"a/b/**/*2.xml") // Regex to get both reports
 	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New(), envs)
+	tests := ParseTests(paths, logrus.New(), envs, "")
 	exp := []*ti.TestCase{expectedSkippedTest(), expectedErrorTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -315,7 +315,7 @@ func TestGetTests_NoMatchingRegex(t *testing.T) {
 	paths = append(paths, basePath+"a/b/**/*3.xml") // Regex to get both reports
 	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New(), envs)
+	tests := ParseTests(paths, logrus.New(), envs, "")
 	exp := []*ti.TestCase{}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -655,15 +655,21 @@ func TestExportTestStatistics(t *testing.T) {
 			defer os.Remove(tempFile.Name())
 			tempFile.Close()
 
-			// Call ExportTestStatistics
-			err = ExportTestStatistics(tt.testCases, tt.counts, tempFile.Name())
+			// Call ExportTestStatistics with a test logger
+			testLogger := logrus.New()
+			testLogger.SetOutput(io.Discard) // Suppress log output during tests
+			ExportTestStatistics(tt.testCases, tt.counts, tempFile.Name(), testLogger)
 
 			if tt.expectedError {
-				assert.Error(t, err)
-				return
+				// For error cases, check if file was not created or is empty
+				if _, err := os.Stat(tempFile.Name()); os.IsNotExist(err) {
+					return // File doesn't exist, which is expected for error cases
+				}
+				content, _ := os.ReadFile(tempFile.Name())
+				if len(content) == 0 {
+					return // File is empty, which is expected for error cases
+				}
 			}
-
-			assert.NoError(t, err)
 
 			// Read the generated file
 			content, err := os.ReadFile(tempFile.Name())
@@ -707,8 +713,16 @@ func TestExportTestStatistics_InvalidPath(t *testing.T) {
 	}
 	counts := TestCounts{Total: 1, Passed: 1}
 
-	// Try to write to an invalid path
-	err := ExportTestStatistics(testCases, counts, "/invalid/path/that/does/not/exist.env")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create env file")
+	// Create a logger to capture error logs
+	testLogger := logrus.New()
+	var logOutput strings.Builder
+	testLogger.SetOutput(&logOutput)
+
+	// Try to write to an invalid path - function should not panic, just log error
+	ExportTestStatistics(testCases, counts, "/invalid/path/that/does/not/exist.env", testLogger)
+
+	// Verify that an error was logged
+	logContent := logOutput.String()
+	assert.Contains(t, logContent, "failed to create env file")
+	assert.Contains(t, logContent, "error")
 }
