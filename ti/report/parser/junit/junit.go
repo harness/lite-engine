@@ -5,9 +5,13 @@
 package junit
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/harness/lite-engine/ti/report/parser/junit/gojunit"
 	ti "github.com/harness/ti-client/types"
@@ -31,7 +35,8 @@ func getRootSuiteName(envs map[string]string) string {
 }
 
 // ParseTests parses XMLs and writes relevant data to the channel
-func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*ti.TestCase {
+// If envFilePath is provided, exports test statistics to that file
+func ParseTests(paths []string, log *logrus.Logger, envs map[string]string, envFilePath ...string) []*ti.TestCase {
 	files := getFiles(paths, log)
 
 	log.Debugln(fmt.Sprintf("list of files to collect test reports from: %s", files))
@@ -62,6 +67,16 @@ func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*t
 	log.Infoln(fmt.Sprintf("parsed %d test cases", overallCounts.Total), "num_cases", overallCounts.Total)
 	// Print formatted test report
 	printTestReport(overallCounts, log)
+
+	// Export statistics if envFilePath is provided
+	if len(envFilePath) > 0 && envFilePath[0] != "" {
+		if err := ExportTestStatistics(tests, overallCounts, envFilePath[0]); err != nil {
+			log.WithError(err).WithField("envFilePath", envFilePath[0]).Warnln("failed to export test statistics")
+		} else {
+			log.WithField("envFilePath", envFilePath[0]).Infoln("successfully exported test statistics")
+		}
+	}
+
 	return tests
 }
 
@@ -228,4 +243,82 @@ func expandTilde(path string) (string, error) {
 	}
 
 	return filepath.Join(dir, path[1:]), nil
+}
+
+// ExportTestStatistics writes test statistics to an environment file that can be consumed by fetchExportedVarsFromEnvFile
+func ExportTestStatistics(tests []*ti.TestCase, counts TestCounts, envFilePath string) error {
+	// Calculate additional statistics
+	totalDurationMs := int64(0)
+	slowTests := make([]*ti.TestCase, 0)
+
+	// Process each test case
+	for _, test := range tests {
+		totalDurationMs += test.DurationMs
+		slowTests = append(slowTests, test)
+	}
+
+	// Sort tests by duration (descending) to get slowest tests
+	sort.Slice(slowTests, func(i, j int) bool {
+		return slowTests[i].DurationMs > slowTests[j].DurationMs
+	})
+
+	// Get top 5 slowest tests in JSON array format
+	topFiveSlowests := make([]string, 0, 5)
+	for i := 0; i < len(slowTests) && i < 5; i++ {
+		testName := slowTests[i].Name
+		if slowTests[i].ClassName != "" {
+			testName = slowTests[i].ClassName + "#" + testName
+		}
+		// Convert milliseconds to seconds
+		durationSeconds := slowTests[i].DurationMs / 1000
+		if slowTests[i].DurationMs%1000 != 0 {
+			// If there are remaining milliseconds, round up
+			durationSeconds++
+		}
+		topFiveSlowests = append(topFiveSlowests, fmt.Sprintf("\"%s: %ds\"", testName, durationSeconds))
+	}
+
+	// Format as JSON array
+	topFiveSlowestsJSON := "[" + strings.Join(topFiveSlowests, ", ") + "]"
+	if len(topFiveSlowests) == 0 {
+		topFiveSlowestsJSON = "[]"
+	}
+
+	// Calculate failed ratio
+	failedRatio := 0.0
+	if counts.Total > 0 {
+		failedRatio = float64(counts.Failed+counts.Error) / float64(counts.Total)
+	}
+
+	// Create environment variables map
+	envVars := map[string]string{
+		"total_tests":            strconv.Itoa(counts.Total),
+		"executed_count":         strconv.Itoa(counts.Total),
+		"passed_count":           strconv.Itoa(counts.Passed),
+		"failed_count":           strconv.Itoa(counts.Failed + counts.Error),
+		"skipped_count":          strconv.Itoa(counts.Skipped),
+		"failed_ratio":           fmt.Sprintf("%.4f", failedRatio),
+		"duration_ms_total":      strconv.FormatInt(totalDurationMs, 10),
+		"top_five_slowest_tests": topFiveSlowestsJSON,
+	}
+
+	// Write to environment file
+	file, err := os.Create(envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create env file %s: %w", envFilePath, err)
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	defer writer.Flush()
+
+	// Write each environment variable in KEY=VALUE format
+	for key, value := range envVars {
+		_, err := writer.WriteString(fmt.Sprintf("%s=%s\n", key, value))
+		if err != nil {
+			return fmt.Errorf("failed to write to env file: %w", err)
+		}
+	}
+
+	return nil
 }
