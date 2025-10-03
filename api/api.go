@@ -168,6 +168,7 @@ type (
 		Source     []string `json:"source,omitempty"`
 		Args       []string `json:"args,omitempty"`
 		Compressed bool     `json:"compressed,omitempty"`
+		Target     string   `json:"target,omitempty"`
 	}
 
 	RunTestsV2Config struct {
