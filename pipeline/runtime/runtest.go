@@ -85,7 +85,7 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 
 	exited, err := f(ctx, step, out, false, false)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig, telemetryData)
+	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig, telemetryData, exportEnvFile)
 	if err == nil {
 		// Fail the step if run was successful but error during collection
 		err = collectionErr
@@ -168,9 +168,9 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step
-func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *types.TelemetryData) error {
+func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *types.TelemetryData, exportEnvFile string) error {
 	reportStart := time.Now()
-	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
+	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs, exportEnvFile)
 	if crErr != nil {
 		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
 	}
