@@ -23,7 +23,7 @@ import (
 
 const (
 	defaultInterval    = 1 * time.Second
-	maxLineLimit       = 2048 // 2KB
+	maxLineLimit       = 71680 // 70KB
 	defaultLevel       = "info"
 	defaultLimit       = 5242880 // 5MB
 	flushThresholdTime = 10 * time.Minute
