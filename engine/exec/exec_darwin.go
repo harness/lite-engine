@@ -109,18 +109,30 @@ func waitForProcessReadyToExit(pid int) error {
 
 	// Register the event and wait for it
 	ke := Kevent{}
-	nev, err := kevent(kq, &kc, 1, &ke, 1, nil)
-	if err != nil {
-		return fmt.Errorf("kevent failed: %v", err)
-	}
-	if nev != 1 {
-		return fmt.Errorf("expected 1 event, got %d", nev)
-	}
-	if ke.Ident != uintptr(pid) {
-		return fmt.Errorf("event ident mismatch: expected %d, got %d", pid, ke.Ident)
-	}
-	if ke.Fflags&NOTE_EXIT == 0 {
-		return fmt.Errorf("event does not have NOTE_EXIT flag set")
+	for {
+		nev, err := kevent(kq, &kc, 1, &ke, 1, nil)
+		if err != nil {
+			if err == syscall.EINTR {
+				// Interrupted by signal — retry
+				// The kevent syscall can be interrupted (EINTR) due to signals being sent to
+				// the thread where this goroutine is running.
+				// Due to gorountine's asynchronous preemption implementation,
+				// looks like this behavior is expected: https://go.dev/doc/go1.14#runtime
+				// The solution is to retry the kevent call whenever it gets interrupted (EINTR).
+				continue
+			}
+			return fmt.Errorf("kevent failed: %v", err)
+		}
+		if nev != 1 {
+			return fmt.Errorf("expected 1 event, got %d", nev)
+		}
+		if ke.Ident != uintptr(pid) {
+			return fmt.Errorf("event ident mismatch: expected %d, got %d", pid, ke.Ident)
+		}
+		if ke.Fflags&NOTE_EXIT == 0 {
+			return fmt.Errorf("event does not have NOTE_EXIT flag set")
+		}
+		break
 	}
 	return nil
 }
