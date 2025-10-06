@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/harness/lite-engine/ti/report/parser/junit/gojunit"
@@ -217,7 +216,7 @@ func TestGetTests_All(t *testing.T) {
 	paths = append(paths, getBaseDir()+"**/*.xml") // Regex to get all reports
 	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New(), envs, "")
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedPassedTest(), expectedErrorTest(), expectedFailedTest(), expectedSkippedTest()}
 	exp = append(exp, expectedNestedTests()...)
 	assert.ElementsMatch(t, exp, tests)
@@ -243,7 +242,7 @@ func TestGetTests_All_MultiplePaths(t *testing.T) {
 	paths = append(paths, basePath+"a/*/*.xml", basePath+"a/**/*.xml", basePath+"a/b/c/d/*.xml") // Regex to get both reports
 	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New(), envs, "")
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedPassedTest(), expectedErrorTest(), expectedFailedTest(), expectedSkippedTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -267,7 +266,7 @@ func TestGetTests_FirstRegex(t *testing.T) {
 	paths = append(paths, basePath+"a/b/*.xml") // Regex to get both reports
 	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New(), envs, "")
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedPassedTest(), expectedFailedTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -291,7 +290,7 @@ func TestGetTests_SecondRegex(t *testing.T) {
 	paths = append(paths, basePath+"a/b/**/*2.xml") // Regex to get both reports
 	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New(), envs, "")
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{expectedSkippedTest(), expectedErrorTest()}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -315,7 +314,7 @@ func TestGetTests_NoMatchingRegex(t *testing.T) {
 	paths = append(paths, basePath+"a/b/**/*3.xml") // Regex to get both reports
 	envs := make(map[string]string)
 
-	tests := ParseTests(paths, logrus.New(), envs, "")
+	tests := ParseTests(paths, logrus.New(), envs)
 	exp := []*ti.TestCase{}
 	assert.ElementsMatch(t, exp, tests)
 }
@@ -508,221 +507,4 @@ func TestProcessTestSuites(t *testing.T) {
 			assert.Equal(t, tt.expectedCounts.Total, len(testCases), "Number of test cases sent to channel should match total count")
 		})
 	}
-}
-
-func TestExportTestStatistics(t *testing.T) {
-	tests := []struct {
-		name          string
-		testCases     []*ti.TestCase
-		counts        TestCounts
-		expectedVars  map[string]string
-		expectedError bool
-	}{
-		{
-			name: "Basic test statistics export",
-			testCases: []*ti.TestCase{
-				{
-					Name:       "testLogin",
-					ClassName:  "UserTest",
-					DurationMs: 5000, // 5 seconds
-					Result:     ti.Result{Status: ti.StatusPassed},
-				},
-				{
-					Name:       "testLogout",
-					ClassName:  "UserTest",
-					DurationMs: 3000, // 3 seconds
-					Result:     ti.Result{Status: ti.StatusFailed},
-				},
-				{
-					Name:       "testSkipped",
-					ClassName:  "UserTest",
-					DurationMs: 1000, // 1 second
-					Result:     ti.Result{Status: ti.StatusSkipped},
-				},
-			},
-			counts: TestCounts{
-				Total:   3,
-				Passed:  1,
-				Failed:  1,
-				Skipped: 1,
-				Error:   0,
-			},
-			expectedVars: map[string]string{
-				"total_tests":            "3",
-				"executed_count":         "3",
-				"passed_count":           "1",
-				"failed_count":           "1",
-				"skipped_count":          "1",
-				"failed_ratio":           "0.3333",
-				"duration_ms_total":      "9000",
-				"top_five_slowest_tests": "[\"UserTest#testLogin: 5s\", \"UserTest#testLogout: 3s\", \"UserTest#testSkipped: 1s\"]",
-			},
-			expectedError: false,
-		},
-		{
-			name:      "Empty test cases",
-			testCases: []*ti.TestCase{},
-			counts: TestCounts{
-				Total:   0,
-				Passed:  0,
-				Failed:  0,
-				Skipped: 0,
-				Error:   0,
-			},
-			expectedVars: map[string]string{
-				"total_tests":            "0",
-				"executed_count":         "0",
-				"passed_count":           "0",
-				"failed_count":           "0",
-				"skipped_count":          "0",
-				"failed_ratio":           "0.0000",
-				"duration_ms_total":      "0",
-				"top_five_slowest_tests": "[]",
-			},
-			expectedError: false,
-		},
-		{
-			name: "Test with millisecond rounding",
-			testCases: []*ti.TestCase{
-				{
-					Name:       "testFast",
-					ClassName:  "FastTest",
-					DurationMs: 1500, // 1.5 seconds, should round up to 2s
-					Result:     ti.Result{Status: ti.StatusPassed},
-				},
-				{
-					Name:       "testExact",
-					ClassName:  "FastTest",
-					DurationMs: 2000, // Exact 2 seconds
-					Result:     ti.Result{Status: ti.StatusPassed},
-				},
-			},
-			counts: TestCounts{
-				Total:   2,
-				Passed:  2,
-				Failed:  0,
-				Skipped: 0,
-				Error:   0,
-			},
-			expectedVars: map[string]string{
-				"total_tests":            "2",
-				"executed_count":         "2",
-				"passed_count":           "2",
-				"failed_count":           "0",
-				"skipped_count":          "0",
-				"failed_ratio":           "0.0000",
-				"duration_ms_total":      "3500",
-				"top_five_slowest_tests": "[\"FastTest#testExact: 2s\", \"FastTest#testFast: 2s\"]",
-			},
-			expectedError: false,
-		},
-		{
-			name: "Test without class name",
-			testCases: []*ti.TestCase{
-				{
-					Name:       "standaloneTest",
-					ClassName:  "", // No class name
-					DurationMs: 4000,
-					Result:     ti.Result{Status: ti.StatusPassed},
-				},
-			},
-			counts: TestCounts{
-				Total:   1,
-				Passed:  1,
-				Failed:  0,
-				Skipped: 0,
-				Error:   0,
-			},
-			expectedVars: map[string]string{
-				"total_tests":            "1",
-				"executed_count":         "1",
-				"passed_count":           "1",
-				"failed_count":           "0",
-				"skipped_count":          "0",
-				"failed_ratio":           "0.0000",
-				"duration_ms_total":      "4000",
-				"top_five_slowest_tests": "[\"standaloneTest: 4s\"]",
-			},
-			expectedError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create a temporary file for testing
-			tempFile, err := os.CreateTemp("", "test_stats_*.env")
-			assert.NoError(t, err)
-			defer os.Remove(tempFile.Name())
-			tempFile.Close()
-
-			// Call ExportTestStatistics with a test logger
-			testLogger := logrus.New()
-			testLogger.SetOutput(io.Discard) // Suppress log output during tests
-			ExportTestStatistics(tt.testCases, tt.counts, tempFile.Name(), testLogger)
-
-			if tt.expectedError {
-				// For error cases, check if file was not created or is empty
-				if _, err := os.Stat(tempFile.Name()); os.IsNotExist(err) {
-					return // File doesn't exist, which is expected for error cases
-				}
-				content, _ := os.ReadFile(tempFile.Name())
-				if len(content) == 0 {
-					return // File is empty, which is expected for error cases
-				}
-			}
-
-			// Read the generated file
-			content, err := os.ReadFile(tempFile.Name())
-			assert.NoError(t, err)
-
-			// Parse the content and verify each expected variable
-			lines := strings.Split(string(content), "\n")
-			actualVars := make(map[string]string)
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if line == "" {
-					continue
-				}
-				parts := strings.SplitN(line, "=", 2)
-				if len(parts) == 2 {
-					actualVars[parts[0]] = parts[1]
-				}
-			}
-
-			// Verify all expected variables are present and correct
-			for key, expectedValue := range tt.expectedVars {
-				actualValue, exists := actualVars[key]
-				assert.True(t, exists, "Expected variable %s not found", key)
-				assert.Equal(t, expectedValue, actualValue, "Variable %s has incorrect value", key)
-			}
-
-			// Verify no unexpected variables are present
-			assert.Equal(t, len(tt.expectedVars), len(actualVars), "Number of variables mismatch")
-		})
-	}
-}
-
-func TestExportTestStatistics_InvalidPath(t *testing.T) {
-	// Test with invalid file path
-	testCases := []*ti.TestCase{
-		{
-			Name:       "test",
-			DurationMs: 1000,
-			Result:     ti.Result{Status: ti.StatusPassed},
-		},
-	}
-	counts := TestCounts{Total: 1, Passed: 1}
-
-	// Create a logger to capture error logs
-	testLogger := logrus.New()
-	var logOutput strings.Builder
-	testLogger.SetOutput(&logOutput)
-
-	// Try to write to an invalid path - function should not panic, just log error
-	ExportTestStatistics(testCases, counts, "/invalid/path/that/does/not/exist.env", testLogger)
-
-	// Verify that an error was logged
-	logContent := logOutput.String()
-	assert.Contains(t, logContent, "failed to create env file")
-	assert.Contains(t, logContent, "error")
 }

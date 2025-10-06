@@ -29,7 +29,6 @@ func ParseAndUploadTests(
 	tiConfig *tiCfg.Cfg,
 	testMetadata *types.TestIntelligenceMetaData,
 	envs map[string]string,
-	exportEnvFile string,
 ) ([]*types.TestCase, error) {
 	if report.Kind != api.Junit {
 		return nil, fmt.Errorf("unknown report type: %s", report.Kind)
@@ -61,8 +60,7 @@ func ParseAndUploadTests(
 		}
 	}
 
-	// Pass exportEnvFile to ParseTests
-	tests := junit.ParseTests(report.Junit.Paths, log, envs, exportEnvFile)
+	tests := junit.ParseTests(report.Junit.Paths, log, envs)
 	if len(tests) == 0 {
 		return tests, nil
 	}

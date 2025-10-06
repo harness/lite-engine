@@ -127,7 +127,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	timeTakenMs := time.Since(start).Milliseconds()
 
 	reportStart := time.Now()
-	if _, rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs, exportEnvFile); rerr != nil {
+	if _, rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs); rerr != nil {
 		logrus.WithContext(ctx).WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
 		log.Errorf("Failed to upload report. Time taken: %s", time.Since(reportStart))
 	}
