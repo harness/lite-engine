@@ -841,11 +841,8 @@ func collectTestReportsAndCg(
 	}
 	
 	// Assign detected languages from callgraph to testMetadata
-	log.Infof("Checking detected languages after callgraph collection: %v", callgraph.DetectedLanguages)
 	if len(callgraph.DetectedLanguages) > 0 {
 		telemetryData.TestIntelligenceMetaData.Language = callgraph.DetectedLanguages
-		log.Infof("Successfully assigned callgraph languages to testMetadata: %v", callgraph.DetectedLanguages)
-		log.Infof("Final testMetadata.Language value: %v", telemetryData.TestIntelligenceMetaData.Language)
 	} else {
 		log.Warnf("No languages detected from callgraph to assign to testMetadata")
 	}
