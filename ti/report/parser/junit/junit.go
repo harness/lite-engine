@@ -84,7 +84,7 @@ func processTestSuites(tests *[]*ti.TestCase, suites []gojunit.Suite) TestCounts
 			ct := convert(test, suite)
 			if ct.Name != "" {
 				*tests = append(*tests, ct)
-				counts.Total += 1
+				counts.Total++
 				// Count by status
 				switch test.Result.Status {
 				case ti.StatusPassed:
@@ -179,7 +179,6 @@ func printTestReport(counts TestCounts, log *logrus.Logger) {
 	log.Info("+-----------+----------------+------+")
 	if counts.Passed > 0 {
 		log.Infof("| Passed    |                | %3d  |", counts.Passed)
-		// log.Infof("|           | on retry       | %3d  |", 0) // No retry info available
 		log.Info("+-----------+----------------+------+")
 	}
 	if counts.Failed > 0 || counts.Error > 0 {
@@ -188,7 +187,6 @@ func printTestReport(counts TestCounts, log *logrus.Logger) {
 	}
 	if counts.Skipped > 0 {
 		// TI will map this information in later iteration
-		// log.Infof("| Skipped   | by TI logic    | %3d  |", 0) // No TI logic info available
 		log.Infof("| Skipped   |                | %3d  |", counts.Skipped)
 		log.Info("+-----------+----------------+------+")
 	}
