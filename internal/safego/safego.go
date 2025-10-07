@@ -21,7 +21,7 @@ func SafeGo(name string, fn func()) {
 	}()
 }
 
-func SafeGoWithContext(name string, ctx context.Context, fn func(context.Context)) {
+func WithContext(name string, ctx context.Context, fn func(context.Context)) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -34,7 +34,7 @@ func SafeGoWithContext(name string, ctx context.Context, fn func(context.Context
 	}()
 }
 
-func SafeGoWithWaitGroup(name string, wg *sync.WaitGroup, fn func()) {
+func WithWaitGroup(name string, wg *sync.WaitGroup, fn func()) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

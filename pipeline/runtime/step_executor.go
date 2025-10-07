@@ -88,7 +88,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.stepStatus[r.ID] = StepStatus{Status: Running}
 	e.mu.Unlock()
 
-	safego.SafeGoWithContext("step_executor", ctx, func(ctx context.Context) {
+	safego.WithContext("step_executor", ctx, func(ctx context.Context) {
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
@@ -226,7 +226,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 		return
 	}
 
-	safego.SafeGoWithContext("stream_cleanup", ctx, func(ctx context.Context) {
+	safego.WithContext("stream_cleanup", ctx, func(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			// the api request has finished/aborted
@@ -331,7 +331,7 @@ func executeStepHelper( //nolint:gocritic
 	// from the main process and executed separately.
 	// We do here only for non-container step.
 	if r.Detach && r.Image == "" {
-		safego.SafeGoWithContext("detached_step", ctx, func(parentCtx context.Context) {
+		safego.WithContext("detached_step", ctx, func(parentCtx context.Context) {
 			var cancel context.CancelFunc
 			if r.Timeout > 0 {
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
