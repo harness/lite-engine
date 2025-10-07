@@ -21,7 +21,7 @@ func SafeGo(name string, fn func()) {
 	}()
 }
 
-func WithContext(name string, ctx context.Context, fn func(context.Context)) {
+func WithContext(ctx context.Context, name string, fn func(context.Context)) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {

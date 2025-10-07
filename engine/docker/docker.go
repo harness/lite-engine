@@ -243,7 +243,7 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	}
 	// start the execution in go routine if it's a detach step and not drone
 	if !isDrone && step.Detach {
-		safego.WithContext("detached_container", ctx, func(ctx context.Context) {
+		safego.WithContext(ctx, "detached_container", func(ctx context.Context) {
 			ctxBg := context.Background()
 			var cancel context.CancelFunc
 			if deadline, ok := ctx.Deadline(); ok {
