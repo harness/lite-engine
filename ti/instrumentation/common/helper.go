@@ -1,6 +1,8 @@
 package common
 
 import (
+	"path/filepath"
+	
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 )
@@ -68,4 +70,57 @@ func GetUniqueTestStrings(tests []ti.RunnableTest) []string {
 		ut = append(ut, t.Class)
 	}
 	return ut
+}
+
+// SimpleAutoDetectTestFiles discovers test files using globs and returns relative paths from workspace
+func SimpleAutoDetectTestFiles(workspace string, testGlobs []string) ([]string, error) {
+	// Simple default test patterns if none provided
+	defaultGlobs := []string{
+		"**/*_test.py",
+		"**/test_*.py", 
+		"**/spec/**/*_spec.rb",
+		"**/*Test.java",
+		"**/*Tests.java",
+		"**/*Test.cs",
+		"**/*Tests.cs",
+	}
+	
+	// Use provided globs or defaults
+	globsToUse := testGlobs
+	if len(globsToUse) == 0 {
+		globsToUse = defaultGlobs
+	}
+	
+	allFiles := make([]string, 0)
+	
+	// Search for each glob pattern under workspace
+	for _, glob := range globsToUse {
+		// Create full pattern: workspace + glob
+		fullPattern := filepath.Join(workspace, glob)
+		
+		// Find matching files
+		matches, err := zglob.Glob(fullPattern)
+		if err != nil {
+			continue // Skip failed patterns
+		}
+		
+		// Convert to relative paths from workspace
+		for _, match := range matches {
+			if relPath, err := filepath.Rel(workspace, match); err == nil {
+				allFiles = append(allFiles, relPath)
+			}
+		}
+	}
+	
+	// Remove duplicates
+	uniqueFiles := make([]string, 0)
+	seen := make(map[string]bool)
+	for _, file := range allFiles {
+		if !seen[file] {
+			uniqueFiles = append(uniqueFiles, file)
+			seen[file] = true
+		}
+	}
+	
+	return uniqueFiles, nil
 }

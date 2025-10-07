@@ -20,14 +20,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func ParseAndUploadTests(
-	ctx context.Context,
+// ParseTests handles the parsing of test reports from JUnit XML/TRX files
+func ParseTests(
 	report api.TestReport,
-	workDir, stepID string,
+	workDir string,
 	log *logrus.Logger,
-	start time.Time,
-	tiConfig *tiCfg.Cfg,
-	testMetadata *types.TestIntelligenceMetaData,
 	envs map[string]string,
 ) ([]*types.TestCase, error) {
 	if report.Kind != api.Junit {
@@ -49,17 +46,56 @@ func ParseAndUploadTests(
 	}
 
 	tests := junit.ParseTests(report.Junit.Paths, log, envs)
+	return tests, nil
+}
+
+// UploadTests handles the uploading of parsed test cases to the TI service
+func UploadTests(
+	ctx context.Context,
+	tests []*types.TestCase,
+	stepID string,
+	reportKind api.ReportType,
+	tiConfig *tiCfg.Cfg,
+) error {
 	if len(tests) == 0 {
-		return tests, nil
+		return nil
 	}
 
 	startTime := time.Now()
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting TI service request to write report for step %s", stepID))
 	c := tiConfig.GetClient()
-	if err := c.Write(ctx, stepID, strings.ToLower(report.Kind.String()), tests); err != nil {
-		return nil, err
+	if err := c.Write(ctx, stepID, strings.ToLower(reportKind.String()), tests); err != nil {
+		return err
 	}
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed TI service request to write report for step %s, took %.2f seconds", stepID, time.Since(startTime).Seconds()))
+	return nil
+}
+
+func ParseAndUploadTests(
+	ctx context.Context,
+	report api.TestReport,
+	workDir, stepID string,
+	log *logrus.Logger,
+	start time.Time,
+	tiConfig *tiCfg.Cfg,
+	testMetadata *types.TestIntelligenceMetaData,
+	envs map[string]string,
+) ([]*types.TestCase, error) {
+	// Parse tests from report files
+	tests, err := ParseTests(report, workDir, log, envs)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(tests) == 0 {
+		return tests, nil
+	}
+
+	// Upload tests to TI service
+	if err := UploadTests(ctx, tests, stepID, report.Kind, tiConfig); err != nil {
+		return nil, err
+	}
+
 	// Write tests telemetry data, total test, total test classes, selected test, selected classes,
 	testMetadata.TotalTests = len(tests)
 	testMetadata.TotalTestClasses = telemetryutils.CountDistinctClasses(tests)
