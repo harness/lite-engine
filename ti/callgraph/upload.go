@@ -91,18 +91,18 @@ func Upload(
 ) error {
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
-		return nil
+		return nil, nil
 	}
 	stepDataDir := filepath.Join(cfg.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, cfg))
 
 	cg, err := parseCallgraphFiles(fmt.Sprintf(dir, stepDataDir), log)
 	if err != nil {
-		return errors.Wrap(err, "failed to parse callgraph files")
+		return nil, errors.Wrap(err, "failed to parse callgraph files")
 	}
 
 	fileChecksums, err := instrumentation.GetGitFileChecksums(ctx, r.WorkingDir, log)
 	if err != nil {
-		return errors.Wrap(err, "failed to get file hashes")
+		return nil, errors.Wrap(err, "failed to get file hashes")
 	}
 
 	var repo, sha string
@@ -115,17 +115,17 @@ func Upload(
 	}
 	uploadPayload, err := CreateUploadPayload(cg, fileChecksums, repo, cfg, sha, tests, log, r.Envs)
 	if err != nil {
-		return errors.Wrap(err, "failed to create upload payload")
+		return nil, errors.Wrap(err, "failed to create upload payload")
 	}
 
 	err = cfg.GetClient().UploadCgV2(ctx, *uploadPayload, stepID, timeMs, cfg.GetSourceBranch(), cfg.GetTargetBranch())
 	if err != nil {
-		return errors.Wrap(err, "failed to upload callgraph")
+		return nil, errors.Wrap(err, "failed to upload callgraph")
 	}
 
 	/*encCg, cgIsEmpty, matched, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "1_1", rerunFailedTests)
 	if err != nil {
-		return errors.Wrap(err, "failed to get avro encoded callgraph")
+		return nil, errors.Wrap(err, "failed to get avro encoded callgraph")
 	}
 
 	c := cfg.GetClient()
@@ -147,7 +147,7 @@ func Upload(
 	}*/
 
 	log.Infoln(fmt.Sprintf("Successfully uploaded callgraph in %s time", time.Since(start)))
-	return nil
+	return cg, nil
 }
 
 // encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
