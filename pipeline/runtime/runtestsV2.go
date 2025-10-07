@@ -21,6 +21,7 @@ import (
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation"
+	tiCommon "github.com/harness/lite-engine/ti/instrumentation/common"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/instrumentation/python"
@@ -237,7 +238,6 @@ func SetupRunTestV2(
 		if err != nil || pythonArtifactDir == "" {
 			return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 		}
-		preCmd := ""
 
 		err = createSkipAndFailedTestsFiles(ctx, fs, stepID, workspace, log, tiConfig, skipTestsFilePath, failedTestsFilePath, envs, config)
 		if err != nil {
@@ -250,6 +250,139 @@ func SetupRunTestV2(
 		// }
 	}
 	return preCmd, nil
+}
+
+// distributeSkipTestsForParallelism modifies the skipTests list to balance execution time across parallel steps
+func distributeSkipTestsForParallelism(
+	ctx context.Context,
+	skipTests []string,
+	config *api.RunTestsV2Config,
+	stepID, workspace string,
+	log *logrus.Logger,
+	tiConfig *tiCfg.Cfg,
+	envs map[string]string,
+) ([]string, error) {
+	splitIdx, splitTotal := instrumentation.GetSplitIdxAndTotal(envs)
+
+	// STEP 1: Get all test files using simple glob search
+	allTestFilePaths, err := tiCommon.SimpleAutoDetectTestFiles(workspace, config.TestGlobs)
+	if err != nil {
+		log.WithError(err).Warnf("Failed to auto-detect test files for parallelism, using original skip list")
+		return skipTests, err
+	}
+
+	// STEP 2: Remove TI skip files from discovered files
+	skipSet := make(map[string]bool)
+	for _, skip := range skipTests {
+		skipSet[skip] = true
+	}
+
+	remainingFiles := make([]string, 0)
+	for _, file := range allTestFilePaths {
+		if !skipSet[file] {
+			remainingFiles = append(remainingFiles, file)
+		}
+	}
+
+	if len(remainingFiles) == 0 {
+		log.Infof("No remaining tests after TI skips for parallel distribution")
+		return skipTests, nil
+	}
+
+	// STEP 3: Get file timing data for balanced splitting (with fallback to equal distribution)
+	fileTimes := make(map[string]float64)
+
+	// Try to get timing data from TI service
+	log.Infof("Attempting to get test timing data from TI service for %d remaining files", len(remainingFiles))
+	if tiConfig != nil {
+		if client := tiConfig.GetClient(); client != nil {
+			req := types.GetTestTimesReq{
+				IncludeFilename: true, // We want file-based timing for our file paths
+			}
+
+			log.Infof("Calling GetTestTimes for step: %s", stepID)
+			if res, err := client.GetTestTimes(ctx, stepID, &req); err == nil {
+				// Convert the timing data to our format
+				for filename, timing := range res.FileTimeMap {
+					fileTimes[filename] = float64(timing)
+				}
+				log.Infof("Retrieved timing data for %d files from TI service", len(res.FileTimeMap))
+				// Log each file with its timing
+				for filename, timing := range fileTimes {
+					log.Infof("  Test file: %s, Time: %.2f seconds", filename, timing)
+				}
+			} else {
+				log.WithError(err).Warnf("Failed to get timing data from TI service, using default timing")
+			}
+		} else {
+			log.Warnf("TI client is nil, cannot get timing data")
+		}
+	} else {
+		log.Warnf("TI config is nil, cannot get timing data")
+	}
+
+	// Assign default timing for files without timing data (assume 30 seconds per test file)
+	const defaultTestTime = 0.1
+	for _, file := range remainingFiles {
+		if _, exists := fileTimes[file]; !exists {
+			fileTimes[file] = defaultTestTime
+		}
+	}
+
+	// STEP 4: Create balanced buckets using timing data
+	buckets := make([][]string, splitTotal)
+	bucketTimes := make([]float64, splitTotal)
+
+	// Sort files by timing (largest first) for better distribution
+	sortedFiles := make([]string, len(remainingFiles))
+	copy(sortedFiles, remainingFiles)
+
+	// Simple greedy bin-packing: assign each file to the bucket with least total time
+	for _, file := range sortedFiles {
+		fileTime := fileTimes[file]
+
+		// Find bucket with minimum total time
+		minBucket := 0
+		minTime := bucketTimes[0]
+		for i := 1; i < splitTotal; i++ {
+			if bucketTimes[i] < minTime {
+				minTime = bucketTimes[i]
+				minBucket = i
+			}
+		}
+
+		// Assign file to the bucket with least time
+		buckets[minBucket] = append(buckets[minBucket], file)
+		bucketTimes[minBucket] += fileTime
+	}
+
+	// Log bucket distribution for debugging
+	for i, bucket := range buckets {
+		log.Debugf("Bucket %d: %d files, estimated time: %.1f seconds", i, len(bucket), bucketTimes[i])
+	}
+
+	// STEP 4: Create skip file = (original skip list + all buckets except current one)
+	newSkipTests := make([]string, 0)
+
+	// Add original TI skip recommendations
+	newSkipTests = append(newSkipTests, skipTests...)
+
+	// Add all buckets except the current step's bucket to skip list
+	for i, bucket := range buckets {
+		if i != splitIdx {
+			newSkipTests = append(newSkipTests, bucket...)
+		}
+	}
+
+	currentBucketSize := 0
+	if splitIdx < len(buckets) {
+		currentBucketSize = len(buckets[splitIdx])
+	}
+
+	log.Infof("Parallelism enabled: Step %d/%d will run %d tests and skip %d tests",
+		splitIdx+1, splitTotal, currentBucketSize, len(newSkipTests))
+
+	return newSkipTests, nil
 }
 
 func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
@@ -297,7 +430,13 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 	}
 
 	if instrumentation.IsParallelismEnabled(envs) {
-
+		newSkipTests, err := distributeSkipTestsForParallelism(
+			ctx, skipTests, config, stepID, workspace, log, tiConfig, envs)
+		if err != nil {
+			log.WithError(err).Warnf("Failed to distribute skip tests for parallelism, using original skip list")
+		} else {
+			skipTests = newSkipTests
+		}
 	}
 
 	// Log the skip recommendations
