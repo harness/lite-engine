@@ -104,32 +104,31 @@ func Upload(ctx context.Context, stepID string, timeMs int64, log *logrus.Logger
 		repo = ""
 		sha = ""
 	}
-	uploadPayload, err := CreateUploadPayload(cg, fileChecksums, repo, cfg, sha, tests, log, r.Envs)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to create upload payload")
-	}
 
-	err = cfg.GetClient().UploadCgV2(ctx, *uploadPayload, stepID, timeMs, cfg.GetSourceBranch(), cfg.GetTargetBranch())
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to upload callgraph")
-	}
-
-	/*encCg, cgIsEmpty, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get avro encoded callgraph")
-	}
-
-	c := cfg.GetClient()
-
-	if hasFailed {
-		if cgErr := c.UploadCgFailedTest(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
-			return nil, cgErr
+	if enhancedFFVal, ok := r.Envs["CI_TI_V2_ENHANCED_FF"]; ok && enhancedFFVal == "true" {
+		uploadPayload, err := CreateUploadPayload(cg, fileChecksums, repo, cfg, sha, tests, log, r.Envs)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create upload payload")
 		}
-	} else if !cgIsEmpty {
-		if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
-			return nil, cgErr
+
+		err = cfg.GetClient().UploadCgV2(ctx, *uploadPayload, stepID, timeMs, cfg.GetSourceBranch(), cfg.GetTargetBranch())
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to upload callgraph")
 		}
-	}*/
+	} else {
+		encCg, cgIsEmpty, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get avro encoded callgraph")
+		}
+
+		c := cfg.GetClient()
+
+		if !cgIsEmpty {
+			if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg); cgErr != nil {
+				return nil, cgErr
+			}
+		}
+	}
 
 	log.Infoln(fmt.Sprintf("Successfully uploaded callgraph in %s time", time.Since(start)))
 	return cg, nil
