@@ -46,7 +46,7 @@ func Upload(
 	tests []*tiClientTypes.TestCase,
 	rerunFailedTests bool,
 	r *api.StartStepRequest,
-) error {
+) (*Callgraph, error) {
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
 		return nil, nil
@@ -105,6 +105,28 @@ func Upload(
 	}*/
 
 	log.Infoln(fmt.Sprintf("Successfully uploaded callgraph in %s time", time.Since(start)))
+	return cg, nil
+}
+
+// parseCallgraphFiles parses callgraph files from the specified data directory
+func parseCallgraphFiles(dataDir string, log *logrus.Logger) (*Callgraph, error) {
+	var parser Parser
+	fs := filesystem.New()
+
+	if dataDir == "" {
+		return nil, fmt.Errorf("dataDir not present in request")
+	}
+	cgFiles, visFiles, err := getCgFiles(dataDir, "json", "csv", log)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch files inside the directory")
+	}
+	parser = NewCallGraphParser(log, fs)
+	log.Infoln(fmt.Sprintf("Found callgraph files: %v", cgFiles))
+
+	cg, err := parser.Parse(cgFiles, visFiles)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse visgraph")
+	}
 	return cg, nil
 }
 

@@ -1126,31 +1126,9 @@ func collectTestReports(
 
 	reportStart := time.Now()
 
-	return tests, crErr
-}
-
-func collectTestReportsAndCg(
-	ctx context.Context,
-	log *logrus.Logger,
-	r *api.StartStepRequest,
-	start time.Time,
-	stepName string,
-	tiConfig *tiCfg.Cfg,
-	telemetryData *types.TelemetryData,
-	envs map[string]string,
-) error {
-	tests, _ := collectTestReports(ctx, log, r, stepName, tiConfig, telemetryData)
-
-	rerunFailedTests := false
-
-	if envValue, ok := envs[rerunFailedTestsFF]; ok {
-		if envValue == "true" {
-			rerunFailedTests = true
-		}
-	}
-
-	cgStart := time.Now()
-	cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, rerunFailedTests, r)
+	// Parse tests from report files
+	tests, parseErr := report.ParseTests(r.TestReport, r.WorkingDir, log, r.Envs)
+	cg, cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, r)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)

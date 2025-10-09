@@ -16,7 +16,7 @@ require (
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/harness/ti-client v0.0.0-20250917151902-8f7006cf606c
+	github.com/harness/ti-client v0.0.0-20250918103439-e7420fd14cd3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/linkedin/goavro/v2 v2.12.0
@@ -32,6 +32,7 @@ require (
 )
 
 require (
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/dgryski/go-lttb v0.0.0-20230207170358-f8fc36cdbff1
 	github.com/harness/godotenv/v2 v2.0.0
 	github.com/harness/godotenv/v3 v3.0.1
@@ -39,6 +40,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.23.5
 	github.com/wings-software/dlite v1.0.0-rc.13
 	golang.org/x/net v0.21.0
+	golang.org/x/sys v0.23.0
 )
 
 require (
@@ -50,7 +52,6 @@ require (
 	github.com/andybalholm/brotli v1.0.5 // indirect
 	github.com/buildkite/yaml v2.1.0+incompatible // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/containerd v1.7.0 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -87,7 +88,6 @@ require (
 	golang.org/x/crypto v0.26.0 // indirect
 	golang.org/x/exp v0.0.0-20220927162542-c76eaa363f9d // indirect
 	golang.org/x/mod v0.11.0 // indirect
-	golang.org/x/sys v0.23.0 // indirect
 	golang.org/x/tools v0.10.0 // indirect
 	google.golang.org/genproto v0.0.0-20230320184635-7606e756e683 // indirect
 	google.golang.org/grpc v1.54.0 // indirect
