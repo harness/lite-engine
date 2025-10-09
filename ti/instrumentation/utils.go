@@ -15,9 +15,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -30,6 +32,8 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
+	cgTypes "github.com/harness/ti-client/chrysalis/types"
+	tiClientUtils "github.com/harness/ti-client/chrysalis/utils"
 	ti "github.com/harness/ti-client/types"
 
 	tiClient "github.com/harness/ti-client/client"
@@ -53,10 +57,134 @@ const (
 	harnessStageTotal = "HARNESS_STAGE_TOTAL"
 
 	// revamp constants
-	constantChecksum        = 1
-	NonCodeConstantChecksum = 2
-	NonCodeChainPath        = "HARNESS_TI_NON_CODE_CHAIN_PATH"
+	constantChecksum = 1
+	NonCodeChainPath = "HARNESS_TI_NON_CODE_CHAIN_PATH"
 )
+
+// Code file extensions that are considered "code" files
+var codeFileExtensions = []string{
+	// Java
+	".java",
+	".class",
+	".jar",
+
+	// Python
+	".py",
+	".pyx", // Cython
+	".pyi", // Type hints
+	".pyc", // Python compiled files
+
+	// Kotlin
+	".kt",
+	".kts", // Kotlin script
+
+	// Scala
+	".scala",
+	".sc", // Scala script
+
+	// C#
+	".cs",
+	".csx", // C# script
+
+	// Ruby
+	".rb",
+	".rbw", // Ruby Windows
+
+	// JavaScript
+	".js",
+	".mjs", // ES modules
+	".jsx", // React JSX
+
+	// TypeScript
+	".ts",
+	".tsx",  // React TSX
+	".d.ts", // TypeScript definitions
+
+	".ticonfig.yaml", // TI config file
+}
+
+// FindNonCodeFiles returns a deterministic string representation of all non-code file paths.
+func FindNonCodeFiles(fileChecksums map[string]uint64) string {
+	if len(fileChecksums) == 0 {
+		return ""
+	}
+
+	nonCodePaths := make([]string, 0, len(fileChecksums))
+	for filePath := range fileChecksums {
+		if filePath == NonCodeChainPath {
+			continue
+		}
+
+		isCodeFile := false
+		for _, ext := range codeFileExtensions {
+			if strings.HasSuffix(filePath, ext) {
+				isCodeFile = true
+				break
+			}
+		}
+
+		if !isCodeFile {
+			nonCodePaths = append(nonCodePaths, filePath)
+		}
+	}
+
+	if len(nonCodePaths) == 0 {
+		return ""
+	}
+
+	sort.Strings(nonCodePaths)
+	return strings.Join(nonCodePaths, "#")
+}
+
+// PopulateNonCodeEntities builds a special test and chain entry for non-code files.
+func PopulateNonCodeEntities(fileChecksums map[string]uint64, alreadyProcessed map[string]struct{}) (cgTypes.Test, cgTypes.Chain) {
+	// Filter out non-code files (files that don't have code extensions)
+	var nonCodePaths []string
+	for filePath := range fileChecksums {
+		// Check if the file has a code extension
+		isCodeFile := false
+		for _, ext := range codeFileExtensions {
+			if strings.HasSuffix(filePath, ext) {
+				isCodeFile = true
+				break
+			}
+		}
+
+		// If it's not a code file, add it to non-code paths
+		if !isCodeFile {
+			if _, exists := alreadyProcessed[filePath]; !exists {
+				nonCodePaths = append(nonCodePaths, filePath)
+			}
+		}
+	}
+
+	// Sort paths for consistency
+	sort.Strings(nonCodePaths)
+
+	// Create the test structure
+	test := cgTypes.Test{
+		Path: NonCodeChainPath,
+		IndicativeChains: []cgTypes.IndicativeChain{
+			{
+				SourcePaths: nonCodePaths,
+			},
+		},
+	}
+
+	chainChecksum := uint64(0)
+	if len(nonCodePaths) > 0 {
+		chainChecksum = tiClientUtils.ChainChecksum(nonCodePaths, fileChecksums)
+	}
+
+	chain := cgTypes.Chain{
+		Path:         NonCodeChainPath,
+		TestChecksum: strconv.FormatUint(fileChecksums[NonCodeChainPath], 10),
+		Checksum:     strconv.FormatUint(chainChecksum, 10),
+		State:        cgTypes.SUCCESS, // Default to success for non-code entities
+	}
+
+	return test, chain
+}
 
 func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) (TestRunner, bool, error) {
 	var runner TestRunner
@@ -845,7 +973,8 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 
 		fileChecksums[filepath] = checksum64
 	}
-	fileChecksums[NonCodeChainPath] = NonCodeConstantChecksum
+	nonCodeChecksumStr := FindNonCodeFiles(fileChecksums)
+	fileChecksums[NonCodeChainPath] = xxhash.Sum64String(nonCodeChecksumStr)
 	log.Infof("Successfully processed %d files from git repository", len(fileChecksums))
 	return fileChecksums, nil
 }
