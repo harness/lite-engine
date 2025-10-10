@@ -98,29 +98,29 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, versi
 		return nil, cgIsEmpty, false, errors.Wrap(err, "failed to parse callgraph")
 	}
 	
-	// Extract test file extensions for language metadata
 	log.Infof("Callgraph parsing completed. Total nodes: %d", len(cg.Nodes))
-	if len(cg.Nodes) > 0 {
-		languages := ExtractTestLanguages(cg)
-		if len(languages) > 0 {
-			log.Infof("Detected test language from callgraph: %v", languages)
-			// Store in global variable for runtestV2 to access
-			DetectedLanguages = languages
-		} else {
-			log.Warnf("No test languages detected from callgraph nodes")
-		}
-	} else {
-		log.Warnf("No callgraph nodes found for language detection")
-	}
 	
 	totalMatched := 0
 	totalTests := 0
-	if rerunFailedTests {
-		for i := range cg.Nodes {
-			cg.Nodes[i].HasFailed = false // Initialize HasFailed for the current node
-			if cg.Nodes[i].Type != "test" {
-				continue
+	languageSet := make(map[string]bool) // Track unique test file extensions
+	
+	// Single iteration through nodes for language extraction and failed test matching
+	for i := range cg.Nodes {
+		if cg.Nodes[i].Type != "test" {
+			continue
+		}
+		
+		// Extract language from test file extension
+		if cg.Nodes[i].File != "" {
+			ext := filepath.Ext(cg.Nodes[i].File)
+			if ext != "" {
+				languageSet[ext] = true
 			}
+		}
+		
+		// Handle failed test matching if needed
+		if rerunFailedTests {
+			cg.Nodes[i].HasFailed = false // Initialize HasFailed for the current node
 			totalTests++
 			for _, test := range tests {
 				fqcn := fmt.Sprintf("%s.%s", cg.Nodes[i].Package, cg.Nodes[i].Class)
@@ -134,6 +134,18 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*types.TestCase, versi
 				}
 			}
 		}
+	}
+	
+	// Convert language set to slice and store in global variable
+	if len(languageSet) > 0 {
+		languages := make([]string, 0, len(languageSet))
+		for lang := range languageSet {
+			languages = append(languages, lang)
+		}
+		log.Infof("Detected test languages from callgraph: %v", languages)
+		DetectedLanguages = languages
+	} else {
+		log.Warnf("No test languages detected from callgraph nodes")
 	}
 	allMatched = totalMatched == totalTests // To consider a report valid, all test nodes should be matched with valid reports
 	log.Infoln(fmt.Sprintf("Size of Test nodes: %d, Test relations: %d, Vis Relations %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
