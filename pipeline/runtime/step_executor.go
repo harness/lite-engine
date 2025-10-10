@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,6 +69,24 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 	planExecutionId := strings.TrimSpace(r.Envs["HARNESS_EXECUTION_ID"])
 	if planExecutionId == "" {
 		planExecutionId = strings.TrimSpace(os.Getenv("HARNESS_EXECUTION_ID"))
+	}
+
+	// When identifiers are missing, emit diagnostic logs to help debugging
+	if accountId == "" || planExecutionId == "" {
+		keys := make([]string, 0, len(r.Envs))
+		for k := range r.Envs {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		harnessEnvs := map[string]string{}
+		for _, k := range keys {
+			if strings.HasPrefix(k, "HARNESS_") {
+				harnessEnvs[k] = r.Envs[k]
+			}
+		}
+		logrus.WithField("id", r.ID).WithField("env_keys", keys).Infoln("annotations: step env keys")
+		logrus.WithField("id", r.ID).WithField("harness_envs", harnessEnvs).Infoln("annotations: HARNESS_* envs snapshot")
+		logrus.WithField("id", r.ID).WithField("envs", r.Envs).Infoln("annotations: full envs snapshot")
 	}
 
 	if accountId == "" {
