@@ -5,7 +5,6 @@
 package runtime
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -13,7 +12,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,7 +56,7 @@ type StepStatus struct {
 // postAnnotationsToPipeline reads the per-step annotations file and posts annotations directly
 // to Pipeline Service. It never fails the step and logs warnings on errors.
 func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
-	// Gather required identifiers
+	// Gather account identifier from known sources
 	accountId := strings.TrimSpace(r.StepStatus.AccountID)
 	if accountId == "" {
 		if v := strings.TrimSpace(r.Envs["HARNESS_ACCOUNT_ID"]); v != "" {
@@ -67,53 +65,15 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 			accountId = v
 		}
 	}
-	planExecutionId := strings.TrimSpace(r.Envs["HARNESS_EXECUTION_ID"])
-	if planExecutionId == "" {
-		planExecutionId = strings.TrimSpace(os.Getenv("HARNESS_EXECUTION_ID"))
-	}
-	if planExecutionId == "" {
-		// Last-resort: try to read from env export files if the step wrote it there
-		planExecutionId = readEnvKeyFromFiles([]string{r.Envs["DRONE_ENV"], r.Envs["HARNESS_OUTPUT_FILE"], r.Envs["DRONE_OUTPUT"]}, "HARNESS_EXECUTION_ID")
-		if planExecutionId != "" {
-			logrus.WithField("id", r.ID).Infoln("annotations: found planExecutionId from env file fallback")
-		}
-	}
 
-	// When identifiers are missing, emit diagnostic logs to help debugging
-	if accountId == "" || planExecutionId == "" {
-		keys := make([]string, 0, len(r.Envs))
-		for k := range r.Envs {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		harnessEnvs := map[string]string{}
-		for _, k := range keys {
-			if strings.HasPrefix(k, "HARNESS_") {
-				harnessEnvs[k] = r.Envs[k]
-			}
-		}
-		logrus.WithField("id", r.ID).WithField("env_keys", keys).Infoln("annotations: step env keys")
-		logrus.WithField("id", r.ID).WithField("harness_envs", harnessEnvs).Infoln("annotations: HARNESS_* envs snapshot")
-		logrus.WithField("id", r.ID).WithField("envs", r.Envs).Infoln("annotations: full envs snapshot")
-	}
-
-	if accountId == "" {
-		logrus.WithField("id", r.ID).Warnln("annotations: missing accountId; set HARNESS_ACCOUNT_ID in step env or process env, or provide StepStatus.AccountID; skipping post")
-	}
-	if planExecutionId == "" {
-		logrus.WithField("id", r.ID).Warnln("annotations: missing planExecutionId; set HARNESS_EXECUTION_ID in step env or process env; skipping post")
-	}
-	if accountId == "" || planExecutionId == "" {
-		return
-	}
-
+	// Read annotations file (also carries planExecutionId now)
 	raw := e.readAnnotationsJSON(r.ID)
 	if raw == nil {
 		// nothing to post
 		return
 	}
 
-	// Parse file envelope
+	// Parse file envelope and extract planExecutionId from the root object
 	type fileAnn struct {
 		ContextName string `json:"context_name"`
 		Timestamp   string `json:"timestamp"`
@@ -123,20 +83,34 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 		Priority    int    `json:"priority"`
 		Mode        string `json:"mode"`
 	}
-	var env struct {
-		Annotations []fileAnn `json:"annotations"`
-	}
-	if err := json.Unmarshal(raw, &env); err != nil {
-		logrus.WithField("id", r.ID).WithError(err).Warnln("annotations: invalid JSON; skipping post")
+	var (
+		planExecutionId string
+		annotationsIn   []fileAnn
+	)
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &root); err != nil {
+		logrus.WithField("id", r.ID).WithError(err).Warnln("ANNOTATIONS: invalid JSON; skipping post")
 		return
 	}
-	if len(env.Annotations) == 0 {
+	// extract planExecutionId with a few tolerant keys
+	for _, k := range []string{"planExecutionId", "executionId", "plan_execution_id", "execution_id"} {
+		if v, ok := root[k]; ok {
+			_ = json.Unmarshal(v, &planExecutionId)
+			if strings.TrimSpace(planExecutionId) != "" {
+				break
+			}
+		}
+	}
+	if v, ok := root["annotations"]; ok {
+		_ = json.Unmarshal(v, &annotationsIn)
+	}
+	if len(annotationsIn) == 0 {
 		return
 	}
 
 	// Fold into map[context]annotationData according to mode semantics (default: replace)
 	annotations := make(map[string]map[string]interface{})
-	for _, a := range env.Annotations {
+	for _, a := range annotationsIn {
 		ctxName := strings.TrimSpace(a.ContextName)
 		if ctxName == "" {
 			continue
@@ -187,6 +161,16 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 		return
 	}
 
+	// Ensure we have required identifiers
+	if accountId == "" {
+		logrus.WithField("id", r.ID).Warnln("ANNOTATIONS: missing accountId; skipping post")
+		return
+	}
+	if strings.TrimSpace(planExecutionId) == "" {
+		logrus.WithField("id", r.ID).Warnln("ANNOTATIONS: missing planExecutionId in annotations file; skipping post")
+		return
+	}
+
 	// Build request payload
 	payload := map[string]interface{}{
 		"accountId":       accountId,
@@ -218,7 +202,7 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		logrus.WithField("id", r.ID).WithError(err).Warnln("annotations: failed to marshal request; skipping post")
+		logrus.WithField("id", r.ID).WithError(err).Warnln("ANNOTATIONS: failed to marshal request; skipping post")
 		return
 	}
 
@@ -241,14 +225,14 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 	client := newPipelineClient(base, r.StepStatus.Token, timeout)
 	statusCode, err := client.PostJSON(ctx, endpoint, body)
 	if err != nil {
-		logrus.WithField("id", r.ID).WithError(err).Warnln("annotations: post failed")
+		logrus.WithField("id", r.ID).WithError(err).Warnln("ANNOTATIONS: post failed")
 		return
 	}
 	if statusCode < 200 || statusCode >= 300 {
-		logrus.WithField("id", r.ID).WithField("status", statusCode).Warnln("annotations: post non-success status")
+		logrus.WithField("id", r.ID).WithField("status", statusCode).Warnln("ANNOTATIONS: post non-success status")
 		return
 	}
-	logrus.WithField("id", r.ID).Infoln("annotations: post success")
+	logrus.WithField("id", r.ID).Infoln("ANNOTATIONS: post success")
 }
 
 // pipelineClient is a minimal HTTP client wrapper for posting annotations
@@ -816,85 +800,36 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) json.RawMessage {
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).Infoln("[ANN_LE] annotations: file not found")
+			logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).Infoln("[ANN_LE] ANNOTATIONS: file not found")
 		} else {
-			logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Debugln("annotations: stat failed")
-			logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithError(err).Infoln("[ANN_LE] annotations: stat failed")
+			logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Debugln("ANNOTATIONS: stat failed")
+			logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithError(err).Infoln("[ANN_LE] ANNOTATIONS: stat failed")
 		}
 		return nil
 	}
 	const maxSize = 10 * 1024 * 1024 // 5MB cap
 	if info.Size() <= 0 {
-		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).Infoln("[ANN_LE] annotations: file empty")
+		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).Infoln("[ANN_LE] ANNOTATIONS: file empty")
 		return nil
 	}
 	if info.Size() > maxSize {
-		logrus.WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Warnln("annotations: file too large, skipping")
-		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Infoln("[ANN_LE] annotations: file too large, skipping")
+		logrus.WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Warnln("ANNOTATIONS: file too large, skipping")
+		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Infoln("[ANN_LE] ANNOTATIONS: file too large, skipping")
 		return nil
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Debugln("annotations: read failed")
-		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithError(err).Infoln("[ANN_LE] annotations: read failed")
+		logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Debugln("ANNOTATIONS: read failed")
+		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithError(err).Infoln("[ANN_LE] ANNOTATIONS: read failed")
 		return nil
 	}
 	if !json.Valid(data) {
-		logrus.WithField("step_id", stepID).WithField("path", path).Warnln("annotations: invalid JSON, skipping")
-		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).Infoln("[ANN_LE] annotations: invalid JSON, skipping")
+		logrus.WithField("step_id", stepID).WithField("path", path).Warnln("ANNOTATIONS: invalid JSON, skipping")
+		logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).Infoln("[ANN_LE] ANNOTATIONS: invalid JSON, skipping")
 		return nil
 	}
-	logrus.WithField("step_id", stepID).WithField("path", path).WithField("bytes", len(data)).Debugln("annotations: attached JSON")
-	logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithField("bytes", len(data)).Infoln("[ANN_LE] annotations: attached JSON")
+	logrus.WithField("step_id", stepID).WithField("path", path).WithField("bytes", len(data)).Debugln("ANNOTATIONS: attached JSON")
+	logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithField("bytes", len(data)).Infoln("[ANN_LE] ANNOTATIONS: attached JSON")
 	return json.RawMessage(data)
 }
 
-// readEnvKeyFromFiles tries to read a KEY from provided env export files.
-// It supports simple shell-style lines like:
-//   KEY=value
-//   KEY="value with spaces"
-//   export KEY=value
-// Lines beginning with '#' are ignored. First match wins.
-func readEnvKeyFromFiles(paths []string, key string) string {
-    for _, p := range paths {
-        p = strings.TrimSpace(p)
-        if p == "" {
-            continue
-        }
-        f, err := os.Open(p)
-        if err != nil {
-            continue
-        }
-        scanner := bufio.NewScanner(f)
-        // allow larger lines if needed
-        buf := make([]byte, 0, 64*1024)
-        scanner.Buffer(buf, 1024*1024)
-        for scanner.Scan() {
-            line := strings.TrimSpace(scanner.Text())
-            if line == "" || strings.HasPrefix(line, "#") {
-                continue
-            }
-            if strings.HasPrefix(line, "export ") {
-                line = strings.TrimSpace(strings.TrimPrefix(line, "export "))
-            }
-            idx := strings.Index(line, "=")
-            if idx < 0 {
-                continue
-            }
-            k := strings.TrimSpace(line[:idx])
-            v := strings.TrimSpace(line[idx+1:])
-            // strip surrounding quotes
-            if len(v) >= 2 {
-                if (v[0] == '"' && v[len(v)-1] == '"') || (v[0] == '\'' && v[len(v)-1] == '\'') {
-                    v = v[1 : len(v)-1]
-                }
-            }
-            if k == key {
-                f.Close()
-                return v
-            }
-        }
-        f.Close()
-    }
-    return ""
-}
