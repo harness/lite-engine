@@ -57,14 +57,26 @@ type StepStatus struct {
 // to Pipeline Service. It never fails the step and logs warnings on errors.
 func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
 	// Gather required identifiers
-	accountId := ""
-	if r.StepStatus.AccountID != "" {
-		accountId = r.StepStatus.AccountID
+	accountId := strings.TrimSpace(r.StepStatus.AccountID)
+	if accountId == "" {
+		if v := strings.TrimSpace(r.Envs["HARNESS_ACCOUNT_ID"]); v != "" {
+			accountId = v
+		} else if v := strings.TrimSpace(os.Getenv("HARNESS_ACCOUNT_ID")); v != "" {
+			accountId = v
+		}
 	}
-	planExecutionId := r.Envs["HARNESS_EXECUTION_ID"]
+	planExecutionId := strings.TrimSpace(r.Envs["HARNESS_EXECUTION_ID"])
+	if planExecutionId == "" {
+		planExecutionId = strings.TrimSpace(os.Getenv("HARNESS_EXECUTION_ID"))
+	}
 
+	if accountId == "" {
+		logrus.WithField("id", r.ID).Warnln("annotations: missing accountId; set HARNESS_ACCOUNT_ID in step env or process env, or provide StepStatus.AccountID; skipping post")
+	}
+	if planExecutionId == "" {
+		logrus.WithField("id", r.ID).Warnln("annotations: missing planExecutionId; set HARNESS_EXECUTION_ID in step env or process env; skipping post")
+	}
 	if accountId == "" || planExecutionId == "" {
-		logrus.WithField("id", r.ID).Warnln("annotations: missing accountId or planExecutionId; skipping post")
 		return
 	}
 
