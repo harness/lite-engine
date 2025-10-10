@@ -5,11 +5,15 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,6 +51,199 @@ type StepStatus struct {
 	OptimizationState string
 	TelemetryData     *types.TelemetryData
 	Annotations       json.RawMessage
+}
+
+// postAnnotationsToPipeline reads the per-step annotations file and posts annotations directly
+// to Pipeline Service. It never fails the step and logs warnings on errors.
+func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
+	// Gather required identifiers
+	accountId := ""
+	if r.StepStatus.AccountID != "" {
+		accountId = r.StepStatus.AccountID
+	}
+	planExecutionId := r.Envs["HARNESS_EXECUTION_ID"]
+
+	if accountId == "" || planExecutionId == "" {
+		logrus.WithField("id", r.ID).Warnln("annotations: missing accountId or planExecutionId; skipping post")
+		return
+	}
+
+	raw := e.readAnnotationsJSON(r.ID)
+	if raw == nil {
+		// nothing to post
+		return
+	}
+
+	// Parse file envelope
+	type fileAnn struct {
+		ContextName string `json:"context_name"`
+		Timestamp   string `json:"timestamp"`
+		Style       string `json:"style"`
+		Summary     string `json:"summary"`
+		SummaryFile string `json:"summary_file"`
+		Priority    int    `json:"priority"`
+		Mode        string `json:"mode"`
+	}
+	var env struct {
+		Annotations []fileAnn `json:"annotations"`
+	}
+	if err := json.Unmarshal(raw, &env); err != nil {
+		logrus.WithField("id", r.ID).WithError(err).Warnln("annotations: invalid JSON; skipping post")
+		return
+	}
+	if len(env.Annotations) == 0 {
+		return
+	}
+
+	// Fold into map[context]annotationData according to mode semantics (default: replace)
+	annotations := make(map[string]map[string]interface{})
+	for _, a := range env.Annotations {
+		ctxName := strings.TrimSpace(a.ContextName)
+		if ctxName == "" {
+			continue
+		}
+		mode := strings.ToLower(strings.TrimSpace(a.Mode))
+		if mode == "" {
+			mode = "replace"
+		}
+		if mode != "append" && mode != "replace" && mode != "delete" {
+			mode = "replace"
+		}
+
+		if mode == "delete" {
+			annotations[ctxName] = map[string]interface{}{"mode": "delete"}
+			continue
+		}
+
+		// ensure entry exists
+		if _, ok := annotations[ctxName]; !ok {
+			annotations[ctxName] = map[string]interface{}{"summary": "", "mode": mode}
+		}
+		entry := annotations[ctxName]
+
+		// update mode (last writer wins)
+		entry["mode"] = mode
+
+		// style and priority: last-writer-wins if provided
+		if strings.TrimSpace(a.Style) != "" {
+			entry["style"] = a.Style
+		}
+		if a.Priority > 0 {
+			entry["priority"] = a.Priority
+		}
+
+		// summary
+		if a.Summary != "" {
+			if s, ok := entry["summary"].(string); ok && s != "" && mode == "append" {
+				entry["summary"] = s + "\n" + a.Summary
+			} else {
+				entry["summary"] = a.Summary
+			}
+		}
+
+		annotations[ctxName] = entry
+	}
+
+	if len(annotations) == 0 {
+		return
+	}
+
+	// Build request payload
+	payload := map[string]interface{}{
+		"accountId":       accountId,
+		"planExecutionId": planExecutionId,
+		"annotations":     annotations,
+		// Additional metadata for downstream consumers (ignored by server contract)
+		"created_at": time.Now().UTC().Format(time.RFC3339),
+		"step_id":    r.Name,
+		// Aliases for convenience
+		"account": accountId,
+	}
+	if v := strings.TrimSpace(r.Envs["HARNESS_ORG_ID"]); v != "" {
+		payload["orgId"] = v
+		payload["org"] = v
+	}
+	if v := strings.TrimSpace(r.Envs["HARNESS_PROJECT_ID"]); v != "" {
+		payload["projectId"] = v
+		payload["project"] = v
+	}
+	if v := strings.TrimSpace(r.Envs["HARNESS_PIPELINE_ID"]); v != "" {
+		payload["pipelineId"] = v
+		payload["pipeline"] = v
+	}
+	if v := strings.TrimSpace(r.Envs["HARNESS_STAGE_UUID"]); v != "" {
+		payload["stageExecutionId"] = v
+	} else if v := strings.TrimSpace(r.Envs["HARNESS_STAGE_ID"]); v != "" {
+		payload["stageExecutionId"] = v
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		logrus.WithField("id", r.ID).WithError(err).Warnln("annotations: failed to marshal request; skipping post")
+		return
+	}
+
+	// Build URL
+	base := strings.TrimRight(strings.TrimSpace(r.StepStatus.Endpoint), "/")
+	endpoint := strings.TrimSpace(r.Envs["CI_ANNOTATIONS_ENDPOINT"])
+	if endpoint == "" {
+		endpoint = "/pipeline/api/pipelines/annotations"
+	}
+
+	// Timeout
+	timeout := 3 * time.Second
+	if ms := strings.TrimSpace(r.Envs["CI_ANNOTATIONS_TIMEOUT_MS"]); ms != "" {
+		if v, err := strconv.Atoi(ms); err == nil && v > 0 {
+			timeout = time.Duration(v) * time.Millisecond
+		}
+	}
+
+	// Prepare request
+	client := newPipelineClient(base, r.StepStatus.Token, timeout)
+	statusCode, err := client.PostJSON(ctx, endpoint, body)
+	if err != nil {
+		logrus.WithField("id", r.ID).WithError(err).Warnln("annotations: post failed")
+		return
+	}
+	if statusCode < 200 || statusCode >= 300 {
+		logrus.WithField("id", r.ID).WithField("status", statusCode).Warnln("annotations: post non-success status")
+		return
+	}
+	logrus.WithField("id", r.ID).Infoln("annotations: post success")
+}
+
+// pipelineClient is a minimal HTTP client wrapper for posting annotations
+type pipelineClient struct {
+	baseURL    string
+	token      string
+	httpClient *http.Client
+}
+
+func newPipelineClient(baseURL, token string, timeout time.Duration) *pipelineClient {
+	return &pipelineClient{
+		baseURL:    strings.TrimRight(baseURL, "/"),
+		token:      token,
+		httpClient: &http.Client{Timeout: timeout},
+	}
+}
+
+func (c *pipelineClient) PostJSON(ctx context.Context, path string, body []byte) (int, error) {
+	url := c.baseURL + path
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return 0, err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+		req.Header.Set("X-Harness-Token", c.token)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode, nil
 }
 
 const (
@@ -134,16 +331,9 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 			pollResponse := convertStatus(status)
-			// Attach annotations JSON from file if available
-			pollResponse.Annotations = e.readAnnotationsJSON(r.ID)
-			// [ANN_STEP] Emit per-step log to indicate whether annotations were found
-			if wr != nil {
-				annotationsPath := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, r.ID)
-				if pollResponse.Annotations != nil {
-					wr.Write([]byte(fmt.Sprintf("[ANN_STEP] annotations found; bytes=%d; path=%s\n", len(pollResponse.Annotations), annotationsPath)))
-				} else {
-					wr.Write([]byte(fmt.Sprintf("[ANN_STEP] annotations not found or invalid; path=%s\n", annotationsPath)))
-				}
+			// Post annotations directly to Pipeline Service (non-blocking) on success
+			if pollResponse.Error == "" && pollResponse.ExitCode == 0 {
+				go e.postAnnotationsToPipeline(context.Background(), r)
 			}
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
@@ -162,10 +352,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				wr.Close()
 			}
 			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
-			// Best-effort attach annotations on timeout as well
-			resp.Annotations = e.readAnnotationsJSON(r.ID)
-			// [ANN_LE] Emit engine-level log with annotations size on timeout
-			logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).WithField("annotations_bytes", len(resp.Annotations)).Infoln("[ANN_LE] timeout path; annotations bytes")
+			// [ANN_LE] timeout path; skipping annotations POST
+			logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).Infoln("[ANN_LE] timeout path; skipping annotations post")
 			e.sendStepStatus(r, &resp)
 			return
 		}
@@ -189,8 +377,6 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 	if s.Status == Complete {
 		e.mu.Unlock()
 		resp := convertStatus(s)
-		// Attach annotations JSON from file if available
-		resp.Annotations = e.readAnnotationsJSON(id)
 		return resp, nil
 	}
 
@@ -204,8 +390,6 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 
 	status := <-ch
 	resp := convertStatus(status)
-	// Attach annotations JSON from file if available
-	resp.Annotations = e.readAnnotationsJSON(id)
 	return resp, nil
 }
 
@@ -474,16 +658,14 @@ func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *deleg
 
 func (e *StepExecutor) sendRunnerResponseStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	logrus.WithField("id", r.ID).Infoln("Sending runner step status")
-	// [ANN_LE] Log the size of annotations being sent
-	logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).WithField("annotations_bytes", len(response.Annotations)).Infoln("[ANN_LE] sending runner step status; annotations bytes")
+	// [ANN_LE] sending runner step status (no annotations attached)
 	taskResponse := getRunnerTaskResponse(r, response)
 	return delegateClient.SendRunnerStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
 }
 
 func (e *StepExecutor) sendResponseStatusV2(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	logrus.WithField("id", r.ID).Infoln("Sending step status to V2 Endpoint")
-	// [ANN_LE] Log the size of annotations being sent
-	logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).WithField("annotations_bytes", len(response.Annotations)).Infoln("[ANN_LE] sending step status; annotations bytes")
+	// [ANN_LE] sending step status (no annotations attached)
 	taskResponse := getRunnerTaskResponse(r, response)
 	return delegateClient.SendStatusV2(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
 }
@@ -493,8 +675,7 @@ func (e *StepExecutor) sendResponseStatus(r *api.StartStepRequest, delegateClien
 	if response.CommandExecutionStatus == api.Timeout {
 		response.CommandExecutionStatus = api.Failure
 	}
-	// [ANN_LE] Log the size of annotations being sent
-	logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).WithField("annotations_bytes", len(response.Annotations)).Infoln("[ANN_LE] sending legacy step status; annotations bytes")
+	// [ANN_LE] sending legacy step status (no annotations attached)
 	jsonData, err := json.Marshal(response)
 	if err != nil {
 		return err
@@ -522,8 +703,7 @@ func getRunnerTaskResponse(r *api.StartStepRequest, response *api.VMTaskExecutio
 		response.ErrorMessage = "Failed to marshal the response data"
 		status = client.Failure
 	}
-	// [ANN_LE] Log marshalled response annotations size
-	logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).WithField("annotations_bytes", len(response.Annotations)).Infoln("[ANN_LE] response marshalled; annotations bytes")
+	// [ANN_LE] response marshalled (no annotations attached)
 
 	return &client.RunnerTaskResponse{
 		ID:    r.StepStatus.TaskID,
@@ -534,9 +714,9 @@ func getRunnerTaskResponse(r *api.StartStepRequest, response *api.VMTaskExecutio
 	}
 }
 
-func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
+// convertStatus converts StepStatus to PollStepResponse
+func convertStatus(status StepStatus) *api.PollStepResponse {
 	r := &api.PollStepResponse{
-		Exited:            true,
 		Outputs:           status.Outputs,
 		Envs:              status.Envs,
 		Artifact:          status.Artifact,
@@ -545,26 +725,18 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 		TelemetryData:     status.TelemetryData,
 		Annotations:       status.Annotations,
 	}
-
-	stepErr := status.StepErr
-
+	// If the step has reached Complete, mark Exited=true even if state is nil.
+	if status.Status == Complete {
+		r.Exited = true
+	}
 	if status.State != nil {
-		r.Exited = status.State.Exited
-		r.OOMKilled = status.State.OOMKilled
+		// Preserve explicit runtime state; ensure we don't downgrade a completed step to Exited=false.
+		r.Exited = r.Exited || status.State.Exited
 		r.ExitCode = status.State.ExitCode
-		if status.State.OOMKilled {
-			stepErr = multierror.Append(stepErr, fmt.Errorf("oom killed"))
-		} else if status.State.ExitCode != 0 {
-			stepErr = multierror.Append(stepErr, fmt.Errorf("exit status %d", status.State.ExitCode))
-		}
+		r.OOMKilled = status.State.OOMKilled
 	}
-
 	if status.StepErr != nil {
-		r.ExitCode = 255
-	}
-
-	if stepErr != nil {
-		r.Error = stepErr.Error()
+		r.Error = status.StepErr.Error()
 	}
 	return r
 }
@@ -578,7 +750,6 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 			Outputs:                r.OutputV2,
 			OptimizationState:      r.OptimizationState,
 			TelemetryData:          r.TelemetryData,
-			Annotations:            r.Annotations,
 		}
 	}
 	if report.TestSummaryAsOutputEnabled(envs) {
@@ -589,19 +760,15 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 			ErrorMessage:           r.Error,
 			OptimizationState:      r.OptimizationState,
 			TelemetryData:          r.TelemetryData,
-			Annotations:            r.Annotations,
 		}
 	}
 	return api.VMTaskExecutionResponse{
 		CommandExecutionStatus: api.Failure,
 		ErrorMessage:           r.Error,
 		OptimizationState:      r.OptimizationState,
-		Annotations:            r.Annotations,
 	}
 }
 
-// readAnnotationsJSON best-effort reads the annotations JSON file written by the step (if present)
-// and returns it as a raw JSON blob to be included in API responses. It validates JSON and caps size.
 func (e *StepExecutor) readAnnotationsJSON(stepID string) json.RawMessage {
 	if stepID == "" {
 		return nil
