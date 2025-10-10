@@ -5,6 +5,7 @@
 package runtime
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -69,6 +70,13 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 	planExecutionId := strings.TrimSpace(r.Envs["HARNESS_EXECUTION_ID"])
 	if planExecutionId == "" {
 		planExecutionId = strings.TrimSpace(os.Getenv("HARNESS_EXECUTION_ID"))
+	}
+	if planExecutionId == "" {
+		// Last-resort: try to read from env export files if the step wrote it there
+		planExecutionId = readEnvKeyFromFiles([]string{r.Envs["DRONE_ENV"], r.Envs["HARNESS_OUTPUT_FILE"], r.Envs["DRONE_OUTPUT"]}, "HARNESS_EXECUTION_ID")
+		if planExecutionId != "" {
+			logrus.WithField("id", r.ID).Infoln("annotations: found planExecutionId from env file fallback")
+		}
 	}
 
 	// When identifiers are missing, emit diagnostic logs to help debugging
@@ -839,4 +847,54 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) json.RawMessage {
 	logrus.WithField("step_id", stepID).WithField("path", path).WithField("bytes", len(data)).Debugln("annotations: attached JSON")
 	logrus.WithField("tag", "ANN_LE").WithField("step_id", stepID).WithField("path", path).WithField("bytes", len(data)).Infoln("[ANN_LE] annotations: attached JSON")
 	return json.RawMessage(data)
+}
+
+// readEnvKeyFromFiles tries to read a KEY from provided env export files.
+// It supports simple shell-style lines like:
+//   KEY=value
+//   KEY="value with spaces"
+//   export KEY=value
+// Lines beginning with '#' are ignored. First match wins.
+func readEnvKeyFromFiles(paths []string, key string) string {
+    for _, p := range paths {
+        p = strings.TrimSpace(p)
+        if p == "" {
+            continue
+        }
+        f, err := os.Open(p)
+        if err != nil {
+            continue
+        }
+        scanner := bufio.NewScanner(f)
+        // allow larger lines if needed
+        buf := make([]byte, 0, 64*1024)
+        scanner.Buffer(buf, 1024*1024)
+        for scanner.Scan() {
+            line := strings.TrimSpace(scanner.Text())
+            if line == "" || strings.HasPrefix(line, "#") {
+                continue
+            }
+            if strings.HasPrefix(line, "export ") {
+                line = strings.TrimSpace(strings.TrimPrefix(line, "export "))
+            }
+            idx := strings.Index(line, "=")
+            if idx < 0 {
+                continue
+            }
+            k := strings.TrimSpace(line[:idx])
+            v := strings.TrimSpace(line[idx+1:])
+            // strip surrounding quotes
+            if len(v) >= 2 {
+                if (v[0] == '"' && v[len(v)-1] == '"') || (v[0] == '\'' && v[len(v)-1] == '\'') {
+                    v = v[1 : len(v)-1]
+                }
+            }
+            if k == key {
+                f.Close()
+                return v
+            }
+        }
+        f.Close()
+    }
+    return ""
 }
