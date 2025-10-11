@@ -7,10 +7,12 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -206,12 +208,21 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 		return
 	}
 
-	// Build URL
-	base := strings.TrimRight(strings.TrimSpace(r.StepStatus.Endpoint), "/")
+	// Build URL: derive base from StepStatus.Endpoint origin, allow override via CI_ANNOTATIONS_BASE_URL
+	base := strings.TrimSpace(r.StepStatus.Endpoint)
+	if override := strings.TrimSpace(r.Envs["CI_ANNOTATIONS_BASE_URL"]); override != "" {
+		base = override
+	} else {
+		if u, err := url.Parse(base); err == nil && u.Scheme != "" && u.Host != "" {
+			base = u.Scheme + "://" + u.Host
+		}
+	}
+	base = strings.TrimRight(base, "/")
 	endpoint := strings.TrimSpace(r.Envs["CI_ANNOTATIONS_ENDPOINT"])
 	if endpoint == "" {
 		endpoint = "/pipeline/api/pipelines/annotations"
 	}
+	fullURL := base + endpoint
 
 	// Timeout
 	timeout := 3 * time.Second
@@ -221,18 +232,88 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 		}
 	}
 
+	// Diagnostics: summarize payload without sensitive data
+	var pe any
+	if v, ok := payload["planExecutionId"]; ok {
+		pe = v
+	}
+	ctxCount := 0
+	if v, ok := payload["annotations"]; ok {
+		switch m := v.(type) {
+		case map[string]map[string]interface{}:
+			ctxCount = len(m)
+		case map[string]interface{}:
+			ctxCount = len(m)
+		}
+	}
+	// Compute token diagnostics (masked)
+	rawToken := strings.TrimSpace(r.StepStatus.Token)
+	tokenSet := rawToken != ""
+	tokenLen := len(rawToken)
+	tokenPreview := ""
+	if tokenLen > 10 {
+		head := rawToken[:6]
+		tail := rawToken[tokenLen-4:]
+		tokenPreview = head + "..." + tail
+	} else if tokenLen > 0 {
+		tokenPreview = "(len=" + strconv.Itoa(tokenLen) + ")"
+	}
+	tokenFP := ""
+	if tokenSet {
+		sum := sha256.Sum256([]byte(rawToken))
+		tokenFP = fmt.Sprintf("%x", sum)[:12]
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"id":            r.ID,
+		"endpoint_raw":  r.StepStatus.Endpoint,
+		"base_override": strings.TrimSpace(r.Envs["CI_ANNOTATIONS_BASE_URL"]) != "",
+		"base_url":      base,
+		"endpoint_path": endpoint,
+		"url":           fullURL,
+		"method":        http.MethodPost,
+		"content_type":  "application/json",
+		"timeout_ms":    timeout.Milliseconds(),
+		"token_set":     tokenSet,
+		"token_len":     tokenLen,
+		"token_preview": tokenPreview,
+		"token_fp":      tokenFP,
+		"accountId":     accountId,
+		"planExecutionId": pe,
+		"contexts":        ctxCount,
+		"body_bytes":      len(body),
+	}).Infoln("ANNOTATIONS: prepared request")
+
+    // WARNING: logging raw token as requested (sensitive)
+    logrus.WithFields(logrus.Fields{"id": r.ID}).Warnln("ANNOTATIONS: TOKEN:", rawToken)
+
 	// Prepare request
 	client := newPipelineClient(base, r.StepStatus.Token, timeout)
-	statusCode, err := client.PostJSON(ctx, endpoint, body)
+	statusCode, respBody, err := client.PostJSON(ctx, endpoint, body)
 	if err != nil {
-		logrus.WithField("id", r.ID).WithError(err).Warnln("ANNOTATIONS: post failed")
+		logrus.WithFields(logrus.Fields{"id": r.ID, "url": fullURL}).WithError(err).Warnln("ANNOTATIONS: post failed")
 		return
 	}
+	respText := string(respBody)
 	if statusCode < 200 || statusCode >= 300 {
-		logrus.WithField("id", r.ID).WithField("status", statusCode).Warnln("ANNOTATIONS: post non-success status")
+		logrus.WithFields(logrus.Fields{
+			"id":     r.ID,
+			"status": statusCode,
+			"bytes":  len(respBody),
+		}).Warnln("ANNOTATIONS: post non-success status")
+		if len(respBody) > 0 {
+			logrus.WithFields(logrus.Fields{"id": r.ID}).Infoln("ANNOTATIONS: response:", respText)
+		}
 		return
 	}
-	logrus.WithField("id", r.ID).Infoln("ANNOTATIONS: post success")
+	logrus.WithFields(logrus.Fields{
+		"id":     r.ID,
+		"status": statusCode,
+		"bytes":  len(respBody),
+	}).Infoln("ANNOTATIONS: post success")
+	if len(respBody) > 0 {
+		logrus.WithFields(logrus.Fields{"id": r.ID}).Infoln("ANNOTATIONS: response:", respText)
+	}
 }
 
 // pipelineClient is a minimal HTTP client wrapper for posting annotations
@@ -250,23 +331,25 @@ func newPipelineClient(baseURL, token string, timeout time.Duration) *pipelineCl
 	}
 }
 
-func (c *pipelineClient) PostJSON(ctx context.Context, path string, body []byte) (int, error) {
+func (c *pipelineClient) PostJSON(ctx context.Context, path string, body []byte) (int, []byte, error) {
 	url := c.baseURL + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	if c.token != "" {
+		// Do not log tokens; set headers only
 		req.Header.Set("Authorization", "Bearer "+c.token)
 		req.Header.Set("X-Harness-Token", c.token)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	defer resp.Body.Close()
-	return resp.StatusCode, nil
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, b, nil
 }
 
 const (
