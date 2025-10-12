@@ -274,7 +274,9 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
         }
     }
     base = strings.TrimRight(base, "/")
-    endpoint := "/api/pipelines/annotations"
+    // Append required identifiers as query params
+    endpoint := fmt.Sprintf("/api/pipelines/annotations?accountId=%s&planExecutionId=%s",
+        url.QueryEscape(accountId), url.QueryEscape(planExecutionId))
     fullURL := base + endpoint
 
 	// Timeout
