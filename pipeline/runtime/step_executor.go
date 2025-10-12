@@ -110,15 +110,8 @@ func getInt(m map[string]interface{}, key string) int {
 // postAnnotationsToPipeline reads the per-step annotations file and posts annotations directly
 // to Pipeline Service. It never fails the step and logs warnings on errors.
 func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
-	// Gather account identifier from known sources
-	accountId := strings.TrimSpace(r.StepStatus.AccountID)
-	if accountId == "" {
-		if v := strings.TrimSpace(r.Envs["HARNESS_ACCOUNT_ID"]); v != "" {
-			accountId = v
-		} else if v := strings.TrimSpace(os.Getenv("HARNESS_ACCOUNT_ID")); v != "" {
-			accountId = v
-		}
-	}
+	// Gather account identifier strictly from step env: HARNESS_ACCOUNT_ID
+    accountId := strings.TrimSpace(r.Envs["HARNESS_ACCOUNT_ID"])
 
 	// Read annotations file (also carries planExecutionId now)
 	raw := e.readAnnotationsJSON(r.ID)
