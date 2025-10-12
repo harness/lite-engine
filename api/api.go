@@ -6,6 +6,7 @@ package api
 
 import (
 	"encoding/json"
+
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/ti-client/types"
 )
@@ -27,6 +28,7 @@ type (
 		MountDockerSocket *bool              `json:"mount_docker_socket,omitempty"`
 		TTY               bool               `json:"tty,omitempty" default:"false"`
 		MtlsConfig        spec.MtlsConfig    `json:"mtls_config,omitempty"`
+		AnnotationsConfig AnnotationsConfig  `json:"annotations_config,omitempty"`
 		VMImageConfig     spec.VMImageConfig `json:"vm_image_config,omitempty"`
 		Timeout           int64              `json:"timeout,omitempty"`
 	}
@@ -73,6 +75,9 @@ type (
 		LogConfig  LogConfig       `json:"log_config,omitempty"`
 		TIConfig   TIConfig        `json:"ti_config,omitempty"`
 		MtlsConfig spec.MtlsConfig `json:"mtls_config,omitempty"`
+
+		// Configuration for annotations posting (e.g., dedicated token)
+		AnnotationsConfig AnnotationsConfig `json:"annotations_config,omitempty"`
 
 		OutputVars        []string    `json:"output_vars,omitempty"`
 		TestReport        TestReport  `json:"test_report,omitempty"`
@@ -214,6 +219,13 @@ type (
 		CommitBranch string `json:"commit_branch,omitempty"`
 		CommitLink   string `json:"commit_link,omitempty"`
 		ParseSavings bool   `json:"parse_savings,omitempty"`
+	}
+
+	// AnnotationsConfig carries configuration for posting annotations to Pipeline Service
+	// using a dedicated token.
+	AnnotationsConfig struct {
+		Token   string `json:"token,omitempty"`
+		BaseURL string `json:"base_url,omitempty"`
 	}
 
 	TestReport struct {

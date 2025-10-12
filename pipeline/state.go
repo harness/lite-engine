@@ -29,23 +29,25 @@ const (
 
 // State stores the pipeline state.
 type State struct {
-	mu         sync.Mutex
-	logConfig  api.LogConfig
-	tiConfig   tiCfg.Cfg
-	mtlsConfig spec.MtlsConfig
-	secrets    []string
+	mu                sync.Mutex
+	logConfig         api.LogConfig
+	tiConfig          tiCfg.Cfg
+	mtlsConfig        spec.MtlsConfig
+	annotationsConfig api.AnnotationsConfig
+	secrets           []string
 
 	statsCollector *osstats.StatsCollector
 	logClient      logstream.Client
 }
 
-func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
+func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, annotationsConfig api.AnnotationsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.secrets = secrets
 	s.logConfig = logConfig
 	s.tiConfig = tiConfig
 	s.mtlsConfig = mtlsConfig
+	s.annotationsConfig = annotationsConfig
 	s.statsCollector = collector
 }
 
@@ -92,16 +94,24 @@ func (s *State) GetLogConfig() *api.LogConfig {
 	return &s.logConfig
 }
 
+func (s *State) GetAnnotationsConfig() *api.AnnotationsConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return &s.annotationsConfig
+}
+
 func GetState() *State {
 	once.Do(func() {
 		state = &State{
-			mu:             sync.Mutex{},
-			logConfig:      api.LogConfig{},
-			tiConfig:       tiCfg.Cfg{},
-			statsCollector: &osstats.StatsCollector{},
-			secrets:        make([]string, 0),
-			logClient:      nil,
-			mtlsConfig:     spec.MtlsConfig{},
+			mu:                sync.Mutex{},
+			logConfig:         api.LogConfig{},
+			tiConfig:          tiCfg.Cfg{},
+			mtlsConfig:        spec.MtlsConfig{},
+			annotationsConfig: api.AnnotationsConfig{},
+			statsCollector:    &osstats.StatsCollector{},
+			secrets:           make([]string, 0),
+			logClient:         nil,
 		}
 	})
 	return state

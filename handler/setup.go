@@ -78,7 +78,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 
 		setProxyEnvs(s.Envs)
 		state := pipeline.GetState()
-		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig), s.MtlsConfig, collector)
+		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig), s.MtlsConfig, s.AnnotationsConfig, collector)
 
 		if s.MountDockerSocket == nil || *s.MountDockerSocket { // required to support m1 where docker isn't installed.
 			s.Volumes = append(s.Volumes, getDockerSockVolume())

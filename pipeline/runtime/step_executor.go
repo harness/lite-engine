@@ -55,6 +55,58 @@ type StepStatus struct {
 	Annotations       json.RawMessage
 }
 
+// firstNonEmpty returns the first non-empty, trimmed string from the provided values.
+// Returns an empty string if all values are empty after trimming.
+func firstNonEmpty(values ...string) string {
+    for _, v := range values {
+        if s := strings.TrimSpace(v); s != "" {
+            return s
+        }
+    }
+    return ""
+}
+
+type annotationsFileRaw struct {
+    PlanExecutionId string                   `json:"planExecutionId"`
+    Annotations     []map[string]interface{} `json:"annotations"`
+}
+
+type annotationsRequest struct {
+    ContextId string `json:"contextId"`
+    Mode      string `json:"mode,omitempty"`
+    Style     string `json:"style,omitempty"`
+    Summary   string `json:"summary,omitempty"`
+    Priority  int    `json:"priority,omitempty"`
+    Timestamp string `json:"timestamp,omitempty"`
+    StepId    string `json:"stepId,omitempty"`
+}
+
+type createAnnotationsRequest struct {
+	AccountId       string           `json:"accountId"`
+	OrgId           string           `json:"orgId,omitempty"`
+	ProjectId       string           `json:"projectId,omitempty"`
+	PipelineId      string           `json:"pipelineId,omitempty"`
+	StageExecutionId string          `json:"stageExecutionId,omitempty"`
+	PlanExecutionId string          `json:"planExecutionId"`
+	Annotations     []annotationsRequest `json:"annotations"`
+}
+
+func getString(m map[string]interface{}, key string) string {
+    if v, ok := m[key]; ok {
+        return strings.TrimSpace(fmt.Sprintf("%v", v))
+    }
+    return ""
+}
+
+func getInt(m map[string]interface{}, key string) int {
+    if v, ok := m[key]; ok {
+        if i, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
+            return i
+        }
+    }
+    return 0
+}
+
 // postAnnotationsToPipeline reads the per-step annotations file and posts annotations directly
 // to Pipeline Service. It never fails the step and logs warnings on errors.
 func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
@@ -75,49 +127,25 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 		return
 	}
 
-	// Parse file envelope and extract planExecutionId from the root object
-	type fileAnn struct {
-		ContextName string `json:"context_name"`
-		Timestamp   string `json:"timestamp"`
-		Style       string `json:"style"`
-		Summary     string `json:"summary"`
-		SummaryFile string `json:"summary_file"`
-		Priority    int    `json:"priority"`
-		Mode        string `json:"mode"`
-	}
-	var (
-		planExecutionId string
-		annotationsIn   []fileAnn
-	)
-	var root map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &root); err != nil {
+	// Parse file envelope (typed) and extract planExecutionId
+	var file annotationsFileRaw
+	if err := json.Unmarshal(raw, &file); err != nil {
 		logrus.WithField("id", r.ID).WithError(err).Warnln("ANNOTATIONS: invalid JSON; skipping post")
 		return
 	}
-	// extract planExecutionId with a few tolerant keys
-	for _, k := range []string{"planExecutionId", "executionId", "plan_execution_id", "execution_id"} {
-		if v, ok := root[k]; ok {
-			_ = json.Unmarshal(v, &planExecutionId)
-			if strings.TrimSpace(planExecutionId) != "" {
-				break
-			}
-		}
-	}
-	if v, ok := root["annotations"]; ok {
-		_ = json.Unmarshal(v, &annotationsIn)
-	}
-	if len(annotationsIn) == 0 {
+	planExecutionId := strings.TrimSpace(file.PlanExecutionId)
+	if planExecutionId == "" || len(file.Annotations) == 0 {
 		return
 	}
 
-	// Fold into map[context]annotationData according to mode semantics (default: replace)
-	annotations := make(map[string]map[string]interface{})
-	for _, a := range annotationsIn {
-		ctxName := strings.TrimSpace(a.ContextName)
+	// Fold into map[context]annotationsRequest according to mode semantics (default: replace)
+	annotations := make(map[string]annotationsRequest)
+	for _, a := range file.Annotations {
+		ctxName := strings.TrimSpace(getString(a, "context_name"))
 		if ctxName == "" {
 			continue
 		}
-		mode := strings.ToLower(strings.TrimSpace(a.Mode))
+		mode := strings.ToLower(strings.TrimSpace(getString(a, "mode")))
 		if mode == "" {
 			mode = "replace"
 		}
@@ -126,33 +154,49 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 		}
 
 		if mode == "delete" {
-			annotations[ctxName] = map[string]interface{}{"mode": "delete"}
+			entry := annotationsRequest{ContextId: ctxName, Mode: "delete"}
+			if r.ID != "" {
+				entry.StepId = r.ID
+			}
+			annotations[ctxName] = entry
 			continue
 		}
 
 		// ensure entry exists
-		if _, ok := annotations[ctxName]; !ok {
-			annotations[ctxName] = map[string]interface{}{"summary": "", "mode": mode}
+		entry, ok := annotations[ctxName]
+		if !ok {
+			entry = annotationsRequest{ContextId: ctxName, Mode: mode}
 		}
-		entry := annotations[ctxName]
 
 		// update mode (last writer wins)
-		entry["mode"] = mode
+		entry.Mode = mode
 
 		// style and priority: last-writer-wins if provided
-		if strings.TrimSpace(a.Style) != "" {
-			entry["style"] = a.Style
+		if s := strings.TrimSpace(getString(a, "style")); s != "" {
+			entry.Style = s
 		}
-		if a.Priority > 0 {
-			entry["priority"] = a.Priority
+		if p := getInt(a, "priority"); p > 0 {
+			entry.Priority = p
+		}
+
+		// timestamp (optional): last-writer-wins (forward string as-is)
+		if ts := strings.TrimSpace(getString(a, "timestamp")); ts != "" {
+			entry.Timestamp = ts
+		}
+
+		// stepId: prefer provided step_id from file, else fallback to runtime step id
+		if s := strings.TrimSpace(getString(a, "step_id")); s != "" {
+			entry.StepId = s
+		} else if r.ID != "" {
+			entry.StepId = r.ID
 		}
 
 		// summary
-		if a.Summary != "" {
-			if s, ok := entry["summary"].(string); ok && s != "" && mode == "append" {
-				entry["summary"] = s + "\n" + a.Summary
+		if sum := getString(a, "summary"); sum != "" {
+			if entry.Summary != "" && mode == "append" {
+				entry.Summary = entry.Summary + "\n" + sum
 			} else {
-				entry["summary"] = a.Summary
+				entry.Summary = sum
 			}
 		}
 
@@ -161,6 +205,12 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 
 	if len(annotations) == 0 {
 		return
+	}
+
+	// Convert map to array for API contract
+	annList := make([]annotationsRequest, 0, len(annotations))
+	for _, v := range annotations {
+		annList = append(annList, v)
 	}
 
 	// Ensure we have required identifiers
@@ -173,33 +223,25 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 		return
 	}
 
-	// Build request payload
-	payload := map[string]interface{}{
-		"accountId":       accountId,
-		"planExecutionId": planExecutionId,
-		"annotations":     annotations,
-		// Additional metadata for downstream consumers (ignored by server contract)
-		"created_at": time.Now().UTC().Format(time.RFC3339),
-		"step_id":    r.Name,
-		// Aliases for convenience
-		"account": accountId,
+	// Build typed request payload
+	payload := createAnnotationsRequest{
+		AccountId:       accountId,
+		PlanExecutionId: planExecutionId,
+		Annotations:     annList,
 	}
 	if v := strings.TrimSpace(r.Envs["HARNESS_ORG_ID"]); v != "" {
-		payload["orgId"] = v
-		payload["org"] = v
+		payload.OrgId = v
 	}
 	if v := strings.TrimSpace(r.Envs["HARNESS_PROJECT_ID"]); v != "" {
-		payload["projectId"] = v
-		payload["project"] = v
+		payload.ProjectId = v
 	}
 	if v := strings.TrimSpace(r.Envs["HARNESS_PIPELINE_ID"]); v != "" {
-		payload["pipelineId"] = v
-		payload["pipeline"] = v
+		payload.PipelineId = v
 	}
 	if v := strings.TrimSpace(r.Envs["HARNESS_STAGE_UUID"]); v != "" {
-		payload["stageExecutionId"] = v
+		payload.StageExecutionId = v
 	} else if v := strings.TrimSpace(r.Envs["HARNESS_STAGE_ID"]); v != "" {
-		payload["stageExecutionId"] = v
+		payload.StageExecutionId = v
 	}
 
 	body, err := json.Marshal(payload)
@@ -208,46 +250,48 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 		return
 	}
 
-	// Build URL: derive base from StepStatus.Endpoint origin, allow override via CI_ANNOTATIONS_BASE_URL
-	base := strings.TrimSpace(r.StepStatus.Endpoint)
-	if override := strings.TrimSpace(r.Envs["CI_ANNOTATIONS_BASE_URL"]); override != "" {
-		base = override
-	} else {
-		if u, err := url.Parse(base); err == nil && u.Scheme != "" && u.Host != "" {
-			base = u.Scheme + "://" + u.Host
-		}
-	}
-	base = strings.TrimRight(base, "/")
-	endpoint := strings.TrimSpace(r.Envs["CI_ANNOTATIONS_ENDPOINT"])
-	if endpoint == "" {
-		endpoint = "/pipeline/api/pipelines/annotations"
-	}
-	fullURL := base + endpoint
+    // Build URL: prefer AnnotationsConfig.BaseURL (from request),
+    // else fall back to setup state, else derive from StepStatus.Endpoint origin
+    cfg := r.AnnotationsConfig
+    if strings.TrimSpace(cfg.BaseURL) == "" || strings.TrimSpace(cfg.Token) == "" {
+        if st := pipeline.GetState().GetAnnotationsConfig(); st != nil {
+            if strings.TrimSpace(cfg.BaseURL) == "" {
+                cfg.BaseURL = st.BaseURL
+            }
+            if strings.TrimSpace(cfg.Token) == "" {
+                cfg.Token = st.Token
+            }
+        }
+    }
+
+    base := strings.TrimSpace(cfg.BaseURL)
+    if base == "" {
+        raw := strings.TrimSpace(r.StepStatus.Endpoint)
+        if u, err := url.Parse(raw); err == nil && u.Scheme != "" && u.Host != "" {
+            base = u.Scheme + "://" + u.Host
+        } else {
+            base = raw
+        }
+    }
+    base = strings.TrimRight(base, "/")
+    endpoint := "/api/pipelines/annotations"
+    fullURL := base + endpoint
 
 	// Timeout
 	timeout := 3 * time.Second
-	if ms := strings.TrimSpace(r.Envs["CI_ANNOTATIONS_TIMEOUT_MS"]); ms != "" {
-		if v, err := strconv.Atoi(ms); err == nil && v > 0 {
-			timeout = time.Duration(v) * time.Millisecond
-		}
+
+    // Resolve annotations token from merged config (request or setup state)
+    annToken := strings.TrimSpace(cfg.Token)
+	if annToken == "" {
+		logrus.WithField("id", r.ID).Warnln("ANNOTATIONS: missing annotations token; skipping post")
+		return
 	}
 
 	// Diagnostics: summarize payload without sensitive data
-	var pe any
-	if v, ok := payload["planExecutionId"]; ok {
-		pe = v
-	}
-	ctxCount := 0
-	if v, ok := payload["annotations"]; ok {
-		switch m := v.(type) {
-		case map[string]map[string]interface{}:
-			ctxCount = len(m)
-		case map[string]interface{}:
-			ctxCount = len(m)
-		}
-	}
+	pe := planExecutionId
+	ctxCount := len(payload.Annotations)
 	// Compute token diagnostics (masked)
-	rawToken := strings.TrimSpace(r.StepStatus.Token)
+	rawToken := annToken
 	tokenSet := rawToken != ""
 	tokenLen := len(rawToken)
 	tokenPreview := ""
@@ -267,7 +311,6 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 	logrus.WithFields(logrus.Fields{
 		"id":            r.ID,
 		"endpoint_raw":  r.StepStatus.Endpoint,
-		"base_override": strings.TrimSpace(r.Envs["CI_ANNOTATIONS_BASE_URL"]) != "",
 		"base_url":      base,
 		"endpoint_path": endpoint,
 		"url":           fullURL,
@@ -284,11 +327,8 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 		"body_bytes":      len(body),
 	}).Infoln("ANNOTATIONS: prepared request")
 
-    // WARNING: logging raw token as requested (sensitive)
-    logrus.WithFields(logrus.Fields{"id": r.ID}).Warnln("ANNOTATIONS: TOKEN:", rawToken)
-
 	// Prepare request
-	client := newPipelineClient(base, r.StepStatus.Token, timeout)
+	client := newPipelineClient(base, annToken, timeout)
 	statusCode, respBody, err := client.PostJSON(ctx, endpoint, body)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{"id": r.ID, "url": fullURL}).WithError(err).Warnln("ANNOTATIONS: post failed")
@@ -339,8 +379,7 @@ func (c *pipelineClient) PostJSON(ctx context.Context, path string, body []byte)
 	}
 	if c.token != "" {
 		// Do not log tokens; set headers only
-		req.Header.Set("Authorization", "Bearer "+c.token)
-		req.Header.Set("X-Harness-Token", c.token)
+		req.Header.Set("Authorization", "Annotations "+c.token)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.httpClient.Do(req)
