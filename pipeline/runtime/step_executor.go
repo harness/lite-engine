@@ -290,7 +290,9 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
 	if r.Detach {
-		go runStep() //nolint:errcheck
+		safego.SafeGo("detached_run_step", func() {
+			runStep() //nolint:errcheck
+		})
 		return &runtime.State{Exited: false}, nil
 	}
 
@@ -420,7 +422,9 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 		r.LogConfig.SkipOpeningStream,
 		r.LogConfig.SkipClosingStream)
 	wr := logstream.NewReplacerWithEnvs(wc, secrets, r.Envs)
-	go wr.Open() //nolint:errcheck
+	safego.SafeGo("log_stream_open", func() {
+		wr.Open() //nolint:errcheck
+	})
 	return wr
 }
 

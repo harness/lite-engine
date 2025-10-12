@@ -3,20 +3,21 @@
 // that can be found in the LICENSE file.
 
 package livelog
-
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
+	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/logstream"
+	"github.com/sirupsen/logrus"
 	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/osstats"
 )
@@ -83,7 +84,7 @@ func New(client logstream.Client, key, name string, nudges []logstream.Nudge, pr
 		lastFlushTime:     time.Now(),
 		trimNewLineSuffix: trimNewLineSuffix,
 	}
-	go b.Start()
+	safego.SafeGo("livelog_buffer", b.Start)
 	return b
 }
 
