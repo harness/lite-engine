@@ -87,6 +87,33 @@ func (c *HTTPClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.Setu
 	return out, err
 }
 
+// RetrySetup will retry the setup operation
+func (c *HTTPClient) RetrySetup(ctx context.Context, in *api.SetupRequest, timeout time.Duration) (*api.SetupResponse, error) {
+	startTime := time.Now()
+	retryCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var lastErr error
+	for i := 0; ; i++ {
+		select {
+		case <-retryCtx.Done():
+			return nil, retryCtx.Err()
+		default:
+		}
+		if ret, err := c.Setup(retryCtx, in); err == nil {
+			logger.FromContext(ctx).
+				WithField("duration", time.Since(startTime)).
+				Trace("RetrySetup: setup completed")
+			return ret, err
+		} else if lastErr == nil || (lastErr.Error() != err.Error()) {
+			logger.FromContext(ctx).
+				WithField("retry_num", i).WithError(err).Traceln("setup failed. Retrying")
+			lastErr = err
+		}
+		time.Sleep(time.Millisecond * 1000) //nolint:gomnd
+	}
+}
+
 // Destroy will clean up the resources created
 func (c *HTTPClient) Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error) {
 	path := "destroy"
