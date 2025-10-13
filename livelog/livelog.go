@@ -3,6 +3,7 @@
 // that can be found in the LICENSE file.
 
 package livelog
+
 import (
 	"bytes"
 	"context"
@@ -17,9 +18,9 @@ import (
 
 	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/logstream"
-	"github.com/sirupsen/logrus"
 	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/osstats"
+	"github.com/sirupsen/logrus"
 )
 
 const (
