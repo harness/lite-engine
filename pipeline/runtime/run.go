@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -47,9 +46,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	annotationsFile := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, step.ID)
 	step.Envs["HARNESS_ANNOTATIONS_FILE"] = annotationsFile
 	// Not deleting annotations file by default to aid debugging; it lives in shared volume
-	logrus.WithField("step_id", step.ID).WithField("annotations_file", annotationsFile).Debugln("annotations file path set for step")
-	// [ANN_LE] Emit info-level log for visibility in engine logs
-	logrus.WithField("tag", "ANN_LE").WithField("step_id", step.ID).WithField("annotations_file", annotationsFile).Infoln("[ANN_LE] annotations file path set for step")
+	// (removed noisy logs about annotations file path)
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
@@ -131,51 +128,6 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	// stageRuntimeID is only passed for dlite
 	isHosted := r.StageRuntimeID != ""
-
-    // Emit diagnostics: show envs we will pass to the container vs the original request envs
-    // 1) Keys of r.Envs (as provided by the runner)
-    rEnvKeys := make([]string, 0, len(r.Envs))
-    for k := range r.Envs {
-        rEnvKeys = append(rEnvKeys, k)
-    }
-    sort.Strings(rEnvKeys)
-
-    // 2) Keys of step.Envs (after lite-engine augments envs like DRONE_ENV etc.)
-    stepEnvKeys := make([]string, 0, len(step.Envs))
-    for k := range step.Envs {
-        stepEnvKeys = append(stepEnvKeys, k)
-    }
-    sort.Strings(stepEnvKeys)
-
-    // 3) HARNESS_* snapshots for both maps
-    rHarness := map[string]string{}
-    for _, k := range rEnvKeys {
-        if len(k) >= 8 && k[:8] == "HARNESS_" {
-            rHarness[k] = r.Envs[k]
-        }
-    }
-    stepHarness := map[string]string{}
-    for _, k := range stepEnvKeys {
-        if len(k) >= 8 && k[:8] == "HARNESS_" {
-            stepHarness[k] = step.Envs[k]
-        }
-    }
-
-    // 4) Specific HARNESS_EXECUTION_ID visibility across potential sources
-    heidReq := r.Envs["HARNESS_EXECUTION_ID"]
-    heidStep := step.Envs["HARNESS_EXECUTION_ID"]
-    heidProc := os.Getenv("HARNESS_EXECUTION_ID")
-
-    logrus.WithField("step_id", step.ID).WithField("req_id", r.ID).WithField("is_hosted", isHosted).Infoln("run: env diagnostics start")
-    logrus.WithField("step_id", step.ID).WithField("r_env_keys", rEnvKeys).Infoln("run: r.Envs keys")
-    logrus.WithField("step_id", step.ID).WithField("step_env_keys", stepEnvKeys).Infoln("run: step.Envs keys")
-    logrus.WithField("step_id", step.ID).WithField("r_harness_envs", rHarness).Infoln("run: r.Envs HARNESS_* snapshot")
-    logrus.WithField("step_id", step.ID).WithField("step_harness_envs", stepHarness).Infoln("run: step.Envs HARNESS_* snapshot")
-    logrus.WithField("step_id", step.ID).WithFields(logrus.Fields{
-        "r_env":    heidReq,
-        "step_env": heidStep,
-        "proc_env": heidProc,
-    }).Infoln("run: HARNESS_EXECUTION_ID sources")
 
 	exited, err := f(ctx, step, out, r.LogDrone, isHosted)
 	timeTakenMs := time.Since(start).Milliseconds()
