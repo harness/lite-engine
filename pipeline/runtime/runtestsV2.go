@@ -1125,10 +1125,44 @@ func collectTestReports(
 	}
 
 	reportStart := time.Now()
+	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
+	if crErr != nil {
+		log.WithField("error", crErr).Errorln(fmt.Sprintf("Failed to upload report. Time taken: %s", time.Since(reportStart)))
+	}
+
+	return tests, crErr
+}
+
+func collectTestReportsAndCg(
+	ctx context.Context,
+	log *logrus.Logger,
+	r *api.StartStepRequest,
+	start time.Time,
+	stepName string,
+	tiConfig *tiCfg.Cfg,
+	telemetryData *types.TelemetryData,
+	envs map[string]string,
+) error {
+	cgStart := time.Now()
+
+	if len(r.TestReport.Junit.Paths) == 0 {
+		// If there are no paths specified, set Paths[0] to include all XML files and all TRX files
+		r.TestReport.Junit.Paths = []string{"**/*.xml", "**/*.trx"}
+	}
+
+	reportStart := time.Now()
+
+	rerunFailedTests := false
+
+	if envValue, ok := envs[rerunFailedTestsFF]; ok {
+		if envValue == "true" {
+			rerunFailedTests = true
+		}
+	}
 
 	// Parse tests from report files
 	tests, parseErr := report.ParseTests(r.TestReport, r.WorkingDir, log, r.Envs)
-	cg, cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, r)
+	cg, cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, rerunFailedTests, r)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
