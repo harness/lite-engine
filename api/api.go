@@ -5,8 +5,6 @@
 package api
 
 import (
-	"encoding/json"
-
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/ti-client/types"
 )
@@ -154,7 +152,6 @@ type (
 		OutputV2          []*OutputV2          `json:"outputV2,omitempty"`
 		OptimizationState string               `json:"optimization_state,omitempty"`
 		TelemetryData     *types.TelemetryData `json:"telemetry_data,omitempty"`
-		Annotations       json.RawMessage      `json:"annotations,omitempty"`
 	}
 
 	StreamOutputRequest struct {
@@ -255,7 +252,6 @@ type (
 		Outputs                []*OutputV2            `json:"outputs,omitempty"`
 		OptimizationState      string                 `json:"optimization_state,omitempty"`
 		TelemetryData          *types.TelemetryData   `json:"telemetry_data,omitempty"`
-		Annotations            json.RawMessage        `json:"annotations,omitempty"`
 	}
 )
 

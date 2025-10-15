@@ -5,15 +5,9 @@
 package runtime
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
-	"net/http"
-	"net/url"
-	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -51,7 +45,6 @@ type StepStatus struct {
 	OutputV2          []*api.OutputV2
 	OptimizationState string
 	TelemetryData     *types.TelemetryData
-	Annotations       json.RawMessage
 }
 
 // firstNonEmpty returns the first non-empty, trimmed string from the provided values.
@@ -63,302 +56,6 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-type annotationsFileRaw struct {
-	PlanExecutionId string                   `json:"planExecutionId"`
-	Annotations     []map[string]interface{} `json:"annotations"`
-}
-
-type annotationsRequest struct {
-	ContextId string `json:"contextId"`
-	Mode      string `json:"mode,omitempty"`
-	Style     string `json:"style,omitempty"`
-	Summary   string `json:"summary,omitempty"`
-	Priority  int    `json:"priority,omitempty"`
-	Timestamp string `json:"timestamp,omitempty"`
-	StepId    string `json:"stepId,omitempty"`
-}
-
-type createAnnotationsRequest struct {
-	AccountId        string               `json:"accountId"`
-	OrgId            string               `json:"orgId,omitempty"`
-	ProjectId        string               `json:"projectId,omitempty"`
-	PipelineId       string               `json:"pipelineId,omitempty"`
-	StageExecutionId string               `json:"stageExecutionId,omitempty"`
-	PlanExecutionId  string               `json:"planExecutionId"`
-	Annotations      []annotationsRequest `json:"annotations"`
-}
-
-func getString(m map[string]interface{}, key string) string {
-	if v, ok := m[key]; ok {
-		return strings.TrimSpace(fmt.Sprintf("%v", v))
-	}
-	return ""
-}
-
-func getInt(m map[string]interface{}, key string) int {
-	if v, ok := m[key]; ok {
-		if i, err := strconv.Atoi(fmt.Sprintf("%v", v)); err == nil {
-			return i
-		}
-	}
-	return 0
-}
-
-// postAnnotationsToPipeline reads the per-step annotations file and posts annotations directly
-// to Pipeline Service. It never fails the step and logs warnings on errors.
-func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
-	// Gather account identifier strictly from step env: HARNESS_ACCOUNT_ID
-	accountId := strings.TrimSpace(r.Envs["HARNESS_ACCOUNT_ID"])
-
-	// Read annotations file (also carries planExecutionId now)
-	raw := e.readAnnotationsJSON(r.ID)
-	if raw == nil {
-		// nothing to post
-		return
-	}
-
-	// Parse file envelope (typed) and extract planExecutionId
-	var file annotationsFileRaw
-	if err := json.Unmarshal(raw, &file); err != nil {
-		logrus.WithField("id", r.ID).WithError(err).Warnln("ANNOTATIONS: invalid JSON; skipping post")
-		return
-	}
-	planExecutionId := strings.TrimSpace(file.PlanExecutionId)
-	if planExecutionId == "" || len(file.Annotations) == 0 {
-		return
-	}
-
-	// Fold into map[context]annotationsRequest according to mode semantics (default: replace)
-	annotations := make(map[string]annotationsRequest)
-	for _, a := range file.Annotations {
-		ctxName := strings.TrimSpace(getString(a, "context_name"))
-		if ctxName == "" {
-			continue
-		}
-		mode := strings.ToLower(strings.TrimSpace(getString(a, "mode")))
-		if mode == "" {
-			mode = "replace"
-		}
-		if mode != "append" && mode != "replace" && mode != "delete" {
-			mode = "replace"
-		}
-
-		if mode == "delete" {
-			entry := annotationsRequest{ContextId: ctxName, Mode: "delete"}
-			if r.ID != "" {
-				entry.StepId = r.ID
-			}
-			annotations[ctxName] = entry
-			continue
-		}
-
-		// ensure entry exists
-		entry, ok := annotations[ctxName]
-		if !ok {
-			entry = annotationsRequest{ContextId: ctxName, Mode: mode}
-		}
-
-		// update mode (last writer wins)
-		entry.Mode = mode
-
-		// style and priority: last-writer-wins if provided
-		if s := strings.TrimSpace(getString(a, "style")); s != "" {
-			entry.Style = s
-		}
-		if p := getInt(a, "priority"); p > 0 {
-			entry.Priority = p
-		}
-
-		// timestamp (optional): last-writer-wins (forward string as-is)
-		if ts := strings.TrimSpace(getString(a, "timestamp")); ts != "" {
-			entry.Timestamp = ts
-		}
-
-		// stepId: prefer provided step_id from file, else fallback to runtime step id
-		if s := strings.TrimSpace(getString(a, "step_id")); s != "" {
-			entry.StepId = s
-		} else if r.ID != "" {
-			entry.StepId = r.ID
-		}
-
-		// summary
-		if sum := getString(a, "summary"); sum != "" {
-			if entry.Summary != "" && mode == "append" {
-				entry.Summary = entry.Summary + "\n" + sum
-			} else {
-				entry.Summary = sum
-			}
-		}
-
-		annotations[ctxName] = entry
-	}
-
-	if len(annotations) == 0 {
-		return
-	}
-
-	// Convert map to array for API contract
-	annList := make([]annotationsRequest, 0, len(annotations))
-	for _, v := range annotations {
-		annList = append(annList, v)
-	}
-
-	// Ensure we have required identifiers
-	if accountId == "" {
-		logrus.WithField("id", r.ID).Warnln("ANNOTATIONS: missing accountId; skipping post")
-		return
-	}
-	if strings.TrimSpace(planExecutionId) == "" {
-		logrus.WithField("id", r.ID).Warnln("ANNOTATIONS: missing planExecutionId in annotations file; skipping post")
-		return
-	}
-
-	// Build typed request payload
-	payload := createAnnotationsRequest{
-		AccountId:       accountId,
-		PlanExecutionId: planExecutionId,
-		Annotations:     annList,
-	}
-	if v := strings.TrimSpace(r.Envs["HARNESS_ORG_ID"]); v != "" {
-		payload.OrgId = v
-	}
-	if v := strings.TrimSpace(r.Envs["HARNESS_PROJECT_ID"]); v != "" {
-		payload.ProjectId = v
-	}
-	if v := strings.TrimSpace(r.Envs["HARNESS_PIPELINE_ID"]); v != "" {
-		payload.PipelineId = v
-	}
-	if v := strings.TrimSpace(r.Envs["HARNESS_STAGE_UUID"]); v != "" {
-		payload.StageExecutionId = v
-	} else if v := strings.TrimSpace(r.Envs["HARNESS_STAGE_ID"]); v != "" {
-		payload.StageExecutionId = v
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		logrus.WithField("id", r.ID).WithError(err).Warnln("ANNOTATIONS: failed to marshal request; skipping post")
-		return
-	}
-
-	// Build URL: prefer AnnotationsConfig.BaseURL (from request),
-	// else fall back to setup state, else derive from StepStatus.Endpoint origin
-	cfg := r.AnnotationsConfig
-	if strings.TrimSpace(cfg.BaseURL) == "" || strings.TrimSpace(cfg.Token) == "" {
-		if st := pipeline.GetState().GetAnnotationsConfig(); st != nil {
-			if strings.TrimSpace(cfg.BaseURL) == "" {
-				cfg.BaseURL = st.BaseURL
-			}
-			if strings.TrimSpace(cfg.Token) == "" {
-				cfg.Token = st.Token
-			}
-		}
-	}
-
-	base := strings.TrimSpace(cfg.BaseURL)
-	if base == "" {
-		raw := strings.TrimSpace(r.StepStatus.Endpoint)
-		if u, err := url.Parse(raw); err == nil && u.Scheme != "" && u.Host != "" {
-			base = u.Scheme + "://" + u.Host
-		} else {
-			base = raw
-		}
-	}
-	base = strings.TrimRight(base, "/")
-	// Append required identifiers as query params
-	endpoint := fmt.Sprintf("/api/pipelines/annotations?accountId=%s&planExecutionId=%s",
-		url.QueryEscape(accountId), url.QueryEscape(planExecutionId))
-	fullURL := base + endpoint
-
-	// Timeout
-	timeout := 3 * time.Second
-
-	// Resolve annotations token from merged config (request or setup state)
-	annToken := strings.TrimSpace(cfg.Token)
-	if annToken == "" {
-		logrus.WithField("id", r.ID).Warnln("ANNOTATIONS: missing annotations token; skipping post")
-		return
-	}
-
-	// Prepare request
-	client := newPipelineClient(base, annToken, timeout)
-	statusCode, respBody, err := client.PostJSON(ctx, endpoint, body)
-	if err != nil {
-		logrus.WithFields(logrus.Fields{"id": r.ID, "url": fullURL}).WithError(err).Warnln("ANNOTATIONS: post failed")
-		return
-	}
-	if statusCode < 200 || statusCode >= 300 {
-		logrus.WithFields(logrus.Fields{
-			"id":     r.ID,
-			"status": statusCode,
-			"bytes":  len(respBody),
-		}).Warnln("ANNOTATIONS: post non-success status")
-		return
-	}
-	// success: no-op (avoid noisy logs)
-}
-
-// pipelineClient is a minimal HTTP client wrapper for posting annotations
-type pipelineClient struct {
-	baseURL    string
-	token      string
-	httpClient *http.Client
-}
-
-func newPipelineClient(baseURL, token string, timeout time.Duration) *pipelineClient {
-	return &pipelineClient{
-		baseURL:    strings.TrimRight(baseURL, "/"),
-		token:      token,
-		httpClient: &http.Client{Timeout: timeout},
-	}
-}
-
-func (c *pipelineClient) PostJSON(ctx context.Context, path string, body []byte) (int, []byte, error) {
-	url := c.baseURL + path
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return 0, nil, err
-	}
-	if c.token != "" {
-		// Do not log tokens; set headers only
-		req.Header.Set("Authorization", "Annotations "+c.token)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer resp.Body.Close()
-	b, _ := io.ReadAll(resp.Body)
-	return resp.StatusCode, b, nil
-}
-
-const (
-	NotStarted ExecutionStatus = iota
-	Running
-	Complete
-	defaultStepTimeout = 10 * time.Hour // default step timeout
-	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
-	maxStepTimeout     = 24 * 7 * time.Hour // 1 week max timeout
-)
-
-type StepExecutor struct {
-	engine     *engine.Engine
-	mu         sync.Mutex
-	stepStatus map[string]StepStatus
-	stepLog    map[string]*StepLog
-	stepWaitCh map[string][]chan StepStatus
-}
-
-func NewStepExecutor(engine *engine.Engine) *StepExecutor {
-	return &StepExecutor{
-		engine:     engine,
-		mu:         sync.Mutex{},
-		stepWaitCh: make(map[string][]chan StepStatus),
-		stepLog:    make(map[string]*StepLog),
-		stepStatus: make(map[string]StepStatus),
-	}
 }
 
 func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) error {
@@ -419,7 +116,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 			pollResponse := convertStatus(status)
-			if state.ExitCode == 0 {
+			if state.ExitCode == 0 && isAnnotationsEnabled(r.Envs) {
 				go e.postAnnotationsToPipeline(context.Background(), r)
 			}
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
@@ -454,6 +151,8 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 		return &api.PollStepResponse{}, &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 
+	var status StepStatus
+
 	e.mu.Lock()
 	s, ok := e.stepStatus[id]
 	if !ok {
@@ -462,20 +161,19 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 	}
 
 	if s.Status == Complete {
+		status = s
 		e.mu.Unlock()
-		resp := convertStatus(s)
-		return resp, nil
-	}
-
-	ch := make(chan StepStatus, 1)
-	if _, ok := e.stepWaitCh[id]; !ok {
-		e.stepWaitCh[id] = append(e.stepWaitCh[id], ch)
 	} else {
-		e.stepWaitCh[id] = []chan StepStatus{ch}
+		ch := make(chan StepStatus, 1)
+		if _, ok := e.stepWaitCh[id]; !ok {
+			e.stepWaitCh[id] = append(e.stepWaitCh[id], ch)
+		} else {
+			e.stepWaitCh[id] = []chan StepStatus{ch}
+		}
+		e.mu.Unlock()
+		status = <-ch
 	}
-	e.mu.Unlock()
 
-	status := <-ch
 	resp := convertStatus(status)
 	return resp, nil
 }
@@ -810,7 +508,6 @@ func convertStatus(status StepStatus) *api.PollStepResponse {
 		OutputV2:          status.OutputV2,
 		OptimizationState: status.OptimizationState,
 		TelemetryData:     status.TelemetryData,
-		Annotations:       status.Annotations,
 	}
 	// If the step has reached Complete, mark Exited=true even if state is nil.
 	if status.Status == Complete {
@@ -856,35 +553,29 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 	}
 }
 
-func (e *StepExecutor) readAnnotationsJSON(stepID string) json.RawMessage {
-	if stepID == "" {
-		return nil
+const (
+	NotStarted ExecutionStatus = iota
+	Running
+	Complete
+	defaultStepTimeout = 10 * time.Hour // default step timeout
+	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
+	maxStepTimeout     = 24 * 7 * time.Hour // 1 week max timeout
+)
+
+type StepExecutor struct {
+	engine     *engine.Engine
+	mu         sync.Mutex
+	stepStatus map[string]StepStatus
+	stepLog    map[string]*StepLog
+	stepWaitCh map[string][]chan StepStatus
+}
+
+func NewStepExecutor(engine *engine.Engine) *StepExecutor {
+	return &StepExecutor{
+		engine:     engine,
+		mu:         sync.Mutex{},
+		stepWaitCh: make(map[string][]chan StepStatus),
+		stepLog:    make(map[string]*StepLog),
+		stepStatus: make(map[string]StepStatus),
 	}
-	path := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, stepID)
-	info, err := os.Stat(path)
-	if err != nil {
-		// file may legitimately not exist if no producer wrote annotations
-		if !os.IsNotExist(err) {
-			logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Debugln("ANNOTATIONS: stat failed")
-		}
-		return nil
-	}
-	const maxSize = 10 * 1024 * 1024 // 5MB cap
-	if info.Size() <= 0 {
-		return nil
-	}
-	if info.Size() > maxSize {
-		logrus.WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Warnln("ANNOTATIONS: file too large, skipping")
-		return nil
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Debugln("ANNOTATIONS: read failed")
-		return nil
-	}
-	if !json.Valid(data) {
-		logrus.WithField("step_id", stepID).WithField("path", path).Warnln("ANNOTATIONS: invalid JSON, skipping")
-		return nil
-	}
-	return json.RawMessage(data)
 }
