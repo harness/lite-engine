@@ -2,6 +2,7 @@
 // Use of this source code is governed by the Polyform License
 // that can be found in the LICENSE file.
 
+//nolint:gocritic,gocyclo,funlen
 package runtime
 
 import (
@@ -512,13 +513,13 @@ func writeResultToFile(fs filesystem.FileSystem, results []string, resultFilePat
 // sendFileChecksumsToTI gets git file checksums from the specified repository
 // and sends them to ti-service to get skip recommendations for test intelligence
 func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
-	log *logrus.Logger, tiConfig *tiCfg.Cfg, fileChecksums map[string]uint64) (skipTests []string, failedTests []string, err error) {
+	log *logrus.Logger, tiConfig *tiCfg.Cfg, fileChecksums map[string]uint64) (skipTests, failedTests []string, err error) {
 	startTime := time.Now()
 	log.Infof("Starting TI service request to get skip recommendations for step %s", stepID)
 
 	if len(fileChecksums) == 0 {
 		log.Warnf("No files found in git repository: %s", workspace)
-		return
+		return nil, nil, nil
 	}
 
 	// Get ti-service client
@@ -531,7 +532,7 @@ func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID
 	skipResponse, err := c.GetSkipTests(ctx, fileChecksums)
 	if err != nil {
 		err = fmt.Errorf("failed to get skip recommendations from ti-service: %w", err)
-		return
+		return nil, nil, err
 	}
 
 	// Check if NonCodeChainPath is in the skip list
@@ -548,7 +549,7 @@ func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID
 		log.Infof("A non code file has changed, running all tests")
 		skipTests = []string{}
 		failedTests = []string{}
-		return
+		return skipTests, failedTests, nil
 	}
 
 	log.Infof("Completed TI service request for skip recommendations for step %s, took %.2f seconds",
@@ -556,7 +557,7 @@ func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID
 
 	skipTests = skipResponse.SkipTests
 	failedTests = skipResponse.FailedTests
-	return
+	return skipTests, failedTests, nil
 }
 
 // Second parameter in return type (bool) is will be used to decide whether the filter file should be created or not.

@@ -2,6 +2,8 @@
 // Use of this source code is governed by the Polyform License
 // that can be found in the LICENSE file.
 
+//nolint:nestingReduce
+//nolint:gocyclo
 package callgraph
 
 import (
@@ -307,7 +309,6 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 
 		// Process call graph nodes to extract test information
 		for _, node := range cg.Nodes {
-			//nolint:nestingReduce
 			if node.Type == nodeTypeTest {
 				var sourcePaths []string
 				for _, relation := range cg.TestRelations {
@@ -388,7 +389,8 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 				}
 				testChecksum := fileChecksums[testPath]
 
-				filteredTests := findTestsForNode(reportTests, &node)
+				nodeCopy := node
+				filteredTests := findTestsForNode(reportTests, &nodeCopy)
 				chain := types.Chain{
 					Path:         testPath,
 					TestChecksum: strconv.FormatUint(testChecksum, 10),
@@ -396,7 +398,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 					State:        getTestStatus(filteredTests),
 				}
 				chains = append(chains, chain)
-				matchFilesToTests(filteredTests, &node, numTestsMap)
+				matchFilesToTests(filteredTests, &nodeCopy, numTestsMap)
 			}
 		}
 	}
