@@ -201,7 +201,7 @@ func convCgph(inps []Input) (map[int][]int, map[int]Node) { //nolint:gocritic
 	for _, inp := range inps { //nolint:gocritic
 		// processing nodeMap
 		test := inp.Test
-		test.Type = "test"
+		test.Type = nodeTypeTest
 		testID := test.ID
 		nodeMap[testID] = test
 		// processing relmap

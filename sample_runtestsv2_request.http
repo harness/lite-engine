@@ -1,0 +1,99 @@
+### PROPER WORKFLOW: Setup Pipeline State First, Then Start Step
+# This is the correct sequence to trigger SetupRunTestV2 function without crashes
+# 1. First call /setup to initialize pipeline state with TI config
+# 2. Then call /start_step which retrieves TI config from pipeline state
+# Make sure the lite-engine server is running before executing these requests
+
+### Step 1: Initialize Pipeline State with TI Config
+POST http://localhost:9000/setup
+Content-Type: application/json
+
+{
+  "envs": {
+    "JAVA_HOME": "/usr/lib/jvm/java-11-openjdk",
+    "MAVEN_HOME": "/usr/share/maven",
+    "HARNESS_TI_QA_ENV": "test_value"
+  },
+  "ti_config": {
+    "url": "http://localhost:8078/",
+    "token": "sample-token",
+    "account_id": "local",
+    "org_id": "me",
+    "project_id": "python-scale",
+    "pipeline_id": "sample-pipeline-id",
+    "build_id": "sample-build-id",
+    "stage_id": "sample-stage-id",
+    "repo": "git@github.com:avijeetsm/python-scale.git",
+    "sha": "abc123def456",
+    "source_branch": "main",
+    "target_branch": "main",
+    "commit_branch": "main",
+    "commit_link": "https://github.com/harness/lite-engine/commit/abc123def456",
+    "parse_savings": true
+  },
+  "log_config": {
+    "account_id": "sample-account-id",
+    "token": "sample-log-token"
+  },
+  "secrets": [],
+  "mount_docker_socket": false
+}
+
+### Step 2: Execute SetupRunTestV2 (TI config retrieved from pipeline state)
+
+POST http://localhost:9000/start_step
+Content-Type: application/json
+
+{
+  "id": "test-step-123",
+  "name": "run-tests-v2-step",
+  "image": "ubuntu:20.04",
+  "working_dir": "/Users/avijeet/Code/python-scale",
+  "kind": "RunTestsV2",
+  "run_test_v2": {
+    "commands": [
+      "echo 'Setting up lite-engine locally'"
+    ],
+    "entrypoint": ["/bin/sh", "-c"],
+    "test_globs": [
+      "src/test/**/*.java",
+      "tests/**/*.py"
+    ],
+    "intelligence_mode": true
+  },
+  "environment": {
+    "JAVA_HOME": "/usr/lib/jvm/java-11-openjdk",
+    "MAVEN_HOME": "/usr/share/maven",
+    "HARNESS_TI_QA_ENV": "test_value"
+  },
+  "ti_config": {
+    "url": "http://localhost:8078/",
+    "token": "sample-token",
+    "account_id": "local",
+    "org_id": "me",
+    "project_id": "python-scale",
+    "pipeline_id": "sample-pipeline-id",
+    "build_id": "sample-build-id",
+    "stage_id": "sample-stage-id",
+    "repo": "git@github.com:avijeetsm/python-scale.git",
+    "sha": "abc123def456",
+    "source_branch": "main",
+    "target_branch": "main",
+    "commit_branch": "main",
+    "commit_link": "https://github.com/harness/lite-engine/commit/abc123def456",
+    "parse_savings": true
+  },
+  "log_config": {
+    "account_id": "sample-account-id",
+    "token": "sample-log-token"
+  },
+  "timeout": 1800,
+  "mount_docker_socket": false,
+  "test_report": {
+    "junit": {
+      "paths": ["**/*.xml", "**/*.trx"]
+    }
+  }
+}
+
+###

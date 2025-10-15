@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/ti/callgraph"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
@@ -59,10 +60,14 @@ func Test_CollectRunTestData(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			collectCgFn = func(
-				ctx context.Context, stepID string, timeMs int64, log *logrus.Logger, start time.Time,
-				cfg *tiCfg.Cfg, dir, uniqueStepID string, tests []*types.TestCase, rerunFailedTests bool,
-			) error {
-				return tc.cgErr
+				_ context.Context, _ string, _ int64, _ *logrus.Logger, _ time.Time,
+				_ *tiCfg.Cfg, _, _ string, _ []*types.TestCase, _ bool,
+				_ *api.StartStepRequest,
+			) (*callgraph.Callgraph, error) {
+				if tc.cgErr != nil {
+					return nil, tc.cgErr
+				}
+				return nil, nil
 			}
 			collectTestReportsFn = func(
 				ctx context.Context,
