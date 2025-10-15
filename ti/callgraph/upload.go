@@ -44,7 +44,7 @@ func Upload(
 	cfg *tiCfg.Cfg,
 	dir, uniqueStepID string,
 	tests []*tiClientTypes.TestCase,
-	rerunFailedTests bool,
+	_ bool, // rerunFailedTests - currently unused
 	r *api.StartStepRequest,
 ) (*Callgraph, error) {
 	if cfg.GetIgnoreInstr() {
