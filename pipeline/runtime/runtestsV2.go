@@ -306,31 +306,24 @@ func distributeSkipTestsForParallelism(
 
 	// Try to get timing data from TI service
 	log.Infof("Attempting to get test timing data from TI service for %d remaining files", len(remainingFiles))
-	if tiConfig != nil {
-		if client := tiConfig.GetClient(); client != nil {
-			req := types.GetTestTimesReq{
-				IncludeFilename: true, // We want file-based timing for our file paths
-			}
+	client := tiConfig.GetClient()
+	req := types.GetTestTimesReq{
+		IncludeFilename: true, // We want file-based timing for our file paths
+	}
 
-			log.Infof("Calling GetTestTimes for step: %s", stepID)
-			if res, err := client.GetTestTimes(ctx, stepID, &req); err == nil {
-				// Convert the timing data to our format
-				for filename, timing := range res.FileTimeMap {
-					fileTimes[filename] = float64(timing)
-				}
-				log.Infof("Retrieved timing data for %d files from TI service", len(res.FileTimeMap))
-				// Log each file with its timing
-				for filename, timing := range fileTimes {
-					log.Infof("  Test file: %s, Time: %.2f seconds", filename, timing)
-				}
-			} else {
-				log.WithError(err).Warnf("Failed to get timing data from TI service, using default timing")
-			}
-		} else {
-			log.Warnf("TI client is nil, cannot get timing data")
+	log.Infof("Calling GetTestTimes for step: %s", stepID)
+	if res, err := client.GetTestTimes(ctx, stepID, &req); err == nil {
+		// Convert the timing data to our format
+		for filename, timing := range res.FileTimeMap {
+			fileTimes[filename] = float64(timing)
+		}
+		log.Infof("Retrieved timing data for %d files from TI service", len(res.FileTimeMap))
+		// Log each file with its timing
+		for filename, timing := range fileTimes {
+			log.Infof("  Test file: %s, Time: %.2f seconds", filename, timing)
 		}
 	} else {
-		log.Warnf("TI config is nil, cannot get timing data")
+		log.WithError(err).Warnf("Failed to get timing data from TI service, using default timing")
 	}
 
 	// Assign default timing for files without timing data (assume 30 seconds per test file)
@@ -399,7 +392,6 @@ func distributeSkipTestsForParallelism(
 
 func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
 	log *logrus.Logger, tiConfig *tiCfg.Cfg, skipTestsFilePath, failedTestsFilePath string, envs map[string]string, config *api.RunTestsV2Config) error {
-
 	// Debug logging for the file path
 	log.Infof("Creating skip tests file at path: %s", skipTestsFilePath)
 
@@ -408,13 +400,14 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 	log.Infof("Extracted directory path: %s", skipTestsFileDir)
 
 	// Check if directory already exists
-	if _, err := os.Stat(skipTestsFileDir); os.IsNotExist(err) {
+	var err error
+	if _, err = os.Stat(skipTestsFileDir); os.IsNotExist(err) {
 		log.Infof("Directory does not exist, creating: %s", skipTestsFileDir)
 	} else {
 		log.Infof("Directory already exists: %s", skipTestsFileDir)
 	}
 
-	err := fs.MkdirAll(skipTestsFileDir, os.ModePerm)
+	err = fs.MkdirAll(skipTestsFileDir, os.ModePerm)
 	if err != nil {
 		log.WithError(err).Errorf("MkdirAll failed for directory %s", skipTestsFileDir)
 		return fmt.Errorf("failed to create skip tests directory: %w", err)
@@ -435,7 +428,7 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 	}
 
 	log.Infof("Sending git file checksums from %s to ti-service", workspace)
-	skipTests, failedTests, err := sendFileChecksumsToTI(ctx, fs, stepID, workspace, log, tiConfig, envs, fileChecksums)
+	skipTests, failedTests, err := sendFileChecksumsToTI(ctx, fs, stepID, workspace, log, tiConfig, fileChecksums)
 	if err != nil {
 		log.WithError(err).Warnf("Failed to send file checksums to ti-service, continuing...")
 		return nil
@@ -518,7 +511,7 @@ func writeResultToFile(fs filesystem.FileSystem, results []string, resultFilePat
 // sendFileChecksumsToTI gets git file checksums from the specified repository
 // and sends them to ti-service to get skip recommendations for test intelligence
 func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
-	log *logrus.Logger, tiConfig *tiCfg.Cfg, envs map[string]string, fileChecksums map[string]uint64) ([]string, []string, error) {
+	log *logrus.Logger, tiConfig *tiCfg.Cfg, fileChecksums map[string]uint64) ([]string, []string, error) {
 
 	startTime := time.Now()
 	log.Infof("Starting TI service request to get skip recommendations for step %s", stepID)
