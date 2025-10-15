@@ -32,9 +32,10 @@ import (
 const (
 	cgSchemaType = "callgraph"
 	cgDir        = "%s/ti/callgraph/"
+	nodeTypeTest = "test"
 )
 
-// Upload method uploads the callgraph.
+//nolint:gocyclo
 func Upload(
 	ctx context.Context,
 	stepID string,
@@ -120,7 +121,6 @@ func parseCallgraphFiles(dataDir string, log *logrus.Logger) (*Callgraph, error)
 		return nil, errors.Wrap(err, "failed to fetch files inside the directory")
 	}
 	parser = NewCallGraphParser(log, fs)
-	log.Infoln(fmt.Sprintf("Found callgraph files: %v", cgFiles))
 
 	cg, err := parser.Parse(cgFiles, visFiles)
 	if err != nil {
@@ -151,7 +151,7 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 	if rerunFailedTests {
 		for i := range cg.Nodes {
 			cg.Nodes[i].HasFailed = false // Initialize HasFailed for the current node
-			if cg.Nodes[i].Type != "test" {
+			if cg.Nodes[i].Type != nodeTypeTest {
 				continue
 			}
 			totalTests++
@@ -216,7 +216,7 @@ func getCgFiles(dir, ext1, ext2 string, log *logrus.Logger) ([]string, []string,
 	return cgFiles, visFiles, nil
 }
 
-func findTestsForNode(tests []*tiClientTypes.TestCase, node Node) []*tiClientTypes.TestCase {
+func findTestsForNode(tests []*tiClientTypes.TestCase, node *Node) []*tiClientTypes.TestCase {
 	filePath := node.File
 	fcqn := fmt.Sprintf("%s.%s", node.Package, node.Class)
 	if strings.HasSuffix(node.Class, ".py") { // for python
@@ -233,7 +233,7 @@ func findTestsForNode(tests []*tiClientTypes.TestCase, node Node) []*tiClientTyp
 	return filteredTests
 }
 
-func matchFilesToTests(filteredTests []*tiClientTypes.TestCase, node Node, numTestsMap map[string]int) {
+func matchFilesToTests(filteredTests []*tiClientTypes.TestCase, node *Node, numTestsMap map[string]int) {
 	filePath := node.File
 
 	if _, exists := numTestsMap[filePath]; exists {
@@ -284,6 +284,7 @@ func fetchFailedTests(filePath string) ([]string, error) {
 	return lines, nil
 }
 
+//nolint:funlen
 func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo string, cfg *tiCfg.Cfg, commitSha string, reportTests []*tiClientTypes.TestCase, log *logrus.Logger, envs map[string]string) (*types.UploadCgRequest, error) {
 	repoInfo := types.Identifier{
 		AccountID: cfg.GetAccountID(),
@@ -306,7 +307,8 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 
 		// Process call graph nodes to extract test information
 		for _, node := range cg.Nodes {
-			if node.Type == "test" {
+			//nolint:nestingReduce
+			if node.Type == nodeTypeTest {
 				var sourcePaths []string
 				for _, relation := range cg.TestRelations {
 					for _, testID := range relation.Tests {
@@ -386,7 +388,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 				}
 				testChecksum := fileChecksums[testPath]
 
-				filteredTests := findTestsForNode(reportTests, node)
+				filteredTests := findTestsForNode(reportTests, &node)
 				chain := types.Chain{
 					Path:         testPath,
 					TestChecksum: strconv.FormatUint(testChecksum, 10),
@@ -394,7 +396,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 					State:        getTestStatus(filteredTests),
 				}
 				chains = append(chains, chain)
-				matchFilesToTests(filteredTests, node, numTestsMap)
+				matchFilesToTests(filteredTests, &node, numTestsMap)
 			}
 		}
 	}

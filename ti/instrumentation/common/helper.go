@@ -2,7 +2,7 @@ package common
 
 import (
 	"path/filepath"
-	
+
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 )
@@ -77,33 +77,33 @@ func SimpleAutoDetectTestFiles(workspace string, testGlobs []string) ([]string, 
 	// Simple default test patterns if none provided
 	defaultGlobs := []string{
 		"**/*_test.py",
-		"**/test_*.py", 
+		"**/test_*.py",
 		"**/spec/**/*_spec.rb",
 		"**/*Test.java",
 		"**/*Tests.java",
 		"**/*Test.cs",
 		"**/*Tests.cs",
 	}
-	
+
 	// Use provided globs or defaults
 	globsToUse := testGlobs
 	if len(globsToUse) == 0 {
 		globsToUse = defaultGlobs
 	}
-	
+
 	allFiles := make([]string, 0)
-	
+
 	// Search for each glob pattern under workspace
 	for _, glob := range globsToUse {
 		// Create full pattern: workspace + glob
 		fullPattern := filepath.Join(workspace, glob)
-		
+
 		// Find matching files
 		matches, err := zglob.Glob(fullPattern)
 		if err != nil {
 			continue // Skip failed patterns
 		}
-		
+
 		// Convert to relative paths from workspace
 		for _, match := range matches {
 			if relPath, err := filepath.Rel(workspace, match); err == nil {
@@ -111,7 +111,7 @@ func SimpleAutoDetectTestFiles(workspace string, testGlobs []string) ([]string, 
 			}
 		}
 	}
-	
+
 	// Remove duplicates
 	uniqueFiles := make([]string, 0)
 	seen := make(map[string]bool)
@@ -121,6 +121,6 @@ func SimpleAutoDetectTestFiles(workspace string, testGlobs []string) ([]string, 
 			seen[file] = true
 		}
 	}
-	
+
 	return uniqueFiles, nil
 }

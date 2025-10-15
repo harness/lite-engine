@@ -918,6 +918,12 @@ func GetSplitIdxAndTotal(envs map[string]string) (splitIdx, splitTotal int) {
 // GetGitFileChecksums gets git file checksums from the specified repository
 // and returns them as a map of filepath to 64-bit checksum
 func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger) (map[string]uint64, error) {
+	// Git ls-tree output format: "<mode> <type> <checksum>\t<filepath>"
+	// Minimum required parts: mode, type, checksum, filepath
+	const minGitLsTreeParts = 4
+	// Git checksums are 160-bit (40 hex chars), we need at least 16 chars for uint64 conversion
+	const minChecksumLength = 16
+
 	log.Infof("Getting git file checksums from directory: %s", repoDir)
 
 	// Execute git ls-tree -r HEAD . command in the specified directory
@@ -946,7 +952,7 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 		// Git ls-tree output format: "<mode> <type> <checksum>\t<filepath>"
 		// Example: "100644 blob a1b2c3d4e5f6... path/to/file.txt"
 		parts := strings.Fields(line)
-		if len(parts) < 4 {
+		if len(parts) < minGitLsTreeParts {
 			log.Warnf("Skipping malformed git ls-tree line: %s", line)
 			continue
 		}
@@ -962,12 +968,12 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 		}
 
 		// Take first 16 characters of 160-bit checksum and convert to uint64
-		if len(fullChecksum) < 16 {
+		if len(fullChecksum) < minChecksumLength {
 			log.Warnf("Skipping file with short checksum: %s (checksum: %s)", filepath, fullChecksum)
 			continue
 		}
 
-		checksum64, err := strconv.ParseUint(fullChecksum[:16], 16, 64)
+		checksum64, err := strconv.ParseUint(fullChecksum[:minChecksumLength], 16, 64)
 		if err != nil {
 			log.Warnf("Failed to parse checksum for file %s: %v", filepath, err)
 			continue

@@ -187,6 +187,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 }
 
+//nolint:gocyclo
 func SetupRunTestV2(
 	ctx context.Context,
 	config *api.RunTestsV2Config,
@@ -264,7 +265,7 @@ func SetupRunTestV2(
 	return preCmd, nil
 }
 
-// distributeSkipTestsForParallelism modifies the skipTests list to balance execution time across parallel steps
+//nolint:funlen
 func distributeSkipTestsForParallelism(
 	ctx context.Context,
 	skipTests []string,
@@ -414,7 +415,7 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 	}
 
 	// Verify directory was created successfully
-	if _, err := os.Stat(skipTestsFileDir); os.IsNotExist(err) {
+	if _, err = os.Stat(skipTestsFileDir); os.IsNotExist(err) {
 		log.Errorf("Directory still does not exist after MkdirAll: %s", skipTestsFileDir)
 		return fmt.Errorf("directory creation verification failed: %s", skipTestsFileDir)
 	}
@@ -474,7 +475,7 @@ func writeSkipTestsToFile(fs filesystem.FileSystem, skipTests []string, skipTest
 	return writeResultToFile(fs, skipTests, skipTestsFilePath, "skip tests", log)
 }
 
-func writeResultToFile(fs filesystem.FileSystem, results []string, resultFilePath string, category string, log *logrus.Logger) error {
+func writeResultToFile(fs filesystem.FileSystem, results []string, resultFilePath, category string, log *logrus.Logger) error {
 	if len(results) > 0 {
 		// Create the content with each test on a new line
 		content := strings.Join(results, "\n") + "\n"
@@ -511,14 +512,13 @@ func writeResultToFile(fs filesystem.FileSystem, results []string, resultFilePat
 // sendFileChecksumsToTI gets git file checksums from the specified repository
 // and sends them to ti-service to get skip recommendations for test intelligence
 func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
-	log *logrus.Logger, tiConfig *tiCfg.Cfg, fileChecksums map[string]uint64) ([]string, []string, error) {
-
+	log *logrus.Logger, tiConfig *tiCfg.Cfg, fileChecksums map[string]uint64) (skipTests []string, failedTests []string, err error) {
 	startTime := time.Now()
 	log.Infof("Starting TI service request to get skip recommendations for step %s", stepID)
 
 	if len(fileChecksums) == 0 {
 		log.Warnf("No files found in git repository: %s", workspace)
-		return nil, nil, nil
+		return
 	}
 
 	// Get ti-service client
@@ -530,7 +530,8 @@ func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID
 	// Call tiClient.GetSkipTests method to get files to skip
 	skipResponse, err := c.GetSkipTests(ctx, fileChecksums)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get skip recommendations from ti-service: %w", err)
+		err = fmt.Errorf("failed to get skip recommendations from ti-service: %w", err)
+		return
 	}
 
 	// Check if NonCodeChainPath is in the skip list
@@ -545,13 +546,17 @@ func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID
 	// If NonCodeChainPath is not found in skip list, return empty skip list and faild tests - Run all tests
 	if !found {
 		log.Infof("A non code file has changed, running all tests")
-		return []string{}, []string{}, nil
+		skipTests = []string{}
+		failedTests = []string{}
+		return
 	}
 
 	log.Infof("Completed TI service request for skip recommendations for step %s, took %.2f seconds",
 		stepID, time.Since(startTime).Seconds())
 
-	return skipResponse.SkipTests, skipResponse.FailedTests, nil
+	skipTests = skipResponse.SkipTests
+	failedTests = skipResponse.FailedTests
+	return
 }
 
 // Second parameter in return type (bool) is will be used to decide whether the filter file should be created or not.
@@ -1128,6 +1133,7 @@ func collectTestReports(
 	return tests, crErr
 }
 
+//nolint:gocyclo
 func collectTestReportsAndCg(
 	ctx context.Context,
 	log *logrus.Logger,
