@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
@@ -47,15 +46,31 @@ type StepStatus struct {
 	TelemetryData     *types.TelemetryData
 }
 
-// firstNonEmpty returns the first non-empty, trimmed string from the provided values.
-// Returns an empty string if all values are empty after trimming.
-func firstNonEmpty(values ...string) string {
-	for _, v := range values {
-		if s := strings.TrimSpace(v); s != "" {
-			return s
-		}
+const (
+	NotStarted ExecutionStatus = iota
+	Running
+	Complete
+	defaultStepTimeout = 10 * time.Hour // default step timeout
+	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
+	maxStepTimeout     = 24 * 7 * time.Hour // 1 week max timeout
+)
+
+type StepExecutor struct {
+	engine     *engine.Engine
+	mu         sync.Mutex
+	stepStatus map[string]StepStatus
+	stepLog    map[string]*StepLog
+	stepWaitCh map[string][]chan StepStatus
+}
+
+func NewStepExecutor(engine *engine.Engine) *StepExecutor {
+	return &StepExecutor{
+		engine:     engine,
+		mu:         sync.Mutex{},
+		stepWaitCh: make(map[string][]chan StepStatus),
+		stepLog:    make(map[string]*StepLog),
+		stepStatus: make(map[string]StepStatus),
 	}
-	return ""
 }
 
 func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) error {
@@ -131,13 +146,11 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			e.sendStepStatus(r, &resp)
 			return
 		case <-time.After(timeout):
-			// close the log stream if timeout (restore original order)
+			// close the log stream if timeout
 			if wr != nil {
 				wr.Close()
 			}
 			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
-			// [ANN_LE] timeout path; skipping annotations POST
-			logrus.WithField("tag", "ANN_LE").WithField("id", r.ID).Infoln("[ANN_LE] timeout path; skipping annotations post")
 			e.sendStepStatus(r, &resp)
 			return
 		}
@@ -443,14 +456,12 @@ func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *deleg
 
 func (e *StepExecutor) sendRunnerResponseStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	logrus.WithField("id", r.ID).Infoln("Sending runner step status")
-	// [ANN_LE] sending runner step status (no annotations attached)
 	taskResponse := getRunnerTaskResponse(r, response)
 	return delegateClient.SendRunnerStatus(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
 }
 
 func (e *StepExecutor) sendResponseStatusV2(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	logrus.WithField("id", r.ID).Infoln("Sending step status to V2 Endpoint")
-	// [ANN_LE] sending step status (no annotations attached)
 	taskResponse := getRunnerTaskResponse(r, response)
 	return delegateClient.SendStatusV2(context.Background(), r.StepStatus.DelegateID, r.StepStatus.TaskID, taskResponse)
 }
@@ -460,7 +471,7 @@ func (e *StepExecutor) sendResponseStatus(r *api.StartStepRequest, delegateClien
 	if response.CommandExecutionStatus == api.Timeout {
 		response.CommandExecutionStatus = api.Failure
 	}
-	// [ANN_LE] sending legacy step status (no annotations attached)
+
 	jsonData, err := json.Marshal(response)
 	if err != nil {
 		return err
@@ -488,7 +499,6 @@ func getRunnerTaskResponse(r *api.StartStepRequest, response *api.VMTaskExecutio
 		response.ErrorMessage = "Failed to marshal the response data"
 		status = client.Failure
 	}
-	// [ANN_LE] response marshalled (no annotations attached)
 
 	return &client.RunnerTaskResponse{
 		ID:    r.StepStatus.TaskID,
@@ -550,32 +560,5 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 		CommandExecutionStatus: api.Failure,
 		ErrorMessage:           r.Error,
 		OptimizationState:      r.OptimizationState,
-	}
-}
-
-const (
-	NotStarted ExecutionStatus = iota
-	Running
-	Complete
-	defaultStepTimeout = 10 * time.Hour // default step timeout
-	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
-	maxStepTimeout     = 24 * 7 * time.Hour // 1 week max timeout
-)
-
-type StepExecutor struct {
-	engine     *engine.Engine
-	mu         sync.Mutex
-	stepStatus map[string]StepStatus
-	stepLog    map[string]*StepLog
-	stepWaitCh map[string][]chan StepStatus
-}
-
-func NewStepExecutor(engine *engine.Engine) *StepExecutor {
-	return &StepExecutor{
-		engine:     engine,
-		mu:         sync.Mutex{},
-		stepWaitCh: make(map[string][]chan StepStatus),
-		stepLog:    make(map[string]*StepLog),
-		stepStatus: make(map[string]StepStatus),
 	}
 }
