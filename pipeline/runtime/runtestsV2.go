@@ -200,7 +200,7 @@ func SetupRunTestV2(
 	agentPaths := make(map[string]string)
 	fs := filesystem.New()
 	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, tiConfig))
-	var preCmd, skipTestsFilePath, failedTestsFilePath string
+	var preCmd, skipTestsFilePath, filterfilePath, failedTestsFilePath string
 
 	if config.IntelligenceMode {
 		// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
@@ -244,20 +244,22 @@ func SetupRunTestV2(
 			}
 		}
 		isPsh := IsPowershell(config.Entrypoint)
-		preCmd, _, skipTestsFilePath, failedTestsFilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
+		preCmd, filterfilePath, skipTestsFilePath, failedTestsFilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
 		if err != nil || pythonArtifactDir == "" {
 			return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 		}
 
-		err = createSkipAndFailedTestsFiles(ctx, fs, stepID, workspace, log, tiConfig, skipTestsFilePath, failedTestsFilePath, envs, config)
-		if err != nil {
-			return preCmd, fmt.Errorf("error while creating skip tests file %s", err)
+		if enhancedFFVal, ok := envs["CI_TI_V2_ENHANCED_FF"]; ok && enhancedFFVal == trueValue {
+			err = createSkipAndFailedTestsFiles(ctx, fs, stepID, workspace, log, tiConfig, skipTestsFilePath, failedTestsFilePath, envs, config)
+			if err != nil {
+				return preCmd, fmt.Errorf("error while creating skip tests file %s", err)
+			}
+		} else {
+			err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath, testMetadata)
+			if err != nil {
+				return preCmd, fmt.Errorf("error while creating filter file %s", err)
+			}
 		}
-
-		// err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath, testMetadata)
-		// if err != nil {
-		// 	return preCmd, fmt.Errorf("error while creating filter file %s", err)
-		// }
 	}
 	return preCmd, nil
 }
