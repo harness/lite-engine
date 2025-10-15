@@ -2,8 +2,8 @@
 // Use of this source code is governed by the Polyform License
 // that can be found in the LICENSE file.
 
-//nolint:nestingReduce
 //nolint:gocyclo
+//nolint:gocritic
 package callgraph
 
 import (

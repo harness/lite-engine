@@ -430,7 +430,7 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 	}
 
 	log.Infof("Sending git file checksums from %s to ti-service", workspace)
-	skipTests, failedTests, err := sendFileChecksumsToTI(ctx, fs, stepID, workspace, log, tiConfig, fileChecksums)
+	skipTests, failedTests, err := sendFileChecksumsToTI(ctx, stepID, workspace, log, tiConfig, fileChecksums)
 	if err != nil {
 		log.WithError(err).Warnf("Failed to send file checksums to ti-service, continuing...")
 		return nil
@@ -512,7 +512,7 @@ func writeResultToFile(fs filesystem.FileSystem, results []string, resultFilePat
 
 // sendFileChecksumsToTI gets git file checksums from the specified repository
 // and sends them to ti-service to get skip recommendations for test intelligence
-func sendFileChecksumsToTI(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
+func sendFileChecksumsToTI(ctx context.Context, stepID, workspace string,
 	log *logrus.Logger, tiConfig *tiCfg.Cfg, fileChecksums map[string]uint64) (skipTests, failedTests []string, err error) {
 	startTime := time.Now()
 	log.Infof("Starting TI service request to get skip recommendations for step %s", stepID)
