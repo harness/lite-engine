@@ -33,6 +33,10 @@ func (n *NoopClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.Setu
 	return &api.SetupResponse{}, nil
 }
 
+func (n *NoopClient) RetrySetup(ctx context.Context, in *api.SetupRequest, timeout time.Duration) (*api.SetupResponse, error) {
+	return &api.SetupResponse{}, nil
+}
+
 func (n *NoopClient) Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error) {
 	time.Sleep(n.destroyTime)
 	return &api.DestroyResponse{}, nil

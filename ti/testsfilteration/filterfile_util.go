@@ -26,6 +26,7 @@ func PopulateItemInFilterFile(selectTestResp types.SelectTestsResp, filterFilePa
 		log.Println(fmt.Sprintf("could not create file %s", filterFilePath), err)
 		return err
 	}
+	defer f.Close()
 
 	var data string
 	for i := range testResp {

@@ -10,6 +10,7 @@ import (
 	"context"
 	"os/exec"
 
+	"github.com/harness/lite-engine/internal/safego"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,5 +27,7 @@ func AbortProcess(ctx context.Context, cmd *exec.Cmd, cmdSignal <-chan cmdResult
 		logrus.WithContext(ctx).Warnln("abort requested but cmd.Process is nil")
 		return
 	}
-	go abortProcessGroup(ctx, cmd.Process.Pid, retryIntervalSecs, maxSigtermAttempts, cmdSignal)
+	safego.WithContext(ctx, "abort_process_group", func(ctx context.Context) {
+		abortProcessGroup(ctx, cmd.Process.Pid, retryIntervalSecs, maxSigtermAttempts, cmdSignal)
+	})
 }

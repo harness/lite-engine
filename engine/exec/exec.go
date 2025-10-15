@@ -14,6 +14,7 @@ import (
 
 	pruntime "github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/internal/safego"
 	"github.com/sirupsen/logrus"
 )
 
@@ -47,8 +48,9 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*pruntime.Stat
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Started command on host for step %s %s [PID: %d]", step.ID, step.Name, cmd.Process.Pid))
 
 	cmdSignal := make(chan cmdResult, 1)
-	go WaitForProcess(ctx, cmd, cmdSignal, step.ProcessConfig.WaitOnProcessGroup)
-
+	safego.WithContext(ctx, "wait_process", func(ctx context.Context) {
+		WaitForProcess(ctx, cmd, cmdSignal, step.ProcessConfig.WaitOnProcessGroup)
+	})
 	select {
 	case <-ctx.Done():
 		if step.ProcessConfig.KillProcessOnContextCancel {

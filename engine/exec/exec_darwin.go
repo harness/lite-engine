@@ -15,6 +15,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/harness/lite-engine/internal/safego"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 )
@@ -217,7 +218,9 @@ func AbortProcess(ctx context.Context, cmd *exec.Cmd, cmdSignal <-chan cmdResult
 		abortProcessTree(ctx, cmd.Process.Pid)
 	} else {
 		// Traditional abort strategy -> We abort the process group of the step's subprocess
-		go abortProcessGroup(ctx, cmd.Process.Pid, retryIntervalSecs, maxSigtermAttempts, cmdSignal)
+		safego.WithContext(ctx, "abort_process_group", func(ctx context.Context) {
+			abortProcessGroup(ctx, cmd.Process.Pid, retryIntervalSecs, maxSigtermAttempts, cmdSignal)
+		})
 	}
 }
 

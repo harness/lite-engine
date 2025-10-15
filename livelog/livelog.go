@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
+	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/osstats"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -83,7 +83,7 @@ func New(client logstream.Client, key, name string, nudges []logstream.Nudge, pr
 		lastFlushTime:     time.Now(),
 		trimNewLineSuffix: trimNewLineSuffix,
 	}
-	go b.Start()
+	safego.SafeGo("livelog_buffer", b.Start)
 	return b
 }
 

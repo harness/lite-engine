@@ -32,6 +32,7 @@ require (
 )
 
 require (
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/dgryski/go-lttb v0.0.0-20230207170358-f8fc36cdbff1
 	github.com/harness/godotenv/v2 v2.0.0
 	github.com/harness/godotenv/v3 v3.0.1

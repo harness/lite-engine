@@ -25,6 +25,7 @@ import (
 
 type Client interface {
 	Setup(ctx context.Context, in *api.SetupRequest) (*api.SetupResponse, error)
+	RetrySetup(ctx context.Context, in *api.SetupRequest, timeout time.Duration) (*api.SetupResponse, error)
 	Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error)
 	RetryStartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error)
 	StartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error)
