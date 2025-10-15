@@ -2,8 +2,7 @@
 // Use of this source code is governed by the Polyform License
 // that can be found in the LICENSE file.
 
-//nolint:gocyclo
-//nolint:gocritic
+//nolint:gocyclo,gocritic
 package callgraph
 
 import (
@@ -287,7 +286,8 @@ func fetchFailedTests(filePath string) ([]string, error) {
 }
 
 //nolint:funlen
-func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo string, cfg *tiCfg.Cfg, commitSha string, reportTests []*tiClientTypes.TestCase, log *logrus.Logger, envs map[string]string) (*types.UploadCgRequest, error) {
+func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo string, cfg *tiCfg.Cfg, commitSha string,
+	reportTests []*tiClientTypes.TestCase, log *logrus.Logger, envs map[string]string) (*types.UploadCgRequest, error) {
 	repoInfo := types.Identifier{
 		AccountID: cfg.GetAccountID(),
 		OrgID:     cfg.GetOrgID(),
