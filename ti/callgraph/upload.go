@@ -36,6 +36,11 @@ const (
 	nodeTypeTest = "test"
 )
 
+var (
+	// DetectedLanguages stores languages detected from callgraph for runtestV2
+	DetectedLanguages []string
+)
+
 //nolint:gocyclo
 func Upload(
 	ctx context.Context,
@@ -49,6 +54,7 @@ func Upload(
 	rerunFailedTests bool,
 	r *api.StartStepRequest,
 ) (*Callgraph, error) {
+	DetectedLanguages = []string{}
 	if cfg.GetIgnoreInstr() {
 		log.Infoln("Skipping call graph collection since instrumentation was ignored")
 		return nil, nil
@@ -147,6 +153,16 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 	log.Infoln(fmt.Sprintf("Found callgraph files: %v", cgFiles))
 
 	cg, err := parser.Parse(cgFiles, visFiles)
+	if err != nil {
+		return nil, cgIsEmpty, false, errors.Wrap(err, "failed to parse callgraph")
+	}
+
+	log.Infof("Callgraph parsing completed. Total nodes: %d", len(cg.Nodes))
+
+	// Initialize language detection map
+	languageSet := make(map[string]bool)
+
+	// Handle failed test matching and language detection in a single loop
 	totalMatched := 0
 	totalTests := 0
 	if rerunFailedTests {
@@ -154,6 +170,13 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 			cg.Nodes[i].HasFailed = false // Initialize HasFailed for the current node
 			if cg.Nodes[i].Type != nodeTypeTest {
 				continue
+			}
+			// Detect language from file extension
+			if cg.Nodes[i].File != "" {
+				ext := filepath.Ext(cg.Nodes[i].File)
+				if ext != "" {
+					languageSet[ext] = true
+				}
 			}
 			totalTests++
 			for _, test := range tests {
@@ -168,11 +191,27 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 				}
 			}
 		}
+	} else {
+		// When not rerunning failed tests, only detect languages
+		for i := range cg.Nodes {
+			if cg.Nodes[i].Type == nodeTypeTest && cg.Nodes[i].File != "" {
+				ext := filepath.Ext(cg.Nodes[i].File)
+				if ext != "" {
+					languageSet[ext] = true
+				}
+			}
+		}
+	}
+
+	// Convert language set to slice and store in global variable
+	if len(languageSet) > 0 {
+		languages := make([]string, 0, len(languageSet))
+		for lang := range languageSet {
+			languages = append(languages, lang)
+		}
+		DetectedLanguages = languages
 	}
 	allMatched = totalMatched == totalTests // To consider a report valid, all test nodes should be matched with valid reports
-	if err != nil {
-		return nil, cgIsEmpty, allMatched, errors.Wrap(err, "failed to parse visgraph")
-	}
 	log.Infoln(fmt.Sprintf("Size of Test nodes: %d, Test relations: %d, Vis Relations %d", len(cg.Nodes), len(cg.TestRelations), len(cg.VisRelations)))
 
 	if isCgEmpty(cg) {

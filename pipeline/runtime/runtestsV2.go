@@ -21,6 +21,7 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/harness/lite-engine/ti/callgraph"
 	"github.com/harness/lite-engine/ti/instrumentation"
 	tiCommon "github.com/harness/lite-engine/ti/instrumentation/common"
 	"github.com/harness/lite-engine/ti/instrumentation/csharp"
@@ -1217,6 +1218,12 @@ func collectTestReportsAndCg(
 			Errorln(fmt.Sprintf("Test report collection completed with errors. Time taken: %s", time.Since(reportStart)))
 	} else {
 		log.Infoln(fmt.Sprintf("Successfully collected test reports in %s time", time.Since(reportStart)))
+	}
+
+
+	// Assign detected languages from callgraph to testMetadata
+	if len(callgraph.DetectedLanguages) > 0 {
+		telemetryData.TestIntelligenceMetaData.Language = callgraph.DetectedLanguages
 	}
 
 	return cgErr

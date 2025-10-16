@@ -72,3 +72,52 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 	assert.NotEmpty(t, cg.Nodes)
 	assert.NotEmpty(t, cg.TestRelations)
 }
+
+func TestLanguageDetection(t *testing.T) {
+	log := logrus.New()
+
+	// Reset DetectedLanguages before each test
+	DetectedLanguages = []string{}
+
+	// Test 1: Language detection with rerunFailedTests = false
+	t.Run("Language detection without rerun failed tests", func(t *testing.T) {
+		DetectedLanguages = []string{}
+		dataDir := "testdata/cgdir/cg"
+		_, _, _, err := encodeCg(dataDir, log, []*types.TestCase{}, "1_1", false)
+		assert.Nil(t, err)
+		// Verify that languages were detected even when rerunFailedTests is false
+		assert.NotEmpty(t, DetectedLanguages, "Languages should be detected even when rerunFailedTests is false")
+		log.Infof("Detected languages (rerunFailedTests=false): %v", DetectedLanguages)
+	})
+
+	// Test 2: Language detection with rerunFailedTests = true
+	t.Run("Language detection with rerun failed tests", func(t *testing.T) {
+		DetectedLanguages = []string{}
+		dataDir := "testdata/cgdir/cg"
+		_, _, _, err := encodeCg(dataDir, log, []*types.TestCase{}, "1_1", true)
+		assert.Nil(t, err)
+		// Verify that languages were detected
+		assert.NotEmpty(t, DetectedLanguages, "Languages should be detected when rerunFailedTests is true")
+		log.Infof("Detected languages (rerunFailedTests=true): %v", DetectedLanguages)
+	})
+
+	// Test 3: No languages detected for empty callgraph
+	t.Run("No languages for empty callgraph", func(t *testing.T) {
+		DetectedLanguages = []string{}
+		dataDir := "testdata/cgdir/emptycg"
+		_, _, _, err := encodeCg(dataDir, log, []*types.TestCase{}, "1_1", false)
+		assert.Nil(t, err)
+		// Verify that no languages were detected for empty callgraph
+		assert.Empty(t, DetectedLanguages, "No languages should be detected for empty callgraph")
+	})
+
+	// Test 4: No languages detected when no callgraph files exist
+	t.Run("No languages when no callgraph files", func(t *testing.T) {
+		DetectedLanguages = []string{}
+		dataDir := "testdata/cgdir/nocg"
+		_, _, _, err := encodeCg(dataDir, log, []*types.TestCase{}, "1_1", false)
+		assert.Nil(t, err)
+		// Verify that no languages were detected
+		assert.Empty(t, DetectedLanguages, "No languages should be detected when no callgraph files exist")
+	})
+}
