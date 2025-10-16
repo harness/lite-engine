@@ -91,7 +91,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 
 	go func() {
 		wr := getLogStreamWriter(r)
-		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(ctx, r, wr)
+		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata}
 		e.mu.Lock()
@@ -128,7 +128,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				setPrevStepExportEnvs(r)
 			}
 			wr = getLogStreamWriter(r)
-			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(ctx, r, wr)
+			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(r, wr)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 			pollResponse := convertStatus(status)
@@ -301,7 +301,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 	return runStep()
 }
 
-func (e *StepExecutor) executeStep(ctx context.Context, r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
+func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
 	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
@@ -317,6 +317,7 @@ func (e *StepExecutor) executeStep(ctx context.Context, r *api.StartStepRequest,
 		g := getTiCfg(&r.TIConfig, &r.MtlsConfig)
 		tiConfig = &g
 	}
+	ctx := context.Background()
 	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig)
 }
 
@@ -335,7 +336,6 @@ func executeStepHelper( //nolint:gocritic
 	// We do here only for non-container step.
 	if r.Detach && r.Image == "" {
 		go func() {
-			ctx = context.Background()
 			var cancel context.CancelFunc
 			if r.Timeout > 0 {
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
@@ -349,7 +349,6 @@ func executeStepHelper( //nolint:gocritic
 
 	var result error
 
-	ctx = context.Background()
 	var cancel context.CancelFunc
 	if r.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
