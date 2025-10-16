@@ -111,8 +111,6 @@ func ParseAndUploadTests(
 	// Write tests telemetry data, total test, total test classes, selected test, selected classes,
 	testMetadata.TotalTests = len(tests)
 	testMetadata.TotalTestClasses = telemetryutils.CountDistinctClasses(tests)
-	
-	// Log testMetadata before returning to verify Language field
 	log.Infoln(fmt.Sprintf("Successfully collected test reports in %s time", time.Since(start)))
 	return tests, nil
 }
