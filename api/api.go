@@ -26,7 +26,6 @@ type (
 		MountDockerSocket *bool              `json:"mount_docker_socket,omitempty"`
 		TTY               bool               `json:"tty,omitempty" default:"false"`
 		MtlsConfig        spec.MtlsConfig    `json:"mtls_config,omitempty"`
-		AnnotationsConfig AnnotationsConfig  `json:"annotations_config,omitempty"`
 		VMImageConfig     spec.VMImageConfig `json:"vm_image_config,omitempty"`
 		Timeout           int64              `json:"timeout,omitempty"`
 	}

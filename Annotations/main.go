@@ -14,13 +14,31 @@ import (
 const MaxSummaryFileBytes = 64 * 1024 // 64KB limit for a single summary file
 
 type AnnotationEntry struct {
-	ContextName string `json:"context_name"`
-	Timestamp   int64  `json:"timestamp"`
-	Style       string `json:"style"`
-	Summary     string `json:"summary"`
-	Priority    int    `json:"priority"`
-	Mode        string `json:"mode,omitempty"`
-	StepId      string `json:"step_id,omitempty"`
+	ContextId string `json:"contextId"`
+	StepId    string `json:"stepId,omitempty"`
+	Timestamp int64  `json:"timestamp"`
+	Style     string `json:"style"`
+	Summary   string `json:"summary"`
+	Priority  int    `json:"priority"`
+	Mode      string `json:"mode,omitempty"`
+}
+
+// truncateUTF8ByBytes truncates a string to the provided byte limit without breaking UTF-8 runes.
+func truncateUTF8ByBytes(s string, limit int) string {
+	if len(s) <= limit {
+		return s
+	}
+	last := 0
+	for i := range s {
+		if i > limit {
+			break
+		}
+		last = i
+	}
+	if last == 0 {
+		return ""
+	}
+	return s[:last]
 }
 
 // isAnnotationsEnabled returns true if CI_ENABLE_PIPELINE_ANNOTATIONS is set to a truthy value
@@ -176,10 +194,10 @@ func (c *CLI) annotate(contextName, style, summary, mode string, priority int) (
 	// epoch millis timestamp
 	ts := time.Now().UnixMilli()
 
-	// Find existing entry for this context
+	// Find existing entry for this context (match by PMS key)
 	idx := -1
 	for i := range env.Annotations {
-		if env.Annotations[i].ContextName == ctx {
+		if env.Annotations[i].ContextId == ctx {
 			idx = i
 			break
 		}
@@ -188,13 +206,13 @@ func (c *CLI) annotate(contextName, style, summary, mode string, priority int) (
 	if idx == -1 {
 		// New context entry
 		env.Annotations = append(env.Annotations, AnnotationEntry{
-			ContextName: ctx,
-			Timestamp:   ts,
-			Style:       style,
-			Summary:     summary,
-			Priority:    priority,
-			Mode:        mode,
-			StepId:      stepIdVal,
+			ContextId: ctx,
+			Timestamp: ts,
+			Style:     style,
+			Summary:   summary,
+			Priority:  priority,
+			Mode:      mode,
+			StepId:    stepIdVal,
 		})
 	} else {
 		// Merge into existing entry based on mode
@@ -340,9 +358,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "[ANN_CLI] warning: failed to read --summary-file: %v\n", err)
 			return
 		}
-		summaryContent = sc
+		// Ensure we do not exceed 64KB for file content (already enforced by file size check, but clamp anyway)
+		summaryContent = truncateUTF8ByBytes(sc, MaxSummaryFileBytes)
 	} else {
-		summaryContent = *summary
+		// Clamp inline summary to 64KB
+		summaryContent = truncateUTF8ByBytes(*summary, MaxSummaryFileBytes)
 	}
 
 	result, err := cli.annotate(*context, *style, summaryContent, *mode, *priority)

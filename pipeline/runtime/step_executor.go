@@ -7,6 +7,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -90,7 +91,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 
 	go func() {
 		wr := getLogStreamWriter(r)
-		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
+		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(ctx, r, wr)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata}
 		e.mu.Lock()
@@ -127,7 +128,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				setPrevStepExportEnvs(r)
 			}
 			wr = getLogStreamWriter(r)
-			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(r, wr)
+			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(ctx, r, wr)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 			pollResponse := convertStatus(status)
@@ -164,8 +165,6 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 		return &api.PollStepResponse{}, &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 
-	var status StepStatus
-
 	e.mu.Lock()
 	s, ok := e.stepStatus[id]
 	if !ok {
@@ -174,21 +173,20 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 	}
 
 	if s.Status == Complete {
-		status = s
 		e.mu.Unlock()
-	} else {
-		ch := make(chan StepStatus, 1)
-		if _, ok := e.stepWaitCh[id]; !ok {
-			e.stepWaitCh[id] = append(e.stepWaitCh[id], ch)
-		} else {
-			e.stepWaitCh[id] = []chan StepStatus{ch}
-		}
-		e.mu.Unlock()
-		status = <-ch
+		return convertStatus(s), nil
 	}
 
-	resp := convertStatus(status)
-	return resp, nil
+	ch := make(chan StepStatus, 1)
+	if _, ok := e.stepWaitCh[id]; !ok {
+		e.stepWaitCh[id] = append(e.stepWaitCh[id], ch)
+	} else {
+		e.stepWaitCh[id] = []chan StepStatus{ch}
+	}
+	e.mu.Unlock()
+
+	status := <-ch
+	return convertStatus(status), nil
 }
 
 func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequest) (oldOut []byte, newOut <-chan []byte, err error) {
@@ -303,7 +301,7 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 	return runStep()
 }
 
-func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
+func (e *StepExecutor) executeStep(ctx context.Context, r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
 	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
@@ -319,7 +317,6 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 		g := getTiCfg(&r.TIConfig, &r.MtlsConfig)
 		tiConfig = &g
 	}
-	ctx := context.Background()
 	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig)
 }
 
@@ -338,6 +335,7 @@ func executeStepHelper( //nolint:gocritic
 	// We do here only for non-container step.
 	if r.Detach && r.Image == "" {
 		go func() {
+			ctx = context.Background()
 			var cancel context.CancelFunc
 			if r.Timeout > 0 {
 				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
@@ -351,6 +349,7 @@ func executeStepHelper( //nolint:gocritic
 
 	var result error
 
+	ctx = context.Background()
 	var cancel context.CancelFunc
 	if r.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
@@ -471,7 +470,6 @@ func (e *StepExecutor) sendResponseStatus(r *api.StartStepRequest, delegateClien
 	if response.CommandExecutionStatus == api.Timeout {
 		response.CommandExecutionStatus = api.Failure
 	}
-
 	jsonData, err := json.Marshal(response)
 	if err != nil {
 		return err
@@ -509,9 +507,9 @@ func getRunnerTaskResponse(r *api.StartStepRequest, response *api.VMTaskExecutio
 	}
 }
 
-// convertStatus converts StepStatus to PollStepResponse
-func convertStatus(status StepStatus) *api.PollStepResponse {
+func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 	r := &api.PollStepResponse{
+		Exited:            true,
 		Outputs:           status.Outputs,
 		Envs:              status.Envs,
 		Artifact:          status.Artifact,
@@ -519,18 +517,26 @@ func convertStatus(status StepStatus) *api.PollStepResponse {
 		OptimizationState: status.OptimizationState,
 		TelemetryData:     status.TelemetryData,
 	}
-	// If the step has reached Complete, mark Exited=true even if state is nil.
-	if status.Status == Complete {
-		r.Exited = true
-	}
+
+	stepErr := status.StepErr
+
 	if status.State != nil {
-		// Preserve explicit runtime state; ensure we don't downgrade a completed step to Exited=false.
-		r.Exited = r.Exited || status.State.Exited
-		r.ExitCode = status.State.ExitCode
+		r.Exited = status.State.Exited
 		r.OOMKilled = status.State.OOMKilled
+		r.ExitCode = status.State.ExitCode
+		if status.State.OOMKilled {
+			stepErr = multierror.Append(stepErr, fmt.Errorf("oom killed"))
+		} else if status.State.ExitCode != 0 {
+			stepErr = multierror.Append(stepErr, fmt.Errorf("exit status %d", status.State.ExitCode))
+		}
 	}
+
 	if status.StepErr != nil {
-		r.Error = status.StepErr.Error()
+		r.ExitCode = 255
+	}
+
+	if stepErr != nil {
+		r.Error = stepErr.Error()
 	}
 	return r
 }

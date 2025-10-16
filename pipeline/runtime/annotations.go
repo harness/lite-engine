@@ -20,19 +20,37 @@ import (
 // Feature flag to enable/disable pipeline annotations end-to-end
 const annotationsFFEnv = "CI_ENABLE_PIPELINE_ANNOTATIONS"
 
+// Per-file and per-annotation limits
+const (
+	maxAnnotationBytes  = 64 * 1024 // 64KB per annotation
+	maxAnnotationsCount = 50        // max annotations per file
+)
+
 // isAnnotationsEnabled returns true if CI_ENABLE_PIPELINE_ANNOTATIONS is set to a truthy value
-// in either the provided step envs map or the process environment.
-func isAnnotationsEnabled(envs map[string]string) bool {
-	val := strings.TrimSpace(envs[annotationsFFEnv])
-	if val == "" {
-		val = os.Getenv(annotationsFFEnv)
+// in the process environment.
+func isAnnotationsEnabled(_ map[string]string) bool {
+	// Feature flag is controlled by process env only; expects "true" or "false"
+	val := strings.ToLower(strings.TrimSpace(os.Getenv(annotationsFFEnv)))
+	return val == "true"
+}
+
+// truncateUTF8ByBytes truncates a string to the provided byte limit without breaking UTF-8 runes.
+func truncateUTF8ByBytes(s string, limit int) string {
+	if len(s) <= limit {
+		return s
 	}
-	switch strings.ToLower(strings.TrimSpace(val)) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
+	// Iterate over rune boundaries; keep the last index <= limit
+	last := 0
+	for i := range s {
+		if i > limit {
+			break
+		}
+		last = i
 	}
+	if last == 0 {
+		return ""
+	}
+	return s[:last]
 }
 
 // annotationsFileRaw is the on-disk envelope written by producers (e.g., CLI)
@@ -46,13 +64,14 @@ type annotationsFileRaw struct {
 // annotationFileEntry mirrors a single annotation entry on disk.
 // Keep JSON tags aligned with CLI's AnnotationEntry.
 type annotationFileEntry struct {
-	ContextName string `json:"context_name"`
-	Timestamp   int64  `json:"timestamp"`
-	Style       string `json:"style"`
-	Summary     string `json:"summary"`
-	Priority    int    `json:"priority"`
-	Mode        string `json:"mode,omitempty"`
-	StepId      string `json:"step_id,omitempty"`
+	// PMS-aligned keys
+	ContextId string `json:"contextId"`
+	StepId    string `json:"stepId,omitempty"`
+	Timestamp int64  `json:"timestamp"`
+	Style     string `json:"style"`
+	Summary   string `json:"summary"`
+	Priority  int    `json:"priority"`
+	Mode      string `json:"mode,omitempty"`
 }
 
 // PMSAnnotation is the typed payload unit sent to Pipeline Service.
@@ -109,6 +128,11 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 	if err := json.Unmarshal(raw, &file); err != nil {
 		logrus.WithField("id", r.ID).WithError(err).Warnln("ANNOTATIONS: invalid JSON; skipping post")
 		return
+	}
+	// Enforce maximum annotations per file
+	if len(file.Annotations) > maxAnnotationsCount {
+		logrus.WithFields(logrus.Fields{"id": r.ID, "count": len(file.Annotations)}).Warnln("ANNOTATIONS: too many annotations; truncating to 50")
+		file.Annotations = file.Annotations[:maxAnnotationsCount]
 	}
 	planExecutionId := strings.TrimSpace(file.PlanExecutionId)
 	if planExecutionId == "" || len(file.Annotations) == 0 {
@@ -204,7 +228,8 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) json.RawMessage {
 		}
 		return nil
 	}
-	const maxSize = 10 * 1024 * 1024 // 5MB cap
+	// Cap file size roughly to max annotations * max size per annotation + small overhead (~256KB)
+	maxSize := int64(maxAnnotationsCount*maxAnnotationBytes + 256*1024)
 	if info.Size() <= 0 {
 		return nil
 	}
@@ -229,7 +254,7 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) json.RawMessage {
 func foldAnnotationsToSlice(file annotationsFileRaw, id string) []PMSAnnotation {
 	annotations := make(map[string]PMSAnnotation)
 	for _, a := range file.Annotations {
-		ctxName := strings.TrimSpace(a.ContextName)
+		ctxName := strings.TrimSpace(a.ContextId)
 		if ctxName == "" {
 			continue
 		}
@@ -281,17 +306,24 @@ func foldAnnotationsToSlice(file annotationsFileRaw, id string) []PMSAnnotation 
 			entry.Timestamp = a.Timestamp
 		}
 
-		// stepId: prefer provided step_id from file, else fallback to runtime step id
+		// stepId: use provided stepId or fallback to runtime step id
 		if s := strings.TrimSpace(a.StepId); s != "" {
 			entry.StepId = s
 		} else if id != "" {
 			entry.StepId = id
 		}
 
-		// summary
+		// summary (clamped to 64KB). For append mode, clamp the final combined content as well.
 		if sum := a.Summary; sum != "" {
+			if len(sum) > maxAnnotationBytes {
+				sum = truncateUTF8ByBytes(sum, maxAnnotationBytes)
+			}
 			if entry.Summary != "" && mode == "append" {
-				entry.Summary = entry.Summary + "\n" + sum
+				combined := entry.Summary + "\n" + sum
+				if len(combined) > maxAnnotationBytes {
+					combined = truncateUTF8ByBytes(combined, maxAnnotationBytes)
+				}
+				entry.Summary = combined
 			} else {
 				entry.Summary = sum
 			}
@@ -312,19 +344,9 @@ func foldAnnotationsToSlice(file annotationsFileRaw, id string) []PMSAnnotation 
 	return annList
 }
 
-// resolveAnnotationsConfig merges BaseURL + Token from request, pipeline state fallback, or step endpoint origin.
+// resolveAnnotationsConfig merges BaseURL + Token from request, or step endpoint origin.
 func resolveAnnotationsConfig(r *api.StartStepRequest) (string, string) {
 	cfg := r.AnnotationsConfig
-	if strings.TrimSpace(cfg.BaseURL) == "" || strings.TrimSpace(cfg.Token) == "" {
-		if st := pipeline.GetState().GetAnnotationsConfig(); st != nil {
-			if strings.TrimSpace(cfg.BaseURL) == "" {
-				cfg.BaseURL = st.BaseURL
-			}
-			if strings.TrimSpace(cfg.Token) == "" {
-				cfg.Token = st.Token
-			}
-		}
-	}
 
 	base := strings.TrimSpace(cfg.BaseURL)
 	if base == "" {
@@ -336,7 +358,7 @@ func resolveAnnotationsConfig(r *api.StartStepRequest) (string, string) {
 		}
 	}
 	base = strings.TrimRight(base, "/")
-	return base, cfg.Token
+	return base, strings.TrimSpace(cfg.Token)
 }
 
 func newPipelineClient(baseURL, token string, timeout time.Duration) *pipelineClient {
