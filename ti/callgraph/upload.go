@@ -136,7 +136,7 @@ func parseCallgraphFiles(dataDir string, log *logrus.Logger) (*Callgraph, error)
 	return cg, nil
 }
 
-// encodeCg reads all files of specified format from datadir folder and returns byte array of avro encoded format
+//nolint:funlen
 func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCase, version string, rerunFailedTests bool) (data []byte, isEmpty, allMatched bool, err error) {
 	var parser Parser
 	var cgIsEmpty bool
@@ -158,8 +158,6 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 	}
 
 	log.Infof("Callgraph parsing completed. Total nodes: %d", len(cg.Nodes))
-
-	// Initialize language detection map
 	languageSet := make(map[string]bool)
 
 	// Handle failed test matching and language detection in a single loop
@@ -171,7 +169,6 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 			if cg.Nodes[i].Type != nodeTypeTest {
 				continue
 			}
-			// Detect language from file extension
 			if cg.Nodes[i].File != "" {
 				ext := filepath.Ext(cg.Nodes[i].File)
 				if ext != "" {
@@ -192,7 +189,6 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 			}
 		}
 	} else {
-		// When not rerunning failed tests, only detect languages
 		for i := range cg.Nodes {
 			if cg.Nodes[i].Type == nodeTypeTest && cg.Nodes[i].File != "" {
 				ext := filepath.Ext(cg.Nodes[i].File)
@@ -202,8 +198,6 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 			}
 		}
 	}
-
-	// Convert language set to slice and store in global variable
 	if len(languageSet) > 0 {
 		languages := make([]string, 0, len(languageSet))
 		for lang := range languageSet {

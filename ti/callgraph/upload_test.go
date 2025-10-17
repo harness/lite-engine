@@ -73,162 +73,129 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 	assert.NotEmpty(t, cg.TestRelations)
 }
 
-func TestLanguageDetection(t *testing.T) {
-	log := logrus.New()
+// Helper function to create test callgraph with file extensions
+func createTestCg(fileExt string) *Callgraph {
+	return &Callgraph{
+		Nodes: []Node{
+			{
+				ID:      1,
+				ClassID: 100,
+				Package: "io.harness.test",
+				Class:   "TestClass",
+				Method:  "testMethod",
+				Params:  "()",
+				Type:    "test",
+				File:    "io/harness/test/TestClass" + fileExt,
+			},
+			{
+				ID:      2,
+				ClassID: 200,
+				Package: "io.harness.source",
+				Class:   "SourceClass",
+				Method:  "sourceMethod",
+				Params:  "()",
+				Type:    "source",
+			},
+		},
+		TestRelations: []Relation{
+			{Source: 2, Tests: []int{1}},
+		},
+	}
+}
 
-	// Helper function to create test callgraph with file extensions
-	createTestCg := func(fileExt string) *Callgraph {
-		return &Callgraph{
-			Nodes: []Node{
-				{
-					ID:      1,
-					ClassID: 100,
-					Package: "io.harness.test",
-					Class:   "TestClass",
-					Method:  "testMethod",
-					Params:  "()",
-					Type:    "test",
-					File:    "io/harness/test/TestClass" + fileExt,
-				},
-				{
-					ID:      2,
-					ClassID: 200,
-					Package: "io.harness.source",
-					Class:   "SourceClass",
-					Method:  "sourceMethod",
-					Params:  "()",
-					Type:    "source",
-				},
-			},
-			TestRelations: []Relation{
-				{Source: 2, Tests: []int{1}},
-			},
+// Helper function to simulate language detection logic
+func simulateLanguageDetection(cg *Callgraph, ext string) {
+	languageSet := make(map[string]bool)
+	for i := range cg.Nodes {
+		if cg.Nodes[i].Type == nodeTypeTest && cg.Nodes[i].File != "" {
+			if ext != "" {
+				languageSet[ext] = true
+			}
 		}
 	}
+	if len(languageSet) > 0 {
+		languages := make([]string, 0, len(languageSet))
+		for lang := range languageSet {
+			languages = append(languages, lang)
+		}
+		DetectedLanguages = languages
+	}
+}
 
-	// Test 1: Language detection with Java files (rerunFailedTests = false)
-	t.Run("Language detection without rerun failed tests", func(t *testing.T) {
-		DetectedLanguages = []string{}
-		cg := createTestCg(".java")
+func TestLanguageDetectionWithoutRerun(t *testing.T) {
+	log := logrus.New()
+	DetectedLanguages = []string{}
+	cg := createTestCg(".java")
 
-		// Simulate the language detection logic from encodeCg
-		languageSet := make(map[string]bool)
-		for i := range cg.Nodes {
-			if cg.Nodes[i].Type == nodeTypeTest && cg.Nodes[i].File != "" {
-				ext := ".java" // filepath.Ext would return this
-				if ext != "" {
-					languageSet[ext] = true
-				}
+	simulateLanguageDetection(cg, ".java")
+
+	assert.NotEmpty(t, DetectedLanguages, "Languages should be detected even when rerunFailedTests is false")
+	assert.Contains(t, DetectedLanguages, ".java")
+	log.Infof("Detected languages (rerunFailedTests=false): %v", DetectedLanguages)
+}
+
+func TestLanguageDetectionWithRerun(t *testing.T) {
+	log := logrus.New()
+	DetectedLanguages = []string{}
+	cg := createTestCg(".py")
+
+	// Simulate the language detection logic with rerunFailedTests = true
+	languageSet := make(map[string]bool)
+	for i := range cg.Nodes {
+		cg.Nodes[i].HasFailed = false
+		if cg.Nodes[i].Type != nodeTypeTest {
+			continue
+		}
+		if cg.Nodes[i].File != "" {
+			ext := ".py"
+			if ext != "" {
+				languageSet[ext] = true
 			}
 		}
-		if len(languageSet) > 0 {
-			languages := make([]string, 0, len(languageSet))
-			for lang := range languageSet {
-				languages = append(languages, lang)
-			}
-			DetectedLanguages = languages
+	}
+	if len(languageSet) > 0 {
+		languages := make([]string, 0, len(languageSet))
+		for lang := range languageSet {
+			languages = append(languages, lang)
 		}
+		DetectedLanguages = languages
+	}
 
-		assert.NotEmpty(t, DetectedLanguages, "Languages should be detected even when rerunFailedTests is false")
-		assert.Contains(t, DetectedLanguages, ".java")
-		log.Infof("Detected languages (rerunFailedTests=false): %v", DetectedLanguages)
-	})
+	assert.NotEmpty(t, DetectedLanguages, "Languages should be detected when rerunFailedTests is true")
+	assert.Contains(t, DetectedLanguages, ".py")
+	log.Infof("Detected languages (rerunFailedTests=true): %v", DetectedLanguages)
+}
 
-	// Test 2: Language detection with Python files (rerunFailedTests = true)
-	t.Run("Language detection with rerun failed tests", func(t *testing.T) {
-		DetectedLanguages = []string{}
-		cg := createTestCg(".py")
+func TestLanguageDetectionEmptyCallgraph(t *testing.T) {
+	DetectedLanguages = []string{}
+	cg := &Callgraph{
+		Nodes:         []Node{},
+		TestRelations: []Relation{},
+	}
 
-		// Simulate the language detection logic with rerunFailedTests = true
-		languageSet := make(map[string]bool)
-		for i := range cg.Nodes {
-			cg.Nodes[i].HasFailed = false
-			if cg.Nodes[i].Type != nodeTypeTest {
-				continue
-			}
-			if cg.Nodes[i].File != "" {
-				ext := ".py"
-				if ext != "" {
-					languageSet[ext] = true
-				}
-			}
-		}
-		if len(languageSet) > 0 {
-			languages := make([]string, 0, len(languageSet))
-			for lang := range languageSet {
-				languages = append(languages, lang)
-			}
-			DetectedLanguages = languages
-		}
+	simulateLanguageDetection(cg, "")
 
-		assert.NotEmpty(t, DetectedLanguages, "Languages should be detected when rerunFailedTests is true")
-		assert.Contains(t, DetectedLanguages, ".py")
-		log.Infof("Detected languages (rerunFailedTests=true): %v", DetectedLanguages)
-	})
+	assert.Empty(t, DetectedLanguages, "No languages should be detected for empty callgraph")
+}
 
-	// Test 3: No languages detected for empty callgraph
-	t.Run("No languages for empty callgraph", func(t *testing.T) {
-		DetectedLanguages = []string{}
-		cg := &Callgraph{
-			Nodes:         []Node{},
-			TestRelations: []Relation{},
-		}
-
-		languageSet := make(map[string]bool)
-		for i := range cg.Nodes {
-			if cg.Nodes[i].Type == nodeTypeTest && cg.Nodes[i].File != "" {
-				ext := ""
-				if ext != "" {
-					languageSet[ext] = true
-				}
-			}
-		}
-		if len(languageSet) > 0 {
-			languages := make([]string, 0, len(languageSet))
-			for lang := range languageSet {
-				languages = append(languages, lang)
-			}
-			DetectedLanguages = languages
-		}
-
-		assert.Empty(t, DetectedLanguages, "No languages should be detected for empty callgraph")
-	})
-
-	// Test 4: No languages detected when nodes have no file field
-	t.Run("No languages when nodes have no file field", func(t *testing.T) {
-		DetectedLanguages = []string{}
-		cg := &Callgraph{
-			Nodes: []Node{
-				{
-					ID:      1,
-					ClassID: 100,
-					Package: "io.harness.test",
-					Class:   "TestClass",
-					Method:  "testMethod",
-					Type:    "test",
-					File:    "", // Empty file field
-				},
+func TestLanguageDetectionNoFileField(t *testing.T) {
+	DetectedLanguages = []string{}
+	cg := &Callgraph{
+		Nodes: []Node{
+			{
+				ID:      1,
+				ClassID: 100,
+				Package: "io.harness.test",
+				Class:   "TestClass",
+				Method:  "testMethod",
+				Type:    "test",
+				File:    "",
 			},
-			TestRelations: []Relation{},
-		}
+		},
+		TestRelations: []Relation{},
+	}
 
-		languageSet := make(map[string]bool)
-		for i := range cg.Nodes {
-			if cg.Nodes[i].Type == nodeTypeTest && cg.Nodes[i].File != "" {
-				ext := ""
-				if ext != "" {
-					languageSet[ext] = true
-				}
-			}
-		}
-		if len(languageSet) > 0 {
-			languages := make([]string, 0, len(languageSet))
-			for lang := range languageSet {
-				languages = append(languages, lang)
-			}
-			DetectedLanguages = languages
-		}
+	simulateLanguageDetection(cg, "")
 
-		assert.Empty(t, DetectedLanguages, "No languages should be detected when nodes have no file field")
-	})
+	assert.Empty(t, DetectedLanguages, "No languages should be detected when nodes have no file field")
 }
