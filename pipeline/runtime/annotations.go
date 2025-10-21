@@ -24,6 +24,7 @@ const annotationsFFEnv = "CI_ENABLE_HARNESS_ANNOTATIONS"
 const (
 	maxAnnotationBytes  = 64 * 1024 // 64KB per annotation
 	maxAnnotationsCount = 50        // max annotations per file
+	defaultPriority     = 3
 )
 
 // Annotation modes
@@ -200,11 +201,11 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 func foldAnnotationsToSlice(file *annotationsFileRaw, id string) []PMSAnnotation {
 	annotations := make(map[string]PMSAnnotation)
 	for _, a := range file.Annotations {
-		ctxName := strings.TrimSpace(a.ContextID)
+		ctxName := a.ContextID
 		if ctxName == "" {
 			continue
 		}
-		mode := strings.ToLower(strings.TrimSpace(a.Mode))
+		mode := strings.ToLower(a.Mode)
 		if mode == "" {
 			mode = modeReplace
 		}
@@ -233,7 +234,7 @@ func foldAnnotationsToSlice(file *annotationsFileRaw, id string) []PMSAnnotation
 		entry.Mode = mode
 
 		// style and priority: last-writer-wins if provided
-		if s := strings.ToLower(strings.TrimSpace(a.Style)); s != "" {
+		if s := strings.ToLower(a.Style); s != "" {
 			switch s {
 			case "info", "success", "warning", "error":
 				entry.Style = s
@@ -242,7 +243,7 @@ func foldAnnotationsToSlice(file *annotationsFileRaw, id string) []PMSAnnotation
 			}
 		}
 		if a.Priority < 0 || a.Priority > 10 {
-			entry.Priority = 3
+			entry.Priority = defaultPriority
 		} else {
 			entry.Priority = a.Priority
 		}
@@ -291,14 +292,6 @@ func resolveAnnotationsConfig(r *api.StartStepRequest) (base, token string) {
 	cfg := r.AnnotationsConfig
 
 	base = strings.TrimSpace(cfg.BaseURL)
-	if base == "" {
-		raw := strings.TrimSpace(r.StepStatus.Endpoint)
-		if u, err := url.Parse(raw); err == nil && u.Scheme != "" && u.Host != "" {
-			base = u.Scheme + "://" + u.Host
-		} else {
-			base = raw
-		}
-	}
 	base = strings.TrimRight(base, "/")
 	token = strings.TrimSpace(cfg.Token)
 	return base, token

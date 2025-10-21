@@ -205,8 +205,6 @@ func (c *CLI) annotate(contextName, style, summary, mode string, priority int) (
 	switch mode {
 	case "replace", "append", "delete":
 		// ok
-	case "":
-		mode = "replace"
 	default:
 		// unknown -> default to replace
 		mode = "replace"
@@ -321,8 +319,8 @@ func validateFlags(contextName, style, mode string, priority int) error {
 		issues = append(issues, "--mode must be one of: append, replace, delete")
 	}
 
-	if priority <= 0 {
-		issues = append(issues, "--priority must be > 0")
+	if priority <= 0 || priority > 10 {
+		issues = append(issues, "--priority must be between 1 and 10")
 	}
 
 	if len(issues) > 0 {
@@ -358,7 +356,7 @@ func main() {
 	// Feature flag: gate CLI behavior behind CI_ENABLE_HARNESS_ANNOTATIONS
 	if command == "annotate" && !isAnnotationsEnabled() {
 		// No-op when disabled; do not fail the step
-		fmt.Fprintln(os.Stderr, "[ANN_CLI] annotations disabled by CI_ENABLE_HARNESS_ANNOTATIONS")
+		fmt.Fprintln(os.Stderr, "Annotations feature flag [CI_ENABLE_HARNESS_ANNOTATIONS] is disabled. Please reach out to Harness Team to get it enabled")
 		return
 	}
 
@@ -377,7 +375,7 @@ func main() {
 	helpShort := fs.Bool("h", false, "Show help (shorthand)")
 
 	if err := fs.Parse(os.Args[2:]); err != nil {
-		fmt.Fprintf(os.Stderr, "[ANN_CLI] warning: failed to parse flags: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Annotations warning: failed to parse flags: %v\n", err)
 		fmt.Printf("Usage: %s annotate [flags]\n", prog)
 		return
 	}
@@ -391,13 +389,13 @@ func main() {
 
 	// Do not accept extra positional arguments to avoid accidental writes on malformed input.
 	if fs.NArg() > 0 {
-		fmt.Fprintf(os.Stderr, "[ANN_CLI] warning: unexpected arguments: %s\n", strings.Join(fs.Args(), " "))
+		fmt.Fprintf(os.Stderr, "Annotations warning: unexpected arguments: %s\n", strings.Join(fs.Args(), " "))
 		fmt.Printf("Usage: %s annotate [flags]\n", prog)
 		return
 	}
 
 	if err := validateFlags(*context, *style, *mode, *priority); err != nil {
-		fmt.Fprintf(os.Stderr, "[ANN_CLI] error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Annotations error: %v\n", err)
 		return
 	}
 
@@ -419,7 +417,7 @@ func main() {
 
 	result, err := cli.annotate(*context, *style, summaryContent, *mode, *priority)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[ANN_CLI] warning: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Annotations warning: %v\n", err)
 	}
 
 	resultJSON, _ := json.MarshalIndent(result, "", "  ")

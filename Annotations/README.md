@@ -1,6 +1,6 @@
 # Annotation CLI
 
-A CLI tool for creating and storing annotation properties in Harness CI/CD pipelines, similar to Buildkite's annotate functionality.
+A CLI tool for creating and storing annotation properties in Harness CI/CD pipelines.
 
 ## Features
 
