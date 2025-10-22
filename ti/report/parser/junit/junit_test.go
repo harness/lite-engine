@@ -360,6 +360,7 @@ func TestProcessTestSuites(t *testing.T) {
 		getMultipleSuites(),
 		getNestedSuites(),
 		getEmptyTestNameShouldBeIgnored(),
+		getTestsSkippedByTestIntelligence(),
 	}
 
 	for _, tt := range tests {
