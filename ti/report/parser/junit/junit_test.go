@@ -360,6 +360,7 @@ func TestProcessTestSuites(t *testing.T) {
 		getMultipleSuites(),
 		getNestedSuites(),
 		getEmptyTestNameShouldBeIgnored(),
+		getTestsSkippedByTestIntelligence(),
 	}
 
 	for _, tt := range tests {
@@ -414,12 +415,13 @@ func getSingleSuiteWithMixedResults() struct {
 			},
 		},
 		expectedCounts: TestCounts{
-			Total:   3,
-			Passed:  1,
-			Failed:  1,
-			Skipped: 1,
-			Error:   0,
-			Unknown: 0,
+			Total:       3,
+			Passed:      1,
+			Failed:      1,
+			Skipped:     1,
+			SkippedByTi: 0,
+			Error:       0,
+			Unknown:     0,
 		},
 	}
 }
@@ -463,12 +465,13 @@ func getMultipleSuites() struct {
 			},
 		},
 		expectedCounts: TestCounts{
-			Total:   3,
-			Passed:  2,
-			Failed:  0,
-			Skipped: 0,
-			Error:   1,
-			Unknown: 0,
+			Total:       3,
+			Passed:      2,
+			Failed:      0,
+			Skipped:     0,
+			SkippedByTi: 0,
+			Error:       1,
+			Unknown:     0,
 		},
 	}
 }
@@ -509,12 +512,13 @@ func getNestedSuites() struct {
 			},
 		},
 		expectedCounts: TestCounts{
-			Total:   2,
-			Passed:  1,
-			Failed:  1,
-			Skipped: 0,
-			Error:   0,
-			Unknown: 0,
+			Total:       2,
+			Passed:      1,
+			Failed:      1,
+			Skipped:     0,
+			SkippedByTi: 0,
+			Error:       0,
+			Unknown:     0,
 		},
 	}
 }
@@ -548,12 +552,13 @@ func getEmptyTestNameShouldBeIgnored() struct {
 			},
 		},
 		expectedCounts: TestCounts{
-			Total:   1,
-			Passed:  1,
-			Failed:  0,
-			Skipped: 0,
-			Error:   0,
-			Unknown: 0,
+			Total:       1,
+			Passed:      1,
+			Failed:      0,
+			Skipped:     0,
+			SkippedByTi: 0,
+			Error:       0,
+			Unknown:     0,
 		},
 	}
 }

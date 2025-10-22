@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	strMaxSize = 8000 // Keep the last 8k characters in each field.
+	strMaxSize                  = 8000 // Keep the last 8k characters in each field.
+	testIntelligenceSkipMessage = "Test skipped by Harness Test Intelligence."
 )
 
 const defaultRootSuiteName = "Root Suite"
@@ -53,6 +54,7 @@ func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*t
 		overallCounts.Passed += fileCounts.Passed
 		overallCounts.Failed += fileCounts.Failed
 		overallCounts.Skipped += fileCounts.Skipped
+		overallCounts.SkippedByTi += fileCounts.SkippedByTi
 		overallCounts.Error += fileCounts.Error
 		overallCounts.Unknown += fileCounts.Unknown
 		fileMap[file] = fileCounts.Total
@@ -66,13 +68,13 @@ func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*t
 }
 
 type TestCounts struct {
-	Total  int
-	Passed int
-
-	Failed  int
-	Skipped int
-	Error   int
-	Unknown int
+	Total       int
+	Passed      int
+	Failed      int
+	Skipped     int
+	SkippedByTi int
+	Error       int
+	Unknown     int
 }
 
 // processTestSuites recusively writes the test data from parsed data to the
@@ -92,7 +94,11 @@ func processTestSuites(tests *[]*ti.TestCase, suites []gojunit.Suite) TestCounts
 				case ti.StatusFailed:
 					counts.Failed++
 				case ti.StatusSkipped:
-					counts.Skipped++
+					if test.Result.Message == testIntelligenceSkipMessage {
+						counts.SkippedByTi++
+					} else {
+						counts.Skipped++
+					}
 				case ti.StatusError:
 					counts.Error++
 				default:
@@ -106,6 +112,7 @@ func processTestSuites(tests *[]*ti.TestCase, suites []gojunit.Suite) TestCounts
 		counts.Passed += nestedCounts.Passed
 		counts.Failed += nestedCounts.Failed
 		counts.Skipped += nestedCounts.Skipped
+		counts.SkippedByTi += nestedCounts.SkippedByTi
 		counts.Error += nestedCounts.Error
 		counts.Unknown += nestedCounts.Unknown
 	}
@@ -172,27 +179,38 @@ func printTestReport(counts TestCounts, log *logrus.Logger) {
 	log.Info("\n================= Harness Test Report =================")
 	// Determine overall status message
 	if counts.Failed == 0 && counts.Error == 0 {
-		log.Info("✔ All tests passed.")
+		log.Info("✓ All tests passed.")
 	} else {
 		log.Infof("✗ %d test(s) failed.", counts.Failed+counts.Error)
 	}
-	log.Info("+-----------+----------------+------+")
+
+	log.Info("+-----------+----------------------+---------+")
+
 	if counts.Passed > 0 {
-		log.Infof("| Passed    |                | %3d  |", counts.Passed)
-		log.Info("+-----------+----------------+------+")
+		log.Infof("| Passed    |                      | %6d  |", counts.Passed)
+		log.Info("+-----------+----------------------+---------+")
 	}
+
 	if counts.Failed > 0 || counts.Error > 0 {
-		log.Infof("| Failed    |                | %3d  |", counts.Failed+counts.Error)
-		log.Info("+-----------+----------------+------+")
+		log.Infof("| Failed    | total                | %6d  |", counts.Failed+counts.Error)
+		log.Info("+-----------+----------------------+---------+")
 	}
-	if counts.Skipped > 0 {
-		// TI will map this information in later iteration
-		log.Infof("| Skipped   |                | %3d  |", counts.Skipped)
-		log.Info("+-----------+----------------+------+")
+
+	if counts.Skipped > 0 || counts.SkippedByTi > 0 {
+		if counts.Skipped > 0 {
+			log.Infof("| Skipped   | by framework         | %6d  |", counts.Skipped)
+			if counts.SkippedByTi > 0 {
+				log.Infof("|           | by Test Intelligence | %6d  |", counts.SkippedByTi)
+			}
+		} else {
+			log.Infof("| Skipped   | by Test Intelligence | %6d  |", counts.SkippedByTi)
+		}
+		log.Info("+-----------+----------------------+---------+")
 	}
+
 	// Total
-	log.Infof("| TOTAL     | all tests      | %3d  |", counts.Total)
-	log.Info("+-----------+----------------+------+")
+	log.Infof("| TOTAL     | all tests            | %6d  |", counts.Total)
+	log.Info("+-----------+----------------------+---------+")
 	log.Info("")
 }
 
