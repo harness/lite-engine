@@ -6,7 +6,6 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/docker/docker/client"
@@ -81,7 +80,6 @@ func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig, envs map[string]stri
 	if envs != nil {
 		parentUniqueID = envs["HARNESS_PARENT_UNIQUE_ID"]
 	}
-	fmt.Println("Parent Unique ID: ", parentUniqueID)
 	cfg := tiCfg.New(t.URL, t.Token, t.AccountID, t.OrgID, t.ProjectID, t.PipelineID, t.BuildID, t.StageID, t.Repo,
 		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.SharedVolPath, parentUniqueID, t.ParseSavings, false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
 	return cfg
