@@ -7,6 +7,7 @@ package logger
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -36,4 +37,20 @@ func FromContext(ctx context.Context) *logrus.Entry {
 // logger is available, the default logger is returned.
 func FromRequest(r *http.Request) *logrus.Entry {
 	return FromContext(r.Context())
+}
+
+func LogAndSerialize(entry *logrus.Entry, level logrus.Level, msg string) (string, error) {
+	e := entry.WithTime(time.Now())
+	e.Message = msg
+	e.Level = level
+
+	// log it normally
+	entry.Log(level, msg)
+
+	// serialize using the same formatter
+	formatted, err := e.Logger.Formatter.Format(e)
+	if err != nil {
+		return "", err
+	}
+	return string(formatted), nil
 }

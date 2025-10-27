@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/harness/lite-engine/logstream"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/osstats"
 	"github.com/harness/lite-engine/pipeline"
+	pipelineRuntime "github.com/harness/lite-engine/pipeline/runtime"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 )
 
@@ -78,7 +80,8 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 
 		setProxyEnvs(s.Envs)
 		state := pipeline.GetState()
-		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig), s.MtlsConfig, collector)
+		wr := getLogStreamWriter(&s)
+		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig), s.MtlsConfig, collector, wr)
 
 		if s.MountDockerSocket == nil || *s.MountDockerSocket { // required to support m1 where docker isn't installed.
 			s.Volumes = append(s.Volumes, getDockerSockVolume())
@@ -88,7 +91,9 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		if val, ok := s.Envs["DRONE_PERSIST_CREDS"]; ok && val == "true" {
 			netrcFile, err := GetNetrcFile(s.Envs)
 			if err != nil {
-				fmt.Printf("Skipping netrc file creation: %v\n", err)
+				s := fmt.Sprintf("Skipping netrc file creation: %v\n", err)
+				fmt.Printf(s)
+				pipeline.GetState().GetWriter().Write([]byte(s))
 			} else {
 				s.Files = append(s.Files, netrcFile)
 			}
@@ -108,6 +113,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			MtlsConfig:        s.MtlsConfig,
 		}
 		collector.Start()
+
 		if err := engine.Setup(r.Context(), cfg); err != nil {
 			logger.FromRequest(r).
 				WithField("latency", time.Since(st)).
@@ -119,11 +125,23 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
-		logger.FromRequest(r).
+
+		logEntry := logger.FromRequest(r).
 			WithField("latency", time.Since(st)).
-			WithField("time", time.Now().Format(time.RFC3339)).
-			Infoln("api: successfully completed the stage setup")
+			WithField("time", time.Now().Format(time.RFC3339))
+
+		logEntry.Infoln("api: successfully completed the stage setup")
+
+		if logStr, err := logEntry.String(); err == nil {
+			pipeline.GetState().GetWriter().Write([]byte(logStr))
+		} else {
+			fmt.Printf("Error writing to stream: %v\n", err)
+		}
 	}
+}
+
+func getLogStreamWriter(r *api.SetupRequest) logstream.Writer {
+	return pipelineRuntime.GetLogStreamWriter(r.Secrets, r.LogConfig.LogKey, "", false, r.LogConfig, r.Envs)
 }
 
 func getSharedVolume() *spec.Volume {
