@@ -31,6 +31,7 @@ import (
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
+	tiClientTypes "github.com/harness/ti-client/chrysalis/types"
 	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
@@ -277,7 +278,7 @@ func distributeSkipTestsForParallelism(
 	tiConfig *tiCfg.Cfg,
 	envs map[string]string,
 ) ([]string, error) {
-	splitIdx, splitTotal := instrumentation.GetSplitIdxAndTotal(envs)
+	splitIdx, splitTotal := instrumentation.GetSplitIdxAndTotalWithMatrix(envs)
 
 	// STEP 1: Get all test files using simple glob search
 	allTestFilePaths, err := tiCommon.SimpleAutoDetectTestFiles(workspace, config.TestGlobs)
@@ -431,13 +432,14 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 	}
 
 	log.Infof("Sending git file checksums from %s to ti-service", workspace)
-	skipTests, failedTests, err := sendFileChecksumsToTI(ctx, stepID, workspace, log, tiConfig, fileChecksums)
+	skipTests, failedTests, err := sendFileChecksumsToTI(ctx, stepID, workspace, log, tiConfig, fileChecksums, envs)
 	if err != nil {
 		log.WithError(err).Warnf("Failed to send file checksums to ti-service, continuing...")
 		return nil
 	}
+	stageMatrixCase := instrumentation.IsMatrixEnabledStage(envs) && !instrumentation.IsStepParallelismEnabled(envs)
 
-	if instrumentation.IsParallelismEnabled(envs) {
+	if instrumentation.IsParallelismEnabled(envs) && !stageMatrixCase {
 		newSkipTests, err := distributeSkipTestsForParallelism(
 			ctx, skipTests, config, stepID, workspace, log, tiConfig, envs)
 		if err != nil {
@@ -514,7 +516,7 @@ func writeResultToFile(fs filesystem.FileSystem, results []string, resultFilePat
 // sendFileChecksumsToTI gets git file checksums from the specified repository
 // and sends them to ti-service to get skip recommendations for test intelligence
 func sendFileChecksumsToTI(ctx context.Context, stepID, workspace string,
-	log *logrus.Logger, tiConfig *tiCfg.Cfg, fileChecksums map[string]uint64) (skipTests, failedTests []string, err error) {
+	log *logrus.Logger, tiConfig *tiCfg.Cfg, fileChecksums map[string]uint64, envs map[string]string) (skipTests, failedTests []string, err error) {
 	startTime := time.Now()
 	log.Infof("Starting TI service request to get skip recommendations for step %s", stepID)
 
@@ -530,7 +532,15 @@ func sendFileChecksumsToTI(ctx context.Context, stepID, workspace string,
 	log.Infof("Sending %d file checksums to ti-service for skip analysis", len(fileChecksums))
 
 	// Call tiClient.GetSkipTests method to get files to skip
-	skipResponse, err := c.GetSkipTests(ctx, fileChecksums)
+	skipTestRequest := tiClientTypes.SkipTestsRequest{
+		Files:            fileChecksums,
+		ExecutionContext: map[string]string{},
+	}
+	executionContext := instrumentation.GetTIExecutionContext(envs)
+	if executionContext != nil {
+		skipTestRequest.ExecutionContext = executionContext
+	}
+	skipResponse, err := c.GetSkipTests(ctx, skipTestRequest)
 	if err != nil {
 		err = fmt.Errorf("failed to get skip recommendations from ti-service: %w", err)
 		return nil, nil, err
@@ -546,7 +556,7 @@ func sendFileChecksumsToTI(ctx context.Context, stepID, workspace string,
 	}
 
 	// If NonCodeChainPath is not found in skip list, return empty skip list and faild tests - Run all tests
-	if !found {
+	if !found && len(skipResponse.SkipTests) != 0 {
 		log.Infof("A non code file has changed, running all tests")
 		skipTests = []string{}
 		failedTests = []string{}

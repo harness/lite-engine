@@ -8,6 +8,7 @@ import (
 	"context"
 	"crypto/sha1" //nolint:gosec // SHA1 used for non-security purposes (unique identifier generation)
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -185,6 +186,48 @@ func PopulateNonCodeEntities(fileChecksums map[string]uint64, alreadyProcessed m
 	}
 
 	return test, chain
+}
+
+func GetTIExecutionContext(envs map[string]string) map[string]string {
+	context := make(map[string]string)
+
+	if cgVersion, exists := envs[envHarnessTiCgVersion]; exists {
+		context[envHarnessTiCgVersion] = cgVersion
+	}
+
+	if matrixValue, exists := envs[envHarnessMatrixAxis]; exists {
+		if matrixAxis := readMatrixAxisString(matrixValue); matrixAxis != "" {
+			context[envHarnessMatrixAxis] = matrixAxis
+		}
+	}
+
+	return context
+}
+
+func readMatrixAxisString(matrixAxesEnv string) string {
+	if matrixAxesEnv == "" {
+		return ""
+	}
+
+	var stageMap map[string]string
+	if err := json.Unmarshal([]byte(matrixAxesEnv), &stageMap); err != nil || len(stageMap) == 0 {
+		return ""
+	}
+
+	// Sort keys for consistent output
+	keys := make([]string, 0, len(stageMap))
+	for key := range stageMap {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	// Build key=value pairs
+	pairs := make([]string, 0, len(keys))
+	for _, key := range keys {
+		pairs = append(pairs, fmt.Sprintf("%s=%s", key, stageMap[key]))
+	}
+
+	return strings.Join(pairs, ",")
 }
 
 func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) (TestRunner, bool, error) {
@@ -913,6 +956,40 @@ func GetSplitIdxAndTotal(envs map[string]string) (splitIdx, splitTotal int) {
 	splitIdx = stepTotal*stageIdx + stepIdx
 	splitTotal = stepTotal * stageTotal
 	return splitIdx, splitTotal
+}
+
+// GetSplitIdxAndTotalWithMatrix returns splitIdx and SplitTotal based on step envs considering matrix
+func GetSplitIdxAndTotalWithMatrix(envs map[string]string) (splitIdx, splitTotal int) {
+	stepIdx, _ := GetStepStrategyIteration(envs)
+	stepTotal, _ := GetStepStrategyIterations(envs)
+	if !IsStepParallelismEnabled(envs) {
+		stepIdx = 0
+		stepTotal = 1
+	}
+	stageIdx, _ := GetStageStrategyIteration(envs)
+	stageTotal, _ := GetStageStrategyIterations(envs)
+	if !IsStageParallelismEnabled(envs) || IsMatrixEnabledStage(envs) {
+		stageIdx = 0
+		stageTotal = 1
+	}
+
+	splitIdx = stepTotal*stageIdx + stepIdx
+	splitTotal = stepTotal * stageTotal
+	return splitIdx, splitTotal
+}
+
+func IsMatrixEnabledStage(envs map[string]string) bool {
+	if matrixEnvVar, exists := envs[envHarnessMatrixAxis]; exists {
+		var stageMap map[string]string
+		if err := json.Unmarshal([]byte(matrixEnvVar), &stageMap); err == nil && len(stageMap) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func IsStageParallelismEnabledWithoutMatrix(envs map[string]string) bool {
+	return IsStageParallelismEnabled(envs) && !IsMatrixEnabledStage(envs)
 }
 
 // GetGitFileChecksums gets git file checksums from the specified repository
