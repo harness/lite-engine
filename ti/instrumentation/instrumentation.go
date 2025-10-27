@@ -31,6 +31,8 @@ const (
 	defaultTestSplitStrategy     = classTimingTestSplitStrategy
 	JavaAgentJar                 = "java-agent.jar"
 	AgentArg                     = "-javaagent:%s=%s"
+	envHarnessTiCgVersion        = "HARNESS_TI_CG_VERSION"
+	envHarnessMatrixAxis         = "HARNESS_MATRIX_AXIS"
 )
 
 func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTestConfig, fs filesystem.FileSystem,
