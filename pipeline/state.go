@@ -37,9 +37,10 @@ type State struct {
 
 	statsCollector *osstats.StatsCollector
 	logClient      logstream.Client
+	logWriter      logstream.Writer
 }
 
-func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
+func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector, wr logstream.Writer) { //nolint:gocritic
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.secrets = secrets
@@ -47,6 +48,14 @@ func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cf
 	s.tiConfig = tiConfig
 	s.mtlsConfig = mtlsConfig
 	s.statsCollector = collector
+	s.logWriter = wr
+}
+
+func (s *State) GetWriter() logstream.Writer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.logWriter
 }
 
 func (s *State) GetSecrets() []string {

@@ -18,7 +18,6 @@ import (
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/internal/safego"
-	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -416,29 +415,7 @@ func run(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer,
 }
 
 func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
-	if r.LogDrone {
-		return nil
-	}
-	pipelineState := pipeline.GetState()
-	secrets := append(pipelineState.GetSecrets(), r.Secrets...)
-
-	// Create a log stream for step logs
-	client := pipelineState.GetLogStreamClient()
-
-	// SkipOpeningStream and SkipClosingStream params are set only via runner else no effect of consuming these params via old flow.
-	// pipelineState.GetLogConfig() is being set during setup time (init).
-	// SkipOpeningStream and SkipClosingStream from pipelineState.LogConfig are not being set during setup (init) time.
-	// Consuming SkipOpeningStream and SkipClosingStream params during execution time through StartStepRequest.
-	// For local infra we are not going through this flow, everything is handled from runner side.
-	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false,
-		pipelineState.GetLogConfig().TrimNewLineSuffix,
-		r.LogConfig.SkipOpeningStream,
-		r.LogConfig.SkipClosingStream)
-	wr := logstream.NewReplacerWithEnvs(wc, secrets, r.Envs)
-	safego.SafeGo("log_stream_open", func() {
-		wr.Open() //nolint:errcheck
-	})
-	return wr
+	return GetLogStreamWriter(r.Secrets, r.LogKey, r.Name, r.LogDrone, r.LogConfig, r.Envs)
 }
 
 // This is used for Github Actions to set the envs from prev step.

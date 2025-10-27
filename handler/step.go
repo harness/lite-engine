@@ -6,6 +6,8 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
+	"github.com/sirupsen/logrus"
 	"io"
 	"net/http"
 	"runtime"
@@ -50,11 +52,17 @@ func HandleStartStep(e *pruntime.StepExecutor) http.HandlerFunc {
 			WriteJSON(w, api.StartStepResponse{}, http.StatusOK)
 		}
 
-		logger.FromRequest(r).
+		logEntry := logger.FromRequest(r).
 			WithField("latency", time.Since(st)).
 			WithField("time", time.Now().Format(time.RFC3339)).
-			WithField("name", s.Name).
-			Infoln("api: successfully started the step")
+			WithField("name", s.Name)
+
+		serialized, err := logger.LogAndSerialize(logEntry, logrus.InfoLevel, "api: successfully started the step")
+		if err != nil {
+			fmt.Println("error serializing log:", err)
+		} else {
+			fmt.Println("Serialized log:", serialized)
+		}
 	}
 }
 

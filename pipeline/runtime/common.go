@@ -19,10 +19,12 @@ import (
 	v4 "github.com/harness/godotenv/v4"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/logstream/stdout"
+	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
@@ -319,4 +321,31 @@ func checkStepSuccess(state *runtime.State, err error) bool {
 		return true
 	}
 	return false
+}
+
+// GetLogStreamWriter creates a log stream writer for step logs
+func GetLogStreamWriter(secrets []string, logKey string, name string, logDrone bool, logConfig api.LogConfig, envs map[string]string) logstream.Writer {
+	if logDrone {
+		return nil
+	}
+	pipelineState := pipeline.GetState()
+	allSecrets := append(pipelineState.GetSecrets(), secrets...)
+
+	// Create a log stream for step logs
+	client := pipelineState.GetLogStreamClient()
+
+	// SkipOpeningStream and SkipClosingStream params are set only via runner else no effect of consuming these params via old flow.
+	// pipelineState.GetLogConfig() is being set during setup time (init).
+	// SkipOpeningStream and SkipClosingStream from pipelineState.LogConfig are not being set during setup (init) time.
+	// Consuming SkipOpeningStream and SkipClosingStream params during execution time through StartStepRequest.
+	// For local infra we are not going through this flow, everything is handled from runner side.
+	wc := livelog.New(client, logKey, name, getNudges(), false,
+		pipelineState.GetLogConfig().TrimNewLineSuffix,
+		logConfig.SkipOpeningStream,
+		logConfig.SkipClosingStream)
+	wr := logstream.NewReplacerWithEnvs(wc, allSecrets, envs)
+	safego.SafeGo("log_stream_open", func() {
+		wr.Open() //nolint:errcheck
+	})
+	return wr
 }
