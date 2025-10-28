@@ -68,14 +68,19 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 		return engine.RunStep(ctx, engine.Opts{Opts: docker.Opts{DockerClient: dockerClient}}, step, output, cfg, isDrone, isHosted)
 	}
 	// Temporary: this should be removed once we have a better way of handling test intelligence.
-	tiConfig := getTiCfg(&r.TIConfig, &r.MtlsConfig)
+	tiConfig := getTiCfg(&r.TIConfig, &r.MtlsConfig, r.Envs)
 
 	r.DeleteTempStepFiles = true
 	return executeStepHelper(ctx, r, runFunc, writer, &tiConfig)
 }
 
-func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig) tiCfg.Cfg {
+func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig, envs map[string]string) tiCfg.Cfg {
+	// Extract parent unique ID from environment variables
+	parentUniqueID := ""
+	if envs != nil {
+		parentUniqueID = envs["HARNESS_PARENT_UNIQUE_ID"]
+	}
 	cfg := tiCfg.New(t.URL, t.Token, t.AccountID, t.OrgID, t.ProjectID, t.PipelineID, t.BuildID, t.StageID, t.Repo,
-		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.SharedVolPath, t.ParseSavings, false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
+		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.SharedVolPath, parentUniqueID, t.ParseSavings, false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
 	return cfg
 }

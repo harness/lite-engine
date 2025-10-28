@@ -21,7 +21,7 @@ func Test_GetSplitTests(t *testing.T) {
 
 	tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
 		"", "", "", "", "", "", "", "",
-		"", false, false, "", "")
+		"", "", false, false, "", "")
 
 	testsToSplit := []ti.RunnableTest{
 		{Pkg: "pkg1", Class: "cls1"},
