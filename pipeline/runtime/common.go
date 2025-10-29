@@ -324,7 +324,7 @@ func checkStepSuccess(state *runtime.State, err error) bool {
 }
 
 // GetLogStreamWriter creates a log stream writer for step logs
-func GetLogStreamWriter(secrets []string, logKey string, name string, logDrone bool, logConfig api.LogConfig, envs map[string]string) logstream.Writer {
+func GetLogStreamWriter(secrets []string, logKey string, name string, logDrone bool, logConfig api.LogConfig, printToStd bool, envs map[string]string) logstream.Writer {
 	if logDrone {
 		return nil
 	}
@@ -339,7 +339,7 @@ func GetLogStreamWriter(secrets []string, logKey string, name string, logDrone b
 	// SkipOpeningStream and SkipClosingStream from pipelineState.LogConfig are not being set during setup (init) time.
 	// Consuming SkipOpeningStream and SkipClosingStream params during execution time through StartStepRequest.
 	// For local infra we are not going through this flow, everything is handled from runner side.
-	wc := livelog.New(client, logKey, name, getNudges(), false,
+	wc := livelog.New(client, logKey, name, getNudges(), printToStd,
 		pipelineState.GetLogConfig().TrimNewLineSuffix,
 		logConfig.SkipOpeningStream,
 		logConfig.SkipClosingStream)

@@ -415,7 +415,7 @@ func run(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer,
 }
 
 func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
-	return GetLogStreamWriter(r.Secrets, r.LogKey, r.Name, r.LogDrone, r.LogConfig, r.Envs)
+	return GetLogStreamWriter(r.Secrets, r.LogKey, r.Name, r.LogDrone, r.LogConfig, true, r.Envs)
 }
 
 // This is used for Github Actions to set the envs from prev step.

@@ -126,22 +126,16 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		}
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
 
-		logEntry := logger.FromRequest(r).
-			WithField("latency", time.Since(st)).
-			WithField("time", time.Now().Format(time.RFC3339))
+		writer := pipeline.GetState().GetWriter()
 
-		logEntry.Infoln("api: successfully completed the stage setup")
-
-		if logStr, err := logEntry.String(); err == nil {
-			pipeline.GetState().GetWriter().Write([]byte(logStr))
-		} else {
-			fmt.Printf("Error writing to stream: %v\n", err)
-		}
+		fmt.Fprintf(writer, "[%s] latency=%v api: successfully completed the stage setup\n",
+			time.Now().Format(time.RFC3339),
+			time.Since(st))
 	}
 }
 
 func getLogStreamWriter(r *api.SetupRequest) logstream.Writer {
-	return pipelineRuntime.GetLogStreamWriter(r.Secrets, r.LogConfig.LogKey, "", false, r.LogConfig, r.Envs)
+	return pipelineRuntime.GetLogStreamWriter(r.Secrets, r.LogConfig.LogKey, "", false, r.LogConfig, true, r.Envs)
 }
 
 func getSharedVolume() *spec.Volume {
