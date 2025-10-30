@@ -53,9 +53,17 @@ func HandleStartStep(e *pruntime.StepExecutor) http.HandlerFunc {
 
 		writer := pipeline.GetState().GetWriter()
 
-		fmt.Fprintf(writer, "[%s] latency=%v api: successfully completed the stage setup\n",
-			time.Now().Format(time.RFC3339),
-			time.Since(st))
+		if writer != nil {
+			fmt.Fprintf(writer, "[%s] latency=%v api: successfully completed the stage setup\n",
+				time.Now().Format(time.RFC3339),
+				time.Since(st))
+		} else {
+			logger.FromRequest(r).
+				WithField("latency", time.Since(st)).
+				WithField("time", time.Now().Format(time.RFC3339)).
+				WithField("name", s.Name).
+				Infoln("api: successfully started the step")
+		}
 	}
 }
 

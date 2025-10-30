@@ -91,9 +91,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		if val, ok := s.Envs["DRONE_PERSIST_CREDS"]; ok && val == "true" {
 			netrcFile, err := GetNetrcFile(s.Envs)
 			if err != nil {
-				s := fmt.Sprintf("Skipping netrc file creation: %v\n", err)
-				fmt.Printf(s)
-				pipeline.GetState().GetWriter().Write([]byte(s))
+				fmt.Printf("Skipping netrc file creation: %v\n", err)
 			} else {
 				s.Files = append(s.Files, netrcFile)
 			}
@@ -128,9 +126,17 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 
 		writer := pipeline.GetState().GetWriter()
 
-		fmt.Fprintf(writer, "[%s] latency=%v api: successfully completed the stage setup\n",
-			time.Now().Format(time.RFC3339),
-			time.Since(st))
+		if writer != nil {
+			fmt.Fprintf(writer, "[%s] latency=%v api: successfully completed the stage setup\n",
+				time.Now().Format(time.RFC3339),
+				time.Since(st))
+		} else {
+			logger.FromRequest(r).
+				WithField("latency", time.Since(st)).
+				WithField("time", time.Now().Format(time.RFC3339)).
+				Infoln("api: successfully completed the stage setup")
+		}
+
 	}
 }
 

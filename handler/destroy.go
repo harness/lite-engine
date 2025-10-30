@@ -70,6 +70,11 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %s", destroyErr, logErr))
 		}
 
+		err = pipeline.GetState().GetWriter().Close()
+		if err != nil {
+			logger.FromRequest(r).Errorln("Failed to close log stream")
+		}
+
 		// upload engine logs
 		if d.LogKey != "" && d.LiteEnginePath != "" {
 			if !d.LogDrone {
