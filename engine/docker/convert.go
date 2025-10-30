@@ -23,6 +23,8 @@ import (
 
 const (
 	buildCacheStepName = "harness-build-cache"
+	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
+	hcliPath           = "/usr/bin/hcli"
 )
 
 // returns a container configuration.
@@ -110,6 +112,14 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.Devices = toDeviceSlice(pipelineConfig, step)
 		config.Binds = toVolumeSlice(pipelineConfig, step)
 		config.Mounts = toVolumeMounts(pipelineConfig, step)
+	}
+
+	if step.Envs[annotationsFFEnv] == "true" {
+		config.Mounts = append(config.Mounts, mount.Mount{
+			Type:   mount.TypeBind,
+			Source: hcliPath,
+			Target: hcliPath,
+		})
 	}
 
 	if len(step.PortBindings) != 0 {

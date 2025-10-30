@@ -95,7 +95,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata}
 
 		ffEnabled := isAnnotationsEnabled(r.Envs)
-		if state.ExitCode == 0 && ffEnabled {
+		if stepErr == nil && state.ExitCode == 0 && ffEnabled {
 			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
 			go e.postAnnotationsToPipeline(context.Background(), r)
 		}
@@ -139,7 +139,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 			pollResponse := convertStatus(status)
 			ffEnabled := isAnnotationsEnabled(r.Envs)
-			if state.ExitCode == 0 && ffEnabled {
+			if stepErr == nil && state.ExitCode == 0 && ffEnabled {
 				logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
 				go e.postAnnotationsToPipeline(context.Background(), r)
 			}
