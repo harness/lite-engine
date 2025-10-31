@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -299,8 +300,12 @@ func getTestStatus(filteredTests []*tiClientTypes.TestCase) types.TestState {
 func fetchFailedTests(filePath string) ([]string, error) {
 	fs := filesystem.New()
 	var lines []string
+	_, err := os.Stat(filePath)
+	if err != nil {
+		return []string{}, nil
+	}
 
-	err := fs.ReadFile(filePath, func(reader io.Reader) error {
+	err = fs.ReadFile(filePath, func(reader io.Reader) error {
 		scanner := bufio.NewScanner(reader)
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
@@ -327,6 +332,10 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 		ProjectID: cfg.GetProjectID(),
 		Repo:      repo,
 		ExtraInfo: map[string]string{},
+	}
+	executionContext := instrumentation.GetTIExecutionContext(envs)
+	if executionContext != nil {
+		repoInfo.ExtraInfo = executionContext
 	}
 
 	var tests []types.Test
