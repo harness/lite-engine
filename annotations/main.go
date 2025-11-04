@@ -32,10 +32,11 @@ func truncateUTF8ByBytes(s string, limit int) string {
 	return s[:limit]
 }
 
-// isAnnotationsEnabled returns true if CI_ENABLE_HARNESS_ANNOTATIONS is set to a truthy value
+// isAnnotationsEnabled returns true if CI_ENABLE_HARNESS_ANNOTATIONS or PIPE_HARNESS_ANNOTATIONS is set to a truthy value
 func isAnnotationsEnabled() bool {
-	v := os.Getenv("CI_ENABLE_HARNESS_ANNOTATIONS")
-	return v == "true"
+	ciFlagValue := os.Getenv("CI_ENABLE_HARNESS_ANNOTATIONS")
+	pipeFlagValue := os.Getenv("PIPE_HARNESS_ANNOTATIONS")
+	return ciFlagValue == "true" || pipeFlagValue == "true"
 }
 
 type AnnotationsEnvelope struct {
@@ -353,10 +354,10 @@ func main() {
 		return
 	}
 
-	// Feature flag: gate CLI behavior behind CI_ENABLE_HARNESS_ANNOTATIONS
+	// Feature flag: gate CLI behavior behind CI_ENABLE_HARNESS_ANNOTATIONS or PIPE_HARNESS_ANNOTATIONS
 	if command == "annotate" && !isAnnotationsEnabled() {
 		// No-op when disabled; do not fail the step
-		fmt.Fprintln(os.Stderr, "Annotations feature flag [CI_ENABLE_HARNESS_ANNOTATIONS] is disabled. Please reach out to Harness Team to get it enabled")
+		fmt.Fprintln(os.Stderr, "Annotations feature flag is disabled. Please reach out to Harness Team to get it enabled")
 		return
 	}
 
