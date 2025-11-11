@@ -2,8 +2,6 @@ module github.com/harness/lite-engine
 
 go 1.19
 
-replace github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
-
 require (
 	github.com/bmatcuk/doublestar v1.3.4
 	github.com/cenkalti/backoff/v4 v4.2.0
@@ -69,6 +67,7 @@ require (
 	github.com/klauspost/pgzip v1.2.5 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
+	github.com/moby/moby v28.5.2+incompatible // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/natessilva/dag v0.0.0-20180124060714-7194b8dcc5c4 // indirect
 	github.com/nwaples/rardecode v1.1.3 // indirect

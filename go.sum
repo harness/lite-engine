@@ -121,6 +121,8 @@ github.com/mholt/archiver/v3 v3.5.1 h1:rDjOBX9JSF5BvoJGvjqK479aL70qh9DIpZCl+k7Cl
 github.com/mholt/archiver/v3 v3.5.1/go.mod h1:e3dqJ7H78uzsRSEACH1joayhuSyhnonssnDhppzS1L4=
 github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible h1:NT0cwArZg/wGdvY8pzej4tPr+9WGmDdkF8Suj+mkz2g=
 github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible/go.mod h1:fDXVQ6+S340veQPv35CzDahGBmHsiclFwfEygB/TWMc=
+github.com/moby/moby v28.5.2+incompatible h1:hIn6qcenb3JY1E3STwqEbBvJ8bha+u1LpqjX4CBvNCk=
+github.com/moby/moby v28.5.2+incompatible/go.mod h1:fDXVQ6+S340veQPv35CzDahGBmHsiclFwfEygB/TWMc=
 github.com/morikuni/aec v1.0.0 h1:nP9CBfwrvYnBRgY6qfDQkygYDmYwOilePFkwzv4dU8A=
 github.com/morikuni/aec v1.0.0/go.mod h1:BbKIizmSmc5MMPqRYbxO4ZU0S0+P200+tUnFx7PXmsc=
 github.com/natessilva/dag v0.0.0-20180124060714-7194b8dcc5c4 h1:dnMxwus89s86tI8rcGVp2HwZzlz7c5o92VOy7dSckBQ=
