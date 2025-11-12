@@ -31,8 +31,11 @@ func PrepareSystem() {
 	}
 }
 
-const windowsString = "windows"
-const osxString = "darwin"
+const (
+	windowsString = "windows"
+	osxString     = "darwin"
+	DockerVersion = "DOCKER_VERSION"
+)
 
 func GitInstalled(instanceInfo InstanceInfo) (installed bool) {
 	logrus.Infoln("checking git is installed")
@@ -117,7 +120,13 @@ func installGit(instanceInfo InstanceInfo) {
 }
 
 func installDocker(instanceInfo InstanceInfo) {
-	logrus.Infoln("installing docker")
+	// Get Docker version from environment variable, default to 28.0
+	dockerVersion := os.Getenv(DockerVersion)
+	if dockerVersion == "" {
+		dockerVersion = "28.0"
+	}
+
+	logrus.WithField("version", dockerVersion).Infoln("installing docker")
 	switch instanceInfo.osType {
 	case windowsString:
 		ensureChocolatey()
@@ -141,7 +150,7 @@ func installDocker(instanceInfo InstanceInfo) {
 			return
 		}
 
-		cmd = exec.Command("sudo", "sh", "get-docker.sh")
+		cmd = exec.Command("sudo", "sh", "get-docker.sh", "--version", dockerVersion)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		dockerInstallErr := cmd.Run()
