@@ -11,6 +11,7 @@ package docker
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/harness/lite-engine/engine/spec"
@@ -114,7 +115,7 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.Mounts = toVolumeMounts(pipelineConfig, step)
 	}
 
-	if step.Envs[annotationsFFEnv] == "true" {
+	if runtime.GOOS != windowsOS && step.Envs[annotationsFFEnv] == "true" {
 		config.Mounts = append(config.Mounts, mount.Mount{
 			Type:   mount.TypeBind,
 			Source: hcliPath,
