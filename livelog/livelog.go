@@ -68,9 +68,6 @@ type Writer struct {
 
 // New returns a new writer
 func New(ctx context.Context, client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout, trimNewLineSuffix, skipOpeningStream, skipClosingStream bool) *Writer {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	b := &Writer{
 		client:            client,
 		key:               key,
