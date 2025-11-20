@@ -433,7 +433,7 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 	wc := livelog.New(client, r.LogKey, r.Name, getNudges(), false,
 		pipelineState.GetLogConfig().TrimNewLineSuffix,
 		r.LogConfig.SkipOpeningStream,
-		r.LogConfig.SkipClosingStream)
+		r.LogConfig.SkipClosingStream, nil)
 	wr := logstream.NewReplacerWithEnvs(wc, secrets, r.Envs)
 	safego.SafeGo("log_stream_open", func() {
 		wr.Open() //nolint:errcheck

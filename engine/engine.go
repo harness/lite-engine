@@ -74,7 +74,7 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 
 		if err := os.MkdirAll(path, permissions); err != nil {
 			return errors.Wrap(err,
-				fmt.Sprintf("failed to create directory for host volume path: %q", path))
+				fmt.Sprintf("failed to create directory or host volume path: %q", path))
 		}
 		_ = os.Chmod(path, permissions)
 	}
