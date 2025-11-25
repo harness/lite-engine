@@ -47,6 +47,11 @@ func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64,
 		return types.FULL_RUN, 0, savingsRequest, joinErrors(gradleErr, mavenErr)
 	}
 
+	// Update cacheState based on gradle results if gradle parsing succeeded
+	if gradleErr == nil {
+		cacheState = gradleCacheState
+	}
+
 	if mavenCacheState == types.OPTIMIZED {
 		cacheState = mavenCacheState
 		buildTime = int(cmdTimeTaken)
