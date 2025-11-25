@@ -63,10 +63,11 @@ type Writer struct {
 	ready             chan struct{}
 	trimNewLineSuffix bool
 	lastFlushTime     time.Time
+	ctx               context.Context
 }
 
 // New returns a new writer
-func New(client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout, trimNewLineSuffix, skipOpeningStream, skipClosingStream bool) *Writer {
+func New(ctx context.Context, client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout, trimNewLineSuffix, skipOpeningStream, skipClosingStream bool) *Writer {
 	b := &Writer{
 		client:            client,
 		key:               key,
@@ -82,6 +83,7 @@ func New(client logstream.Client, key, name string, nudges []logstream.Nudge, pr
 		ready:             make(chan struct{}, 1),
 		lastFlushTime:     time.Now(),
 		trimNewLineSuffix: trimNewLineSuffix,
+		ctx:               ctx,
 	}
 	safego.SafeGo("livelog_buffer", b.Start)
 	return b
@@ -184,7 +186,7 @@ func (b *Writer) Open() error {
 		b.opened = true
 		return nil
 	}
-	err := b.client.Open(context.Background(), b.key)
+	err := b.client.Open(b.ctx, b.key)
 	if err != nil {
 		logrus.WithError(err).WithField("key", b.key).
 			Errorln("could not open the stream")
@@ -230,7 +232,7 @@ func (b *Writer) Close() error {
 
 	// Close the log stream once upload has completed. Log in case of any error
 
-	if errc := b.client.Close(context.Background(), b.key, b.skipOpeningStream); errc != nil {
+	if errc := b.client.Close(b.ctx, b.key, b.skipOpeningStream); errc != nil {
 		// In case skipOpeningStream is true, we call the stream-close endpoint passing
 		// `snapshot=true`, which will close the stream and snapshot its content into a blob.
 		// TODO: we can get rid of using `snapshot=true` here once we are able to append logs
@@ -258,7 +260,7 @@ func (b *Writer) writeWithoutClose() error {
 
 // upload uploads the full log history to the server.
 func (b *Writer) upload() error {
-	return b.client.Upload(context.Background(), b.key, b.history)
+	return b.client.Upload(b.ctx, b.key, b.history)
 }
 
 // flush batch uploads all buffered logs to the server.
@@ -284,7 +286,7 @@ func (b *Writer) flush() error {
 	}
 	// reset lastFlushTime if logs are found
 	b.lastFlushTime = time.Now()
-	err := b.client.Write(context.Background(), b.key, lines)
+	err := b.client.Write(b.ctx, b.key, lines)
 	if err != nil {
 		logrus.WithError(err).WithField("key", b.key).WithField("num_lines", len(lines)).
 			Errorln("failed to flush lines")

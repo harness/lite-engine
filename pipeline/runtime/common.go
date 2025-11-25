@@ -6,6 +6,7 @@ package runtime
 
 import (
 	"bufio"
+	"context"
 	b64 "encoding/base64"
 	"errors"
 	"fmt"
@@ -295,7 +296,14 @@ func GetReplacer(
 	cfg api.LogConfig, logKey, name string, secrets []string,
 ) logstream.Writer {
 	client := getLogServiceClient(cfg)
-	wc := livelog.New(client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream)
+	wc := livelog.New(context.Background(), client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream)
+	return logstream.NewReplacer(wc, secrets)
+}
+
+func GetReplacerWithCustomLogClient(
+	ctx context.Context, client logstream.Client, cfg api.LogConfig, logKey, name string, secrets []string,
+) logstream.Writer {
+	wc := livelog.New(ctx, client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream)
 	return logstream.NewReplacer(wc, secrets)
 }
 
