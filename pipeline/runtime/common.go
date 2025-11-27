@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	goruntime "runtime"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 
 const (
 	ciNewVersionGodotEnv = "CI_NEW_VERSION_GODOTENV"
+	trueValue            = "true"
 )
 
 func getNudges() []logstream.Nudge {
@@ -327,4 +329,110 @@ func checkStepSuccess(state *runtime.State, err error) bool {
 		return true
 	}
 	return false
+}
+
+// setupAnnotationsPath adds the shared volume path to the PATH environment variable
+// for Windows steps when annotations are enabled. This ensures the hcli binary
+// (downloaded to c:\tmp\engine during CloudInit) is discoverable.
+//
+// For Linux and macOS, hcli is downloaded to system PATH directories
+// (/usr/bin/hcli or /usr/local/bin/hcli), so no PATH modification is needed.
+//
+// This function should be called by all step execution functions (Run, RunTest, RunTestsV2)
+// to ensure consistent hcli binary discovery across all step types.
+func setupAnnotationsPath(step *spec.Step) {
+	logrus.WithFields(logrus.Fields{
+		"step_id":             step.ID,
+		"step_name":           step.Name,
+		"annotations_enabled": step.Envs["CI_ENABLE_HARNESS_ANNOTATIONS"],
+		"os":                  goruntime.GOOS,
+		"has_image":           step.Image != "",
+	}).Debugln("[ANNOTATIONS] setupAnnotationsPath called")
+
+	// Only Windows needs PATH modification for annotations
+	// Linux uses /usr/bin/hcli which is already in PATH
+	// macOS uses /usr/local/bin/hcli which is already in PATH
+	if step.Envs["CI_ENABLE_HARNESS_ANNOTATIONS"] != trueValue {
+		logrus.WithField("step_id", step.ID).Debugln("[ANNOTATIONS] Annotations not enabled, skipping PATH setup")
+		return
+	}
+
+	if goruntime.GOOS != "windows" {
+		logrus.WithFields(logrus.Fields{
+			"step_id": step.ID,
+			"os":      goruntime.GOOS,
+		}).Debugln("[ANNOTATIONS] Non-Windows OS, hcli should be in system PATH already")
+		return
+	}
+
+	logrus.WithField("step_id", step.ID).Infoln("[ANNOTATIONS] Windows detected, modifying PATH for hcli binary discovery")
+
+	// On Windows, SharedVolPath "/tmp/engine" is converted to "c:\tmp\engine"
+	// by pathConverter() in engine.go. We need to use the converted Windows path
+	// for PATH modification so PowerShell and cmd.exe can find hcli.exe.
+	windowsSharedVolPath := `c:\tmp\engine`
+	existingPath := step.Envs["PATH"]
+
+	logrus.WithFields(logrus.Fields{
+		"step_id":              step.ID,
+		"existing_path_length": len(existingPath),
+		"existing_path_first_100": func() string {
+			if len(existingPath) > 100 {
+				return existingPath[:100] + "..."
+			}
+			return existingPath
+		}(),
+		"shared_vol_path": windowsSharedVolPath,
+	}).Debugln("[ANNOTATIONS] Current PATH state")
+
+	// Avoid duplicate entries
+	if strings.Contains(existingPath, windowsSharedVolPath) {
+		logrus.WithFields(logrus.Fields{
+			"step_id":         step.ID,
+			"shared_vol_path": windowsSharedVolPath,
+		}).Infoln("[ANNOTATIONS] Shared volume already in PATH, skipping modification")
+		return
+	}
+
+	// Prepend shared volume to PATH (Windows uses semicolon separator)
+	var newPath string
+	if existingPath != "" {
+		newPath = windowsSharedVolPath + ";" + existingPath
+		logrus.WithFields(logrus.Fields{
+			"step_id":        step.ID,
+			"prepended_path": windowsSharedVolPath,
+		}).Infoln("[ANNOTATIONS] Prepending shared volume to existing PATH")
+	} else {
+		// Provide minimal Windows PATH if none exists
+		newPath = windowsSharedVolPath + `;C:\Windows\System32;C:\Windows`
+		logrus.WithField("step_id", step.ID).Warnln("[ANNOTATIONS] No existing PATH found, creating minimal Windows PATH")
+	}
+
+	step.Envs["PATH"] = newPath
+
+	logrus.WithFields(logrus.Fields{
+		"step_id":         step.ID,
+		"new_path_length": len(newPath),
+		"new_path_first_150": func() string {
+			if len(newPath) > 150 {
+				return newPath[:150] + "..."
+			}
+			return newPath
+		}(),
+	}).Infoln("[ANNOTATIONS] Successfully modified PATH for Windows annotations support")
+
+	// Verify hcli binary existence (best effort, don't fail if we can't check)
+	hcliBinaryPath := windowsSharedVolPath + `\hcli.exe`
+	if _, err := os.Stat(hcliBinaryPath); err == nil {
+		logrus.WithFields(logrus.Fields{
+			"step_id":     step.ID,
+			"binary_path": hcliBinaryPath,
+		}).Infoln("[ANNOTATIONS] SUCCESS: hcli binary exists and should be discoverable")
+	} else {
+		logrus.WithFields(logrus.Fields{
+			"step_id":     step.ID,
+			"binary_path": hcliBinaryPath,
+			"error":       err,
+		}).Warnln("[ANNOTATIONS] WARNING: Could not verify hcli binary existence - annotations may fail if binary is missing")
+	}
 }

@@ -93,27 +93,70 @@ type pipelineClient struct {
 // postAnnotationsToPipeline reads the per-step annotations file and posts annotations directly
 // to Pipeline Service. It never fails the step and logs errors on failures.
 func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
+	logrus.WithContext(ctx).
+		WithFields(logrus.Fields{
+			"step_id":   r.ID,
+			"step_name": r.Name,
+		}).Infoln("[ANNOTATIONS] Starting postAnnotationsToPipeline")
+
 	// Read annotations file (already validated and parsed)
 	file := e.readAnnotationsJSON(r.ID)
 	if file == nil {
+		logrus.WithContext(ctx).
+			WithField("step_id", r.ID).
+			Warnln("[ANNOTATIONS] No annotations file found or failed to read, skipping post")
 		return
 	}
+
+	logrus.WithContext(ctx).
+		WithFields(logrus.Fields{
+			"step_id":               r.ID,
+			"raw_annotation_count":  len(file.Annotations),
+			"has_plan_execution_id": file.PlanExecutionID != "",
+		}).Infoln("[ANNOTATIONS] Successfully read annotations file")
+
 	// Extract planExecutionID (present in file) and ensure there are annotations
 	planExecutionID := file.PlanExecutionID
 	if len(file.Annotations) == 0 {
+		logrus.WithContext(ctx).
+			WithField("step_id", r.ID).
+			Infoln("[ANNOTATIONS] No annotations in file, skipping post")
 		return
 	}
 
 	// Read account identifier from file
 	accountID := file.AccountID
 
+	logrus.WithContext(ctx).
+		WithFields(logrus.Fields{
+			"step_id":             r.ID,
+			"has_account_id":      accountID != "",
+			"has_org_id":          file.OrgID != "",
+			"has_project_id":      file.ProjectID != "",
+			"has_pipeline_id":     file.PipelineID != "",
+			"has_stage_execution": file.StageExecutionID != "",
+		}).Debugln("[ANNOTATIONS] File metadata validation")
+
 	// Fold and sanitize annotations into a final slice
 	annList := foldAnnotationsToSlice(file, r.ID)
 	if len(annList) == 0 {
+		logrus.WithContext(ctx).
+			WithField("step_id", r.ID).
+			Warnln("[ANNOTATIONS] No annotations after folding/sanitization, skipping post")
 		return
 	}
 
+	logrus.WithContext(ctx).
+		WithFields(logrus.Fields{
+			"step_id":        r.ID,
+			"final_count":    len(annList),
+			"original_count": len(file.Annotations),
+		}).Infoln("[ANNOTATIONS] Annotations folded and sanitized")
+
 	if accountID == "" {
+		logrus.WithContext(ctx).
+			WithField("step_id", r.ID).
+			Warnln("[ANNOTATIONS] Missing account ID, cannot post annotations")
 		return
 	}
 
@@ -128,11 +171,29 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
+		logrus.WithContext(ctx).
+			WithError(err).
+			WithField("step_id", r.ID).
+			Errorln("[ANNOTATIONS] Failed to marshal payload to JSON")
 		return
 	}
 
+	logrus.WithContext(ctx).
+		WithFields(logrus.Fields{
+			"step_id":      r.ID,
+			"payload_size": len(body),
+		}).Debugln("[ANNOTATIONS] Payload marshaled to JSON")
+
 	// Resolve base URL and token
 	base, annToken := resolveAnnotationsConfig(r)
+
+	logrus.WithContext(ctx).
+		WithFields(logrus.Fields{
+			"step_id":      r.ID,
+			"has_base_url": base != "",
+			"has_token":    annToken != "",
+			"base_url":     base,
+		}).Infoln("[ANNOTATIONS] Resolved annotations configuration")
 
 	// Append required identifiers as query params
 	endpoint := fmt.Sprintf("/api/pipelines/annotations?accountId=%s&planExecutionId=%s",
@@ -159,38 +220,114 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 // Returns nil if the file does not exist, is too large, or contains invalid JSON.
 func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 	if stepID == "" {
+		logrus.Debugln("[ANNOTATIONS] Empty step ID, cannot read annotations")
 		return nil
 	}
+
 	path := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, stepID)
+	logrus.WithFields(logrus.Fields{
+		"step_id":   stepID,
+		"file_path": path,
+	}).Infoln("[ANNOTATIONS] Attempting to read annotations file")
+
 	info, err := os.Stat(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			logrus.WithFields(logrus.Fields{
+				"step_id":   stepID,
+				"file_path": path,
+			}).Debugln("[ANNOTATIONS] Annotations file does not exist (this is OK if step didn't produce annotations)")
+		} else {
+			logrus.WithFields(logrus.Fields{
+				"step_id":   stepID,
+				"file_path": path,
+			}).WithError(err).Warnln("[ANNOTATIONS] Error checking file status")
+		}
 		return nil
 	}
+
 	// Cap file size roughly to max annotations * max size per annotation + small overhead (~256KB)
 	maxSize := int64(maxAnnotationsCount*maxAnnotationBytes + 256*1024)
+
+	logrus.WithFields(logrus.Fields{
+		"step_id":   stepID,
+		"file_path": path,
+		"file_size": info.Size(),
+		"max_size":  maxSize,
+	}).Debugln("[ANNOTATIONS] File found, checking size")
+
 	if info.Size() <= 0 {
+		logrus.WithFields(logrus.Fields{
+			"step_id":   stepID,
+			"file_path": path,
+		}).Warnln("[ANNOTATIONS] File is empty")
 		return nil
 	}
+
 	if info.Size() > maxSize {
-		logrus.WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Warnln("ANNOTATIONS: file too large, skipping")
+		logrus.WithFields(logrus.Fields{
+			"step_id":   stepID,
+			"file_path": path,
+			"file_size": info.Size(),
+			"max_size":  maxSize,
+		}).Warnln("[ANNOTATIONS] File too large, skipping")
 		return nil
 	}
+
 	data, err := os.ReadFile(path)
 	if err != nil {
-		logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Warnln("ANNOTATIONS: read failed")
+		logrus.WithFields(logrus.Fields{
+			"step_id":   stepID,
+			"file_path": path,
+		}).WithError(err).Errorln("[ANNOTATIONS] Failed to read file")
 		return nil
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"step_id":    stepID,
+		"bytes_read": len(data),
+		"first_100": func() string {
+			if len(data) > 100 {
+				return string(data[:100]) + "..."
+			}
+			return string(data)
+		}(),
+	}).Debugln("[ANNOTATIONS] File read successfully")
+
 	if !json.Valid(data) {
-		logrus.WithField("step_id", stepID).WithField("path", path).Warnln("ANNOTATIONS: invalid JSON, skipping")
+		logrus.WithFields(logrus.Fields{
+			"step_id":   stepID,
+			"file_path": path,
+			"data_size": len(data),
+		}).Errorln("[ANNOTATIONS] Invalid JSON in file")
 		return nil
 	}
+
 	var file annotationsFileRaw
 	if err := json.Unmarshal(data, &file); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"step_id":   stepID,
+			"file_path": path,
+		}).WithError(err).Errorln("[ANNOTATIONS] Failed to unmarshal JSON")
 		return nil
 	}
+
+	originalCount := len(file.Annotations)
 	if len(file.Annotations) > maxAnnotationsCount {
+		logrus.WithFields(logrus.Fields{
+			"step_id":        stepID,
+			"original_count": originalCount,
+			"max_count":      maxAnnotationsCount,
+		}).Warnln("[ANNOTATIONS] Too many annotations, truncating to max")
 		file.Annotations = file.Annotations[:maxAnnotationsCount]
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"step_id":          stepID,
+		"annotation_count": len(file.Annotations),
+		"truncated":        originalCount > maxAnnotationsCount,
+	}).Infoln("[ANNOTATIONS] Successfully parsed annotations file")
+
 	return &file
 }
 
@@ -308,20 +445,94 @@ func newPipelineClient(baseURL, token string, timeout time.Duration) *pipelineCl
 // PostJSON posts a JSON body to the given path relative to baseURL.
 func (c *pipelineClient) PostJSON(ctx context.Context, path string, body []byte) (status int, respBody []byte, err error) {
 	url := c.baseURL + path
+
+	logrus.WithContext(ctx).
+		WithFields(logrus.Fields{
+			"url":       url,
+			"body_size": len(body),
+			"has_token": c.token != "",
+			"base_url":  c.baseURL,
+			"path":      path,
+		}).Infoln("[ANNOTATIONS] Preparing HTTP POST request")
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
+		logrus.WithContext(ctx).
+			WithError(err).
+			WithField("url", url).
+			Errorln("[ANNOTATIONS] Failed to create HTTP request")
 		return 0, nil, err
 	}
+
 	if c.token != "" {
 		// Do not log tokens; set headers only
 		req.Header.Set("Authorization", "Annotations "+c.token)
+		logrus.WithContext(ctx).Debugln("[ANNOTATIONS] Authorization header set")
+	} else {
+		logrus.WithContext(ctx).Warnln("[ANNOTATIONS] No token provided for authorization")
 	}
+
 	req.Header.Set("Content-Type", "application/json")
+
+	logrus.WithContext(ctx).
+		WithFields(logrus.Fields{
+			"url":    url,
+			"method": "POST",
+		}).Infoln("[ANNOTATIONS] Sending HTTP request to pipeline service")
+
+	startTime := time.Now()
 	resp, err := c.httpClient.Do(req)
+	duration := time.Since(startTime)
+
 	if err != nil {
+		logrus.WithContext(ctx).
+			WithError(err).
+			WithFields(logrus.Fields{
+				"url":      url,
+				"duration": duration,
+			}).Errorln("[ANNOTATIONS] HTTP request failed")
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
-	b, _ := io.ReadAll(resp.Body)
+
+	b, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		logrus.WithContext(ctx).
+			WithError(readErr).
+			WithFields(logrus.Fields{
+				"url":         url,
+				"status_code": resp.StatusCode,
+			}).Warnln("[ANNOTATIONS] Failed to read response body")
+	}
+
+	logrus.WithContext(ctx).
+		WithFields(logrus.Fields{
+			"url":           url,
+			"status_code":   resp.StatusCode,
+			"duration_ms":   duration.Milliseconds(),
+			"response_size": len(b),
+			"response_preview": func() string {
+				if len(b) > 200 {
+					return string(b[:200]) + "..."
+				}
+				return string(b)
+			}(),
+		}).Infoln("[ANNOTATIONS] HTTP response received")
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		logrus.WithContext(ctx).
+			WithFields(logrus.Fields{
+				"url":           url,
+				"status_code":   resp.StatusCode,
+				"response_body": string(b),
+			}).Errorln("[ANNOTATIONS] HTTP request returned non-2xx status code")
+	} else {
+		logrus.WithContext(ctx).
+			WithFields(logrus.Fields{
+				"status_code": resp.StatusCode,
+				"duration_ms": duration.Milliseconds(),
+			}).Infoln("[ANNOTATIONS] Successfully posted annotations to pipeline service")
+	}
+
 	return resp.StatusCode, b, nil
 }
