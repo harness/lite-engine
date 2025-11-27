@@ -115,6 +115,9 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.Mounts = toVolumeMounts(pipelineConfig, step)
 	}
 
+	// Mount hcli binary for Linux/macOS containers (not Windows)
+	// Linux/macOS: hcli is at /usr/bin/hcli or /usr/local/bin/hcli (not in shared volume)
+	// Windows: hcli is in c:\tmp\engine (already mounted via shared volume)
 	if runtime.GOOS != windowsOS && step.Envs[annotationsFFEnv] == "true" {
 		config.Mounts = append(config.Mounts, mount.Mount{
 			Type:   mount.TypeBind,
