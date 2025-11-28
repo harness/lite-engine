@@ -141,7 +141,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	// Parse and upload savings to TI
 	if tiConfig.GetParseSavings() {
 		stepType := common.StepTypePlugin
-		if step.Command != nil && len(step.Command) > 0 {
+		if len(step.Command) > 0 {
 			stepType = common.StepTypeRun
 		}
 		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, stepType)
@@ -159,7 +159,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 	summaryOutputs := make(map[string]string)
 
-	if r.TestReport.Junit.Paths != nil && len(r.TestReport.Junit.Paths) > 0 {
+	if len(r.TestReport.Junit.Paths) > 0 {
 		reportSaveErr := report.SaveReportSummaryToOutputs(ctx, tiConfig, step.Name, summaryOutputs, log, r.Envs)
 
 		if reportSaveErr == nil && report.TestSummaryAsOutputEnabled(r.Envs) {

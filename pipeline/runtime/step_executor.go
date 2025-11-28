@@ -202,7 +202,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 	id := r.ID
 	if id == "" {
 		err = &errors.BadRequestError{Msg: "ID needs to be set"}
-		return
+		return oldOut, newOut, err
 	}
 
 	var stepLog *StepLog
@@ -220,7 +220,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 		const timeoutDelay = 5 * time.Second
 		if time.Since(ts) >= timeoutDelay {
 			err = &errors.BadRequestError{Msg: "Step has not started"}
-			return
+			return oldOut, newOut, err
 		}
 
 		const retryDelay = 100 * time.Millisecond
@@ -228,7 +228,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 		case <-time.After(retryDelay):
 		case <-ctx.Done():
 			err = ctx.Err()
-			return
+			return oldOut, newOut, err
 		}
 	}
 
@@ -236,7 +236,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 	chData := make(chan []byte)
 	oldOut, err = stepLog.Subscribe(chData, r.Offset)
 	if err != nil {
-		return
+		return oldOut, newOut, err
 	}
 
 	safego.WithContext(ctx, "stream_cleanup", func(ctx context.Context) {

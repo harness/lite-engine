@@ -28,7 +28,7 @@ type rspecRunner struct {
 	envs      map[string]string
 }
 
-func NewRubyRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) *rspecRunner { //nolint:revive
+func NewRubyRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) *rspecRunner {
 	return &rspecRunner{
 		fs:        fs,
 		log:       log,

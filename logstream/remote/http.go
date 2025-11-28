@@ -165,7 +165,7 @@ func (c *HTTPClient) Upload(ctx context.Context, key string, lines []*logstream.
 func (c *HTTPClient) uploadToRemoteStorage(ctx context.Context, key string, r io.Reader) error {
 	path := fmt.Sprintf(blobEndpoint, c.AccountID, key)
 	backoff := createInfiniteBackoff()
-	childCtx, cancel := context.WithTimeout(ctx, 60*time.Second) //nolint:gomnd
+	childCtx, cancel := context.WithTimeout(ctx, 60*time.Second) //nolint:mnd
 	defer cancel()
 	resp, err := c.retry(childCtx, c.Endpoint+path, "POST", r, nil, true, backoff)
 	if resp != nil {
@@ -179,9 +179,9 @@ func (c *HTTPClient) uploadToRemoteStorage(ctx context.Context, key string, r io
 func (c *HTTPClient) uploadLink(ctx context.Context, key string) (*Link, error) {
 	path := fmt.Sprintf(uploadLinkEndpoint, c.AccountID, key)
 	out := new(Link)
-	backoff := createBackoff(60 * time.Second) //nolint:gomnd
+	backoff := createBackoff(60 * time.Second) //nolint:mnd
 	// 10s should be enought to get the upload link
-	childCtx, cancel := context.WithTimeout(ctx, 10*time.Second) //nolint:gomnd
+	childCtx, cancel := context.WithTimeout(ctx, 10*time.Second) //nolint:mnd
 	defer cancel()
 	_, err := c.retry(childCtx, c.Endpoint+path, "POST", nil, out, false, backoff) //nolint:bodyclose
 	return out, err
@@ -191,7 +191,7 @@ func (c *HTTPClient) uploadLink(ctx context.Context, key string) (*Link, error) 
 // remote storage.
 func (c *HTTPClient) uploadUsingLink(ctx context.Context, link string, r io.Reader) error {
 	backoff := createInfiniteBackoff()
-	childCtx, cancel := context.WithTimeout(ctx, 60*time.Second) //nolint:gomnd
+	childCtx, cancel := context.WithTimeout(ctx, 60*time.Second) //nolint:mnd
 	defer cancel()
 	_, err := c.retry(childCtx, link, "PUT", r, nil, true, backoff) //nolint:bodyclose
 	return err
@@ -200,7 +200,7 @@ func (c *HTTPClient) uploadUsingLink(ctx context.Context, link string, r io.Read
 // Open opens the data stream.
 func (c *HTTPClient) Open(ctx context.Context, key string) error {
 	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
-	backoff := createBackoff(10 * time.Second)                                //nolint:gomnd
+	backoff := createBackoff(10 * time.Second)                                //nolint:mnd
 	_, err := c.retry(ctx, c.Endpoint+path, "POST", nil, nil, false, backoff) //nolint:bodyclose
 	return err
 }
@@ -248,7 +248,7 @@ func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out int
 			// 5xx's are typically not permanent errors and may
 			// relate to outages on the server side.
 
-			if res.StatusCode >= 500 { //nolint:gomnd
+			if res.StatusCode >= 500 { //nolint:mnd
 				logrus.WithError(err).WithField("path", path).Warnln("http: log-service server error: reconnect and retry")
 				if duration == backoff.Stop {
 					return nil, err
@@ -295,7 +295,7 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		defer func() {
 			// drain the response body so we can reuse
 			// this connection.
-			if _, cerr := io.Copy(io.Discard, io.LimitReader(res.Body, 4096)); cerr != nil { //nolint:gomnd
+			if _, cerr := io.Copy(io.Discard, io.LimitReader(res.Body, 4096)); cerr != nil { //nolint:mnd
 				logrus.WithError(cerr).Errorln("failed to drain response body")
 			}
 			res.Body.Close()
@@ -308,7 +308,7 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 	// if the response body return no content we exit
 	// immediately. We do not read or unmarshal the response
 	// and we do not return an error.
-	if res.StatusCode == 204 { //nolint:gomnd
+	if res.StatusCode == 204 { //nolint:mnd
 		return res, nil
 	}
 
@@ -318,7 +318,7 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		return res, err
 	}
 
-	if res.StatusCode > 299 { //nolint:gomnd
+	if res.StatusCode > 299 { //nolint:mnd
 		// if the response body includes an error message
 		// we should return the error string.
 		if len(body) != 0 {

@@ -66,7 +66,7 @@ linters:
   enable:
     - bodyclose
     - copyloopvar
-    - depguard
+    # - depguard  # Disabled - no configuration defined
     - dogsled
     - errcheck
     - exhaustive
