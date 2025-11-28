@@ -466,11 +466,11 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	if r.StepStatus.RunnerResponse {
 		return e.sendRunnerResponseStatus(r, delegateClient, response)
-	} else if r.StepStatus.TaskStatusV2 {
-		return e.sendResponseStatusV2(r, delegateClient, response)
-	} else {
-		return e.sendResponseStatus(r, delegateClient, response)
 	}
+	if r.StepStatus.TaskStatusV2 {
+		return e.sendResponseStatusV2(r, delegateClient, response)
+	}
+	return e.sendResponseStatus(r, delegateClient, response)
 }
 
 func (e *StepExecutor) sendRunnerResponseStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {

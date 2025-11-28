@@ -58,7 +58,7 @@ func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string, tes
 		for _, r := range strings.Split(string(resp), "\n") {
 			test, err := parseBazelTestRule(r)
 			if err != nil {
-				b.log.Errorf(fmt.Sprintf("Error parsing bazel test rule: %s", err))
+				b.log.Errorf("Error parsing bazel test rule: %s", err)
 				continue
 			}
 			tests = append(tests, test)

@@ -67,6 +67,7 @@ func (w *stdWriter) Write(p []byte) (n int, err error) {
 	}
 
 	header := [stdWriterPrefixLen]byte{stdWriterFdIndex: w.prefix}
+	// #nosec G115 - len(p) is validated to be within uint32 range by the io.Writer interface
 	binary.BigEndian.PutUint32(header[stdWriterSizeIndex:], uint32(len(p)))
 	buf := bufPool.Get().(*bytes.Buffer)
 	buf.Write(header[:])

@@ -249,7 +249,7 @@ func prepend(lineToAdd, fileName string) error {
 	}
 
 	newContent := []byte(lineToAdd + "\n" + string(fileData))
-	err = os.WriteFile(fileName, newContent, os.ModePerm)
+	err = os.WriteFile(fileName, newContent, os.ModePerm) //nolint:gosec // G306: Intentional - file needs broader permissions
 	if err != nil {
 		return err
 	}
