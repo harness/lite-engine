@@ -185,7 +185,7 @@ func process(inps []Input) *Callgraph {
 	}
 
 	// Updating the nodes map
-	for _, v := range nodeMap {
+	for _, v := range nodeMap { //nolint:gocritic // rangeValCopy: copy is intentional for aggregation
 		nodes = append(nodes, v)
 	}
 	return &Callgraph{

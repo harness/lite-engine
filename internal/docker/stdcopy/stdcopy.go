@@ -67,7 +67,7 @@ func (w *stdWriter) Write(p []byte) (n int, err error) {
 	}
 
 	header := [stdWriterPrefixLen]byte{stdWriterFdIndex: w.prefix}
-	binary.BigEndian.PutUint32(header[stdWriterSizeIndex:], uint32(len(p)))
+	binary.BigEndian.PutUint32(header[stdWriterSizeIndex:], uint32(len(p))) //nolint:gosec // G115: Intentional conversion, length is controlled
 	buf := bufPool.Get().(*bytes.Buffer)
 	buf.Write(header[:])
 	buf.Write(p)

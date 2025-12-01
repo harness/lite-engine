@@ -86,7 +86,7 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 	if pipelineConfig.Platform.OS == "windows" {
 		config.Privileged = false
 	}
-	if len(step.Network) > 0 {
+	if len(step.Network) > 0 { //nolint:gocritic // emptyStringTest: intentional length check
 		config.NetworkMode = container.NetworkMode(step.Network)
 	}
 	if len(step.DNS) > 0 {

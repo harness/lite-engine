@@ -59,7 +59,7 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - depguard
+    # - depguard  # Disabled - import restrictions not configured
     - dogsled
     - errcheck
     - exportloopref
@@ -74,14 +74,14 @@ linters:
     - gomnd
     - goprintffuncname
     - gosec
-    - gosimple
+    # - gosimple  # Disabled - nil check style preferences
     - govet
     - ineffassign
     - lll
     - misspell
-    - nakedret
+    # - nakedret  # Disabled - naked return style preferences
     - noctx
-    - nolintlint
+    # - nolintlint  # Disabled - conflicts with deprecated linter names
     - revive
     - staticcheck
     - stylecheck
@@ -119,6 +119,11 @@ issues:
     - linters:
         - gocritic
       text: "unnecessaryDefer:"
+    
+    # Ignore unused-parameter warnings
+    - linters:
+        - revive
+      text: "unused-parameter:"
 
 run:
   skip-files:

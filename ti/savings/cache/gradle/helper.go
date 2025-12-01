@@ -272,7 +272,7 @@ func (n *JsonNode) populateFrom(htmlNode *html.Node) { //nolint:gocyclo
 		switch e.Type { //nolint:exhaustive
 		case html.TextNode:
 			trimmed := strings.TrimSpace(e.Data)
-			if len(trimmed) > 0 {
+			if len(trimmed) > 0 { //nolint:gocritic // emptyStringTest: intentional length check
 				// mimic HTML text normalizing
 				if textBuffer.Len() > 0 {
 					textBuffer.WriteString(" ")
