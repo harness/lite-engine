@@ -420,7 +420,7 @@ func formatNudge(line *logstream.Line, nudge logstream.Nudge) error {
 		line.Number+1, line.Message, nudge.GetError(), nudge.GetResolution())
 }
 
-func max(a, b int) int { //nolint:gocritic // builtinShadowDecl: intentional helper function name
+func max(a, b int) int { //nolint:gocritic,revive // builtinShadowDecl,redefines-builtin-id: intentional helper function name
 	if a > b {
 		return a
 	}

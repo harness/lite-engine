@@ -312,7 +312,7 @@ func (e *Docker) destroyStoppedContainers(ctx context.Context, labels map[string
 
 	for i := range stoppedPluginContainers {
 		pluginContainer := stoppedPluginContainers[i]
-		if err := e.client.ContainerRemove(ctx, pluginContainer.ID, container.RemoveOptions{}); err != nil{
+		if err := e.client.ContainerRemove(ctx, pluginContainer.ID, container.RemoveOptions{}); err != nil {
 			logrus.WithContext(ctx).
 				WithField("container", pluginContainer.ID).
 				WithField("error", err).Warnln("failed to remove container")
@@ -653,7 +653,7 @@ func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spe
 // After all the containers are stopped, they are removed only when the status is not "running" or "removing".
 func (e *Docker) softStop(ctx context.Context, name string) {
 	timeoutSeconds := 30
-	if err := e.client.ContainerStop(ctx, name, container.StopOptions{Timeout: &timeoutSeconds}); err != nil{
+	if err := e.client.ContainerStop(ctx, name, container.StopOptions{Timeout: &timeoutSeconds}); err != nil {
 		logrus.WithContext(ctx).WithField("container", name).WithField("error", err).Warnln("failed to stop the container")
 	}
 
