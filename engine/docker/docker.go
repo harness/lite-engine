@@ -659,7 +659,7 @@ func (e *Docker) softStop(ctx context.Context, name string) {
 
 	// Before removing the container we want to be sure that it's in a healthy state to be removed.
 	now := time.Now()
-	timeout := 30 * time.Second
+	timeout := 30 * time.Second //nolint:mnd
 	for {
 		if time.Since(now) > timeout {
 			break

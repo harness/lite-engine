@@ -56,7 +56,7 @@ func (s *Server) Start(ctx context.Context) error {
 		Addr:              s.Addr,
 		Handler:           s.Handler,
 		TLSConfig:         tlsConfig,
-		ReadHeaderTimeout: 10 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second, //nolint:mnd
 	}
 
 	var g errgroup.Group

@@ -143,7 +143,7 @@ func runStage(client Client, remoteLog bool) error {
 			{
 				Path:  "/tmp/globalfolder",
 				IsDir: true,
-				Mode:  0777,
+				Mode:  0777, //nolint:mnd
 			},
 		},
 	}
@@ -192,7 +192,7 @@ func getRunStep(id, cmd, workdir string) *api.StartStepRequest {
 			{
 				Path:  fmt.Sprintf("/tmp/globalfolder/%s", id),
 				IsDir: false,
-				Mode:  0777,
+				Mode:  0777, //nolint:mnd
 				Data:  cmd,
 			},
 		},

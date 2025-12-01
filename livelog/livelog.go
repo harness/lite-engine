@@ -360,7 +360,7 @@ func (b *Writer) Start() {
 func (b *Writer) checkErrInLogs() {
 	size := len(b.history)
 	// Check last 10 log lines for errors. TODO(Shubham): see if this can be made better
-	for idx := max(0, size-10); idx < size; idx++ { //nolint:gomnd
+	for idx := max(0, size-10); idx < size; idx++ { //nolint:mnd
 		line := b.history[idx]
 		// Iterate over the nudges and see if we get a match
 		for _, n := range b.nudges {

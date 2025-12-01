@@ -112,7 +112,7 @@ func OverrideRegistry(imageWithTag, cloudDriver string) string {
 
 	imageName := parts[0]
 	tagName := ""
-	if len(parts) == 2 { //nolint:gomnd
+	if len(parts) == 2 { //nolint:mnd
 		tagName = parts[1]
 	}
 

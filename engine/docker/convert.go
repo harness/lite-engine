@@ -287,7 +287,7 @@ func toMount(source *spec.Volume, target *spec.VolumeMount) mount.Mount {
 	if isTempfs(source) {
 		to.TmpfsOptions = &mount.TmpfsOptions{
 			SizeBytes: source.EmptyDir.SizeLimit,
-			Mode:      0700,
+			Mode:      0700, //nolint:mnd
 		}
 	}
 	return to
