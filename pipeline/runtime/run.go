@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	goruntime "runtime"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -22,6 +21,10 @@ import (
 	"github.com/harness/lite-engine/ti/savings"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	trueValue = "true"
 )
 
 func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out io.Writer, tiConfig *tiCfg.Cfg) ( //nolint:gocritic,gocyclo,funlen
@@ -42,17 +45,8 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	// Set annotations file path for producers to write rich annotations JSON
 	annotationsFile := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, step.ID)
 	step.Envs["HARNESS_ANNOTATIONS_FILE"] = annotationsFile
-
-	logrus.WithFields(logrus.Fields{
-		"step_id":             step.ID,
-		"step_name":           step.Name,
-		"annotations_file":    annotationsFile,
-		"annotations_enabled": step.Envs["CI_ENABLE_HARNESS_ANNOTATIONS"],
-		"os":                  goruntime.GOOS,
-	}).Infoln("[ANNOTATIONS] Set annotations file path for Run step")
-
-	// Setup PATH for Windows to make hcli binary discoverable
-	setupAnnotationsPath(step)
+	// Not deleting annotations file by default to aid debugging; it lives in shared volume
+	// (removed noisy logs about annotations file path)
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")

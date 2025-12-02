@@ -110,16 +110,6 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		step.Envs["PLUGIN_METADATA_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"step_id":             step.ID,
-		"step_name":           step.Name,
-		"annotations_enabled": step.Envs["CI_ENABLE_HARNESS_ANNOTATIONS"],
-		"os":                  goRuntime.GOOS,
-	}).Infoln("[ANNOTATIONS] Preparing annotations for RunTestsV2 step")
-
-	// Setup PATH for Windows to make hcli binary discoverable
-	setupAnnotationsPath(step)
-
 	exited, err := f(ctx, step, out, r.LogDrone, false)
 	timeTakenMs := time.Since(start).Milliseconds()
 

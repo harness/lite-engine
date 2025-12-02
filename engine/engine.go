@@ -211,124 +211,43 @@ func destroyHelper(cfg *spec.PipelineConfig) {
 }
 
 func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
-	logrus.WithFields(logrus.Fields{
-		"step_id":   step.ID,
-		"step_name": step.Name,
-		"has_image": step.Image != "",
-		"os":        osruntime.GOOS,
-	}).Debugln("[ENGINE] runHelper started")
-
 	envs := make(map[string]string)
 	if step.Image == "" {
 		// Set parent process envs in case step is executed directly on the VM.
 		// This sets the PATH environment variable (in case it is set on parent process) on sub-process executing the step.
-		parentEnvCount := 0
 		for _, e := range os.Environ() {
 			if i := strings.Index(e, "="); i >= 0 {
 				envs[e[:i]] = e[i+1:]
-				parentEnvCount++
 			}
 		}
-		logrus.WithFields(logrus.Fields{
-			"step_id":          step.ID,
-			"parent_env_count": parentEnvCount,
-		}).Debugln("[ENGINE] Containerless: inherited parent process environment")
 	}
-
-	// Merge pipeline envs
-	pipelineEnvCount := 0
 	for k, v := range cfg.Envs {
 		envs[k] = v
-		pipelineEnvCount++
 	}
-
-	// Merge step envs (includes annotations PATH if set)
-	stepEnvCount := 0
 	for k, v := range step.Envs {
 		envs[k] = v
-		stepEnvCount++
 	}
-
 	step.Envs = envs
-
-	// Log PATH specifically for debugging annotations
-	if path, ok := envs["PATH"]; ok {
-		logrus.WithFields(logrus.Fields{
-			"step_id":     step.ID,
-			"path_length": len(path),
-			"path_first_200": func() string {
-				if len(path) > 200 {
-					return path[:200] + "..."
-				}
-				return path
-			}(),
-			"has_c_tmp_engine": strings.Contains(path, `c:\tmp\engine`),
-		}).Infoln("[ENGINE] Final PATH environment variable")
-	}
-
-	logrus.WithFields(logrus.Fields{
-		"step_id":            step.ID,
-		"pipeline_env_count": pipelineEnvCount,
-		"step_env_count":     stepEnvCount,
-		"total_env_count":    len(envs),
-	}).Debugln("[ENGINE] Environment variables merged")
-
-	originalWorkingDir := step.WorkingDir
 	step.WorkingDir = pathConverter(step.WorkingDir)
-	if originalWorkingDir != step.WorkingDir {
-		logrus.WithFields(logrus.Fields{
-			"step_id":   step.ID,
-			"original":  originalWorkingDir,
-			"converted": step.WorkingDir,
-		}).Debugln("[ENGINE] Working directory path converted")
-	}
 
 	// create files or folders specific to the step
 	if err := createFiles(step.Files); err != nil {
-		logrus.WithFields(logrus.Fields{
-			"step_id": step.ID,
-		}).WithError(err).Errorln("[ENGINE] Failed to create step files")
 		return err
 	}
 
 	// If we are running on Windows, convert
 	// the volume paths to windows paths
-	volumeConversions := 0
 	for _, vol := range step.Volumes {
-		original := vol.Path
 		vol.Path = pathConverter(vol.Path)
-		if original != vol.Path {
-			volumeConversions++
-			logrus.WithFields(logrus.Fields{
-				"step_id":   step.ID,
-				"original":  original,
-				"converted": vol.Path,
-			}).Debugln("[ENGINE] Step volume path converted")
-		}
 	}
 
-	pipelineVolumeConversions := 0
 	for _, vol := range cfg.Volumes {
 		if vol == nil || vol.HostPath == nil {
 			continue
 		}
-		original := vol.HostPath.Path
-		vol.HostPath.Path = pathConverter(original)
-		if original != vol.HostPath.Path {
-			pipelineVolumeConversions++
-			logrus.WithFields(logrus.Fields{
-				"step_id":   step.ID,
-				"original":  original,
-				"converted": vol.HostPath.Path,
-			}).Debugln("[ENGINE] Pipeline volume path converted")
-		}
+		path := vol.HostPath.Path
+		vol.HostPath.Path = pathConverter(path)
 	}
-
-	logrus.WithFields(logrus.Fields{
-		"step_id":                     step.ID,
-		"step_volume_conversions":     volumeConversions,
-		"pipeline_volume_conversions": pipelineVolumeConversions,
-	}).Debugln("[ENGINE] runHelper completed")
 
 	return nil
 }
@@ -438,14 +357,7 @@ func createFiles(paths []*spec.File) error {
 
 func pathConverter(path string) string {
 	if osruntime.GOOS == "windows" {
-		converted := toWindowsDrive(path)
-		if path != converted {
-			logrus.WithFields(logrus.Fields{
-				"original":  path,
-				"converted": converted,
-			}).Traceln("[ENGINE] pathConverter: Windows path conversion")
-		}
-		return converted
+		return toWindowsDrive(path)
 	}
 	return path
 }
