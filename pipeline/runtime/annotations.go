@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/sirupsen/logrus"
 )
@@ -226,26 +225,22 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 	}
 
 	path := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, stepID)
-	// Convert to Windows format for file system operations
-	// (e.g., /tmp/engine/file.json -> c:\tmp\engine\file.json on Windows)
-	pathForRead := engine.PathConverter(path)
-
 	logrus.WithFields(logrus.Fields{
 		"step_id":   stepID,
-		"file_path": pathForRead,
+		"file_path": path,
 	}).Infoln("[ANNOTATIONS] Attempting to read annotations file")
 
-	info, err := os.Stat(pathForRead)
+	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			logrus.WithFields(logrus.Fields{
 				"step_id":   stepID,
-				"file_path": pathForRead,
+				"file_path": path,
 			}).Debugln("[ANNOTATIONS] Annotations file does not exist (this is OK if step didn't produce annotations)")
 		} else {
 			logrus.WithFields(logrus.Fields{
 				"step_id":   stepID,
-				"file_path": pathForRead,
+				"file_path": path,
 			}).WithError(err).Warnln("[ANNOTATIONS] Error checking file status")
 		}
 		return nil
@@ -256,7 +251,7 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 
 	logrus.WithFields(logrus.Fields{
 		"step_id":   stepID,
-		"file_path": pathForRead,
+		"file_path": path,
 		"file_size": info.Size(),
 		"max_size":  maxSize,
 	}).Debugln("[ANNOTATIONS] File found, checking size")
@@ -264,7 +259,7 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 	if info.Size() <= 0 {
 		logrus.WithFields(logrus.Fields{
 			"step_id":   stepID,
-			"file_path": pathForRead,
+			"file_path": path,
 		}).Warnln("[ANNOTATIONS] File is empty")
 		return nil
 	}
@@ -272,18 +267,18 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 	if info.Size() > maxSize {
 		logrus.WithFields(logrus.Fields{
 			"step_id":   stepID,
-			"file_path": pathForRead,
+			"file_path": path,
 			"file_size": info.Size(),
 			"max_size":  maxSize,
 		}).Warnln("[ANNOTATIONS] File too large, skipping")
 		return nil
 	}
 
-	data, err := os.ReadFile(pathForRead)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
 			"step_id":   stepID,
-			"file_path": pathForRead,
+			"file_path": path,
 		}).WithError(err).Errorln("[ANNOTATIONS] Failed to read file")
 		return nil
 	}
@@ -302,7 +297,7 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 	if !json.Valid(data) {
 		logrus.WithFields(logrus.Fields{
 			"step_id":   stepID,
-			"file_path": pathForRead,
+			"file_path": path,
 			"data_size": len(data),
 		}).Errorln("[ANNOTATIONS] Invalid JSON in file")
 		return nil
@@ -312,7 +307,7 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 	if err := json.Unmarshal(data, &file); err != nil {
 		logrus.WithFields(logrus.Fields{
 			"step_id":   stepID,
-			"file_path": pathForRead,
+			"file_path": path,
 		}).WithError(err).Errorln("[ANNOTATIONS] Failed to unmarshal JSON")
 		return nil
 	}

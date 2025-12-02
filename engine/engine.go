@@ -65,7 +65,7 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 			continue
 		}
 		path := vol.HostPath.Path
-		vol.HostPath.Path = PathConverter(path)
+		vol.HostPath.Path = pathConverter(path)
 
 		if _, err := os.Stat(path); err == nil {
 			_ = os.Chmod(path, permissions)
@@ -274,7 +274,7 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 	}).Debugln("[ENGINE] Environment variables merged")
 
 	originalWorkingDir := step.WorkingDir
-	step.WorkingDir = PathConverter(step.WorkingDir)
+	step.WorkingDir = pathConverter(step.WorkingDir)
 	if originalWorkingDir != step.WorkingDir {
 		logrus.WithFields(logrus.Fields{
 			"step_id":   step.ID,
@@ -296,7 +296,7 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 	volumeConversions := 0
 	for _, vol := range step.Volumes {
 		original := vol.Path
-		vol.Path = PathConverter(vol.Path)
+		vol.Path = pathConverter(vol.Path)
 		if original != vol.Path {
 			volumeConversions++
 			logrus.WithFields(logrus.Fields{
@@ -313,7 +313,7 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 			continue
 		}
 		original := vol.HostPath.Path
-		vol.HostPath.Path = PathConverter(original)
+		vol.HostPath.Path = pathConverter(original)
 		if original != vol.HostPath.Path {
 			pipelineVolumeConversions++
 			logrus.WithFields(logrus.Fields{
@@ -436,16 +436,14 @@ func createFiles(paths []*spec.File) error {
 	return nil
 }
 
-// PathConverter converts Unix-style paths to Windows format on Windows OS.
-// This function is used throughout the codebase for consistent path handling.
-func PathConverter(path string) string {
+func pathConverter(path string) string {
 	if osruntime.GOOS == "windows" {
 		converted := toWindowsDrive(path)
 		if path != converted {
 			logrus.WithFields(logrus.Fields{
 				"original":  path,
 				"converted": converted,
-			}).Traceln("[ENGINE] PathConverter: Windows path conversion")
+			}).Traceln("[ENGINE] pathConverter: Windows path conversion")
 		}
 		return converted
 	}
