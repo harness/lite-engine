@@ -117,8 +117,7 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 
 	// Mount hcli binary for containers
 	if runtime.GOOS == windowsOS {
-		// Windows: Mount the lite-engine directory (read-only) so we can copy hcli.exe at runtime
-		// Windows Docker doesn't support single file bind mounts, so we mount the directory
+		// Windows: Mount directory
 		config.Mounts = append(config.Mounts, mount.Mount{
 			Type:     mount.TypeBind,
 			Source:   `C:\Program Files\lite-engine`,
@@ -126,7 +125,7 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 			ReadOnly: true,
 		})
 	} else {
-		// Linux/macOS: Mount hcli binary directly (single file mount works)
+		// Linux/macOS: Mount hcli binary directly
 		config.Mounts = append(config.Mounts, mount.Mount{
 			Type:   mount.TypeBind,
 			Source: hcliPath,
