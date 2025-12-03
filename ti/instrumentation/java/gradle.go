@@ -83,7 +83,7 @@ The following needs to be added to a build.gradle to make it compatible with tes
 	  }
 	}
 */
-func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
+func (g *gradleRunner) GetCmd(_ context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, _ common.RunnerArgs) (string, error) {
 	// Check if gradlew exists. If not, fallback to gradle
 	gradlewPath := filepath.Join(workspace, "gradlew")

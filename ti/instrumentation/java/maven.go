@@ -58,7 +58,7 @@ func (m *mavenRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 	return make([]string, 0), make([]string, 0)
 }
 
-func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
+func (m *mavenRunner) GetCmd(_ context.Context, tests []ti.RunnableTest, userArgs, workspace,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, _ common.RunnerArgs) (string, error) {
 	// Agent arg
 	inputUserArgs := userArgs
