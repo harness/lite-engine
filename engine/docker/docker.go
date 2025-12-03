@@ -54,6 +54,7 @@ const (
 	windowsOS                        = "windows"
 	removing                         = "removing"
 	running                          = "running"
+	DisableAPINegotiation            = "DOCKER_DISABLE_API_NEGOTIATION"
 )
 
 // Opts configures the Docker engine.
@@ -93,11 +94,21 @@ func New(client client.APIClient, opts Opts) *Docker {
 // NewEnv returns a new Engine from the environment.
 func NewEnv(opts Opts) (*Docker, error) {
 	var cli client.APIClient
+	disableAPINegotiation := os.Getenv(DisableAPINegotiation)
+	if disableAPINegotiation == "" {
+		disableAPINegotiation = "false"
+	}
+
 	if opts.DockerClient != nil {
 		cli = opts.DockerClient
 	} else {
 		var err error
-		cli, err = client.NewClientWithOpts(client.FromEnv)
+		if disableAPINegotiation == "false" {
+			cli, err = client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		} else {
+			cli, err = client.NewClientWithOpts(client.FromEnv)
+		}
+
 		if err != nil {
 			return nil, err
 		}
