@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	goruntime "runtime"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -89,16 +88,6 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 
 	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
-
-	logrus.WithFields(logrus.Fields{
-		"step_id":             step.ID,
-		"step_name":           step.Name,
-		"annotations_enabled": step.Envs["CI_ENABLE_HARNESS_ANNOTATIONS"],
-		"os":                  goruntime.GOOS,
-	}).Infoln("[ANNOTATIONS] Preparing annotations for RunTest step")
-
-	// Setup PATH for Windows to make hcli binary discoverable
-	setupAnnotationsPath(step)
 
 	exited, err := f(ctx, step, out, false, false)
 	timeTakenMs := time.Since(start).Milliseconds()

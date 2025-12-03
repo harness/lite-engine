@@ -329,29 +329,3 @@ func checkStepSuccess(state *runtime.State, err error) bool {
 	}
 	return false
 }
-
-// setupAnnotationsPath is a no-op function for backward compatibility.
-//
-// PATH setup for annotations is now handled as follows:
-//
-// CONTAINERLESS (Windows):
-//   - CloudInit downloads hcli to C:\Program Files\lite-engine\hcli.exe
-//   - CloudInit sets PATH to include C:\Program Files\lite-engine
-//   - hcli is automatically discoverable
-//
-// CONTAINERS (Windows):
-//   - CloudInit copies hcli to c:\tmp\engine\hcli.exe (shared volume)
-//   - Shared volume is mounted into containers automatically
-//   - hcli is accessible at c:\tmp\engine\hcli.exe inside containers
-//   - We do NOT modify container PATH (per senior guidance - each container
-//     image has its own PATH and we should not override it)
-//
-// LINUX/macOS:
-//   - hcli is downloaded to /usr/bin/hcli or /usr/local/bin/hcli
-//   - These directories are already in the system PATH
-//   - No PATH modification needed
-func setupAnnotationsPath(step *spec.Step) {
-	// No-op: PATH is handled by CloudInit for containerless,
-	// and shared volume mount for containers.
-	// Keeping this function for backward compatibility with callers.
-}

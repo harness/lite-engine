@@ -26,6 +26,9 @@ const (
 	buildCacheStepName = "harness-build-cache"
 	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
 	hcliPath           = "/usr/bin/hcli"
+	// Windows paths for hcli - direct mount
+	hcliWindowsHostPath      = `C:\Program Files\lite-engine\hcli.exe`
+	hcliWindowsContainerPath = `C:\Windows\hcli.exe`
 )
 
 // returns a container configuration.
@@ -115,10 +118,16 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.Mounts = toVolumeMounts(pipelineConfig, step)
 	}
 
-	// Mount hcli binary for Linux/macOS containers (not Windows)
-	// Linux/macOS: hcli is at /usr/bin/hcli or /usr/local/bin/hcli (not in shared volume)
-	// Windows: hcli is in c:\tmp\engine (already mounted via shared volume)
-	if runtime.GOOS != windowsOS && step.Envs[annotationsFFEnv] == "true" {
+	// Mount hcli binary for containers
+	if runtime.GOOS == windowsOS {
+		// Windows: mount hcli.exe to C:\Windows\hcli.exe (C:\Windows is in default PATH)
+		config.Mounts = append(config.Mounts, mount.Mount{
+			Type:   mount.TypeBind,
+			Source: hcliWindowsHostPath,
+			Target: hcliWindowsContainerPath,
+		})
+	} else {
+		// Linux/macOS: mount hcli to /usr/bin/hcli (/usr/bin is in default PATH)
 		config.Mounts = append(config.Mounts, mount.Mount{
 			Type:   mount.TypeBind,
 			Source: hcliPath,

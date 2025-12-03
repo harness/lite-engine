@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	goruntime "runtime"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -42,22 +41,8 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	// Set annotations file path for producers to write rich annotations JSON
 	annotationsFile := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, step.ID)
-	// Convert to Windows format if needed (e.g., /tmp/engine/... -> c:\tmp\engine\...)
-	// so PowerShell and hcli.exe can use it correctly
 	annotationsFileForEnv := engine.PathConverter(annotationsFile)
 	step.Envs["HARNESS_ANNOTATIONS_FILE"] = annotationsFileForEnv
-
-	logrus.WithFields(logrus.Fields{
-		"step_id":                step.ID,
-		"step_name":              step.Name,
-		"annotations_file":       annotationsFileForEnv,
-		"annotations_enabled":    step.Envs["CI_ENABLE_HARNESS_ANNOTATIONS"],
-		"os":                     goruntime.GOOS,
-		"env_var_HARNESS_ANNOTATIONS_FILE": annotationsFileForEnv,
-	}).Infoln("[ANNOTATIONS] Set annotations file path for Run step (HARNESS_ANNOTATIONS_FILE env var)")
-
-	// Setup PATH for Windows to make hcli binary discoverable
-	setupAnnotationsPath(step)
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
