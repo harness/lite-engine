@@ -42,15 +42,15 @@ func (n *NoopClient) Destroy(_ context.Context, _ *api.DestroyRequest) (*api.Des
 	return &api.DestroyResponse{}, nil
 }
 
-func (*NoopClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
+func (*NoopClient) StartStep(_ context.Context, _ *api.StartStepRequest) (*api.StartStepResponse, error) {
 	return &api.StartStepResponse{}, nil
 }
 
-func (*NoopClient) RetryStartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
+func (*NoopClient) RetryStartStep(_ context.Context, _ *api.StartStepRequest) (*api.StartStepResponse, error) {
 	return &api.StartStepResponse{}, nil
 }
 
-func (n *NoopClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error) {
+func (n *NoopClient) PollStep(_ context.Context, _ *api.PollStepRequest) (*api.PollStepResponse, error) {
 	time.Sleep(n.stepExecTime)
 	return n.stepResponse, n.stepErr
 }

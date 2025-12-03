@@ -49,7 +49,7 @@ func (b *dotnetRunner) AutoDetectTests(ctx context.Context, workspace string, te
 	return tests, nil
 }
 
-func (b *dotnetRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+func (b *dotnetRunner) ReadPackages(_ string, files []ti.File) []ti.File {
 	return files
 }
 

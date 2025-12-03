@@ -39,7 +39,7 @@ type FileStore struct {
 	state   map[string]State
 }
 
-func (f *FileStore) Upload(_ context.Context, key string, lines []*logstream.Line) error {
+func (f *FileStore) Upload(_ context.Context, _ string, _ []*logstream.Line) error {
 	return nil
 }
 

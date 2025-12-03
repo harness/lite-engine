@@ -56,7 +56,7 @@ func (m *pytestRunner) GetTestGlobs() (includeGlobs, excludeGlobs []string) {
 }
 
 func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
-	_, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
+	_, agentInstallDir string, ignoreInstr, runAll bool, _ common.RunnerArgs) (string, error) {
 	if userArgs == "" {
 		userArgs = fmt.Sprintf("--junitxml='%s${HARNESS_NODE_INDEX}' -o junit_family='xunit1'", common.HarnessDefaultReportPath)
 	}

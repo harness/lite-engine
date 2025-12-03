@@ -37,7 +37,7 @@ func NewRubyRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs []str
 	}
 }
 
-func (m *rspecRunner) AutoDetectPackages(workspace string) ([]string, error) {
+func (m *rspecRunner) AutoDetectPackages(_ string) ([]string, error) {
 	return []string{}, nil
 }
 
@@ -53,7 +53,7 @@ func (m *rspecRunner) AutoDetectTestsV2(ctx context.Context, workspace string, t
 	return rubyTests, err
 }
 
-func (m *rspecRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+func (m *rspecRunner) ReadPackages(_ string, files []ti.File) []ti.File {
 	return files
 }
 
@@ -62,7 +62,7 @@ func (m *rspecRunner) GetTestGlobs() (includeGlobs, excludeGlobs []string) {
 }
 
 func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
-	_, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
+	_, agentInstallDir string, ignoreInstr, runAll bool, _ common.RunnerArgs) (string, error) {
 	testCmd := ""
 	tiFlag := "TI=1"
 	installReportCmd := ""

@@ -33,7 +33,7 @@ func (f *Logger) Close(_ context.Context, _ string, _ bool) error {
 }
 
 // Write writes logs to stdout
-func (f *Logger) Write(_ context.Context, key string, lines []*logstream.Line) error {
+func (f *Logger) Write(_ context.Context, _ string, lines []*logstream.Line) error {
 	for _, line := range lines {
 		fmt.Printf("level=%s time=%s log=%s \n", line.Level, line.Timestamp, line.Message)
 	}

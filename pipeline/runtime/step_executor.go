@@ -346,10 +346,10 @@ func executeStepHelper( //nolint:gocritic
 	// from the main process and executed separately.
 	// We do here only for non-container step.
 	if r.Detach && r.Image == "" {
-	safego.WithContext(ctx, "detached_step", func(_ context.Context) {
-		var cancel context.CancelFunc
-		if r.Timeout > 0 {
-			ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
+		safego.WithContext(ctx, "detached_step", func(_ context.Context) {
+			var cancel context.CancelFunc
+			if r.Timeout > 0 {
+				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
 				defer cancel()
 			}
 			run(ctx, f, r, wr, tiCfg) //nolint:errcheck
