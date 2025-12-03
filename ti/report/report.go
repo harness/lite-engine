@@ -115,7 +115,7 @@ func ParseAndUploadTests(
 	return tests, nil
 }
 
-func SaveReportSummaryToOutputs(ctx context.Context, tiConfig *tiCfg.Cfg, stepID string, outputs map[string]string, log *logrus.Logger, envs map[string]string) error {
+func SaveReportSummaryToOutputs(ctx context.Context, tiConfig *tiCfg.Cfg, stepID string, outputs map[string]string, _ *logrus.Logger, envs map[string]string) error {
 	if !TestSummaryAsOutputEnabled(envs) {
 		return nil
 	}

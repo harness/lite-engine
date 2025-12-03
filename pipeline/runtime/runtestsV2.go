@@ -598,7 +598,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 }
 
 func getTestsSelectionWithTiModeEnabled(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
-	isManual bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config, testGlobs []string) (types.SelectTestsResp, bool) { //nolint:unparam
+	_ bool, tiConfig *tiCfg.Cfg, envs map[string]string, runV2Config *api.RunTestsV2Config, testGlobs []string) (types.SelectTestsResp, bool) { //nolint:unparam
 	selection := types.SelectTestsResp{}
 	// Question : Here i can see feature state is being defined in Runtest but here we don't have runOnlySelected tests so should we always defined as optimized state
 	var files []types.File
@@ -757,7 +757,7 @@ func createDotNetConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus
 // Here we are setting up env var to invoke agant along with creating config file and .bazelrc file
 //
 //nolint:funlen,gocyclo,lll,unparam
-func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool, tiConfig *tiCfg.Cfg) (preCmd, filterFilePath, skipTestsFilePath, failedTestsFilePath string, err error) {
+func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool, _ *tiCfg.Cfg) (preCmd, filterFilePath, skipTestsFilePath, failedTestsFilePath string, err error) {
 	splitIdx := 0
 	if instrumentation.IsParallelismEnabled(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")

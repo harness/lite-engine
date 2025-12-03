@@ -70,14 +70,14 @@ func Test_CollectRunTestData(t *testing.T) {
 				return nil, nil
 			}
 			collectTestReportsFn = func(
-				ctx context.Context,
-				report api.TestReport,
-				workDir, stepID string,
-				log *logrus.Logger,
-				start time.Time,
-				tiConfig *tiCfg.Cfg,
-				testMetadata *types.TestIntelligenceMetaData,
-				envs map[string]string,
+				_ context.Context,
+				_ api.TestReport,
+				_, _ string,
+				_ *logrus.Logger,
+				_ time.Time,
+				_ *tiCfg.Cfg,
+				_ *types.TestIntelligenceMetaData,
+				_ map[string]string,
 			) ([]*types.TestCase, error) {
 				return []*types.TestCase{}, tc.crErr
 			}

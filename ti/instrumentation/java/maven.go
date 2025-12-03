@@ -59,7 +59,7 @@ func (m *mavenRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 }
 
 func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, _ common.RunnerArgs) (string, error) {
 	// Agent arg
 	inputUserArgs := userArgs
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)

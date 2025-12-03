@@ -28,16 +28,16 @@ func NewNoopClient(r *api.PollStepResponse, err error, stepExecTime, setupTime, 
 	}
 }
 
-func (n *NoopClient) Setup(ctx context.Context, in *api.SetupRequest) (*api.SetupResponse, error) {
+func (n *NoopClient) Setup(_ context.Context, _ *api.SetupRequest) (*api.SetupResponse, error) {
 	time.Sleep(n.setupTime)
 	return &api.SetupResponse{}, nil
 }
 
-func (n *NoopClient) RetrySetup(ctx context.Context, in *api.SetupRequest, timeout time.Duration) (*api.SetupResponse, error) {
+func (n *NoopClient) RetrySetup(_ context.Context, _ *api.SetupRequest, _ time.Duration) (*api.SetupResponse, error) {
 	return &api.SetupResponse{}, nil
 }
 
-func (n *NoopClient) Destroy(ctx context.Context, in *api.DestroyRequest) (*api.DestroyResponse, error) {
+func (n *NoopClient) Destroy(_ context.Context, _ *api.DestroyRequest) (*api.DestroyResponse, error) {
 	time.Sleep(n.destroyTime)
 	return &api.DestroyResponse{}, nil
 }
@@ -55,7 +55,7 @@ func (n *NoopClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*ap
 	return n.stepResponse, n.stepErr
 }
 
-func (n *NoopClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest, timeout time.Duration) (step *api.PollStepResponse, pollError error) {
+func (n *NoopClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest, _ time.Duration) (step *api.PollStepResponse, pollError error) {
 	return n.PollStep(ctx, in)
 }
 
@@ -67,7 +67,7 @@ func (*NoopClient) Health(ctx context.Context, performDNSLookup bool) (*api.Heal
 	return &api.HealthResponse{OK: true, Version: "noop"}, nil
 }
 
-func (n *NoopClient) RetryHealth(ctx context.Context, timeout time.Duration, performDNSLookup bool) (*api.HealthResponse, error) {
+func (n *NoopClient) RetryHealth(ctx context.Context, _ time.Duration, performDNSLookup bool) (*api.HealthResponse, error) {
 	return n.Health(ctx, performDNSLookup)
 }
 

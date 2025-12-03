@@ -185,8 +185,8 @@ func process(inps []Input) *Callgraph {
 	}
 
 	// Updating the nodes map
-	for _, v := range nodeMap {
-		nodes = append(nodes, v)
+	for k := range nodeMap {
+		nodes = append(nodes, nodeMap[k])
 	}
 	return &Callgraph{
 		Nodes:         nodes,

@@ -62,7 +62,7 @@ func (m *rspecRunner) GetTestGlobs() (includeGlobs, excludeGlobs []string) {
 }
 
 func (m *rspecRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
+	_, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	testCmd := ""
 	tiFlag := "TI=1"
 	installReportCmd := ""

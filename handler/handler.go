@@ -17,7 +17,7 @@ import (
 )
 
 // Handler returns an http.Handler that exposes the service resources.
-func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime.StepExecutor) http.Handler {
+func Handler(_ *config.Config, engine *engine.Engine, stepExecutor *runtime.StepExecutor) http.Handler {
 	r := chi.NewRouter()
 	r.Use(logger.Middleware)
 	r.Use(middleware.Recoverer)

@@ -202,7 +202,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 	id := r.ID
 	if id == "" {
 		err = &errors.BadRequestError{Msg: "ID needs to be set"}
-		return
+		return oldOut, newOut, err
 	}
 
 	var stepLog *StepLog
@@ -220,7 +220,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 		const timeoutDelay = 5 * time.Second
 		if time.Since(ts) >= timeoutDelay {
 			err = &errors.BadRequestError{Msg: "Step has not started"}
-			return
+			return oldOut, newOut, err
 		}
 
 		const retryDelay = 100 * time.Millisecond
@@ -228,7 +228,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 		case <-time.After(retryDelay):
 		case <-ctx.Done():
 			err = ctx.Err()
-			return
+			return oldOut, newOut, err
 		}
 	}
 
@@ -236,7 +236,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 	chData := make(chan []byte)
 	oldOut, err = stepLog.Subscribe(chData, r.Offset)
 	if err != nil {
-		return
+		return oldOut, newOut, err
 	}
 
 	safego.WithContext(ctx, "stream_cleanup", func(ctx context.Context) {
@@ -252,7 +252,7 @@ func (e *StepExecutor) StreamOutput(ctx context.Context, r *api.StreamOutputRequ
 
 	newOut = chData
 
-	return //nolint:nakedret
+	return oldOut, newOut, err
 }
 
 func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State, error) {
@@ -346,10 +346,10 @@ func executeStepHelper( //nolint:gocritic
 	// from the main process and executed separately.
 	// We do here only for non-container step.
 	if r.Detach && r.Image == "" {
-		safego.WithContext(ctx, "detached_step", func(parentCtx context.Context) {
-			var cancel context.CancelFunc
-			if r.Timeout > 0 {
-				ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
+	safego.WithContext(ctx, "detached_step", func(_ context.Context) {
+		var cancel context.CancelFunc
+		if r.Timeout > 0 {
+			ctx, cancel = context.WithTimeout(ctx, time.Second*time.Duration(r.Timeout))
 				defer cancel()
 			}
 			run(ctx, f, r, wr, tiCfg) //nolint:errcheck
@@ -466,11 +466,11 @@ func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMT
 func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {
 	if r.StepStatus.RunnerResponse {
 		return e.sendRunnerResponseStatus(r, delegateClient, response)
-	} else if r.StepStatus.TaskStatusV2 {
-		return e.sendResponseStatusV2(r, delegateClient, response)
-	} else {
-		return e.sendResponseStatus(r, delegateClient, response)
 	}
+	if r.StepStatus.TaskStatusV2 {
+		return e.sendResponseStatusV2(r, delegateClient, response)
+	}
+	return e.sendResponseStatus(r, delegateClient, response)
 }
 
 func (e *StepExecutor) sendRunnerResponseStatus(r *api.StartStepRequest, delegateClient *delegate.HTTPClient, response *api.VMTaskExecutionResponse) error {

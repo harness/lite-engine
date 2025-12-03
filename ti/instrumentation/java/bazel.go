@@ -41,7 +41,7 @@ func (b *bazelRunner) AutoDetectPackages(workspace string) ([]string, error) {
 }
 
 // AutoDetectTests parses all the Java test rules from bazel query to RunnableTest
-func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+func (b *bazelRunner) AutoDetectTests(ctx context.Context, workspace string, _ []string) ([]ti.RunnableTest, error) {
 	tests := make([]ti.RunnableTest, 0)
 
 	c1 := fmt.Sprintf("cd %s; %s query 'kind(java.*, tests(//...))'", workspace, bazelCmd)  // bazel query 'kind(java.*, tests(//...))'

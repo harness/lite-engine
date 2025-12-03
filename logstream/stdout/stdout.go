@@ -20,15 +20,15 @@ func New() *Logger {
 type Logger struct {
 }
 
-func (f *Logger) Upload(_ context.Context, key string, lines []*logstream.Line) error {
+func (f *Logger) Upload(_ context.Context, _ string, _ []*logstream.Line) error {
 	return nil
 }
 
-func (f *Logger) Open(_ context.Context, key string) error {
+func (f *Logger) Open(_ context.Context, _ string) error {
 	return nil
 }
 
-func (f *Logger) Close(_ context.Context, key string, snapshot bool) error {
+func (f *Logger) Close(_ context.Context, _ string, _ bool) error {
 	return nil
 }
 

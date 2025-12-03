@@ -37,7 +37,7 @@ func NewUnittestRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs [
 	}
 }
 
-func (m *unittestRunner) AutoDetectPackages(workspace string) ([]string, error) {
+func (m *unittestRunner) AutoDetectPackages(_ string) ([]string, error) {
 	return []string{}, nil
 }
 
@@ -46,7 +46,7 @@ func (m *unittestRunner) AutoDetectTests(ctx context.Context, workspace string, 
 	return pythonTests, nil
 }
 
-func (m *unittestRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+func (m *unittestRunner) ReadPackages(_ string, files []ti.File) []ti.File {
 	return files
 }
 
@@ -55,7 +55,7 @@ func (m *unittestRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 }
 
 func (m *unittestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
+	_, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	// Run all the tests
 	scriptPath, testHarness, err := UnzipAndGetTestInfo(agentInstallDir, ignoreInstr, unitTestCmd, userArgs, m.log)
 	if err != nil {

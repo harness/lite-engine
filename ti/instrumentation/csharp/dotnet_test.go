@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMain(t *testing.M) {
+func TestMain(_ *testing.M) {
 	os.Exit(0) // Remove once the exact approach is finalized
 }
 

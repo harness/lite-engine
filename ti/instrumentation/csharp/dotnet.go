@@ -40,7 +40,7 @@ func NewDotnetRunner(log *logrus.Logger, fs filesystem.FileSystem) *dotnetRunner
 	}
 }
 
-func (b *dotnetRunner) AutoDetectPackages(workspace string) ([]string, error) {
+func (b *dotnetRunner) AutoDetectPackages(_ string) ([]string, error) {
 	return []string{}, nil
 }
 

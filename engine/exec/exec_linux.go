@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func WaitForProcess(ctx context.Context, cmd *exec.Cmd, cmdSignal chan<- cmdResult, shouldWaitOnProcessGroup bool) {
+func WaitForProcess(ctx context.Context, cmd *exec.Cmd, cmdSignal chan<- cmdResult, _ bool) {
 	if cmd.Process == nil {
 		logrus.WithContext(ctx).Warnln("wait for process requested but cmd.Process is nil")
 		return
@@ -22,7 +22,7 @@ func WaitForProcess(ctx context.Context, cmd *exec.Cmd, cmdSignal chan<- cmdResu
 	waitForCmd(cmd, cmdSignal)
 }
 
-func AbortProcess(ctx context.Context, cmd *exec.Cmd, cmdSignal <-chan cmdResult, retryIntervalSecs, maxSigtermAttempts int, useExplicitProcessTree bool) {
+func AbortProcess(ctx context.Context, cmd *exec.Cmd, cmdSignal <-chan cmdResult, retryIntervalSecs, maxSigtermAttempts int, _ bool) {
 	if cmd.Process == nil {
 		logrus.WithContext(ctx).Warnln("abort requested but cmd.Process is nil")
 		return

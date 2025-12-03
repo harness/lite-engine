@@ -37,7 +37,8 @@ func TestPullPolicy_Marshal(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		data, err := json.Marshal(&test.policy)
+		policy := test.policy
+		data, err := json.Marshal(&policy)
 		if err != nil {
 			t.Error(err)
 			return

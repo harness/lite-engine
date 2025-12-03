@@ -48,8 +48,8 @@ func removeBaseDir() error {
 	return nil
 }
 
-// copy file from src to relative dst in temp directory. Any existing file will be overwritten.
-func copy(src, relDst string) error { //nolint:gocritic
+// copyFile copies file from src to relative dst in temp directory. Any existing file will be overwritten.
+func copyFile(src, relDst string) error { //nolint:gocritic
 	dst := getBaseDir() + relDst
 	in, err := os.Open(src)
 	if err != nil {
@@ -199,15 +199,15 @@ func TestGetTests_All(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report1, "a/b/report1.xml")
+	err = copyFile(report1, "a/b/report1.xml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report2, "a/b/c/d/report2.xml")
+	err = copyFile(report2, "a/b/c/d/report2.xml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report3, "a/b/report3.xml")
+	err = copyFile(report3, "a/b/report3.xml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,11 +227,11 @@ func TestGetTests_All_MultiplePaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report1, "a/b/report1.xml")
+	err = copyFile(report1, "a/b/report1.xml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report2, "a/b/c/d/report2.xml")
+	err = copyFile(report2, "a/b/c/d/report2.xml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,11 +252,11 @@ func TestGetTests_FirstRegex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report1, "a/b/report1.xml")
+	err = copyFile(report1, "a/b/report1.xml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report2, "a/b/c/d/report2.xml")
+	err = copyFile(report2, "a/b/c/d/report2.xml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,11 +276,11 @@ func TestGetTests_SecondRegex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report1, "a/b/report1.xml")
+	err = copyFile(report1, "a/b/report1.xml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report2, "a/b/c/d/report2.xml")
+	err = copyFile(report2, "a/b/c/d/report2.xml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,11 +300,11 @@ func TestGetTests_NoMatchingRegex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report1, "a/b/report1.xml")
+	err = copyFile(report1, "a/b/report1.xml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = copy(report2, "a/b/c/d/report2.xml")
+	err = copyFile(report2, "a/b/c/d/report2.xml")
 	if err != nil {
 		t.Fatal(err)
 	}

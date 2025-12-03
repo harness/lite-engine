@@ -35,7 +35,7 @@ func NewNunitConsoleRunner(log *logrus.Logger, fs filesystem.FileSystem) *nunitC
 	}
 }
 
-func (b *nunitConsoleRunner) AutoDetectPackages(workspace string) ([]string, error) {
+func (b *nunitConsoleRunner) AutoDetectPackages(_ string) ([]string, error) {
 	return []string{}, nil
 }
 
@@ -44,7 +44,7 @@ func (b *nunitConsoleRunner) AutoDetectTests(ctx context.Context, workspace stri
 	return tests, nil
 }
 
-func (b *nunitConsoleRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+func (b *nunitConsoleRunner) ReadPackages(_ string, files []ti.File) []ti.File {
 	return files
 }
 

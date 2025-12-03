@@ -10,7 +10,7 @@ import (
 )
 
 // GetFeatureState evaluates the execution state of a feature based on cache metrics.
-func ParseDlcSavings(cacheMetricsFile string, log *logrus.Logger) (types.IntelligenceExecutionState, types.SavingsRequest, error) {
+func ParseDlcSavings(cacheMetricsFile string, _ *logrus.Logger) (types.IntelligenceExecutionState, types.SavingsRequest, error) {
 	savingsRequest := types.SavingsRequest{}
 	// Initialize the state as DISABLED by default.
 	state := types.DISABLED

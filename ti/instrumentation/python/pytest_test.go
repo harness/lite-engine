@@ -9,5 +9,5 @@ import (
 	"testing"
 )
 
-func TestPytest_GetCmd(t *testing.T) {
+func TestPytest_GetCmd(_ *testing.T) {
 }

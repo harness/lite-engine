@@ -139,7 +139,7 @@ func checkForBazelOptimization(ctx context.Context, workspace string, fs filesys
 
 // ComputeSelectedTestsV2 updates TI selection depending on the split strategy
 // AutoDetectTests output and parallelism configuration
-func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Config, log *logrus.Logger,
+func ComputeSelectedTestsV2(ctx context.Context, _ *api.RunTestsV2Config, log *logrus.Logger,
 	selection *ti.SelectTestsResp, stepID, workspace string, envs map[string]string, testGlobs []string, tiConfig *tiCfg.Cfg, runOnlySelectedTests bool, fs filesystem.FileSystem) bool {
 	// Adding only this remove this condition later when we have complete specs
 	if runOnlySelectedTests && len(selection.Tests) == 0 {

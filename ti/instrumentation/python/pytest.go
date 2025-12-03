@@ -38,7 +38,7 @@ func NewPytestRunner(log *logrus.Logger, fs filesystem.FileSystem, testGlobs []s
 	}
 }
 
-func (m *pytestRunner) AutoDetectPackages(workspace string) ([]string, error) {
+func (m *pytestRunner) AutoDetectPackages(_ string) ([]string, error) {
 	return []string{}, nil
 }
 
@@ -47,7 +47,7 @@ func (m *pytestRunner) AutoDetectTests(ctx context.Context, workspace string, te
 	return pythonTests, nil
 }
 
-func (m *pytestRunner) ReadPackages(workspace string, files []ti.File) []ti.File {
+func (m *pytestRunner) ReadPackages(_ string, files []ti.File) []ti.File {
 	return files
 }
 
@@ -56,7 +56,7 @@ func (m *pytestRunner) GetTestGlobs() (includeGlobs, excludeGlobs []string) {
 }
 
 func (m *pytestRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace,
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
+	_, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
 	if userArgs == "" {
 		userArgs = fmt.Sprintf("--junitxml='%s${HARNESS_NODE_INDEX}' -o junit_family='xunit1'", common.HarnessDefaultReportPath)
 	}

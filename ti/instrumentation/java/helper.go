@@ -108,7 +108,7 @@ func GetKotlinTests(workspace string, testGlobs []string) []ti.RunnableTest {
 // ParseJavaNode extracts the pkg and class names from a Java file path
 // e.g., 320-ci-execution/src/main/java/io/harness/stateutils/buildstate/ConnectorUtils.java
 // will return pkg = io.harness.stateutils.buildstate, class = ConnectorUtils
-func ParseJavaNode(filename string, testGlobs []string) (*common.Node, error) {
+func ParseJavaNode(filename string, _ []string) (*common.Node, error) {
 	var node common.Node
 	node.Pkg = ""
 	node.Class = ""

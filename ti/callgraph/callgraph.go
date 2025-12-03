@@ -32,7 +32,8 @@ type Callgraph struct {
 // ToStringMap converts Callgraph to map[string]interface{} for encoding
 func (cg *Callgraph) ToStringMap() map[string]interface{} {
 	var nodes, tRelations, vRelations []interface{}
-	for _, v := range cg.Nodes {
+	for i := range cg.Nodes {
+		v := &cg.Nodes[i]
 		data := map[string]interface{}{
 			"package":         v.Package,
 			"method":          v.Method,
