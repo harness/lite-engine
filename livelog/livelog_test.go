@@ -88,12 +88,12 @@ type mockClient struct {
 	uploaded []*logstream.Line
 }
 
-func (m *mockClient) Upload(ctx context.Context, key string, lines []*logstream.Line) error {
+func (m *mockClient) Upload(_ context.Context, _ string, lines []*logstream.Line) error {
 	m.uploaded = lines
 	return nil
 }
 
-func (m *mockClient) Open(ctx context.Context, key string) error {
+func (m *mockClient) Open(_ context.Context, _ string) error {
 	return nil
 }
 

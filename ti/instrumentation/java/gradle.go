@@ -29,7 +29,7 @@ type gradleRunner struct {
 	log *logrus.Logger
 }
 
-func NewGradleRunner(log *logrus.Logger, fs filesystem.FileSystem) *gradleRunner { //nolint:revive
+func NewGradleRunner(log *logrus.Logger, fs filesystem.FileSystem) *gradleRunner {
 	return &gradleRunner{
 		fs:  fs,
 		log: log,

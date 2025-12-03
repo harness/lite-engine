@@ -29,7 +29,7 @@ type bazelRunner struct {
 	log *logrus.Logger
 }
 
-func NewBazelRunner(log *logrus.Logger, fs filesystem.FileSystem) *bazelRunner { //nolint:revive
+func NewBazelRunner(log *logrus.Logger, fs filesystem.FileSystem) *bazelRunner {
 	return &bazelRunner{
 		fs:  fs,
 		log: log,

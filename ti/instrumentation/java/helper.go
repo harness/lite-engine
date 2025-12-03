@@ -360,7 +360,7 @@ func parseBazelTestRule(r string) (ti.RunnableTest, error) {
 	return test, nil
 }
 
-func AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+func AutoDetectTests(_ context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
 	tests := make([]ti.RunnableTest, 0)
 	javaTests := GetJavaTests(workspace, testGlobs)
 	scalaTests := GetScalaTests(workspace, testGlobs)

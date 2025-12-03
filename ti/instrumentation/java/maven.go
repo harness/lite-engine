@@ -26,7 +26,7 @@ type mavenRunner struct {
 	log *logrus.Logger
 }
 
-func NewMavenRunner(log *logrus.Logger, fs filesystem.FileSystem) *mavenRunner { //nolint:revive
+func NewMavenRunner(log *logrus.Logger, fs filesystem.FileSystem) *mavenRunner {
 	return &mavenRunner{
 		fs:  fs,
 		log: log,
@@ -58,7 +58,7 @@ func (m *mavenRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 	return make([]string, 0), make([]string, 0)
 }
 
-func (m *mavenRunner) GetCmd(_ context.Context, tests []ti.RunnableTest, userArgs, workspace,
+func (m *mavenRunner) GetCmd(_ context.Context, tests []ti.RunnableTest, userArgs, _,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, _ common.RunnerArgs) (string, error) {
 	// Agent arg
 	inputUserArgs := userArgs

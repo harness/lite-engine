@@ -54,7 +54,7 @@ func (s *sbtRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 	return make([]string, 0), make([]string, 0)
 }
 
-func (s *sbtRunner) GetCmd(_ context.Context, tests []ti.RunnableTest, userArgs, workspace,
+func (s *sbtRunner) GetCmd(_ context.Context, tests []ti.RunnableTest, userArgs, _,
 	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, _ common.RunnerArgs) (string, error) {
 	// Agent arg
 	javaAgentPath := filepath.Join(agentInstallDir, JavaAgentJar)
