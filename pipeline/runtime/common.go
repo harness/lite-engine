@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	goruntime "runtime"
 	"strings"
 	"time"
 
@@ -331,123 +330,28 @@ func checkStepSuccess(state *runtime.State, err error) bool {
 	return false
 }
 
-// setupAnnotationsPath adds the hcli binary directory to the PATH environment variable
-// for Windows CONTAINERLESS steps when the hcli binary exists. This ensures the hcli binary
-// is discoverable regardless of where it was downloaded.
+// setupAnnotationsPath is a no-op function for backward compatibility.
 //
-// IMPORTANT: This function ONLY modifies PATH for CONTAINERLESS steps (step.Image == "").
-// For container steps, modifying PATH is dangerous because:
-// 1. We would check HOST paths, not container paths
-// 2. Setting PATH would REPLACE the container image's PATH, potentially breaking the container
-// 3. Container steps have hcli available via the shared volume mount, which is already accessible
+// PATH setup for annotations is now handled as follows:
 //
-// For Linux and macOS, hcli is downloaded to system PATH directories
-// (/usr/bin/hcli or /usr/local/bin/hcli), so no PATH modification is needed.
+// CONTAINERLESS (Windows):
+//   - CloudInit downloads hcli to C:\Program Files\lite-engine\hcli.exe
+//   - CloudInit sets PATH to include C:\Program Files\lite-engine
+//   - hcli is automatically discoverable
 //
-// This function should be called by all step execution functions (Run, RunTest, RunTestsV2)
-// to ensure consistent hcli binary discovery across all step types.
+// CONTAINERS (Windows):
+//   - CloudInit copies hcli to c:\tmp\engine\hcli.exe (shared volume)
+//   - Shared volume is mounted into containers automatically
+//   - hcli is accessible at c:\tmp\engine\hcli.exe inside containers
+//   - We do NOT modify container PATH (per senior guidance - each container
+//     image has its own PATH and we should not override it)
 //
-// NOTE: We check for hcli binary existence rather than the CI_ENABLE_HARNESS_ANNOTATIONS
-// feature flag because the flag might be in cfg.Envs (pipeline config) rather than
-// step.Envs at the time this function is called. The environment merge happens later
-// in runHelper(), so checking the flag here would be unreliable and cause intermittent
-// failures where PATH modification is skipped even when annotations are enabled.
-//
-// For CONTAINERLESS steps: We check BOTH the new location (c:\tmp\engine) and the old location
-// (C:\Program Files\lite-engine) to support VM pools that may have VMs with different
-// CloudInit versions. This ensures hcli is discoverable regardless of which CloudInit
-// version provisioned the VM.
+// LINUX/macOS:
+//   - hcli is downloaded to /usr/bin/hcli or /usr/local/bin/hcli
+//   - These directories are already in the system PATH
+//   - No PATH modification needed
 func setupAnnotationsPath(step *spec.Step) {
-	logrus.WithFields(logrus.Fields{
-		"step_id":             step.ID,
-		"step_name":           step.Name,
-		"annotations_enabled": step.Envs["CI_ENABLE_HARNESS_ANNOTATIONS"],
-		"os":                  goruntime.GOOS,
-		"has_image":           step.Image != "",
-	}).Debugln("[ANNOTATIONS] setupAnnotationsPath called")
-
-	// Only Windows needs PATH modification for annotations
-	// Linux uses /usr/bin/hcli which is already in PATH
-	// macOS uses /usr/local/bin/hcli which is already in PATH
-	if goruntime.GOOS != "windows" {
-		logrus.WithFields(logrus.Fields{
-			"step_id": step.ID,
-			"os":      goruntime.GOOS,
-		}).Debugln("[ANNOTATIONS] Non-Windows OS, hcli should be in system PATH already")
-		return
-	}
-
-	// CRITICAL: Only modify PATH for CONTAINERLESS steps
-	// For container steps, we must NOT modify PATH because:
-	// 1. Container has its own filesystem, host paths don't apply
-	// 2. The shared volume (c:\tmp\engine) is already mounted in the container
-	// 3. Setting PATH would REPLACE the container image's PATH, breaking the container
-	// 4. Container images have their own entrypoint that depends on the image's PATH
-	if step.Image != "" {
-		logrus.WithFields(logrus.Fields{
-			"step_id":   step.ID,
-			"step_name": step.Name,
-			"image":     step.Image,
-		}).Debugln("[ANNOTATIONS] Container step detected, skipping PATH modification - container has shared volume mounted")
-		return
-	}
-
-	// hcli binary location on Windows:
-	// CloudInit (drone-runner-aws) downloads hcli to the shared volume directory.
-	// This is the ONLY location where hcli is downloaded - it doesn't move.
-	//
-	// Current CloudInit downloads to: c:\tmp\engine\hcli.exe
-	// (This matches lite-engine's SharedVolPath which is /tmp/engine -> c:\tmp\engine on Windows)
-	hcliLocation := `c:\tmp\engine`
-	hcliBinaryPath := hcliLocation + `\hcli.exe`
-
-	// Check if hcli binary exists
-	if _, err := os.Stat(hcliBinaryPath); err != nil {
-		logrus.WithFields(logrus.Fields{
-			"step_id":     step.ID,
-			"binary_path": hcliBinaryPath,
-			"error":       err,
-		}).Warnln("[ANNOTATIONS] hcli binary not found at expected location, skipping PATH setup - annotations will fail!")
-		return
-	}
-
-	logrus.WithFields(logrus.Fields{
-		"step_id":     step.ID,
-		"binary_path": hcliBinaryPath,
-	}).Infoln("[ANNOTATIONS] Found hcli binary")
-
-	existingPath := step.Envs["PATH"]
-
-	logrus.WithFields(logrus.Fields{
-		"step_id":              step.ID,
-		"existing_path_length": len(existingPath),
-		"hcli_location":        hcliLocation,
-	}).Debugln("[ANNOTATIONS] Current PATH state before modification")
-
-	// Avoid duplicate entries (case-insensitive check for Windows)
-	if strings.Contains(strings.ToLower(existingPath), strings.ToLower(hcliLocation)) {
-		logrus.WithFields(logrus.Fields{
-			"step_id":       step.ID,
-			"hcli_location": hcliLocation,
-		}).Debugln("[ANNOTATIONS] hcli directory already in PATH, skipping modification")
-		return
-	}
-
-	// Prepend hcli directory to PATH (Windows uses semicolon separator)
-	var newPath string
-	if existingPath != "" {
-		newPath = hcliLocation + ";" + existingPath
-	} else {
-		// Provide minimal Windows PATH if none exists
-		newPath = hcliLocation + `;C:\Windows\System32;C:\Windows`
-		logrus.WithField("step_id", step.ID).Warnln("[ANNOTATIONS] No existing PATH found, creating minimal Windows PATH")
-	}
-
-	step.Envs["PATH"] = newPath
-
-	logrus.WithFields(logrus.Fields{
-		"step_id":       step.ID,
-		"hcli_location": hcliLocation,
-		"path_modified": true,
-	}).Infoln("[ANNOTATIONS] Successfully added hcli directory to PATH")
+	// No-op: PATH is handled by CloudInit for containerless,
+	// and shared volume mount for containers.
+	// Keeping this function for backward compatibility with callers.
 }
