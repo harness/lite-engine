@@ -33,6 +33,9 @@ import (
 const (
 	ciNewVersionGodotEnv = "CI_NEW_VERSION_GODOTENV"
 	trueValue            = "true"
+
+	// Windows container path where hcli is mounted (used for PATH injection)
+	hcliWindowsContainerPath = `C:\harness\lite-engine`
 )
 
 func getNudges() []logstream.Nudge {
@@ -331,48 +334,42 @@ func checkStepSuccess(state *runtime.State, err error) bool {
 	return false
 }
 
-// injectHcliPathForWindowsContainer makes hcli available in Windows containers
-// by prepending the mounted lite-engine directory to PATH within the shell session.
-//
-// How it works:
-// 1. CloudInit downloads hcli.exe to C:\Program Files\lite-engine\ on the host
-// 2. Docker mounts C:\Program Files\lite-engine → C:\harness\lite-engine (read-only)
-// 3. This function prepends C:\harness\lite-engine to PATH in the shell command
-// 4. When user runs 'hcli', shell finds it at C:\harness\lite-engine\hcli.exe
-//
-// Why we modify PATH in the command (not step.Envs["PATH"]):
-// - Docker passes environment variables literally without expansion
-// - step.Envs["PATH"] = "%PATH%;..." would result in literal "%PATH%" string
-// - Shell command expansion ($env:PATH / %PATH%) happens at runtime and works correctly
-//
-// Supports: powershell.exe, pwsh.exe, cmd.exe
+// injectHcliPathForWindowsContainer adds hcli to PATH for Windows container steps.
 func injectHcliPathForWindowsContainer(step *spec.Step) {
-	// Only for Windows container steps (has Image = container, no Image = containerless)
-	if goruntime.GOOS != "windows" || step.Image == "" || len(step.Command) == 0 {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.WithField("panic", r).Warn("recovered from panic in hcli PATH injection")
+		}
+	}()
+
+	if !shouldInjectHcliPath(step) {
 		return
 	}
 
-	// Detect shell from entrypoint
 	shell := ""
 	if len(step.Entrypoint) > 0 {
 		shell = strings.ToLower(step.Entrypoint[0])
 	}
 
-	// The mounted directory inside the container
-	const hcliContainerPath = `C:\harness\lite-engine`
-
-	// PowerShell: Modify $env:PATH for this session
-	// $env:PATH is evaluated by PowerShell at runtime
-	psPathCmd := `$env:PATH = '` + hcliContainerPath + `;' + $env:PATH; `
-
-	// cmd.exe: Modify PATH for this session using set command
-	// %PATH% is expanded by cmd.exe at runtime
-	cmdPathCmd := `set "PATH=` + hcliContainerPath + `;%PATH%" & `
-
-	if strings.Contains(shell, "powershell") || strings.Contains(shell, "pwsh") {
-		step.Command[0] = psPathCmd + step.Command[0]
-	} else if strings.Contains(shell, "cmd") {
-		step.Command[0] = cmdPathCmd + step.Command[0]
+	// Prepend hcli path to ensure our binary is found first
+	switch {
+	case strings.Contains(shell, "powershell"), strings.Contains(shell, "pwsh"):
+		step.Command[0] = `$env:PATH = '` + hcliWindowsContainerPath + `;' + $env:PATH; ` + step.Command[0]
+	case strings.Contains(shell, "cmd"):
+		step.Command[0] = `set "PATH=` + hcliWindowsContainerPath + `;%PATH%" & ` + step.Command[0]
 	}
-	// If shell is unknown/undetected, we don't inject (fail-safe)
+}
+
+// shouldInjectHcliPath checks if hcli PATH injection should be performed.
+func shouldInjectHcliPath(step *spec.Step) bool {
+	if step == nil || step.Envs == nil {
+		return false
+	}
+	if goruntime.GOOS != "windows" {
+		return false
+	}
+	if step.Image == "" || len(step.Command) == 0 {
+		return false
+	}
+	return step.Envs[annotationsFFEnv] == trueValue
 }
