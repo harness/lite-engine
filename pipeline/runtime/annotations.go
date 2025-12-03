@@ -176,16 +176,23 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 	// Cap file size roughly to max annotations * max size per annotation + small overhead (~256KB)
 	maxSize := int64(maxAnnotationsCount*maxAnnotationBytes + 256*1024)
 
-	if info.Size() <= 0 || info.Size() > maxSize {
+	if info.Size() <= 0 {
+		return nil
+	}
+
+	if info.Size() > maxSize {
+		logrus.WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Warnln("ANNOTATIONS: file too large, skipping")
 		return nil
 	}
 
 	data, err := os.ReadFile(pathForRead)
 	if err != nil {
+		logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Warnln("ANNOTATIONS: read failed")
 		return nil
 	}
 
 	if !json.Valid(data) {
+		logrus.WithField("step_id", stepID).WithField("path", path).Warnln("ANNOTATIONS: invalid JSON, skipping")
 		return nil
 	}
 

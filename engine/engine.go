@@ -222,12 +222,10 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 		}
 	}
 
-	// Merge pipeline envs
 	for k, v := range cfg.Envs {
 		envs[k] = v
 	}
 
-	// Merge step envs
 	for k, v := range step.Envs {
 		envs[k] = v
 	}
