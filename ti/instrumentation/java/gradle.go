@@ -40,7 +40,7 @@ func (g *gradleRunner) AutoDetectPackages(workspace string) ([]string, error) {
 	return DetectPkgs(workspace, g.log, g.fs)
 }
 
-func (g *gradleRunner) AutoDetectTests(ctx context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
+func (g *gradleRunner) AutoDetectTests(_ context.Context, workspace string, testGlobs []string) ([]ti.RunnableTest, error) {
 	tests := make([]ti.RunnableTest, 0)
 	javaTests := GetJavaTests(workspace, testGlobs)
 	scalaTests := GetScalaTests(workspace, testGlobs)
@@ -101,7 +101,7 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	if strings.Contains(userArgs, "||") {
 		// args = "test || orCond1 || orCond2" gets split as:
 		// [test, orCond1 || orCond2]
-		s := strings.SplitN(userArgs, "||", 2) //nolint:gomnd
+		s := strings.SplitN(userArgs, "||", 2) //nolint:mnd
 		orCmd = s[1]
 		userArgs = s[0]
 	}

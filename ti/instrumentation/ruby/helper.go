@@ -197,7 +197,7 @@ func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJunitInstru
 	juintPath := filepath.Join(workspace, fmt.Sprintf("rspec_%d.xml", splitIdx))
 
 	// Open or create the .rspec-local file
-	file, err := os.OpenFile(rspecLocalPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644) //nolint:gomnd
+	file, err := os.OpenFile(rspecLocalPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644) //nolint:mnd
 	if err != nil {
 		return fmt.Errorf("failed to open .rspec-local file: %v", err)
 	}
