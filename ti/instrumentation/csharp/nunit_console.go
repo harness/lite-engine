@@ -53,7 +53,7 @@ func (b *nunitConsoleRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 }
 
 func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, //nolint:gocyclo
-	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
+	agentConfigPath, agentInstallDir string, ignoreInstr, runAll bool, _ common.RunnerArgs) (string, error) {
 	/*
 		i) Get the DLL list from the command (assume it runs at the root of the repository)
 		ii) Run the injector through all the DLLs

@@ -58,7 +58,7 @@ func (b *dotnetRunner) GetTestGlobs() (testGlobs, excludeGlobs []string) {
 }
 
 func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArgs, workspace, agentConfigPath,
-	agentInstallDir string, ignoreInstr, runAll bool, runnerArgs common.RunnerArgs) (string, error) {
+	agentInstallDir string, ignoreInstr, runAll bool, _ common.RunnerArgs) (string, error) {
 	// Move config.ini to Config.yaml manually for now. Later, we will use the same format for both
 	// agentInstallDir should have the zip file
 	/*

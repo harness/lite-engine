@@ -59,18 +59,18 @@ func (n *NoopClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest,
 	return n.PollStep(ctx, in)
 }
 
-func (*NoopClient) GetStepLogOutput(ctx context.Context, in *api.StreamOutputRequest, w io.Writer) error {
+func (*NoopClient) GetStepLogOutput(_ context.Context, _ *api.StreamOutputRequest, _ io.Writer) error {
 	return nil
 }
 
-func (*NoopClient) Health(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error) {
+func (*NoopClient) Health(_ context.Context, _ bool) (*api.HealthResponse, error) {
 	return &api.HealthResponse{OK: true, Version: "noop"}, nil
 }
 
-func (n *NoopClient) RetryHealth(ctx context.Context, _ time.Duration, performDNSLookup bool) (*api.HealthResponse, error) {
-	return n.Health(ctx, performDNSLookup)
+func (n *NoopClient) RetryHealth(_ context.Context, _ time.Duration, performDNSLookup bool) (*api.HealthResponse, error) {
+	return n.Health(context.Background(), performDNSLookup)
 }
 
-func (n *NoopClient) RetrySuspend(ctx context.Context, request *api.SuspendRequest, timeout time.Duration) (*api.SuspendResponse, error) {
+func (n *NoopClient) RetrySuspend(_ context.Context, _ *api.SuspendRequest, _ time.Duration) (*api.SuspendResponse, error) {
 	return &api.SuspendResponse{}, nil
 }
