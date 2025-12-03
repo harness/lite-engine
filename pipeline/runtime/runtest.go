@@ -70,6 +70,9 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	annotationsFileForEnv := engine.PathConverter(annotationsFile)
 	step.Envs["HARNESS_ANNOTATIONS_FILE"] = annotationsFileForEnv
 
+	// For Windows containers, add hcli directory to PATH
+	injectHcliPathForWindowsContainer(step)
+
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}

@@ -26,9 +26,6 @@ const (
 	buildCacheStepName = "harness-build-cache"
 	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
 	hcliPath           = "/usr/bin/hcli"
-	// Windows paths for hcli - direct mount
-	hcliWindowsHostPath      = `C:\Program Files\lite-engine\hcli.exe`
-	hcliWindowsContainerPath = `C:\Windows\hcli.exe`
 )
 
 // returns a container configuration.
@@ -120,14 +117,16 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 
 	// Mount hcli binary for containers
 	if runtime.GOOS == windowsOS {
-		// Windows: mount hcli.exe to C:\Windows\hcli.exe (C:\Windows is in default PATH)
+		// Windows: Mount the lite-engine directory (read-only) so we can copy hcli.exe at runtime
+		// Windows Docker doesn't support single file bind mounts, so we mount the directory
 		config.Mounts = append(config.Mounts, mount.Mount{
-			Type:   mount.TypeBind,
-			Source: hcliWindowsHostPath,
-			Target: hcliWindowsContainerPath,
+			Type:     mount.TypeBind,
+			Source:   `C:\Program Files\lite-engine`,
+			Target:   `C:\harness\lite-engine`,
+			ReadOnly: true,
 		})
 	} else {
-		// Linux/macOS: mount hcli to /usr/bin/hcli (/usr/bin is in default PATH)
+		// Linux/macOS: Mount hcli binary directly (single file mount works)
 		config.Mounts = append(config.Mounts, mount.Mount{
 			Type:   mount.TypeBind,
 			Source: hcliPath,
