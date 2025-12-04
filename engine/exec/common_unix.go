@@ -23,7 +23,7 @@ func SetSysProcAttr(cmd *exec.Cmd, userIDStr string, useNewProcessGroup bool) {
 	sysProcAttr := &syscall.SysProcAttr{}
 	if userIDStr != "" {
 		if userID, err := strconv.Atoi(userIDStr); err == nil {
-			sysProcAttr.Credential = &syscall.Credential{Uid: uint32(userID)}
+			sysProcAttr.Credential = &syscall.Credential{Uid: uint32(userID)} //nolint:gosec // G115: Intentional conversion, userID is controlled
 		}
 	}
 	if useNewProcessGroup {

@@ -101,7 +101,7 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 	if strings.Contains(userArgs, "||") {
 		// args = "test || orCond1 || orCond2" gets split as:
 		// [test, orCond1 || orCond2]
-		s := strings.SplitN(userArgs, "||", 2) //nolint:gomnd
+		s := strings.SplitN(userArgs, "||", 2) //nolint:mnd
 		orCmd = s[1]
 		userArgs = s[0]
 	}

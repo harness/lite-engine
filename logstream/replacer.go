@@ -254,7 +254,7 @@ func NewReplacerWithEnvs(w Writer, secrets []string, envs map[string]string) Wri
 				part = strings.TrimSpace(part)
 
 				// avoid masking empty or single character strings.
-				if len(part) < 2 { //nolint:gomnd
+				if len(part) < 2 { //nolint:mnd
 					continue
 				}
 

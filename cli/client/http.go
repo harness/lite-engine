@@ -53,8 +53,8 @@ func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile str
 	tlsConfig.RootCAs.AppendCertsFromPEM([]byte(caCertFile))
 
 	dialer := &net.Dialer{
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
+		Timeout:   30 * time.Second, //nolint:mnd
+		KeepAlive: 30 * time.Second, //nolint:mnd
 	}
 	return &HTTPClient{
 		Client: &http.Client{
@@ -62,10 +62,10 @@ func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile str
 				Proxy:                 http.ProxyFromEnvironment,
 				DialContext:           dialer.DialContext,
 				ForceAttemptHTTP2:     true,
-				MaxIdleConns:          10,
-				IdleConnTimeout:       30 * time.Second,
+				MaxIdleConns:          10,               //nolint:mnd
+				IdleConnTimeout:       30 * time.Second, //nolint:mnd
 				TLSClientConfig:       tlsConfig,
-				TLSHandshakeTimeout:   10 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second, //nolint:mnd
 				ExpectContinueTimeout: 1 * time.Second,
 			},
 		},
@@ -110,7 +110,7 @@ func (c *HTTPClient) RetrySetup(ctx context.Context, in *api.SetupRequest, timeo
 				WithField("retry_num", i).WithError(err).Traceln("setup failed. Retrying")
 			lastErr = err
 		}
-		time.Sleep(time.Millisecond * 1000) //nolint:gomnd
+		time.Sleep(time.Millisecond * 1000) //nolint:mnd
 	}
 }
 
@@ -137,7 +137,7 @@ func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepReques
 		if err == nil {
 			return out, nil
 		}
-		time.Sleep(time.Millisecond * 1000) //nolint:gomnd
+		time.Sleep(time.Millisecond * 1000) //nolint:mnd
 	}
 	return nil, err
 }
@@ -177,7 +177,7 @@ func (c *HTTPClient) RetryPollStep(ctx context.Context, in *api.PollStepRequest,
 				Warn("RetryPollStep: polling failed. retrying")
 			lastErr = pollError
 		}
-		time.Sleep(time.Millisecond * 50) //nolint:gomnd
+		time.Sleep(time.Millisecond * 50) //nolint:mnd
 	}
 }
 
@@ -251,7 +251,7 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration, per
 				WithField("retry_num", i).WithError(err).Traceln("health check failed. Retrying")
 			lastErr = err
 		}
-		time.Sleep(time.Millisecond * 10) //nolint:gomnd
+		time.Sleep(time.Millisecond * 10) //nolint:mnd
 	}
 }
 
@@ -277,7 +277,7 @@ func (c *HTTPClient) RetrySuspend(ctx context.Context, request *api.SuspendReque
 				WithField("retry_num", i).WithError(err).Traceln("suspend failed. Retrying")
 			lastErr = err
 		}
-		time.Sleep(time.Millisecond * 10) //nolint:gomnd
+		time.Sleep(time.Millisecond * 10) //nolint:mnd
 	}
 }
 
@@ -318,7 +318,7 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		defer func() {
 			// drain the response body so we can reuse
 			// this connection.
-			if _, cerr := io.Copy(io.Discard, io.LimitReader(res.Body, 4096)); cerr != nil { //nolint:gomnd
+			if _, cerr := io.Copy(io.Discard, io.LimitReader(res.Body, 4096)); cerr != nil { //nolint:mnd
 				logrus.WithError(cerr).Errorln("failed to drain response body")
 			}
 			res.Body.Close()
@@ -341,7 +341,7 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		return res, err
 	}
 
-	if res.StatusCode > 299 { //nolint:gomnd
+	if res.StatusCode > 299 { //nolint:mnd
 		// if the response body includes an error message
 		// we should return the error string.
 		if len(body) != 0 {

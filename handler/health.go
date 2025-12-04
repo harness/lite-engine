@@ -42,7 +42,7 @@ func HandleHealth() http.HandlerFunc {
 
 func checkInternetConnectivity() error {
 	dialer := net.Dialer{
-		Timeout: 2 * time.Second,
+		Timeout: 2 * time.Second, //nolint:mnd
 	}
 	conn, err := dialer.Dial("tcp", "8.8.8.8:53")
 	if err != nil {
