@@ -126,6 +126,16 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	log := logrus.New()
 	log.Out = out
 
+	// Log all step environment variables
+	log.WithField("step_id", step.ID).Info("Step environment variables:")
+	for key, value := range step.Envs {
+		log.WithFields(logrus.Fields{
+			"step_id": step.ID,
+			"key":     key,
+			"value":   value,
+		}).Info("Environment variable")
+	}
+
 	// stageRuntimeID is only passed for dlite
 	isHosted := r.StageRuntimeID != ""
 
