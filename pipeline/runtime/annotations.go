@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/sirupsen/logrus"
 )
@@ -98,6 +99,7 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 	if file == nil {
 		return
 	}
+
 	// Extract planExecutionID (present in file) and ensure there are annotations
 	planExecutionID := file.PlanExecutionID
 	if len(file.Annotations) == 0 {
@@ -161,36 +163,48 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 	if stepID == "" {
 		return nil
 	}
+
 	path := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, stepID)
-	info, err := os.Stat(path)
+	// Convert to Windows format for file system operations
+	pathForRead := engine.PathConverter(path)
+
+	info, err := os.Stat(pathForRead)
 	if err != nil {
 		return nil
 	}
+
 	// Cap file size roughly to max annotations * max size per annotation + small overhead (~256KB)
 	maxSize := int64(maxAnnotationsCount*maxAnnotationBytes + 256*1024)
+
 	if info.Size() <= 0 {
 		return nil
 	}
+
 	if info.Size() > maxSize {
 		logrus.WithField("step_id", stepID).WithField("path", path).WithField("size", info.Size()).Warnln("ANNOTATIONS: file too large, skipping")
 		return nil
 	}
-	data, err := os.ReadFile(path)
+
+	data, err := os.ReadFile(pathForRead)
 	if err != nil {
 		logrus.WithField("step_id", stepID).WithField("path", path).WithError(err).Warnln("ANNOTATIONS: read failed")
 		return nil
 	}
+
 	if !json.Valid(data) {
 		logrus.WithField("step_id", stepID).WithField("path", path).Warnln("ANNOTATIONS: invalid JSON, skipping")
 		return nil
 	}
+
 	var file annotationsFileRaw
 	if err := json.Unmarshal(data, &file); err != nil {
 		return nil
 	}
+
 	if len(file.Annotations) > maxAnnotationsCount {
 		file.Annotations = file.Annotations[:maxAnnotationsCount]
 	}
+
 	return &file
 }
 
@@ -308,20 +322,35 @@ func newPipelineClient(baseURL, token string, timeout time.Duration) *pipelineCl
 // PostJSON posts a JSON body to the given path relative to baseURL.
 func (c *pipelineClient) PostJSON(ctx context.Context, path string, body []byte) (status int, respBody []byte, err error) {
 	url := c.baseURL + path
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return 0, nil, err
 	}
+
 	if c.token != "" {
-		// Do not log tokens; set headers only
 		req.Header.Set("Authorization", "Annotations "+c.token)
 	}
 	req.Header.Set("Content-Type", "application/json")
+
+	startTime := time.Now()
 	resp, err := c.httpClient.Do(req)
+	duration := time.Since(startTime)
+
 	if err != nil {
 		return 0, nil, err
 	}
 	defer resp.Body.Close()
+
 	b, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		logrus.WithContext(ctx).
+			WithFields(logrus.Fields{
+				"status_code": resp.StatusCode,
+				"duration_ms": duration.Milliseconds(),
+			}).Infoln("[ANNOTATIONS] Successfully posted annotations to pipeline service")
+	}
+
 	return resp.StatusCode, b, nil
 }

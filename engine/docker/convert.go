@@ -115,7 +115,17 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.Mounts = toVolumeMounts(pipelineConfig, step)
 	}
 
-	if runtime.GOOS != windowsOS && step.Envs[annotationsFFEnv] == "true" {
+	// Mount hcli binary for containers
+	if runtime.GOOS == windowsOS {
+		// Windows: Mount directory
+		config.Mounts = append(config.Mounts, mount.Mount{
+			Type:     mount.TypeBind,
+			Source:   `C:\Program Files\lite-engine`,
+			Target:   `C:\harness\lite-engine`,
+			ReadOnly: true,
+		})
+	} else {
+		// Linux/macOS: Mount hcli binary directly
 		config.Mounts = append(config.Mounts, mount.Mount{
 			Type:   mount.TypeBind,
 			Source: hcliPath,

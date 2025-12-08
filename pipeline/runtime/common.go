@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	goruntime "runtime"
 	"strings"
 	"time"
 
@@ -31,6 +32,10 @@ import (
 
 const (
 	ciNewVersionGodotEnv = "CI_NEW_VERSION_GODOTENV"
+	trueValue            = "true"
+
+	// Windows container path where hcli is mounted (used for PATH injection)
+	hcliWindowsContainerPath = `C:\harness\lite-engine`
 )
 
 func getNudges() []logstream.Nudge {
@@ -327,4 +332,44 @@ func checkStepSuccess(state *runtime.State, err error) bool {
 		return true
 	}
 	return false
+}
+
+// injectHcliPathForWindowsContainer adds hcli to PATH for Windows container steps.
+func injectHcliPathForWindowsContainer(step *spec.Step) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.WithField("panic", r).Warn("recovered from panic in hcli PATH injection")
+		}
+	}()
+
+	if !shouldInjectHcliPath(step) {
+		return
+	}
+
+	shell := ""
+	if len(step.Entrypoint) > 0 {
+		shell = strings.ToLower(step.Entrypoint[0])
+	}
+
+	// Prepend hcli path to ensure our binary is found first
+	switch {
+	case strings.Contains(shell, "powershell"), strings.Contains(shell, "pwsh"):
+		step.Command[0] = `$env:PATH = '` + hcliWindowsContainerPath + `;' + $env:PATH; ` + step.Command[0]
+	case strings.Contains(shell, "cmd"):
+		step.Command[0] = `set "PATH=` + hcliWindowsContainerPath + `;%PATH%" & ` + step.Command[0]
+	}
+}
+
+// shouldInjectHcliPath checks if hcli PATH injection should be performed.
+func shouldInjectHcliPath(step *spec.Step) bool {
+	if step == nil || step.Envs == nil {
+		return false
+	}
+	if goruntime.GOOS != "windows" {
+		return false
+	}
+	if step.Image == "" || len(step.Command) == 0 {
+		return false
+	}
+	return step.Envs[annotationsFFEnv] == trueValue
 }

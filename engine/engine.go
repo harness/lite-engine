@@ -65,7 +65,7 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 			continue
 		}
 		path := vol.HostPath.Path
-		vol.HostPath.Path = pathConverter(path)
+		vol.HostPath.Path = PathConverter(path)
 
 		if _, err := os.Stat(path); err == nil {
 			_ = os.Chmod(path, permissions)
@@ -221,14 +221,17 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 			}
 		}
 	}
+
 	for k, v := range cfg.Envs {
 		envs[k] = v
 	}
+
 	for k, v := range step.Envs {
 		envs[k] = v
 	}
+
 	step.Envs = envs
-	step.WorkingDir = pathConverter(step.WorkingDir)
+	step.WorkingDir = PathConverter(step.WorkingDir)
 
 	// create files or folders specific to the step
 	if err := createFiles(step.Files); err != nil {
@@ -238,15 +241,14 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 	// If we are running on Windows, convert
 	// the volume paths to windows paths
 	for _, vol := range step.Volumes {
-		vol.Path = pathConverter(vol.Path)
+		vol.Path = PathConverter(vol.Path)
 	}
 
 	for _, vol := range cfg.Volumes {
 		if vol == nil || vol.HostPath == nil {
 			continue
 		}
-		path := vol.HostPath.Path
-		vol.HostPath.Path = pathConverter(path)
+		vol.HostPath.Path = PathConverter(vol.HostPath.Path)
 	}
 
 	return nil
@@ -355,7 +357,9 @@ func createFiles(paths []*spec.File) error {
 	return nil
 }
 
-func pathConverter(path string) string {
+// PathConverter converts Unix-style paths to Windows format on Windows OS.
+// This function is used throughout the codebase for consistent path handling.
+func PathConverter(path string) string {
 	if osruntime.GOOS == "windows" {
 		return toWindowsDrive(path)
 	}
