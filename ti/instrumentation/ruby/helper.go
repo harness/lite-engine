@@ -197,14 +197,14 @@ func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJunitInstru
 	juintPath := filepath.Join(workspace, fmt.Sprintf("rspec_%d.xml", splitIdx))
 
 	// Open or create the .rspec-local file
-	file, err := os.OpenFile(rspecLocalPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644) //nolint:gomnd
+	file, err := os.OpenFile(rspecLocalPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644) //nolint:mnd
 	if err != nil {
 		return fmt.Errorf("failed to open .rspec-local file: %v", err)
 	}
 	defer file.Close()
 
 	// Write the required line to the file
-	if _, err = file.WriteString(fmt.Sprintf("--require %q\n", scriptPath)); err != nil {
+	if _, err = file.WriteString(fmt.Sprintf("--require %q\n", scriptPath)); err != nil { //nolint:gocritic // preferFprint: WriteString is intentional
 		return fmt.Errorf("failed to write to agent path to .rspec-local file: %v", err)
 	}
 
@@ -220,7 +220,7 @@ func WriteRspecFile(workspace, repoPath string, splitIdx int, disableJunitInstru
 
 		if !existsInRspec && !existsInRspecLocal {
 			// Write the required line to the file
-			if _, err = file.WriteString(fmt.Sprintf("--format %s --out %s\n", rspecJuintFormatterString, juintPath)); err != nil {
+			if _, err = file.WriteString(fmt.Sprintf("--format %s --out %s\n", rspecJuintFormatterString, juintPath)); err != nil { //nolint:gocritic // preferFprint: WriteString is intentional
 				return fmt.Errorf("failed to write xml formatter to .rspec-local file: %v", err)
 			}
 		}
@@ -249,7 +249,7 @@ func prepend(lineToAdd, fileName string) error {
 	}
 
 	newContent := []byte(lineToAdd + "\n" + string(fileData))
-	err = os.WriteFile(fileName, newContent, os.ModePerm)
+	err = os.WriteFile(fileName, newContent, os.ModePerm) //nolint:gosec // G306: Intentional - file needs broader permissions
 	if err != nil {
 		return err
 	}

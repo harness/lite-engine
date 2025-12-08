@@ -360,7 +360,7 @@ func (b *Writer) Start() {
 func (b *Writer) checkErrInLogs() {
 	size := len(b.history)
 	// Check last 10 log lines for errors. TODO(Shubham): see if this can be made better
-	for idx := max(0, size-10); idx < size; idx++ { //nolint:gomnd
+	for idx := max(0, size-10); idx < size; idx++ { //nolint:mnd
 		line := b.history[idx]
 		// Iterate over the nudges and see if we get a match
 		for _, n := range b.nudges {
@@ -420,7 +420,7 @@ func formatNudge(line *logstream.Line, nudge logstream.Nudge) error {
 		line.Number+1, line.Message, nudge.GetError(), nudge.GetResolution())
 }
 
-func max(a, b int) int {
+func max(a, b int) int { //nolint:gocritic,revive // builtinShadowDecl,redefines-builtin-id: intentional helper function name
 	if a > b {
 		return a
 	}

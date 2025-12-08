@@ -142,7 +142,7 @@ func removeDup(s []int) []int {
 // parses one line of visGraph file
 // format - [-841968839,1459543895]
 func getNodes(s []string) (int, int, error) { //nolint:gocritic
-	if len(s) != 2 { //nolint:gomnd
+	if len(s) != 2 { //nolint:mnd
 		return 0, 0, fmt.Errorf("parsing failed: string format is not correct %v", s)
 	}
 	key, err1 := strconv.Atoi(s[0])
@@ -185,7 +185,7 @@ func process(inps []Input) *Callgraph {
 	}
 
 	// Updating the nodes map
-	for _, v := range nodeMap {
+	for _, v := range nodeMap { //nolint:gocritic // rangeValCopy: copy is intentional for aggregation
 		nodes = append(nodes, v)
 	}
 	return &Callgraph{

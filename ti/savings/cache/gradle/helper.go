@@ -34,16 +34,16 @@ func parseGradleVerseTimeMs(t string) int64 {
 	}
 	durationMs := 0
 	if days, err := strconv.Atoi(dayStr); err == nil {
-		durationMs += days * 24 * 60 * 60 * 1000
+		durationMs += days * 24 * 60 * 60 * 1000 //nolint:mnd
 	}
 	if hours, err := strconv.Atoi(hourStr); err == nil {
-		durationMs += hours * 60 * 60 * 1000
+		durationMs += hours * 60 * 60 * 1000 //nolint:mnd
 	}
 	if minutes, err := strconv.Atoi(minStr); err == nil {
-		durationMs += minutes * 60 * 1000
+		durationMs += minutes * 60 * 1000 //nolint:mnd
 	}
 	if seconds, err := strconv.ParseFloat(secondStr, 64); err == nil {
-		durationMs += int(seconds * 1000) //nolint:gomnd
+		durationMs += int(seconds * 1000) //nolint:mnd
 	}
 	return int64(durationMs)
 }
@@ -69,7 +69,7 @@ func parseProfileFromHtml(n *html.Node) (gradleTypes.Profile, bool, error) { //n
 		return profile, false, fmt.Errorf("html body does not have valid div")
 	}
 	contentDiv := body.Elements[0]
-	if len(contentDiv.Elements) != 4 { //nolint:gomnd
+	if len(contentDiv.Elements) != 4 { //nolint:mnd
 		return profile, false, fmt.Errorf("invalid content div")
 	}
 
@@ -139,7 +139,7 @@ func parseBuildTimeFromContentDiv(contentDiv *JsonNode) (int64, int64, error) { 
 	}
 
 	table := tab0.Elements[1]
-	if len(table.Elements) < 2 { //nolint:gomnd
+	if len(table.Elements) < 2 { //nolint:mnd
 		return -1, -1, fmt.Errorf("table does not have a list of headings")
 	}
 
@@ -147,7 +147,7 @@ func parseBuildTimeFromContentDiv(contentDiv *JsonNode) (int64, int64, error) { 
 	buildTimeMs := int64(-1)
 	taskExecutionTimeMs := int64(-1)
 	for _, n := range tableBody.Elements {
-		if len(n.Elements) != 2 { //nolint:gomnd
+		if len(n.Elements) != 2 { //nolint:mnd
 			continue
 		}
 		title := n.Elements[0].Text
@@ -180,14 +180,14 @@ func parseProjectsFromContentDiv(contentDiv *JsonNode) ([]gradleTypes.Project, e
 	}
 
 	taskTable := tab4.Elements[1]
-	if len(taskTable.Elements) < 2 { //nolint:gomnd
+	if len(taskTable.Elements) < 2 { //nolint:mnd
 		return goals, fmt.Errorf("task table does not have a list of tasks")
 	}
 
 	var goal gradleTypes.Project
 	tBody := taskTable.Elements[1]
 	for _, taskObj := range tBody.Elements {
-		if len(taskObj.Elements) != 3 { //nolint:gomnd
+		if len(taskObj.Elements) != 3 { //nolint:mnd
 			continue
 		}
 		name := taskObj.Elements[0].Text
@@ -272,7 +272,7 @@ func (n *JsonNode) populateFrom(htmlNode *html.Node) { //nolint:gocyclo
 		switch e.Type { //nolint:exhaustive
 		case html.TextNode:
 			trimmed := strings.TrimSpace(e.Data)
-			if len(trimmed) > 0 {
+			if len(trimmed) > 0 { //nolint:gocritic // emptyStringTest: intentional length check
 				// mimic HTML text normalizing
 				if textBuffer.Len() > 0 {
 					textBuffer.WriteString(" ")

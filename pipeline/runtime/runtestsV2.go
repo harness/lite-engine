@@ -1106,7 +1106,7 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 			return err
 		}
 
-		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
+		log.Printf("attempting to write %s to %s", data, bazelrcFilePath)
 		_, err = f.WriteString(data)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))
@@ -1120,7 +1120,7 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 		}
 		defer file.Close()
 
-		log.Printf(fmt.Sprintf("attempting to write %s to %s", data, bazelrcFilePath))
+		log.Printf("attempting to write %s to %s", data, bazelrcFilePath)
 		_, err = file.WriteString("\n" + data)
 		if err != nil {
 			log.WithError(err).Errorln(fmt.Sprintf("could not write %s to file %s", data, bazelrcFilePath))

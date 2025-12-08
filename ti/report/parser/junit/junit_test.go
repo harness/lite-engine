@@ -49,7 +49,7 @@ func removeBaseDir() error {
 }
 
 // copy file from src to relative dst in temp directory. Any existing file will be overwritten.
-func copy(src, relDst string) error { //nolint:gocritic
+func copy(src, relDst string) error { //nolint:gocritic,revive // redefines-builtin-id: test helper function
 	dst := getBaseDir() + relDst
 	in, err := os.Open(src)
 	if err != nil {

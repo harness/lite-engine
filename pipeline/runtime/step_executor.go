@@ -468,7 +468,7 @@ func (e *StepExecutor) sendStatus(r *api.StartStepRequest, delegateClient *deleg
 		return e.sendRunnerResponseStatus(r, delegateClient, response)
 	} else if r.StepStatus.TaskStatusV2 {
 		return e.sendResponseStatusV2(r, delegateClient, response)
-	} else {
+	} else { //nolint:revive // indent-error-flow: else structure is intentional for clarity
 		return e.sendResponseStatus(r, delegateClient, response)
 	}
 }

@@ -37,7 +37,7 @@ func TestPullPolicy_Marshal(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		data, err := json.Marshal(&test.policy)
+		data, err := json.Marshal(&test.policy) //nolint:gosec // G601: Test code, aliasing is intentional
 		if err != nil {
 			t.Error(err)
 			return
