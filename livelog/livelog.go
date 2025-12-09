@@ -64,10 +64,20 @@ type Writer struct {
 	trimNewLineSuffix bool
 	lastFlushTime     time.Time
 	ctx               context.Context
+
+	// Periodic snapshot fields for crash recovery
+	snapshotInterval time.Duration
+	lastSnapshot     time.Time
+	enableSnapshots  bool
 }
 
 // New returns a new writer
 func New(ctx context.Context, client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout, trimNewLineSuffix, skipOpeningStream, skipClosingStream bool) *Writer {
+	return NewWithSnapshots(ctx, client, key, name, nudges, printToStdout, trimNewLineSuffix, skipOpeningStream, skipClosingStream, false, 0)
+}
+
+// NewWithSnapshots returns a new writer with optional periodic snapshot support
+func NewWithSnapshots(ctx context.Context, client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout, trimNewLineSuffix, skipOpeningStream, skipClosingStream bool, enableSnapshots bool, snapshotInterval time.Duration) *Writer {
 	b := &Writer{
 		client:            client,
 		key:               key,
@@ -84,8 +94,17 @@ func New(ctx context.Context, client logstream.Client, key, name string, nudges 
 		lastFlushTime:     time.Now(),
 		trimNewLineSuffix: trimNewLineSuffix,
 		ctx:               ctx,
+		enableSnapshots:   enableSnapshots,
+		snapshotInterval:  snapshotInterval,
+		lastSnapshot:      time.Now(),
 	}
 	safego.SafeGo("livelog_buffer", b.Start)
+
+	// Start periodic snapshot goroutine if enabled
+	if enableSnapshots && snapshotInterval > 0 {
+		safego.SafeGo("periodic_snapshot", b.startPeriodicSnapshot)
+	}
+
 	return b
 }
 
@@ -413,6 +432,70 @@ func split(p []byte) []string {
 		v = strings.SplitAfter(s, "\n")
 	}
 	return v
+}
+
+// startPeriodicSnapshot runs in a goroutine to upload snapshots periodically
+func (b *Writer) startPeriodicSnapshot() {
+	ticker := time.NewTicker(b.snapshotInterval)
+	defer ticker.Stop()
+
+	logrus.WithField("key", b.key).
+		WithField("interval", b.snapshotInterval).
+		Infoln("starting periodic snapshot goroutine")
+
+	for {
+		select {
+		case <-b.close:
+			logrus.WithField("key", b.key).Infoln("stopping periodic snapshot goroutine")
+			return
+
+		case <-ticker.C:
+			if time.Since(b.lastSnapshot) >= b.snapshotInterval {
+				if err := b.UploadSnapshot(); err != nil {
+					logrus.WithError(err).
+						WithField("key", b.key).
+						Warnln("periodic snapshot upload failed")
+				} else {
+					logrus.WithField("key", b.key).
+						Debugln("periodic snapshot uploaded successfully")
+				}
+			}
+		}
+	}
+}
+
+// UploadSnapshot uploads current log history without closing stream
+// This allows recovery of logs in case of crashes before normal Close() is called
+func (b *Writer) UploadSnapshot() error {
+	if !b.opened || b.stopped() {
+		return nil
+	}
+
+	b.mu.Lock()
+	if len(b.history) == 0 {
+		b.mu.Unlock()
+		return nil
+	}
+
+	// Copy history to avoid holding lock during upload
+	history := append([]*logstream.Line{}, b.history...)
+	historySize := b.size
+	b.mu.Unlock()
+
+	// Upload without closing stream
+	err := b.client.Upload(b.ctx, b.key, history)
+	if err == nil {
+		b.mu.Lock()
+		b.lastSnapshot = time.Now()
+		b.mu.Unlock()
+
+		logrus.WithField("key", b.key).
+			WithField("lines", len(history)).
+			WithField("size_bytes", historySize).
+			Infoln("periodic snapshot uploaded successfully")
+	}
+
+	return err
 }
 
 func formatNudge(line *logstream.Line, nudge logstream.Nudge) error {

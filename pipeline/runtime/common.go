@@ -301,14 +301,39 @@ func GetReplacer(
 	cfg api.LogConfig, logKey, name string, secrets []string,
 ) logstream.Writer {
 	client := getLogServiceClient(cfg)
-	wc := livelog.New(context.Background(), client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream)
+
+	// Determine snapshot configuration
+	enableSnapshots := cfg.EnablePeriodicSnapshots
+	snapshotInterval := time.Duration(cfg.SnapshotIntervalSeconds) * time.Second
+	if snapshotInterval == 0 && enableSnapshots {
+		snapshotInterval = 30 * time.Second // Default: 30 seconds
+	}
+
+	var wc logstream.Writer
+	if enableSnapshots {
+		wc = livelog.NewWithSnapshots(context.Background(), client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream, true, snapshotInterval)
+	} else {
+		wc = livelog.New(context.Background(), client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream)
+	}
 	return logstream.NewReplacer(wc, secrets)
 }
 
 func GetReplacerWithCustomLogClient(
 	ctx context.Context, client logstream.Client, cfg api.LogConfig, logKey, name string, secrets []string,
 ) logstream.Writer {
-	wc := livelog.New(ctx, client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream)
+	// Determine snapshot configuration
+	enableSnapshots := cfg.EnablePeriodicSnapshots
+	snapshotInterval := time.Duration(cfg.SnapshotIntervalSeconds) * time.Second
+	if snapshotInterval == 0 && enableSnapshots {
+		snapshotInterval = 30 * time.Second // Default: 30 seconds
+	}
+
+	var wc logstream.Writer
+	if enableSnapshots {
+		wc = livelog.NewWithSnapshots(ctx, client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream, true, snapshotInterval)
+	} else {
+		wc = livelog.New(ctx, client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream)
+	}
 	return logstream.NewReplacer(wc, secrets)
 }
 

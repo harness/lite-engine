@@ -66,6 +66,22 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		destroyErr := engine.Destroy(r.Context())
+
+		// Close the centralized log writer (if exists) to upload final logs
+		// This is part of the crash-resilient logging enhancement
+		writer := state.GetWriter()
+		if writer != nil {
+			logger.FromRequest(r).Infoln("closing centralized log writer and uploading final blob")
+			if closeErr := writer.Close(); closeErr != nil {
+				logger.FromRequest(r).WithError(closeErr).
+					Errorln("failed to close centralized log writer")
+				// Don't fail destroy if log upload fails, but log the error
+				logErr = closeErr
+			} else {
+				logger.FromRequest(r).Infoln("successfully closed centralized log writer")
+			}
+		}
+
 		if destroyErr != nil || logErr != nil {
 			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %s", destroyErr, logErr))
 		}

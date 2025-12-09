@@ -209,6 +209,12 @@ type (
 		// the final logs blob may have missing logs.
 		SkipOpeningStream bool `json:"skip_opening_stream,omitempty"`
 		SkipClosingStream bool `json:"skip_closing_stream,omitempty"`
+
+		// Periodic snapshot configuration for crash recovery
+		// When enabled, logs are periodically uploaded to blob storage even before Close() is called
+		// This ensures logs survive VM crashes or unexpected terminations
+		EnablePeriodicSnapshots bool  `json:"enable_periodic_snapshots,omitempty"` // Enable periodic blob uploads
+		SnapshotIntervalSeconds int64 `json:"snapshot_interval_seconds,omitempty"` // Interval between snapshots (default: 30)
 	}
 
 	TIConfig struct {

@@ -37,6 +37,7 @@ type State struct {
 
 	statsCollector *osstats.StatsCollector
 	logClient      logstream.Client
+	logWriter      logstream.Writer // Centralized log writer for lite-engine logs
 }
 
 func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
@@ -90,6 +91,20 @@ func (s *State) GetLogConfig() *api.LogConfig {
 	defer s.mu.Unlock()
 
 	return &s.logConfig
+}
+
+// SetWriter sets the centralized log writer
+func (s *State) SetWriter(wr logstream.Writer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logWriter = wr
+}
+
+// GetWriter retrieves the centralized log writer
+func (s *State) GetWriter() logstream.Writer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.logWriter
 }
 
 func GetState() *State {
