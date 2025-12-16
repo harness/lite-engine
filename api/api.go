@@ -164,6 +164,11 @@ type (
 		Offset int64 `json:"offset,omitempty"`
 	}
 
+	StreamEngineLogsResponse struct {
+		Content []byte `json:"content,omitempty"`
+		Offset  int64  `json:"offset,omitempty"`
+	}
+
 	RunConfig struct {
 		Command    []string `json:"commands,omitempty"`
 		Entrypoint []string `json:"entrypoint,omitempty"`
