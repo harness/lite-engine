@@ -28,6 +28,7 @@ type (
 		MtlsConfig        spec.MtlsConfig    `json:"mtls_config,omitempty"`
 		VMImageConfig     spec.VMImageConfig `json:"vm_image_config,omitempty"`
 		Timeout           int64              `json:"timeout,omitempty"`
+		LELogKey          string             `json:"le_log_key,omitempty"` // Log key for lite-engine binary logs
 	}
 
 	SetupResponse struct{}
@@ -157,6 +158,10 @@ type (
 	StreamOutputRequest struct {
 		ID     string `json:"id,omitempty"`
 		Offset int    `json:"offset,omitempty"`
+	}
+
+	StreamEngineLogsRequest struct {
+		Offset int64 `json:"offset,omitempty"`
 	}
 
 	RunConfig struct {

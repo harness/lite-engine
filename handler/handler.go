@@ -57,6 +57,13 @@ func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime
 		return sr
 	}())
 
+	// Stream engine logs
+	r.Mount("/stream_engine_logs", func() http.Handler {
+		sr := chi.NewRouter()
+		sr.Post("/", HandleStreamEngineLogs())
+		return sr
+	}())
+
 	// Health check
 	r.Mount("/healthz", func() http.Handler {
 		sr := chi.NewRouter()

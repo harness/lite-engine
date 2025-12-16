@@ -218,6 +218,44 @@ func (c *HTTPClient) GetStepLogOutput(ctx context.Context, in *api.StreamOutputR
 	return err
 }
 
+func (c *HTTPClient) GetEngineLogs(ctx context.Context, offset int64) ([]byte, int64, error) {
+	path := "stream_engine_logs"
+	in := &api.StreamEngineLogsRequest{Offset: offset}
+	
+	buf := new(bytes.Buffer)
+	err := json.NewEncoder(buf).Encode(in)
+	if err != nil {
+		return nil, offset, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.Endpoint+path, buf)
+	if err != nil {
+		return nil, offset, err
+	}
+
+	res, err := c.Client.Do(req)
+	if res != nil {
+		defer func() {
+			res.Body.Close()
+		}()
+	}
+	if err != nil {
+		return nil, offset, err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, offset, &Error{Code: res.StatusCode, Message: "failed to get engine logs"}
+	}
+
+	content, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, offset, err
+	}
+
+	newOffset := offset + int64(len(content))
+	return content, newOffset, nil
+}
+
 func (c *HTTPClient) Health(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error) {
 	path := "healthz"
 	if performDNSLookup {

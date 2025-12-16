@@ -63,6 +63,10 @@ func (*NoopClient) GetStepLogOutput(ctx context.Context, in *api.StreamOutputReq
 	return nil
 }
 
+func (*NoopClient) GetEngineLogs(ctx context.Context, offset int64) ([]byte, int64, error) {
+	return []byte{}, offset, nil
+}
+
 func (*NoopClient) Health(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error) {
 	return &api.HealthResponse{OK: true, Version: "noop"}, nil
 }

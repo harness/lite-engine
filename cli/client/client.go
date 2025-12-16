@@ -32,6 +32,7 @@ type Client interface {
 	PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error)
 	RetryPollStep(ctx context.Context, in *api.PollStepRequest, timeout time.Duration) (step *api.PollStepResponse, pollError error)
 	GetStepLogOutput(ctx context.Context, in *api.StreamOutputRequest, w io.Writer) error
+	GetEngineLogs(ctx context.Context, offset int64) ([]byte, int64, error)
 	Health(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error)
 	RetryHealth(ctx context.Context, timeout time.Duration, performDNSLookup bool) (*api.HealthResponse, error)
 	RetrySuspend(ctx context.Context, request *api.SuspendRequest, timeout time.Duration) (*api.SuspendResponse, error)
