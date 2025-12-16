@@ -10,6 +10,7 @@ package docker
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -125,12 +126,14 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 			ReadOnly: true,
 		})
 	} else {
-		// Linux/macOS: Mount hcli binary directly
-		config.Mounts = append(config.Mounts, mount.Mount{
-			Type:   mount.TypeBind,
-			Source: hcliPath,
-			Target: hcliPath,
-		})
+		// Linux/macOS: Mount hcli binary directly if it exists
+		if _, err := os.Stat(hcliPath); err == nil {
+			config.Mounts = append(config.Mounts, mount.Mount{
+				Type:   mount.TypeBind,
+				Source: hcliPath,
+				Target: hcliPath,
+			})
+		}
 	}
 
 	if len(step.PortBindings) != 0 {
