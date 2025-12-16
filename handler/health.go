@@ -81,7 +81,7 @@ func performDNSLookup(values url.Values) bool {
 }
 
 func getConnectivityCheckDuration(values url.Values) time.Duration {
-	durationParam := values.Get("connectivity_check_duration")
+	durationParam := values.Get("connectivity_check_duration_seconds")
 
 	if durationParam == "" {
 		return defaultConnectivityCheckDuration
