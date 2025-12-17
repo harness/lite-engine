@@ -50,13 +50,13 @@ func checkInternetConnectivity(duration time.Duration) error {
 	logrus.Infof("Checking internet connectivity to 8.8.8.8:53 for %v", duration)
 
 	startTime := time.Now()
-	checkInterval := 500 * time.Millisecond
+	checkInterval := 500 * time.Millisecond //nolint:mnd
 	checkCount := 0
 
 	for time.Since(startTime) < duration {
 		checkCount++
 		dialer := net.Dialer{
-			Timeout: 2 * time.Second,
+			Timeout: 2 * time.Second, //nolint:mnd
 		}
 		conn, err := dialer.Dial("tcp", "8.8.8.8:53")
 		if err != nil {
