@@ -5,11 +5,19 @@
 package api
 
 import (
+	"time"
+
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/ti-client/types"
 )
 
 type (
+	HealthRequest struct {
+		PerformDNSLookup                bool          `json:"perform_dns_lookup,omitempty"`
+		HealthCheckConnectivityDuration time.Duration `json:"health_check_connectivity_duration,omitempty"`
+		Timeout                         time.Duration `json:"timeout,omitempty"`
+	}
+
 	HealthResponse struct {
 		Version string `json:"version"`
 		OK      bool   `json:"ok"`

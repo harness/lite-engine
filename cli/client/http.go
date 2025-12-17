@@ -218,10 +218,16 @@ func (c *HTTPClient) GetStepLogOutput(ctx context.Context, in *api.StreamOutputR
 	return err
 }
 
-func (c *HTTPClient) Health(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error) {
+func (c *HTTPClient) Health(ctx context.Context, in *api.HealthRequest) (*api.HealthResponse, error) {
 	path := "healthz"
-	if performDNSLookup {
-		path += "?perform_dns_lookup=true"
+	separator := "?"
+
+	if in.PerformDNSLookup {
+		path += separator + "perform_dns_lookup=true"
+		separator = "&"
+	}
+	if in.HealthCheckConnectivityDuration > 0 {
+		path += fmt.Sprintf("%sconnectivity_check_duration_seconds=%d", separator, int(in.HealthCheckConnectivityDuration.Seconds()))
 	}
 
 	out := new(api.HealthResponse)
@@ -229,9 +235,9 @@ func (c *HTTPClient) Health(ctx context.Context, performDNSLookup bool) (*api.He
 	return out, err
 }
 
-func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration, performDNSLookup bool) (*api.HealthResponse, error) {
+func (c *HTTPClient) RetryHealth(ctx context.Context, in *api.HealthRequest) (*api.HealthResponse, error) {
 	startTime := time.Now()
-	retryCtx, cancel := context.WithTimeout(ctx, timeout)
+	retryCtx, cancel := context.WithTimeout(ctx, in.Timeout)
 	defer cancel()
 
 	var lastErr error
@@ -241,7 +247,7 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, timeout time.Duration, per
 			return &api.HealthResponse{}, retryCtx.Err()
 		default:
 		}
-		if ret, err := c.healthCheck(retryCtx, performDNSLookup); err == nil {
+		if ret, err := c.healthCheck(retryCtx, in); err == nil {
 			logger.FromContext(ctx).
 				WithField("duration", time.Since(startTime)).
 				Trace("RetryHealth: health check completed")
@@ -281,11 +287,11 @@ func (c *HTTPClient) RetrySuspend(ctx context.Context, request *api.SuspendReque
 	}
 }
 
-func (c *HTTPClient) healthCheck(ctx context.Context, performDNSLookup bool) (*api.HealthResponse, error) {
+func (c *HTTPClient) healthCheck(ctx context.Context, in *api.HealthRequest) (*api.HealthResponse, error) {
 	hctx, cancel := context.WithTimeout(ctx, healthCheckTimeout)
 	defer cancel()
 
-	return c.Health(hctx, performDNSLookup)
+	return c.Health(hctx, in)
 }
 
 func (c *HTTPClient) suspend(ctx context.Context, in *api.SuspendRequest) (*api.SuspendResponse, error) {
