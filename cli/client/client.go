@@ -122,7 +122,7 @@ func runStage(client Client, remoteLog bool) error {
 	logrus.Infof("check health")
 	if _, err := client.RetryHealth(ctx, &api.HealthRequest{
 		PerformDNSLookup: false,
-		Timeout:          time.Minute * 20,
+		Timeout:          time.Minute * 20, //nolint:mnd
 	}); err != nil {
 		logrus.WithError(err).Errorln("not healthy")
 		return err
