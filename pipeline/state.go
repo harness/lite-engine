@@ -5,6 +5,8 @@
 package pipeline
 
 import (
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/harness/lite-engine/engine/spec"
@@ -23,9 +25,17 @@ var (
 )
 
 const (
-	SharedVolPath = "/tmp/engine"
-	SharedVolName = "_engine"
+	defaultSharedVolPath = "/tmp/engine"
+	SharedVolName        = "_engine"
 )
+
+// GetSharedVolPath returns the shared volume path, using HARNESS_WORKDIR if set.
+func GetSharedVolPath() string {
+	if workdir := os.Getenv("HARNESS_WORKDIR"); workdir != "" {
+		return filepath.Join(workdir, "tmp", "engine")
+	}
+	return defaultSharedVolPath
+}
 
 // State stores the pipeline state.
 type State struct {
@@ -72,7 +82,7 @@ func (s *State) GetLogStreamClient() logstream.Client {
 			s.logClient = remote.NewHTTPClient(s.logConfig.URL, s.logConfig.AccountID,
 				s.logConfig.Token, s.logConfig.IndirectUpload, false, s.mtlsConfig.ClientCert, s.mtlsConfig.ClientCertKey)
 		} else {
-			s.logClient = filestore.New(SharedVolPath)
+			s.logClient = filestore.New(GetSharedVolPath())
 		}
 	}
 	return s.logClient

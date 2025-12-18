@@ -141,7 +141,7 @@ func HandleStreamOutput(e *pruntime.StepExecutor) http.HandlerFunc {
 func getSharedVolumeMount() *spec.VolumeMount {
 	return &spec.VolumeMount{
 		Name: pipeline.SharedVolName,
-		Path: pipeline.SharedVolPath,
+		Path: pipeline.GetSharedVolPath(),
 	}
 }
 

@@ -130,7 +130,7 @@ func getSharedVolume() *spec.Volume {
 	return &spec.Volume{
 		HostPath: &spec.VolumeHostPath{
 			Name: pipeline.SharedVolName,
-			Path: pipeline.SharedVolPath,
+			Path: pipeline.GetSharedVolPath(),
 			ID:   "engine",
 		},
 	}
@@ -164,6 +164,6 @@ func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig, envs map[string]stri
 		parentUniqueID = envs["HARNESS_PARENT_UNIQUE_ID"]
 	}
 	cfg := tiCfg.New(t.URL, t.Token, t.AccountID, t.OrgID, t.ProjectID, t.PipelineID, t.BuildID, t.StageID, t.Repo,
-		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.SharedVolPath, parentUniqueID, t.ParseSavings, false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
+		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.GetSharedVolPath(), parentUniqueID, t.ParseSavings, false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
 	return cfg
 }

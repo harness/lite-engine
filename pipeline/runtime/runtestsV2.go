@@ -83,11 +83,11 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	}
 	step.Command = []string{command}
 
-	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
+	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.GetSharedVolPath(), step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
 	// Set annotations file path for producers to write rich annotations JSON
-	annotationsFile := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, step.ID)
+	annotationsFile := fmt.Sprintf("%s/%s-annotations.json", pipeline.GetSharedVolPath(), step.ID)
 	annotationsFileForEnv := engine.PathConverter(annotationsFile)
 	step.Envs["HARNESS_ANNOTATIONS_FILE"] = annotationsFileForEnv
 
@@ -98,7 +98,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
 	}
 
-	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
+	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.GetSharedVolPath(), step.ID)
 	step.Envs["DRONE_OUTPUT"] = outputFile
 
 	useCINewGodotEnvVersion := false
@@ -112,11 +112,11 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, useCINewGodotEnvVersion)
 	}
 
-	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
+	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.GetSharedVolPath(), step.ID)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
 	if metadataFile, found := step.Envs["PLUGIN_METADATA_FILE"]; found {
-		step.Envs["PLUGIN_METADATA_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
+		step.Envs["PLUGIN_METADATA_FILE"] = fmt.Sprintf("%s/%s-%s", pipeline.GetSharedVolPath(), step.ID, metadataFile)
 	}
 
 	exited, err := f(ctx, step, out, r.LogDrone, false)
