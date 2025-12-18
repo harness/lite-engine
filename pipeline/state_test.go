@@ -20,13 +20,13 @@ func TestGetSharedVolPath(t *testing.T) {
 
 	t.Run("workdir set returns workdir/engine", func(t *testing.T) {
 		os.Setenv("HARNESS_WORKDIR", "/my/workdir")
-		expected := filepath.Join("/my/workdir", "engine")
+		expected := filepath.Join("/my/workdir", "tmp/engine")
 		assert.Equal(t, expected, GetSharedVolPath())
 	})
 
 	t.Run("windows style workdir", func(t *testing.T) {
 		os.Setenv("HARNESS_WORKDIR", "D:\\runner-workspace")
-		expected := filepath.Join("D:\\runner-workspace", "engine")
+		expected := filepath.Join("D:\\runner-workspace", "tmp", "engine")
 		assert.Equal(t, expected, GetSharedVolPath())
 	})
 }

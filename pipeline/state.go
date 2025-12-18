@@ -32,7 +32,7 @@ const (
 // GetSharedVolPath returns the shared volume path, using HARNESS_WORKDIR if set.
 func GetSharedVolPath() string {
 	if workdir := os.Getenv("HARNESS_WORKDIR"); workdir != "" {
-		return filepath.Join(workdir, "engine")
+		return filepath.Join(workdir, "tmp", "engine")
 	}
 	return defaultSharedVolPath
 }

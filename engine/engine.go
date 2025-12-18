@@ -367,7 +367,7 @@ func PathConverter(path string) string {
 }
 
 // helper function converts the path to a valid windows
-// path, including the default C drive or HARNESS_WORKDIR drive if set.
+// path, including the default C drive.
 func toWindowsDrive(s string) string {
 	if matchDockerSockPath(s) {
 		return s
@@ -375,14 +375,7 @@ func toWindowsDrive(s string) string {
 	if len(s) >= 2 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' {
 		return toWindowsPath(s)
 	}
-	// Use HARNESS_WORKDIR drive if set, otherwise default to C:
-	baseDrive := "c:"
-	if workdir := os.Getenv("HARNESS_WORKDIR"); workdir != "" && len(workdir) >= 2 {
-		if (workdir[0] >= 'a' && workdir[0] <= 'z' || workdir[0] >= 'A' && workdir[0] <= 'Z') && workdir[1] == ':' {
-			baseDrive = strings.ToLower(string(workdir[0])) + ":"
-		}
-	}
-	return baseDrive + toWindowsPath(s)
+	return "c:" + toWindowsPath(s)
 }
 
 // helper function converts the path to a valid windows
