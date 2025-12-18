@@ -2,6 +2,7 @@ package engine
 
 import (
 	"bytes"
+	"os"
 	"runtime"
 	"strings"
 	"testing"
@@ -95,5 +96,57 @@ func TestRunHelper(t *testing.T) {
 	} else {
 		assert.Equal(t, "/some/path", cfg.Volumes[0].HostPath.Path)
 		assert.Equal(t, "/mount/path", step.Volumes[0].Path)
+	}
+}
+
+func TestToWindowsDrive(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		workdir  string
+		expected string
+	}{
+		{
+			name:     "unix path without workdir",
+			input:    "/some/path",
+			workdir:  "",
+			expected: "c:\\some\\path",
+		},
+		{
+			name:     "unix path with D drive workdir",
+			input:    "/some/path",
+			workdir:  "D:\\custom",
+			expected: "d:\\some\\path",
+		},
+		{
+			name:     "path with existing drive letter",
+			input:    "C:\\existing\\path",
+			workdir:  "D:\\custom",
+			expected: "C:\\existing\\path",
+		},
+		{
+			name:     "docker sock path unchanged",
+			input:    DockerSockWinPath,
+			workdir:  "D:\\custom",
+			expected: DockerSockWinPath,
+		},
+		{
+			name:     "docker unix sock path unchanged",
+			input:    DockerSockUnixPath,
+			workdir:  "D:\\custom",
+			expected: DockerSockUnixPath,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Save and restore HARNESS_WORKDIR
+			orig := os.Getenv("HARNESS_WORKDIR")
+			defer os.Setenv("HARNESS_WORKDIR", orig)
+
+			os.Setenv("HARNESS_WORKDIR", tt.workdir)
+			result := toWindowsDrive(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
 	}
 }

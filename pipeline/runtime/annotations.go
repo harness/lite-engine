@@ -164,7 +164,7 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 		return nil
 	}
 
-	path := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, stepID)
+	path := fmt.Sprintf("%s/%s-annotations.json", pipeline.GetSharedVolPath(), stepID)
 	// Convert to Windows format for file system operations
 	pathForRead := engine.PathConverter(path)
 

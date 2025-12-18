@@ -34,13 +34,13 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	setTiEnvVariables(step, tiConfig)
 
 	optimizationState := types.DISABLED
-	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
+	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.GetSharedVolPath(), step.ID)
 	internalTempFiles = append(internalTempFiles, exportEnvFile)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 	telemetryData := &types.TelemetryData{}
 
 	// Set annotations file path for producers to write rich annotations JSON
-	annotationsFile := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, step.ID)
+	annotationsFile := fmt.Sprintf("%s/%s-annotations.json", pipeline.GetSharedVolPath(), step.ID)
 	annotationsFileForEnv := engine.PathConverter(annotationsFile)
 	step.Envs["HARNESS_ANNOTATIONS_FILE"] = annotationsFileForEnv
 
@@ -64,7 +64,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 		outputFile = r.OutputVarFile
 	} else {
 		// Otherwise, we use the default output file path
-		outputFile = fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
+		outputFile = fmt.Sprintf("%s/%s-output.env", pipeline.GetSharedVolPath(), step.ID)
 	}
 	internalTempFiles = append(internalTempFiles, outputFile)
 
@@ -88,36 +88,36 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	if r.SecretVarFile != "" {
 		outputSecretsFile = r.SecretVarFile
 	} else {
-		outputSecretsFile = fmt.Sprintf("%s/%s-output-secrets.env", pipeline.SharedVolPath, step.ID)
+		outputSecretsFile = fmt.Sprintf("%s/%s-output-secrets.env", pipeline.GetSharedVolPath(), step.ID)
 	}
 	internalTempFiles = append(internalTempFiles, outputSecretsFile)
 	// Plugins can use HARNESS_OUTPUT_SECRET_FILE to write the output secrets to a file.
 	step.Envs["HARNESS_OUTPUT_SECRET_FILE"] = outputSecretsFile
 
-	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
+	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.GetSharedVolPath(), step.ID)
 	internalTempFiles = append(internalTempFiles, artifactFile)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
 	if metadataFile, found := step.Envs["PLUGIN_METADATA_FILE"]; found {
-		pluginMetadataFile := fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, metadataFile)
+		pluginMetadataFile := fmt.Sprintf("%s/%s-%s", pipeline.GetSharedVolPath(), step.ID, metadataFile)
 		step.Envs["PLUGIN_METADATA_FILE"] = pluginMetadataFile
 		internalTempFiles = append(internalTempFiles, pluginMetadataFile)
 	}
 
 	if cacheMetricsFile, found := step.Envs["PLUGIN_CACHE_METRICS_FILE"]; found {
-		pluginCacheMetricsFile := fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, cacheMetricsFile)
+		pluginCacheMetricsFile := fmt.Sprintf("%s/%s-%s", pipeline.GetSharedVolPath(), step.ID, cacheMetricsFile)
 		step.Envs["PLUGIN_CACHE_METRICS_FILE"] = pluginCacheMetricsFile
 		internalTempFiles = append(internalTempFiles, pluginCacheMetricsFile)
 	}
 
 	if cacheIntelMetricsFile, found := step.Envs["PLUGIN_CACHE_INTEL_METRICS_FILE"]; found {
-		pluginCacheIntelMetricsFile := fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, cacheIntelMetricsFile)
+		pluginCacheIntelMetricsFile := fmt.Sprintf("%s/%s-%s", pipeline.GetSharedVolPath(), step.ID, cacheIntelMetricsFile)
 		step.Envs["PLUGIN_CACHE_INTEL_METRICS_FILE"] = pluginCacheIntelMetricsFile
 		internalTempFiles = append(internalTempFiles, pluginCacheIntelMetricsFile)
 	}
 
 	if pluginBuildToolFile, found := step.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
-		pluginBuildToolFilepath := fmt.Sprintf("%s/%s-%s", pipeline.SharedVolPath, step.ID, pluginBuildToolFile)
+		pluginBuildToolFilepath := fmt.Sprintf("%s/%s-%s", pipeline.GetSharedVolPath(), step.ID, pluginBuildToolFile)
 		step.Envs["PLUGIN_BUILD_TOOL_FILE"] = pluginBuildToolFilepath
 		internalTempFiles = append(internalTempFiles, pluginBuildToolFilepath)
 	}

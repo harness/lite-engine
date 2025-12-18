@@ -62,11 +62,11 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 	step.Entrypoint = r.RunTest.Entrypoint
 	setTiEnvVariables(step, tiConfig)
 
-	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.SharedVolPath, step.ID)
+	exportEnvFile := fmt.Sprintf("%s/%s-export.env", pipeline.GetSharedVolPath(), step.ID)
 	step.Envs["DRONE_ENV"] = exportEnvFile
 
 	// Set annotations file path for producers to write rich annotations JSON
-	annotationsFile := fmt.Sprintf("%s/%s-annotations.json", pipeline.SharedVolPath, step.ID)
+	annotationsFile := fmt.Sprintf("%s/%s-annotations.json", pipeline.GetSharedVolPath(), step.ID)
 	annotationsFileForEnv := engine.PathConverter(annotationsFile)
 	step.Envs["HARNESS_ANNOTATIONS_FILE"] = annotationsFileForEnv
 
@@ -82,14 +82,14 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 		useCINewGodotEnvVersion = true
 	}
 
-	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.SharedVolPath, step.ID)
+	outputFile := fmt.Sprintf("%s/%s-output.env", pipeline.GetSharedVolPath(), step.ID)
 	if len(r.Outputs) > 0 {
 		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, useCINewGodotEnvVersion)
 	} else if len(r.OutputVars) > 0 {
 		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, useCINewGodotEnvVersion)
 	}
 
-	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.SharedVolPath, step.ID)
+	artifactFile := fmt.Sprintf("%s/%s-artifact", pipeline.GetSharedVolPath(), step.ID)
 	step.Envs["PLUGIN_ARTIFACT_FILE"] = artifactFile
 
 	exited, err := f(ctx, step, out, false, false)
