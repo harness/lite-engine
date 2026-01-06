@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -94,10 +95,14 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata}
 
-		ffEnabled := isAnnotationsEnabled(r.Envs)
+		ffEnabled := IsAnnotationsEnabled(r.Envs)
 		if stepErr == nil && state.ExitCode == 0 && ffEnabled {
 			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
-			go e.postAnnotationsToPipeline(context.Background(), r)
+			// Resolve credentials and post directly
+			base := strings.TrimSpace(r.AnnotationsConfig.BaseURL)
+			base = strings.TrimRight(base, "/")
+			token := strings.TrimSpace(r.AnnotationsConfig.Token)
+			go PostAnnotationsToPipeline(context.Background(), r.ID, pipeline.GetSharedVolPath(), base, token)
 		}
 
 		e.mu.Lock()
@@ -138,11 +143,15 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 			pollResponse := convertStatus(status)
-			ffEnabled := isAnnotationsEnabled(r.Envs)
-			if stepErr == nil && state.ExitCode == 0 && ffEnabled {
-				logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
-				go e.postAnnotationsToPipeline(context.Background(), r)
-			}
+		ffEnabled := IsAnnotationsEnabled(r.Envs)
+		if stepErr == nil && state.ExitCode == 0 && ffEnabled {
+			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
+			// Resolve credentials and post directly
+			base := strings.TrimSpace(r.AnnotationsConfig.BaseURL)
+			base = strings.TrimRight(base, "/")
+			token := strings.TrimSpace(r.AnnotationsConfig.Token)
+			go PostAnnotationsToPipeline(context.Background(), r.ID, pipeline.GetSharedVolPath(), base, token)
+		}
 
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
