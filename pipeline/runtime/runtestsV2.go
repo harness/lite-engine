@@ -139,12 +139,8 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	}
 
 	// Check if all failed tests are quarantined and update exit code accordingly
-	if exited != nil && exited.ExitCode != 0 && len(tests) > 0 {
-		newExitCode := quarantine.CheckAndUpdateExitCodeForQuarantinedTests(ctx, tests, tiConfig, log, exited.ExitCode)
-		if newExitCode == 0 {
-			exited.ExitCode = 0
-			err = nil // Clear the error since we're treating this as success
-		}
+	if exited != nil {
+		exited.ExitCode, err = quarantine.CheckAndUpdateExitCodeForQuarantinedTests(ctx, tests, tiConfig, log, exited.ExitCode, err)
 	}
 
 	if tiConfig.GetParseSavings() {

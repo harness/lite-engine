@@ -10,11 +10,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	// QuarantineSkipEnvVar is the environment variable/FF to enable quarantined test skip feature
+	QuarantineSkipEnvVar = "CI_ENABLE_QUARANTINED_TEST_SKIP"
 )
 
 // GetQuarantinedTests fetches the list of quarantined tests from TI service
@@ -110,35 +116,46 @@ func AreAllFailedTestsQuarantined(tests []*types.TestCase, quarantinedTests []ty
 }
 
 // CheckAndUpdateExitCodeForQuarantinedTests checks if all failed tests are quarantined
-// and returns an updated exit code (0 if all failed tests are quarantined)
+// and returns an updated exit code (0 if all failed tests are quarantined) and error (nil if quarantined)
 func CheckAndUpdateExitCodeForQuarantinedTests(
 	ctx context.Context,
 	tests []*types.TestCase,
 	tiConfig *tiCfg.Cfg,
 	log *logrus.Logger,
 	currentExitCode int,
-) int {
+	currentErr error,
+) (int, error) {
+	// Check if feature flag is enabled
+	if os.Getenv(QuarantineSkipEnvVar) != "true" {
+		return currentExitCode, currentErr
+	}
+
 	// Only process if there's a failure
 	if currentExitCode == 0 {
-		return currentExitCode
+		return currentExitCode, currentErr
+	}
+
+	// No tests to check
+	if len(tests) == 0 {
+		return currentExitCode, currentErr
 	}
 
 	// Fetch quarantined tests
 	quarantinedTests, err := GetQuarantinedTests(ctx, tiConfig, log)
 	if err != nil {
-		// If we can't fetch quarantined tests, keep the original exit code
-		return currentExitCode
+		// If we can't fetch quarantined tests, keep the original exit code and error
+		return currentExitCode, currentErr
 	}
 
 	if len(quarantinedTests) == 0 {
-		return currentExitCode
+		return currentExitCode, currentErr
 	}
 
 	// Check if all failed tests are quarantined
 	if AreAllFailedTestsQuarantined(tests, quarantinedTests, log) {
 		log.Infoln("Overriding exit code to 0 because all failed tests are quarantined")
-		return 0
+		return 0, nil
 	}
 
-	return currentExitCode
+	return currentExitCode, currentErr
 }
