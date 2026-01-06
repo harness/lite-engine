@@ -17,10 +17,13 @@ import (
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/osstats"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -79,6 +82,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		setProxyEnvs(s.Envs)
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs), s.MtlsConfig, collector)
+
+		// Initialize lite-engine log streaming if LELogKey is provided
+		if err := initializeLELogStreaming(&s, state); err != nil {
+			logger.FromRequest(r).
+				WithField("time", time.Now().Format(time.RFC3339)).
+				WithError(err).
+				Warnln("api: failed to initialize lite-engine log streaming")
+		}
 
 		if s.MountDockerSocket == nil || *s.MountDockerSocket { // required to support m1 where docker isn't installed.
 			s.Volumes = append(s.Volumes, getDockerSockVolume())
@@ -166,4 +177,47 @@ func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig, envs map[string]stri
 	cfg := tiCfg.New(t.URL, t.Token, t.AccountID, t.OrgID, t.ProjectID, t.PipelineID, t.BuildID, t.StageID, t.Repo,
 		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.GetSharedVolPath(), parentUniqueID, t.ParseSavings, false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
 	return cfg
+}
+
+// initializeLELogStreaming sets up log streaming for lite-engine logs using the provided LELogKey.
+// This captures all stdout logs from the lite-engine application and streams them to the log service.
+func initializeLELogStreaming(setupReq *api.SetupRequest, state *pipeline.State) error {
+	// Only initialize if LELogKey is provided
+	if setupReq.LELogKey == "" {
+		return nil
+	}
+
+	// Get or create the log stream client
+	logClient := state.GetLogStreamClient()
+
+	// Create a live log writer for streaming lite-engine logs
+	ctx := context.Background()
+	logWriter := livelog.New(
+		ctx,
+		logClient,
+		setupReq.LELogKey,
+		"lite-engine",
+		[]logstream.Nudge{},
+		false, // don't print to stdout (would cause infinite loop)
+		setupReq.LogConfig.TrimNewLineSuffix,
+		false,
+		false,
+	)
+
+	// Open the log stream
+	if err := logWriter.Open(); err != nil {
+		return fmt.Errorf("failed to open lite-engine log stream: %w", err)
+	}
+
+	// Store the writer in state for later cleanup
+	state.SetLELogWriter(logWriter, setupReq.LELogKey)
+
+	// Add a logrus hook to redirect logs to the stream writer
+	logrus.AddHook(logger.NewStreamHook(logWriter))
+
+	logger.L.
+		WithField("le_log_key", setupReq.LELogKey).
+		Infoln("api: successfully initialized lite-engine log streaming")
+
+	return nil
 }
