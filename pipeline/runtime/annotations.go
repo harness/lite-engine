@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	osruntime "runtime"
 	"strings"
 	"time"
 
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/engine"
-	"github.com/harness/lite-engine/pipeline"
 	"github.com/sirupsen/logrus"
 )
 
@@ -27,6 +27,25 @@ const (
 	maxAnnotationsCount = 50        // max annotations per file
 	defaultPriority     = 3
 )
+
+// convertPathForOS converts a Unix-style path to OS-specific format
+// This is a temporary helper for cross-platform path handling
+func convertPathForOS(path string) string {
+	// Convert forward slashes to OS-specific separator
+	converted := filepath.FromSlash(path)
+	
+	// On Windows, add C: drive if path is absolute and doesn't have a drive letter
+	if osruntime.GOOS == "windows" {
+		if len(converted) > 0 && (converted[0] == '\\' || converted[0] == '/') {
+			// Check if it doesn't already have a drive letter
+			if len(converted) < 2 || converted[1] != ':' {
+				converted = "c:" + converted
+			}
+		}
+	}
+	
+	return converted
+}
 
 // Annotation modes
 const (
@@ -41,17 +60,17 @@ const (
 	postAnnotationsMaxRetries = 1
 )
 
-// isAnnotationsEnabled returns true if CI_ENABLE_HARNESS_ANNOTATIONS is set to a truthy value
+// IsAnnotationsEnabled returns true if CI_ENABLE_HARNESS_ANNOTATIONS is set to a truthy value
 // in the process environment.
-func isAnnotationsEnabled(envs map[string]string) bool {
+func IsAnnotationsEnabled(envs map[string]string) bool {
 	v := envs[annotationsFFEnv]
 	return v == "true"
 }
 
-// annotationsFileRaw is the on-disk envelope written by producers (e.g., CLI)
+// AnnotationsFileRaw is the on-disk envelope written by producers (e.g., CLI)
 // that lite-engine reads to post annotations to Pipeline Service.
 // Keep JSON tags aligned with CLI output.
-type annotationsFileRaw struct {
+type AnnotationsFileRaw struct {
 	AccountID        string          `json:"accountId,omitempty"`
 	OrgID            string          `json:"orgId,omitempty"`
 	ProjectID        string          `json:"projectId,omitempty"`
@@ -91,11 +110,11 @@ type pipelineClient struct {
 	httpClient *http.Client
 }
 
-// postAnnotationsToPipeline reads the per-step annotations file and posts annotations directly
+// PostAnnotationsToPipeline reads the per-step annotations file and posts annotations directly
 // to Pipeline Service. It never fails the step and logs errors on failures.
-func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
+func PostAnnotationsToPipeline(ctx context.Context, stepID string, sharedVolPath string, baseURL, token string) {
 	// Read annotations file (already validated and parsed)
-	file := e.readAnnotationsJSON(r.ID)
+	file := ReadAnnotationsJSON(stepID, sharedVolPath)
 	if file == nil {
 		return
 	}
@@ -110,7 +129,7 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 	accountID := file.AccountID
 
 	// Fold and sanitize annotations into a final slice
-	annList := foldAnnotationsToSlice(file, r.ID)
+	annList := FoldAnnotationsToSlice(file, stepID)
 	if len(annList) == 0 {
 		return
 	}
@@ -133,20 +152,19 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 		return
 	}
 
-	// Resolve base URL and token
-	base, annToken := resolveAnnotationsConfig(r)
+	// Trim and validate credentials
+	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	token = strings.TrimSpace(token)
+	if baseURL == "" || token == "" {
+		return
+	}
 
 	// Append required identifiers as query params
 	endpoint := fmt.Sprintf("/api/pipelines/annotations?accountId=%s&planExecutionId=%s",
 		url.QueryEscape(accountID), url.QueryEscape(planExecutionID))
 
-	// Resolve annotations token from merged config (request or setup state)
-	if annToken == "" {
-		return
-	}
-
 	// Prepare request
-	client := newPipelineClient(base, annToken, postAnnotationsTimeout)
+	client := newPipelineClient(baseURL, token, postAnnotationsTimeout)
 	for attempt := 1; attempt <= postAnnotationsMaxRetries+1; attempt++ {
 		_, _, err := client.PostJSON(ctx, endpoint, body)
 		if err == nil {
@@ -157,16 +175,16 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 	logrus.WithField("endpoint", endpoint).Warnln("ANNOTATIONS: post failed after retries")
 }
 
-// readAnnotationsJSON reads and parses the per-step annotations file from the shared volume.
+// ReadAnnotationsJSON reads and parses the per-step annotations file from the shared volume.
 // Returns nil if the file does not exist, is too large, or contains invalid JSON.
-func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
+func ReadAnnotationsJSON(stepID string, sharedVolPath string) *AnnotationsFileRaw {
 	if stepID == "" {
 		return nil
 	}
 
-	path := fmt.Sprintf("%s/%s-annotations.json", pipeline.GetSharedVolPath(), stepID)
-	// Convert to Windows format for file system operations
-	pathForRead := engine.PathConverter(path)
+	path := fmt.Sprintf("%s/%s-annotations.json", sharedVolPath, stepID)
+	// Convert to OS-specific path format (handles Windows C: drive)
+	pathForRead := convertPathForOS(path)
 
 	info, err := os.Stat(pathForRead)
 	if err != nil {
@@ -196,7 +214,7 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 		return nil
 	}
 
-	var file annotationsFileRaw
+	var file AnnotationsFileRaw
 	if err := json.Unmarshal(data, &file); err != nil {
 		return nil
 	}
@@ -208,11 +226,11 @@ func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
 	return &file
 }
 
-// foldAnnotationsToSlice folds file annotations by context and applies mode semantics.
+// FoldAnnotationsToSlice folds file annotations by context and applies mode semantics.
 // It also performs minimal sanitization with last-writer-wins rules.
 //
 //nolint:gocyclo // The logic handles mode semantics, merging, and clamping in one pass for clarity.
-func foldAnnotationsToSlice(file *annotationsFileRaw, id string) []PMSAnnotation {
+func FoldAnnotationsToSlice(file *AnnotationsFileRaw, id string) []PMSAnnotation {
 	annotations := make(map[string]PMSAnnotation)
 	for _, a := range file.Annotations {
 		ctxName := a.ContextID
