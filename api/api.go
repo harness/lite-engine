@@ -36,6 +36,7 @@ type (
 		MtlsConfig        spec.MtlsConfig    `json:"mtls_config,omitempty"`
 		VMImageConfig     spec.VMImageConfig `json:"vm_image_config,omitempty"`
 		Timeout           int64              `json:"timeout,omitempty"`
+		LELogKey          string             `json:"le_log_key,omitempty"`
 	}
 
 	SetupResponse struct{}
@@ -160,6 +161,15 @@ type (
 		OutputV2          []*OutputV2          `json:"outputV2,omitempty"`
 		OptimizationState string               `json:"optimization_state,omitempty"`
 		TelemetryData     *types.TelemetryData `json:"telemetry_data,omitempty"`
+	}
+
+	StreamEngineLogsRequest struct {
+		Offset int64 `json:"offset,omitempty"`
+	}
+	
+	StreamEngineLogsResponse struct {
+		Content []byte `json:"content,omitempty"`
+		Offset  int64  `json:"offset,omitempty"`
 	}
 
 	StreamOutputRequest struct {

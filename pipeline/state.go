@@ -47,6 +47,10 @@ type State struct {
 
 	statsCollector *osstats.StatsCollector
 	logClient      logstream.Client
+
+	// Lite-engine log streaming
+	leLogWriter logstream.Writer
+	leLogKey    string
 }
 
 func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
@@ -102,6 +106,25 @@ func (s *State) GetLogConfig() *api.LogConfig {
 	return &s.logConfig
 }
 
+func (s *State) SetLELogWriter(writer logstream.Writer, key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.leLogWriter = writer
+	s.leLogKey = key
+}
+
+func (s *State) GetLELogWriter() logstream.Writer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.leLogWriter
+}
+
+func (s *State) GetLELogKey() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.leLogKey
+}
+
 func GetState() *State {
 	once.Do(func() {
 		state = &State{
@@ -112,6 +135,8 @@ func GetState() *State {
 			secrets:        make([]string, 0),
 			logClient:      nil,
 			mtlsConfig:     spec.MtlsConfig{},
+			leLogWriter:    nil,
+			leLogKey:       "",
 		}
 	})
 	return state
