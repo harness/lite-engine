@@ -102,6 +102,10 @@ func (c *Cfg) GetSha() string {
 	return c.client.Sha
 }
 
+func (c *Cfg) GetRepo() string {
+	return c.client.Repo
+}
+
 func (c *Cfg) SetIgnoreInstr(ignoreInstr bool) {
 	c.ignoreInstr = ignoreInstr
 }
