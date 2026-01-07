@@ -21,9 +21,6 @@ import (
 const (
 	// QuarantineSkipEnvVar is the environment variable/FF to enable quarantined test skip feature
 	QuarantineSkipEnvVar = "CI_ENABLE_QUARANTINED_TEST_SKIP"
-
-	// TestFailureExitCode is the typical exit code for test failures
-	TestFailureExitCode = 1
 )
 
 // GetQuarantinedTests fetches the list of quarantined tests from TI service
@@ -135,12 +132,6 @@ func CheckAndUpdateExitCodeForQuarantinedTests(
 
 	// Nothing to do if already successful
 	if currentExitCode == 0 {
-		return currentExitCode, currentErr
-	}
-
-	// Only process typical test failure exit code (1)
-	// Other exit codes indicate different types of failures (e.g., build errors, infrastructure issues)
-	if currentExitCode != TestFailureExitCode {
 		return currentExitCode, currentErr
 	}
 
