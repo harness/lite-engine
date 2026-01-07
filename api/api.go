@@ -163,15 +163,6 @@ type (
 		TelemetryData     *types.TelemetryData `json:"telemetry_data,omitempty"`
 	}
 
-	StreamEngineLogsRequest struct {
-		Offset int64 `json:"offset,omitempty"`
-	}
-	
-	StreamEngineLogsResponse struct {
-		Content []byte `json:"content,omitempty"`
-		Offset  int64  `json:"offset,omitempty"`
-	}
-
 	StreamOutputRequest struct {
 		ID     string `json:"id,omitempty"`
 		Offset int    `json:"offset,omitempty"`
