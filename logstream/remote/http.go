@@ -272,6 +272,8 @@ func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out int
 
 // do is a helper function that posts a signed http request with
 // the input encoded and response decoded from json.
+//
+//nolint:gocyclo // HTTP request handling requires multiple conditional paths; complexity is acceptable here.
 func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interface{}) (*http.Response, error) {
 	var r io.Reader
 

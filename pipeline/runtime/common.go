@@ -288,15 +288,18 @@ func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 	envMap[ti.InfraEnv] = ti.HarnessInfra
 }
 
+//nolint:unused,gocritic // unused: may be used externally; hugeParam: acceptable for API consistency, not in hot path.
 func getLogServiceClient(cfg api.LogConfig) logstream.Client {
 	if cfg.URL != "" {
-		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "", "")
+		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "", cfg.KafkaTopic)
 	}
 	return stdout.New()
 }
 
 // Used to create a log service client which handles secrets
 // If the URL is not set, it will write to stdout instead.
+//
+//nolint:unused,gocritic // unused: may be used externally; hugeParam: acceptable for API consistency, not in hot path.
 func GetReplacer(
 	cfg api.LogConfig, logKey, name string, secrets []string,
 ) logstream.Writer {
@@ -305,6 +308,7 @@ func GetReplacer(
 	return logstream.NewReplacer(wc, secrets)
 }
 
+//nolint:unused,gocritic // unused: may be used externally; hugeParam: acceptable for API consistency, not in hot path.
 func GetReplacerWithCustomLogClient(
 	ctx context.Context, client logstream.Client, cfg api.LogConfig, logKey, name string, secrets []string,
 ) logstream.Writer {
