@@ -290,7 +290,7 @@ func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 
 func getLogServiceClient(cfg api.LogConfig) logstream.Client {
 	if cfg.URL != "" {
-		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "", cfg.KafkaTopic)
+		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "", "")
 	}
 	return stdout.New()
 }
