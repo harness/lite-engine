@@ -80,7 +80,7 @@ func (s *State) GetLogStreamClient() logstream.Client {
 	if s.logClient == nil {
 		if s.logConfig.URL != "" {
 			s.logClient = remote.NewHTTPClient(s.logConfig.URL, s.logConfig.AccountID,
-				s.logConfig.Token, s.logConfig.IndirectUpload, false, s.mtlsConfig.ClientCert, s.mtlsConfig.ClientCertKey)
+				s.logConfig.Token, s.logConfig.IndirectUpload, false, s.mtlsConfig.ClientCert, s.mtlsConfig.ClientCertKey, s.logConfig.KafkaTopic)
 		} else {
 			s.logClient = filestore.New(GetSharedVolPath())
 		}

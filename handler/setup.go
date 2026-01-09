@@ -77,6 +77,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		collector := osstats.New(context.Background(), statsInterval, logProcess)
 
 		setProxyEnvs(s.Envs)
+
+		// read Kafka topic from environment variable if not already set in LogConfig
+		if s.LogConfig.KafkaTopic == "" {
+			if kafkaTopic := os.Getenv("PLUGIN_HARNESS_LOG_SERVICE_CUSTOM_KAFKA_TOPIC"); kafkaTopic != "" {
+				s.LogConfig.KafkaTopic = kafkaTopic
+			}
+		}
+
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs), s.MtlsConfig, collector)
 

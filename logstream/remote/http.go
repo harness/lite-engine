@@ -40,7 +40,7 @@ var defaultClient = &http.Client{
 }
 
 // NewHTTPClient returns a new HTTPClient.
-func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string) *HTTPClient {
+func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string, kafkaTopic string) *HTTPClient {
 	endpoint = strings.TrimSuffix(endpoint, "/")
 	client := &HTTPClient{
 		Endpoint:       endpoint,
@@ -48,6 +48,7 @@ func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify
 		Token:          token,
 		SkipVerify:     skipverify,
 		IndirectUpload: indirectUpload,
+		KafkaTopic:     kafkaTopic,
 	}
 
 	// Load mTLS certificates if available
@@ -117,6 +118,7 @@ type HTTPClient struct {
 	AccountID      string
 	SkipVerify     bool
 	IndirectUpload bool
+	KafkaTopic     string // Custom kafka topic name to write logs to via X-Kafka-Topic header
 }
 
 // UploadFile uploads the file directly to data store or via log service
@@ -290,6 +292,11 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 	// the request should include the secret shared between
 	// the agent and server for authorization.
 	req.Header.Add("X-Harness-Token", c.Token)
+	// add Kafka topic header only for PUT /stream Write requests
+	// the only endpoint that supports X-Kafka-Topic header in log-service
+	if c.KafkaTopic != "" && method == "PUT" && strings.Contains(path, "/stream") {
+		req.Header.Add("X-Kafka-Topic", c.KafkaTopic)
+	}
 	res, err := c.client().Do(req)
 	if res != nil {
 		defer func() {

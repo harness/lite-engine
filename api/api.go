@@ -215,8 +215,9 @@ type (
 		// There is a limit of 5k lines for log-service's snapshot, so this parameter should NOT
 		// be used in cases where more than 5k lines of logs are written by the logger. Otherwise,
 		// the final logs blob may have missing logs.
-		SkipOpeningStream bool `json:"skip_opening_stream,omitempty"`
-		SkipClosingStream bool `json:"skip_closing_stream,omitempty"`
+		SkipOpeningStream bool   `json:"skip_opening_stream,omitempty"`
+		SkipClosingStream bool   `json:"skip_closing_stream,omitempty"`
+		KafkaTopic        string `json:"kafka_topic,omitempty"` // Custom kafka topic name to write logs to via X-Kafka-Topic header
 	}
 
 	TIConfig struct {
