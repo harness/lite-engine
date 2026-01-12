@@ -21,6 +21,9 @@ import (
 const (
 	// QuarantineSkipEnvVar is the environment variable/FF to enable quarantined test skip feature
 	QuarantineSkipEnvVar = "CI_ENABLE_QUARANTINED_TEST_SKIP"
+
+	// httpTimeoutSeconds is the timeout for HTTP requests to TI service
+	httpTimeoutSeconds = 30
 )
 
 // GetQuarantinedTests fetches the list of quarantined tests from TI service
@@ -35,7 +38,7 @@ func GetQuarantinedTests(ctx context.Context, tiConfig *tiCfg.Cfg, log *logrus.L
 	)
 
 	// Create HTTP request with timeout
-	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	reqCtx, cancel := context.WithTimeout(ctx, httpTimeoutSeconds*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpoint, &bytes.Buffer{})
@@ -49,7 +52,7 @@ func GetQuarantinedTests(ctx context.Context, tiConfig *tiCfg.Cfg, log *logrus.L
 	req.Header.Set("Content-Type", "application/json")
 
 	// Make the request
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: httpTimeoutSeconds * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		log.WithError(err).Warnln("Failed to fetch quarantined tests from TI service")
