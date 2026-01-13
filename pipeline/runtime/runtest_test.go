@@ -81,7 +81,7 @@ func Test_CollectRunTestData(t *testing.T) {
 			) ([]*types.TestCase, error) {
 				return []*types.TestCase{}, tc.crErr
 			}
-			err := collectRunTestData(ctx, log, &apiReq, time.Now(), stepName, &tiConfig, &telemetryData)
+			_, err := collectRunTestData(ctx, log, &apiReq, time.Now(), stepName, &tiConfig, &telemetryData)
 			assert.Equal(t, tc.collectionErr, err)
 		})
 	}

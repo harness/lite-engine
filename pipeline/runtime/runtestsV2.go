@@ -29,6 +29,7 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/java"
 	"github.com/harness/lite-engine/ti/instrumentation/python"
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
+	"github.com/harness/lite-engine/ti/quarantine"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
@@ -122,16 +123,24 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	exited, err := f(ctx, step, out, r.LogDrone, false)
 	timeTakenMs := time.Since(start).Milliseconds()
 
+	var tests []*types.TestCase
 	if r.RunTestsV2.IntelligenceMode {
-		collectionErr := collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData, r.Envs)
+		var collectionErr error
+		tests, collectionErr = collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData, r.Envs)
 		if err == nil {
 			err = collectionErr
 		}
 	} else {
-		_, collectReportsErr := collectTestReports(ctx, log, r, step.Name, tiConfig, telemetryData)
+		var collectReportsErr error
+		tests, collectReportsErr = collectTestReports(ctx, log, r, step.Name, tiConfig, telemetryData)
 		if err == nil {
 			err = collectReportsErr
 		}
+	}
+
+	// Check if all failed tests are quarantined and update exit code accordingly
+	if exited != nil {
+		exited.ExitCode, err = quarantine.CheckAndUpdateExitCodeForQuarantinedTests(ctx, tests, tiConfig, log, exited.ExitCode, err)
 	}
 
 	if tiConfig.GetParseSavings() {
@@ -325,7 +334,7 @@ func distributeSkipTestsForParallelism(
 	}
 
 	log.Infof("Calling GetTestTimes for step: %s", stepID)
-	if res, err := client.GetTestTimes(ctx, stepID, &req); err == nil {
+	if res, err := client.GetTestTimes(ctx, stepID, &req, 0); err == nil {
 		// Convert the timing data to our format
 		for filename, timing := range res.FileTimeMap {
 			fileTimes[filename] = float64(timing)
@@ -1162,7 +1171,7 @@ func collectTestReportsAndCg(
 	tiConfig *tiCfg.Cfg,
 	telemetryData *types.TelemetryData,
 	envs map[string]string,
-) error {
+) ([]*types.TestCase, error) {
 	cgStart := time.Now()
 
 	if len(r.TestReport.Junit.Paths) == 0 {
@@ -1241,7 +1250,7 @@ func collectTestReportsAndCg(
 		telemetryData.TestIntelligenceMetaData.Language = callgraph.DetectedLanguages
 	}
 
-	return cgErr
+	return tests, cgErr
 }
 
 func sanitizeTestGlobsV2(globStrings []string) []string {

@@ -18,6 +18,7 @@ import (
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/harness/lite-engine/ti/quarantine"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
 	"github.com/harness/ti-client/types"
@@ -132,9 +133,15 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	timeTakenMs := time.Since(start).Milliseconds()
 
 	reportStart := time.Now()
-	if _, rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs); rerr != nil {
+	tests, rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
+	if rerr != nil {
 		logrus.WithContext(ctx).WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
 		log.Errorf("Failed to upload report. Time taken: %s", time.Since(reportStart))
+	}
+
+	// Check if all failed tests are quarantined and update exit code accordingly
+	if exited != nil {
+		exited.ExitCode, err = quarantine.CheckAndUpdateExitCodeForQuarantinedTests(ctx, tests, tiConfig, log, exited.ExitCode, err)
 	}
 
 	// Parse and upload savings to TI
