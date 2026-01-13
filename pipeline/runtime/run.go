@@ -47,10 +47,6 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	// For Windows containers, add hcli directory to PATH
 	injectHcliPathForWindowsContainer(step)
 
-	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
-		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
-	}
-
 	if r.ScratchDir != "" {
 		// Plugins can use this directory as a scratch space to store temporary files.
 		// It will get cleaned up after a destroy.
@@ -78,10 +74,20 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	step.Envs["DRONE_OUTPUT"] = outputFile
 
 	//  Here we auto append the run command to write output variables.
+	cmd := ""
 	if len(r.Outputs) > 0 {
-		step.Command[0] += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, useCINewGodotEnvVersion)
+		cmd += getOutputsCmd(step.Entrypoint, r.Outputs, outputFile, useCINewGodotEnvVersion)
 	} else if len(r.OutputVars) > 0 {
-		step.Command[0] += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, useCINewGodotEnvVersion)
+		cmd += getOutputVarCmd(step.Entrypoint, r.OutputVars, outputFile, useCINewGodotEnvVersion)
+	}
+
+	//Writing output vars in case of command not present or empty.
+	if len(cmd) > 0 {
+		if len(step.Command) == 0 {
+			step.Command = []string{cmd}
+		} else {
+			step.Command[0] += cmd
+		}
 	}
 
 	var outputSecretsFile string
