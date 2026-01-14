@@ -48,7 +48,7 @@ func formatLogEntry(entry *logrus.Entry) string {
 	msg := entry.Message
 
 	// Start with time, level, and message
-	logLine := fmt.Sprintf("time=\"%s\" level=%s msg=\"%s\"", timestamp, level, msg)
+	logLine := fmt.Sprintf("time=%q level=%s msg=%q", timestamp, level, msg)
 
 	// Add any additional fields
 	for k, v := range entry.Data {
