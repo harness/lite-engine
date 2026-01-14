@@ -189,13 +189,25 @@ func (e *Docker) destroyContainers(
 	pipelineConfig *spec.PipelineConfig,
 	containers []Container,
 ) error {
-	removeOpts := container.RemoveOptions{
-		Force:         true,
-		RemoveLinks:   false,
-		RemoveVolumes: true,
-	}
-
 	// Phase 1: Stop/Kill all containers
+	e.stopAllContainers(ctx, containers)
+
+	// Phase 2: Wait for all non-softStop containers to stop
+	e.waitForAllContainersToStop(ctx, containers)
+
+	// Phase 3: Remove all containers with retry and verification
+	e.removeAllContainers(ctx, containers)
+
+	// Phase 4-5: Cleanup volumes and network
+	e.cleanupResources(ctx, pipelineConfig)
+
+	// We still return nil to not fail the pipeline on cleanup errors,
+	// but the robust retry logic should ensure cleanup succeeds in most cases.
+	return nil
+}
+
+// stopAllContainers stops or kills all containers based on their SoftStop configuration.
+func (e *Docker) stopAllContainers(ctx context.Context, containers []Container) {
 	for _, ctr := range containers {
 		if ctr.SoftStop {
 			e.softStop(ctx, ctr.ID)
@@ -209,9 +221,11 @@ func (e *Docker) destroyContainers(
 			}
 		}
 	}
+}
 
-	// Phase 2: Wait for all non-softStop containers to stop
-	// (softStop already waits internally)
+// waitForAllContainersToStop waits for all non-softStop containers to stop.
+// (softStop already waits internally)
+func (e *Docker) waitForAllContainersToStop(ctx context.Context, containers []Container) {
 	stopWaitTimeout := time.Duration(containerStopWaitTimeoutSecs) * time.Second
 	for _, ctr := range containers {
 		if !ctr.SoftStop {
@@ -221,8 +235,16 @@ func (e *Docker) destroyContainers(
 			}
 		}
 	}
+}
 
-	// Phase 3: Remove all containers with retry and verification
+// removeAllContainers removes all containers with retry and verification.
+func (e *Docker) removeAllContainers(ctx context.Context, containers []Container) {
+	removeOpts := container.RemoveOptions{
+		Force:         true,
+		RemoveLinks:   false,
+		RemoveVolumes: true,
+	}
+
 	for _, ctr := range containers {
 		if err := e.removeContainerWithRetry(ctx, ctr.ID, removeOpts); err != nil {
 			logrus.WithContext(ctx).WithField("container", ctr.ID).
@@ -230,8 +252,11 @@ func (e *Docker) destroyContainers(
 			// Continue with other containers even if one fails
 		}
 	}
+}
 
-	// Phase 4: Cleanup all volumes
+// cleanupResources cleans up volumes and networks from the pipeline configuration.
+func (e *Docker) cleanupResources(ctx context.Context, pipelineConfig *spec.PipelineConfig) {
+	// Cleanup all volumes
 	for _, vol := range pipelineConfig.Volumes {
 		if vol.EmptyDir == nil {
 			continue
@@ -247,15 +272,11 @@ func (e *Docker) destroyContainers(
 		}
 	}
 
-	// Phase 5: Cleanup the network
+	// Cleanup the network
 	if err := e.client.NetworkRemove(ctx, pipelineConfig.Network.ID); err != nil {
 		logrus.WithContext(ctx).WithField("network", pipelineConfig.Network.ID).
 			WithError(err).Warnln("failed to remove network")
 	}
-
-	// We still return nil to not fail the pipeline on cleanup errors,
-	// but the robust retry logic should ensure cleanup succeeds in most cases.
-	return nil
 }
 
 // Destroy the pipeline environment.
@@ -736,7 +757,7 @@ func (e *Docker) waitForContainerStop(ctx context.Context, containerID string, t
 		}
 		if err != nil {
 			// Transient error, keep trying
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(containerRemoveRetryDelayMs * time.Millisecond)
 			continue
 		}
 
@@ -745,7 +766,7 @@ func (e *Docker) waitForContainerStop(ctx context.Context, containerID string, t
 			return nil
 		}
 
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(containerRemoveRetryDelayMs * time.Millisecond)
 	}
 
 	return fmt.Errorf("timeout waiting for container %s to stop", containerID)
