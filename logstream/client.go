@@ -4,12 +4,19 @@
 
 package logstream
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 // Client defines a log service client.
 type Client interface {
 	// Upload upload the full log history to the data store
 	Upload(ctx context.Context, key string, lines []*Line) error
+
+	// UploadRaw uploads raw bytes (e.g. an NDJSON file) to the blob store for the given key.
+	// Implementations may choose to upload via log service (indirect upload) or via signed link.
+	UploadRaw(ctx context.Context, key string, r io.Reader) error
 
 	// Open opens the data stream.
 	Open(ctx context.Context, key string) error

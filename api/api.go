@@ -37,6 +37,7 @@ type (
 		VMImageConfig     spec.VMImageConfig `json:"vm_image_config,omitempty"`
 		Timeout           int64              `json:"timeout,omitempty"`
 		LELogKey          string             `json:"le_log_key,omitempty"`
+		MemoryMetrics     string             `json:"memory_metrics,omitempty"`
 	}
 
 	SetupResponse struct{}
