@@ -7,6 +7,7 @@ package stdout
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/harness/lite-engine/logstream"
 )
@@ -21,6 +22,12 @@ type Logger struct {
 }
 
 func (f *Logger) Upload(_ context.Context, key string, lines []*logstream.Line) error {
+	return nil
+}
+
+func (f *Logger) UploadRaw(_ context.Context, _ string, r io.Reader) error {
+	// Best-effort discard. Stdout logger doesn't persist blobs.
+	_, _ = io.Copy(io.Discard, r)
 	return nil
 }
 
