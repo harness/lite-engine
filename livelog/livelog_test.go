@@ -7,6 +7,7 @@ package livelog
 import (
 	"context"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -90,6 +91,11 @@ type mockClient struct {
 
 func (m *mockClient) Upload(ctx context.Context, key string, lines []*logstream.Line) error {
 	m.uploaded = lines
+	return nil
+}
+
+func (m *mockClient) UploadRaw(ctx context.Context, key string, r io.Reader) error {
+	_, _ = io.Copy(io.Discard, r)
 	return nil
 }
 

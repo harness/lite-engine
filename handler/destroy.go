@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -34,27 +35,41 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
-		// Use caller's context - timeout is controlled at the API caller level (drone-runner-aws)
-		ctx := r.Context()
+		destroyErr := engine.Destroy(r.Context())
 
-		log.Infoln("api: calling engine.Destroy")
-		destroyErr := engine.Destroy(ctx)
-		if destroyErr != nil {
-			WriteError(w, fmt.Errorf("destroy error: %w", destroyErr))
-			// Continue to close log stream even on destroy error to ensure logs are flushed
-		}
-
-		// Close lite-engine log stream - always attempt this to flush logs
-		log.Infoln("api: closing lite-engine log stream")
-		if closeErr := closeLELogStream(ctx, state); closeErr != nil {
-			logger.FromRequest(r).
-				WithField("time", time.Now().Format(time.RFC3339)).
-				WithError(closeErr).
-				Warnln("api: failed to close lite-engine log stream")
-		}
-
-		if d.StageRuntimeID != "" {
-			pipeline.GetEnvState().Delete(d.StageRuntimeID)
+		// upload engine logs
+		if d.LogKey != "" && d.LiteEnginePath != "" {
+			if !d.LogDrone {
+				client := state.GetLogStreamClient()
+				logs, logErr = GetLiteEngineLog(d.LiteEnginePath)
+				if logErr != nil {
+					logger.FromRequest(r).WithField("time", time.Now().
+						Format(time.RFC3339)).WithError(err).Errorln("could not fetch lite engine logs")
+				} else {
+					// error out if logs don't upload in a minute so that the VM can be destroyed
+					ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
+					defer cancel()
+					logErr = client.Upload(ctx, d.LogKey, convert(logs))
+					if logErr != nil {
+						logger.FromRequest(r).WithField("time", time.Now().
+							Format(time.RFC3339)).WithError(err).Errorln("could not upload lite engine logs")
+					} else {
+						// Close lite-engine log stream only if upload was successful
+						if closeErr := closeLELogStream(state); closeErr != nil {
+							logger.FromRequest(r).
+								WithField("time", time.Now().Format(time.RFC3339)).
+								WithError(closeErr).
+								Warnln("api: failed to close lite-engine log stream")
+						}
+					}
+				}
+				if d.StageRuntimeID != "" {
+					pipeline.GetEnvState().Delete(d.StageRuntimeID)
+				}
+			}
+			// else {
+			// TODO: handle drone case for lite engine log upload
+			// }
 		}
 
 		stats := &spec.OSStats{}
@@ -64,6 +79,42 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			collector.Stop()
 			collector.Aggregate()
 			stats = collector.Stats()
+		}
+
+		// Stop OS stats NDJSON streaming and upload the file (best-effort).
+		if streamer := state.GetOSStatsStreamer(); streamer != nil {
+			streamer.Stop()
+			key := state.GetOSStatsKey()
+			if key != "" {
+				client := state.GetLogStreamClient()
+				// error out if osstats don't upload in a minute so that the VM can be destroyed
+				ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
+				defer cancel()
+
+				f, err := os.Open(streamer.Path())
+				if err != nil {
+					logger.FromRequest(r).
+						WithField("time", time.Now().Format(time.RFC3339)).
+						WithError(err).
+						Warnln("could not open os stats file for upload")
+				} else {
+					uploadErr := client.UploadRaw(ctx, key, f)
+					_ = f.Close()
+					if uploadErr != nil {
+						logger.FromRequest(r).
+							WithField("time", time.Now().Format(time.RFC3339)).
+							WithField("os_stats_key", key).
+							WithError(uploadErr).
+							Warnln("could not upload os stats file")
+					}
+				}
+			}
+			state.SetOSStatsStreamer(nil, "")
+		}
+
+		if destroyErr != nil || logErr != nil {
+			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %v", destroyErr, logErr))
+			return
 		}
 
 		WriteJSON(w, api.DestroyResponse{OSStats: stats}, http.StatusOK)

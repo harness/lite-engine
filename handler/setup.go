@@ -91,6 +91,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 				Warnln("api: failed to initialize lite-engine log streaming")
 		}
 
+		// Initialize OS stats NDJSON streaming (file + upload) if MemoryMetrics key is provided
+		if err := initializeOSStatsStreaming(&s, state); err != nil {
+			logger.FromRequest(r).
+				WithField("time", time.Now().Format(time.RFC3339)).
+				WithError(err).
+				Warnln("api: failed to initialize os stats streaming")
+		}
+
 		if s.MountDockerSocket == nil || *s.MountDockerSocket { // required to support m1 where docker isn't installed.
 			s.Volumes = append(s.Volumes, getDockerSockVolume())
 		}
@@ -219,6 +227,37 @@ func initializeLELogStreaming(setupReq *api.SetupRequest, state *pipeline.State)
 	logger.L.
 		WithField("le_log_key", setupReq.LELogKey).
 		Infoln("api: successfully initialized lite-engine log streaming")
+
+	return nil
+}
+
+// initializeOSStatsStreaming starts collecting OS stats once per second into an NDJSON file,
+// and stores it in state for later upload in destroy.
+func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.State) error {
+	// memory_metrics is the log key to stream this file under.
+	if setupReq.MemoryMetrics == "" {
+		return nil
+	}
+
+	uploadKey := setupReq.MemoryMetrics
+	localName := osstats.SanitizeFilename(uploadKey)
+	localPath := filepath.Join(pipeline.GetSharedVolPath(), localName)
+
+	if err := os.MkdirAll(pipeline.GetSharedVolPath(), 0o755); err != nil { //nolint:mnd
+		return err
+	}
+
+	streamer, err := osstats.NewNDJSONStreamer(context.Background(), localPath, logger.L)
+	if err != nil {
+		return err
+	}
+	streamer.Start()
+	state.SetOSStatsStreamer(streamer, uploadKey)
+
+	logger.L.WithField("memory_metrics", setupReq.MemoryMetrics).
+		WithField("memory_metrics_key", uploadKey).
+		WithField("os_stats_path", localPath).
+		Infoln("api: initialized os stats streaming")
 
 	return nil
 }
