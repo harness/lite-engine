@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path"
 	"sync"
@@ -41,6 +42,19 @@ type FileStore struct {
 
 func (f *FileStore) Upload(_ context.Context, key string, lines []*logstream.Line) error {
 	return nil
+}
+
+func (f *FileStore) UploadRaw(_ context.Context, key string, r io.Reader) error {
+	file, err := os.Create(path.Join(f.relPath, key))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(file, r); err != nil {
+		return err
+	}
+	return file.Sync()
 }
 
 // Open opens the data stream.

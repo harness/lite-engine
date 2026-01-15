@@ -66,9 +66,6 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		destroyErr := engine.Destroy(r.Context())
-		if destroyErr != nil || logErr != nil {
-			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %s", destroyErr, logErr))
-		}
 
 		// upload engine logs
 		if d.LogKey != "" && d.LiteEnginePath != "" {
@@ -112,6 +109,42 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			collector.Stop()
 			collector.Aggregate()
 			stats = collector.Stats()
+		}
+
+		// Stop OS stats NDJSON streaming and upload the file (best-effort).
+		if streamer := state.GetOSStatsStreamer(); streamer != nil {
+			streamer.Stop()
+			key := state.GetOSStatsKey()
+			if key != "" {
+				client := state.GetLogStreamClient()
+				// error out if osstats don't upload in a minute so that the VM can be destroyed
+				ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
+				defer cancel()
+
+				f, err := os.Open(streamer.Path())
+				if err != nil {
+					logger.FromRequest(r).
+						WithField("time", time.Now().Format(time.RFC3339)).
+						WithError(err).
+						Warnln("could not open os stats file for upload")
+				} else {
+					uploadErr := client.UploadRaw(ctx, key, f)
+					_ = f.Close()
+					if uploadErr != nil {
+						logger.FromRequest(r).
+							WithField("time", time.Now().Format(time.RFC3339)).
+							WithField("os_stats_key", key).
+							WithError(uploadErr).
+							Warnln("could not upload os stats file")
+					}
+				}
+			}
+			state.SetOSStatsStreamer(nil, "")
+		}
+
+		if destroyErr != nil || logErr != nil {
+			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %v", destroyErr, logErr))
+			return
 		}
 
 		WriteJSON(w, api.DestroyResponse{OSStats: stats}, http.StatusOK)

@@ -51,6 +51,10 @@ type State struct {
 	// Lite-engine log streaming
 	leLogWriter logstream.Writer
 	leLogKey    string
+
+	// OS stats NDJSON streaming (file + upload key)
+	osStatsStreamer *osstats.NDJSONStreamer
+	osStatsKey      string
 }
 
 func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
@@ -125,18 +129,39 @@ func (s *State) GetLELogKey() string {
 	return s.leLogKey
 }
 
+func (s *State) SetOSStatsStreamer(streamer *osstats.NDJSONStreamer, key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.osStatsStreamer = streamer
+	s.osStatsKey = key
+}
+
+func (s *State) GetOSStatsStreamer() *osstats.NDJSONStreamer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.osStatsStreamer
+}
+
+func (s *State) GetOSStatsKey() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.osStatsKey
+}
+
 func GetState() *State {
 	once.Do(func() {
 		state = &State{
-			mu:             sync.Mutex{},
-			logConfig:      api.LogConfig{},
-			tiConfig:       tiCfg.Cfg{},
-			statsCollector: &osstats.StatsCollector{},
-			secrets:        make([]string, 0),
-			logClient:      nil,
-			mtlsConfig:     spec.MtlsConfig{},
-			leLogWriter:    nil,
-			leLogKey:       "",
+			mu:              sync.Mutex{},
+			logConfig:       api.LogConfig{},
+			tiConfig:        tiCfg.Cfg{},
+			statsCollector:  &osstats.StatsCollector{},
+			secrets:         make([]string, 0),
+			logClient:       nil,
+			mtlsConfig:      spec.MtlsConfig{},
+			leLogWriter:     nil,
+			leLogKey:        "",
+			osStatsStreamer: nil,
+			osStatsKey:      "",
 		}
 	})
 	return state
