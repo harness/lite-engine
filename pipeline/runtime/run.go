@@ -60,11 +60,14 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	}
 
 	var outputFile string
-	if r.OutputVarFile != "" {
-		// If the output variable file is set, we use it to write the output variables
+	// 1. Check if output file path is set via environment variable
+	if envOutputFile, ok := step.Envs["HARNESS_OUTPUT_FILE"]; ok && envOutputFile != "" {
+		outputFile = envOutputFile
+	} else if r.OutputVarFile != "" {
+		// 2. Check if set in the request
 		outputFile = r.OutputVarFile
 	} else {
-		// Otherwise, we use the default output file path
+		// 3. Fall back to default
 		outputFile = fmt.Sprintf("%s/%s-output.env", pipeline.GetSharedVolPath(), step.ID)
 	}
 	internalTempFiles = append(internalTempFiles, outputFile)
