@@ -20,6 +20,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/sirupsen/logrus"
 
+	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/logstream"
 )
 
@@ -298,6 +299,11 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 	// the only endpoint that supports X-Kafka-Topic header in log-service
 	if c.KafkaTopic != "" && method == "PUT" && strings.Contains(path, "/stream") {
 		req.Header.Add("X-Kafka-Topic", c.KafkaTopic)
+		logger.FromContext(ctx).WithFields(logrus.Fields{
+			"kafka_topic": c.KafkaTopic,
+			"method":      method,
+			"path":        path,
+		}).Infoln("logstream: added X-Kafka-Topic header to log-service request")
 	}
 	res, err := c.client().Do(req)
 	if res != nil {

@@ -82,7 +82,11 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		if s.LogConfig.KafkaTopic == "" {
 			if kafkaTopic := os.Getenv("PLUGIN_HARNESS_LOG_SERVICE_CUSTOM_KAFKA_TOPIC"); kafkaTopic != "" {
 				s.LogConfig.KafkaTopic = kafkaTopic
+				logger.FromRequest(r).WithField("kafka_topic", kafkaTopic).Infoln("api: picked up custom Kafka topic from environment variable PLUGIN_HARNESS_LOG_SERVICE_CUSTOM_KAFKA_TOPIC")
 			}
+		}
+		if s.LogConfig.KafkaTopic != "" {
+			logger.FromRequest(r).WithField("kafka_topic", s.LogConfig.KafkaTopic).Infoln("api: using custom Kafka topic for log-service routing")
 		}
 
 		state := pipeline.GetState()
