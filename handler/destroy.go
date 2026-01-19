@@ -86,6 +86,14 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 					if logErr != nil {
 						logger.FromRequest(r).WithField("time", time.Now().
 							Format(time.RFC3339)).WithError(err).Errorln("could not upload lite engine logs")
+					} else {
+						// Close lite-engine log stream only if upload was successful
+						if closeErr := closeLELogStream(state); closeErr != nil {
+							logger.FromRequest(r).
+								WithField("time", time.Now().Format(time.RFC3339)).
+								WithError(closeErr).
+								Warnln("api: failed to close lite-engine log stream")
+						}
 					}
 				}
 				if d.StageRuntimeID != "" {
@@ -113,4 +121,26 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			WithField("time", time.Now().Format(time.RFC3339)).
 			Infoln("api: successfully destroyed the stage resources")
 	}
+}
+
+// closeLELogStream closes the lite-engine log stream writer if it exists.
+func closeLELogStream(state *pipeline.State) error {
+	writer := state.GetLELogWriter()
+	if writer == nil {
+		return nil
+	}
+
+	logKey := state.GetLELogKey()
+	logger.L.
+		WithField("le_log_key", logKey).
+		Infoln("api: closing lite-engine log stream")
+
+	// Close the writer to flush and upload remaining logs
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("failed to close lite-engine log writer: %w", err)
+	}
+
+	// Clear the writer from state
+	state.SetLELogWriter(nil, "")
+	return nil
 }

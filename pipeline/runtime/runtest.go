@@ -20,6 +20,7 @@ import (
 	"github.com/harness/lite-engine/ti/callgraph"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation"
+	"github.com/harness/lite-engine/ti/quarantine"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
 	"github.com/harness/ti-client/types"
@@ -94,10 +95,15 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 
 	exited, err := f(ctx, step, out, false, false)
 	timeTakenMs := time.Since(start).Milliseconds()
-	collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig, telemetryData)
+	tests, collectionErr := collectRunTestData(ctx, log, r, start, step.Name, tiConfig, telemetryData)
 	if err == nil {
 		// Fail the step if run was successful but error during collection
 		err = collectionErr
+	}
+
+	// Check if all failed tests are quarantined and update exit code accordingly
+	if exited != nil {
+		exited.ExitCode, err = quarantine.CheckAndUpdateExitCodeForQuarantinedTests(ctx, tests, tiConfig, log, exited.ExitCode, err)
 	}
 
 	// Parse and upload savings to TI
@@ -177,7 +183,9 @@ func executeRunTestStep(ctx context.Context, f RunFunc, r *api.StartStepRequest,
 }
 
 // collectRunTestData collects callgraph and test reports after executing the step
-func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time, stepName string, tiConfig *tiCfg.Cfg, telemetryData *types.TelemetryData) error {
+// Returns the parsed tests and any collection error
+func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartStepRequest, start time.Time,
+	stepName string, tiConfig *tiCfg.Cfg, telemetryData *types.TelemetryData) ([]*types.TestCase, error) {
 	reportStart := time.Now()
 	tests, crErr := collectTestReportsFn(ctx, r.TestReport, r.WorkingDir, stepName, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
 	if crErr != nil {
@@ -192,5 +200,5 @@ func collectRunTestData(ctx context.Context, log *logrus.Logger, r *api.StartSte
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
 	}
 
-	return cgErr
+	return tests, cgErr
 }

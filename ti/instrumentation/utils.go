@@ -308,19 +308,19 @@ func getTestTime(ctx context.Context, stepID, splitStrategy string, cfg *tiCfg.C
 	switch splitStrategy {
 	case testsplitter.SplitByFileTimeStr:
 		req.IncludeFilename = true
-		res, err = c.GetTestTimes(ctx, stepID, &req)
+		res, err = c.GetTestTimes(ctx, stepID, &req, 0)
 		fileTimesMap = testsplitter.ConvertMap(res.FileTimeMap)
 	case testsplitter.SplitByClassTimeStr:
 		req.IncludeClassname = true
-		res, err = c.GetTestTimes(ctx, stepID, &req)
+		res, err = c.GetTestTimes(ctx, stepID, &req, 0)
 		fileTimesMap = testsplitter.ConvertMap(res.ClassTimeMap)
 	case testsplitter.SplitByTestcaseTimeStr:
 		req.IncludeTestCase = true
-		res, err = c.GetTestTimes(ctx, stepID, &req)
+		res, err = c.GetTestTimes(ctx, stepID, &req, 0)
 		fileTimesMap = testsplitter.ConvertMap(res.TestTimeMap)
 	case testsplitter.SplitByTestSuiteTimeStr:
 		req.IncludeTestSuite = true
-		res, err = c.GetTestTimes(ctx, stepID, &req)
+		res, err = c.GetTestTimes(ctx, stepID, &req, 0)
 		fileTimesMap = testsplitter.ConvertMap(res.SuiteTimeMap)
 	case testsplitter.SplitByFileSizeStr:
 		return map[string]float64{}, nil

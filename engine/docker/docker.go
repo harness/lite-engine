@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,6 +56,10 @@ const (
 	removing                         = "removing"
 	running                          = "running"
 	DisableAPINegotiation            = "DOCKER_DISABLE_API_NEGOTIATION"
+	// Container cleanup retry configuration
+	containerRemoveMaxRetries    = 5
+	containerRemoveRetryDelayMs  = 500
+	containerStopWaitTimeoutSecs = 10
 )
 
 // Opts configures the Docker engine.
@@ -178,37 +183,80 @@ func (e *Docker) DestroyContainersByLabel(
 }
 
 // destroyContainers is a method which takes in a list of containers and a pipeline environment
-// to destroy.
+// to destroy. It uses a robust cleanup strategy with proper waiting and retries.
 func (e *Docker) destroyContainers(
 	ctx context.Context,
 	pipelineConfig *spec.PipelineConfig,
 	containers []Container,
 ) error {
+	// Phase 1: Stop/Kill all containers
+	e.stopAllContainers(ctx, containers)
+
+	// Phase 2: Wait for all non-softStop containers to stop
+	e.waitForAllContainersToStop(ctx, containers)
+
+	// Phase 3: Remove all containers with retry and verification
+	e.removeAllContainers(ctx, containers)
+
+	// Phase 4-5: Cleanup volumes and network
+	e.cleanupResources(ctx, pipelineConfig)
+
+	// We still return nil to not fail the pipeline on cleanup errors,
+	// but the robust retry logic should ensure cleanup succeeds in most cases.
+	return nil
+}
+
+// stopAllContainers stops or kills all containers based on their SoftStop configuration.
+func (e *Docker) stopAllContainers(ctx context.Context, containers []Container) {
+	for _, ctr := range containers {
+		if ctr.SoftStop {
+			e.softStop(ctx, ctr.ID)
+		} else {
+			if err := e.client.ContainerKill(ctx, ctr.ID, "9"); err != nil {
+				// Ignore "not found" or "not running" errors - these are expected
+				if !client.IsErrNotFound(err) && !strings.Contains(err.Error(), "is not running") {
+					logrus.WithContext(ctx).WithField("container", ctr.ID).
+						WithError(err).Warnln("failed to kill container")
+				}
+			}
+		}
+	}
+}
+
+// waitForAllContainersToStop waits for all non-softStop containers to stop.
+// (softStop already waits internally)
+func (e *Docker) waitForAllContainersToStop(ctx context.Context, containers []Container) {
+	stopWaitTimeout := time.Duration(containerStopWaitTimeoutSecs) * time.Second
+	for _, ctr := range containers {
+		if !ctr.SoftStop {
+			if err := e.waitForContainerStop(ctx, ctr.ID, stopWaitTimeout); err != nil {
+				logrus.WithContext(ctx).WithField("container", ctr.ID).
+					WithError(err).Warnln("timeout waiting for container to stop, will attempt force removal")
+			}
+		}
+	}
+}
+
+// removeAllContainers removes all containers with retry and verification.
+func (e *Docker) removeAllContainers(ctx context.Context, containers []Container) {
 	removeOpts := container.RemoveOptions{
 		Force:         true,
 		RemoveLinks:   false,
 		RemoveVolumes: true,
 	}
 
-	// stop all containers
 	for _, ctr := range containers {
-		if ctr.SoftStop {
-			e.softStop(ctx, ctr.ID)
-		} else {
-			if err := e.client.ContainerKill(ctx, ctr.ID, "9"); err != nil {
-				logrus.WithContext(ctx).WithField("container", ctr.ID).WithField("error", err).Warnln("failed to kill container")
-			}
+		if err := e.removeContainerWithRetry(ctx, ctr.ID, removeOpts); err != nil {
+			logrus.WithContext(ctx).WithField("container", ctr.ID).
+				WithError(err).Errorln("failed to remove container after retries")
+			// Continue with other containers even if one fails
 		}
 	}
+}
 
-	// cleanup all containers
-	for _, ctr := range containers {
-		if err := e.client.ContainerRemove(ctx, ctr.ID, removeOpts); err != nil {
-			logrus.WithContext(ctx).WithField("container", ctr.ID).WithField("error", err).Warnln("failed to remove container")
-		}
-	}
-
-	// cleanup all volumes
+// cleanupResources cleans up volumes and networks from the pipeline configuration.
+func (e *Docker) cleanupResources(ctx context.Context, pipelineConfig *spec.PipelineConfig) {
+	// Cleanup all volumes
 	for _, vol := range pipelineConfig.Volumes {
 		if vol.EmptyDir == nil {
 			continue
@@ -219,20 +267,16 @@ func (e *Docker) destroyContainers(
 			continue
 		}
 		if err := e.client.VolumeRemove(ctx, vol.EmptyDir.ID, true); err != nil {
-			logrus.WithContext(ctx).WithField("volume", vol.EmptyDir.ID).WithField("error", err).Warnln("failed to remove volume")
+			logrus.WithContext(ctx).WithField("volume", vol.EmptyDir.ID).
+				WithError(err).Warnln("failed to remove volume")
 		}
 	}
 
-	// cleanup the network
+	// Cleanup the network
 	if err := e.client.NetworkRemove(ctx, pipelineConfig.Network.ID); err != nil {
-		logrus.WithContext(ctx).WithField("network", pipelineConfig.Network.ID).WithField("error", err).Warnln("failed to remove network")
+		logrus.WithContext(ctx).WithField("network", pipelineConfig.Network.ID).
+			WithError(err).Warnln("failed to remove network")
 	}
-
-	// notice that we never collect or return any errors.
-	// this is because we silently ignore cleanup failures
-	// and instead ask the system admin to periodically run
-	// `docker prune` commands.
-	return nil
 }
 
 // Destroy the pipeline environment.
@@ -697,4 +741,70 @@ func (e *Docker) removeContainerByID(id string) {
 		}
 	}
 	e.containers = newContainers
+}
+
+// waitForContainerStop waits for a container to stop after being killed.
+// It polls the container status until it's no longer running or removing,
+// or until the timeout is reached.
+func (e *Docker) waitForContainerStop(ctx context.Context, containerID string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		info, err := e.client.ContainerInspect(ctx, containerID)
+		if client.IsErrNotFound(err) {
+			// Container is already gone
+			return nil
+		}
+		if err != nil {
+			// Transient error, keep trying
+			time.Sleep(containerRemoveRetryDelayMs * time.Millisecond)
+			continue
+		}
+
+		// Check if container is stopped
+		if !info.State.Running && info.State.Status != removing {
+			return nil
+		}
+
+		time.Sleep(containerRemoveRetryDelayMs * time.Millisecond)
+	}
+
+	return fmt.Errorf("timeout waiting for container %s to stop", containerID)
+}
+
+// removeContainerWithRetry removes a container with retry logic and verification.
+// It retries removal up to containerRemoveMaxRetries times and verifies the container
+// is actually removed after each attempt.
+func (e *Docker) removeContainerWithRetry(ctx context.Context, containerID string, opts container.RemoveOptions) error {
+	var lastErr error
+
+	for i := 0; i < containerRemoveMaxRetries; i++ {
+		// Attempt removal
+		err := e.client.ContainerRemove(ctx, containerID, opts)
+		if err == nil {
+			// Verify it's actually gone
+			_, inspectErr := e.client.ContainerInspect(ctx, containerID)
+			if client.IsErrNotFound(inspectErr) {
+				// Container is truly removed
+				return nil
+			}
+			// Container still exists somehow, retry
+			logrus.WithContext(ctx).WithField("container", containerID).
+				WithField("attempt", i+1).
+				Warnln("container still exists after remove, retrying")
+		} else if client.IsErrNotFound(err) {
+			// Container already doesn't exist - success
+			return nil
+		} else {
+			lastErr = err
+			logrus.WithContext(ctx).WithField("container", containerID).
+				WithField("attempt", i+1).WithError(err).
+				Warnln("failed to remove container, retrying")
+		}
+
+		time.Sleep(time.Millisecond * containerRemoveRetryDelayMs)
+	}
+
+	return fmt.Errorf("failed to remove container %s after %d attempts: %w",
+		containerID, containerRemoveMaxRetries, lastErr)
 }

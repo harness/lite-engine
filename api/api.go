@@ -36,6 +36,7 @@ type (
 		MtlsConfig        spec.MtlsConfig    `json:"mtls_config,omitempty"`
 		VMImageConfig     spec.VMImageConfig `json:"vm_image_config,omitempty"`
 		Timeout           int64              `json:"timeout,omitempty"`
+		LELogKey          string             `json:"le_log_key,omitempty"`
 	}
 
 	SetupResponse struct{}
