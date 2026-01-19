@@ -121,6 +121,14 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 				ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
 				defer cancel()
 
+				if st, statErr := os.Stat(streamer.Path()); statErr == nil {
+					logger.FromRequest(r).
+						WithField("time", time.Now().Format(time.RFC3339)).
+						WithField("os_stats_key", key).
+						WithField("os_stats_bytes", st.Size()).
+						Infoln("uploading os stats file")
+				}
+
 				f, err := os.Open(streamer.Path())
 				if err != nil {
 					logger.FromRequest(r).
@@ -136,6 +144,11 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 							WithField("os_stats_key", key).
 							WithError(uploadErr).
 							Warnln("could not upload os stats file")
+					} else {
+						logger.FromRequest(r).
+							WithField("time", time.Now().Format(time.RFC3339)).
+							WithField("os_stats_key", key).
+							Infoln("uploaded os stats file")
 					}
 				}
 			}
