@@ -3,8 +3,10 @@ package osstats
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"runtime"
 	"strings"
@@ -50,7 +52,22 @@ func SanitizeFilename(in string) string {
 	// Keep this minimal and deterministic. Avoid path separators and characters that
 	// are likely problematic on Windows.
 	r := strings.NewReplacer("/", "_", "\\", "_", ":", "_")
-	return r.Replace(in)
+	s := r.Replace(in)
+
+	// Many log keys are long (and can exceed common filename limits like 255 bytes).
+	// If the sanitized name is too long, truncate and append a short hash.
+	const maxLen = 200 // conservative across platforms/filesystems //nolint:mnd
+	if len(s) <= maxLen {
+		return s
+	}
+
+	sum := sha256.Sum256([]byte(s))
+	short := fmt.Sprintf("%x", sum[:8]) // 16 hex chars
+	const prefixLen = 160               //nolint:mnd
+	if prefixLen >= maxLen {
+		return s[:maxLen]
+	}
+	return s[:prefixLen] + "_" + short
 }
 
 func NewNDJSONStreamer(ctx context.Context, filePath string, log *logrus.Entry) (*NDJSONStreamer, error) {
