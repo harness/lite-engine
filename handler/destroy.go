@@ -112,11 +112,14 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		// Stop OS stats live streaming and close the writer (which flushes and uploads).
-		if err := closeOSStatsStream(state); err != nil {
-			logger.FromRequest(r).
-				WithField("time", time.Now().Format(time.RFC3339)).
-				WithError(err).
-				Warnln("api: failed to close os stats stream")
+		if d.MemoryMetrics != "" {
+			if err := closeOSStatsStream(state, d.MemoryMetrics); err != nil {
+				logger.FromRequest(r).
+					WithField("time", time.Now().Format(time.RFC3339)).
+					WithField("memory_metrics", d.MemoryMetrics).
+					WithError(err).
+					Warnln("api: failed to close os stats stream")
+			}
 		}
 
 		if destroyErr != nil || logErr != nil {
@@ -155,29 +158,30 @@ func closeLELogStream(state *pipeline.State) error {
 	return nil
 }
 
-// closeOSStatsStream stops the OS stats collection goroutine and closes the log stream writer.
-func closeOSStatsStream(state *pipeline.State) error {
-	// First, stop the stats collection goroutine
-	if cancel := state.GetOSStatsCancel(); cancel != nil {
-		cancel()
-	}
-
-	writer := state.GetOSStatsWriter()
-	if writer == nil {
+// closeOSStatsStream stops the OS stats collection goroutine and closes the log stream writer for the given key.
+func closeOSStatsStream(state *pipeline.State, key string) error {
+	entry := state.GetOSStatsEntry(key)
+	if entry == nil {
 		return nil
 	}
 
-	logKey := state.GetOSStatsKey()
+	// First, stop the stats collection goroutine
+	if entry.Cancel != nil {
+		entry.Cancel()
+	}
+
 	logger.L.
-		WithField("os_stats_key", logKey).
+		WithField("os_stats_key", key).
 		Infoln("api: closing os stats log stream")
 
 	// Close the writer to flush and upload remaining logs
-	if err := writer.Close(); err != nil {
-		return fmt.Errorf("failed to close os stats log writer: %w", err)
+	if entry.Writer != nil {
+		if err := entry.Writer.Close(); err != nil {
+			return fmt.Errorf("failed to close os stats log writer: %w", err)
+		}
 	}
 
-	// Clear the writer from state
-	state.SetOSStatsWriter(nil, "", nil)
+	// Remove the entry from state
+	state.DeleteOSStatsEntry(key)
 	return nil
 }
