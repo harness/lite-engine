@@ -51,10 +51,14 @@ type State struct {
 	leLogWriter logstream.Writer
 	leLogKey    string
 
-	// OS stats live log streaming
-	osStatsWriter logstream.Writer
-	osStatsKey    string
-	osStatsCancel func() // cancels the stats collection goroutine
+	// OS stats live log streaming - map of key -> entry to support multiple concurrent stages
+	osStatsEntries map[string]*OSStatsEntry
+}
+
+// OSStatsEntry holds the writer and cancel function for a single OS stats stream.
+type OSStatsEntry struct {
+	Writer logstream.Writer
+	Cancel func()
 }
 
 func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
@@ -129,30 +133,47 @@ func (s *State) GetLELogKey() string {
 	return s.leLogKey
 }
 
-func (s *State) SetOSStatsWriter(writer logstream.Writer, key string, cancel func()) {
+// SetOSStatsEntry stores an OS stats entry for the given key.
+func (s *State) SetOSStatsEntry(key string, entry *OSStatsEntry) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.osStatsWriter = writer
-	s.osStatsKey = key
-	s.osStatsCancel = cancel
+	if s.osStatsEntries == nil {
+		s.osStatsEntries = make(map[string]*OSStatsEntry)
+	}
+	s.osStatsEntries[key] = entry
 }
 
-func (s *State) GetOSStatsWriter() logstream.Writer {
+// GetOSStatsEntry retrieves the OS stats entry for the given key.
+func (s *State) GetOSStatsEntry(key string) *OSStatsEntry {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.osStatsWriter
+	if s.osStatsEntries == nil {
+		return nil
+	}
+	return s.osStatsEntries[key]
 }
 
-func (s *State) GetOSStatsKey() string {
+// DeleteOSStatsEntry removes the OS stats entry for the given key.
+func (s *State) DeleteOSStatsEntry(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.osStatsKey
+	if s.osStatsEntries != nil {
+		delete(s.osStatsEntries, key)
+	}
 }
 
-func (s *State) GetOSStatsCancel() func() {
+// GetAllOSStatsKeys returns all currently registered OS stats keys.
+func (s *State) GetAllOSStatsKeys() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.osStatsCancel
+	if s.osStatsEntries == nil {
+		return nil
+	}
+	keys := make([]string, 0, len(s.osStatsEntries))
+	for k := range s.osStatsEntries {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func GetState() *State {
@@ -167,9 +188,7 @@ func GetState() *State {
 			mtlsConfig:     spec.MtlsConfig{},
 			leLogWriter:    nil,
 			leLogKey:       "",
-			osStatsWriter:  nil,
-			osStatsKey:     "",
-			osStatsCancel:  nil,
+			osStatsEntries: make(map[string]*OSStatsEntry),
 		}
 	})
 	return state

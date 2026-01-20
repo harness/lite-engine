@@ -55,6 +55,7 @@ type (
 		LogKey         string `json:"log_key,omitempty"`          // key to write the lite engine logs (optional)
 		LiteEnginePath string `json:"lite_engine_path,omitempty"` // where to find the lite engine logs
 		StageRuntimeID string `json:"stage_runtime_id,omitempty"`
+		MemoryMetrics  string `json:"memory_metrics,omitempty"` // key for OS stats stream to close
 	}
 
 	DestroyResponse struct {
