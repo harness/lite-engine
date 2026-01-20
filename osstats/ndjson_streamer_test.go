@@ -1,48 +1,57 @@
 package osstats
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
 )
 
-func TestNDJSONStreamer_WritesNDJSON(t *testing.T) {
-	tmp, err := os.CreateTemp("", "le-osstats-*.ndjson")
-	if err != nil {
-		t.Fatalf("CreateTemp: %v", err)
-	}
-	path := tmp.Name()
-	_ = tmp.Close()
-	defer os.Remove(path)
+// safeBuffer is a thread-safe buffer for testing.
+type safeBuffer struct {
+	buf bytes.Buffer
+	mu  sync.Mutex
+}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+func (sb *safeBuffer) Write(p []byte) (n int, err error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Write(p)
+}
 
-	s, err := NewNDJSONStreamer(ctx, path, logrus.NewEntry(logrus.New()))
-	if err != nil {
-		t.Fatalf("NewNDJSONStreamer: %v", err)
-	}
+func (sb *safeBuffer) String() string {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.String()
+}
 
-	s.Start()
-	time.Sleep(1200 * time.Millisecond) // allow at least 1 sample (cpu.Percent waits ~1s)
-	s.Stop()
+func TestStartOSStatsStreaming_WritesNDJSON(t *testing.T) {
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
 
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
+	buf := &safeBuffer{}
 
-	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	// Start streaming to the buffer
+	cancel := StartOSStatsStreaming(ctx, buf, logrus.NewEntry(logrus.New()))
+
+	// Allow at least 1 sample (cpu.Percent waits ~1s)
+	time.Sleep(1200 * time.Millisecond)
+
+	// Stop the streaming
+	cancel()
+
+	output := buf.String()
+	lines := strings.Split(strings.TrimSpace(output), "\n")
 	if len(lines) < 1 || strings.TrimSpace(lines[0]) == "" {
 		t.Fatalf("expected at least 1 json line, got %d", len(lines))
 	}
 
-	var rec map[string]osStatsPayload
+	var rec map[string]OSStatsPayload
 	if err := json.Unmarshal([]byte(lines[0]), &rec); err != nil {
 		t.Fatalf("unmarshal first line: %v; line=%q", err, lines[0])
 	}
@@ -50,4 +59,3 @@ func TestNDJSONStreamer_WritesNDJSON(t *testing.T) {
 		t.Fatalf("expected exactly 1 timestamp key, got %d", len(rec))
 	}
 }
-
