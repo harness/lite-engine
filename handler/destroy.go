@@ -111,48 +111,12 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			stats = collector.Stats()
 		}
 
-		// Stop OS stats NDJSON streaming and upload the file (best-effort).
-		if streamer := state.GetOSStatsStreamer(); streamer != nil {
-			streamer.Stop()
-			key := state.GetOSStatsKey()
-			if key != "" {
-				client := state.GetLogStreamClient()
-				// error out if osstats don't upload in a minute so that the VM can be destroyed
-				ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
-				defer cancel()
-
-				if st, statErr := os.Stat(streamer.Path()); statErr == nil {
-					logger.FromRequest(r).
-						WithField("time", time.Now().Format(time.RFC3339)).
-						WithField("os_stats_key", key).
-						WithField("os_stats_bytes", st.Size()).
-						Infoln("uploading os stats file")
-				}
-
-				f, err := os.Open(streamer.Path())
-				if err != nil {
-					logger.FromRequest(r).
-						WithField("time", time.Now().Format(time.RFC3339)).
-						WithError(err).
-						Warnln("could not open os stats file for upload")
-				} else {
-					uploadErr := client.UploadRaw(ctx, key, f)
-					_ = f.Close()
-					if uploadErr != nil {
-						logger.FromRequest(r).
-							WithField("time", time.Now().Format(time.RFC3339)).
-							WithField("os_stats_key", key).
-							WithError(uploadErr).
-							Warnln("could not upload os stats file")
-					} else {
-						logger.FromRequest(r).
-							WithField("time", time.Now().Format(time.RFC3339)).
-							WithField("os_stats_key", key).
-							Infoln("uploaded os stats file")
-					}
-				}
-			}
-			state.SetOSStatsStreamer(nil, "")
+		// Stop OS stats live streaming and close the writer (which flushes and uploads).
+		if err := closeOSStatsStream(state); err != nil {
+			logger.FromRequest(r).
+				WithField("time", time.Now().Format(time.RFC3339)).
+				WithError(err).
+				Warnln("api: failed to close os stats stream")
 		}
 
 		if destroyErr != nil || logErr != nil {
@@ -188,5 +152,32 @@ func closeLELogStream(state *pipeline.State) error {
 
 	// Clear the writer from state
 	state.SetLELogWriter(nil, "")
+	return nil
+}
+
+// closeOSStatsStream stops the OS stats collection goroutine and closes the log stream writer.
+func closeOSStatsStream(state *pipeline.State) error {
+	// First, stop the stats collection goroutine
+	if cancel := state.GetOSStatsCancel(); cancel != nil {
+		cancel()
+	}
+
+	writer := state.GetOSStatsWriter()
+	if writer == nil {
+		return nil
+	}
+
+	logKey := state.GetOSStatsKey()
+	logger.L.
+		WithField("os_stats_key", logKey).
+		Infoln("api: closing os stats log stream")
+
+	// Close the writer to flush and upload remaining logs
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("failed to close os stats log writer: %w", err)
+	}
+
+	// Clear the writer from state
+	state.SetOSStatsWriter(nil, "", nil)
 	return nil
 }

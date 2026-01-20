@@ -9,9 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/harness/lite-engine/engine/spec"
-
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/filestore"
 	"github.com/harness/lite-engine/logstream/remote"
@@ -52,9 +51,10 @@ type State struct {
 	leLogWriter logstream.Writer
 	leLogKey    string
 
-	// OS stats NDJSON streaming (file + upload key)
-	osStatsStreamer *osstats.NDJSONStreamer
-	osStatsKey      string
+	// OS stats live log streaming
+	osStatsWriter logstream.Writer
+	osStatsKey    string
+	osStatsCancel func() // cancels the stats collection goroutine
 }
 
 func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
@@ -129,17 +129,18 @@ func (s *State) GetLELogKey() string {
 	return s.leLogKey
 }
 
-func (s *State) SetOSStatsStreamer(streamer *osstats.NDJSONStreamer, key string) {
+func (s *State) SetOSStatsWriter(writer logstream.Writer, key string, cancel func()) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.osStatsStreamer = streamer
+	s.osStatsWriter = writer
 	s.osStatsKey = key
+	s.osStatsCancel = cancel
 }
 
-func (s *State) GetOSStatsStreamer() *osstats.NDJSONStreamer {
+func (s *State) GetOSStatsWriter() logstream.Writer {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.osStatsStreamer
+	return s.osStatsWriter
 }
 
 func (s *State) GetOSStatsKey() string {
@@ -148,20 +149,27 @@ func (s *State) GetOSStatsKey() string {
 	return s.osStatsKey
 }
 
+func (s *State) GetOSStatsCancel() func() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.osStatsCancel
+}
+
 func GetState() *State {
 	once.Do(func() {
 		state = &State{
-			mu:              sync.Mutex{},
-			logConfig:       api.LogConfig{},
-			tiConfig:        tiCfg.Cfg{},
-			statsCollector:  &osstats.StatsCollector{},
-			secrets:         make([]string, 0),
-			logClient:       nil,
-			mtlsConfig:      spec.MtlsConfig{},
-			leLogWriter:     nil,
-			leLogKey:        "",
-			osStatsStreamer: nil,
-			osStatsKey:      "",
+			mu:             sync.Mutex{},
+			logConfig:      api.LogConfig{},
+			tiConfig:       tiCfg.Cfg{},
+			statsCollector: &osstats.StatsCollector{},
+			secrets:        make([]string, 0),
+			logClient:      nil,
+			mtlsConfig:     spec.MtlsConfig{},
+			leLogWriter:    nil,
+			leLogKey:       "",
+			osStatsWriter:  nil,
+			osStatsKey:     "",
+			osStatsCancel:  nil,
 		}
 	})
 	return state

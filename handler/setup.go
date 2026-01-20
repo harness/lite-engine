@@ -231,33 +231,44 @@ func initializeLELogStreaming(setupReq *api.SetupRequest, state *pipeline.State)
 	return nil
 }
 
-// initializeOSStatsStreaming starts collecting OS stats once per second into an NDJSON file,
-// and stores it in state for later upload in destroy.
+// initializeOSStatsStreaming sets up live log streaming for OS stats using the provided MemoryMetrics key.
+// This collects OS stats once per second and streams them to the log service (similar to engine:main).
 func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.State) error {
-	// memory_metrics is the log key to stream this file under.
+	// memory_metrics is the log key to stream this under.
 	if setupReq.MemoryMetrics == "" {
 		return nil
 	}
 
-	uploadKey := setupReq.MemoryMetrics
-	localName := osstats.SanitizeFilename(uploadKey)
-	localPath := filepath.Join(pipeline.GetSharedVolPath(), localName)
+	// Get or create the log stream client
+	logClient := state.GetLogStreamClient()
 
-	if err := os.MkdirAll(pipeline.GetSharedVolPath(), 0o755); err != nil { //nolint:mnd
-		return err
+	// Create a live log writer for streaming OS stats
+	ctx := context.Background()
+	logWriter := livelog.New(
+		ctx,
+		logClient,
+		setupReq.MemoryMetrics,
+		"os-stats",
+		[]logstream.Nudge{},
+		false, // don't print to stdout
+		setupReq.LogConfig.TrimNewLineSuffix,
+		false, // don't skip opening stream
+		false, // don't skip closing stream
+	)
+
+	// Open the log stream
+	if err := logWriter.Open(); err != nil {
+		return fmt.Errorf("failed to open os stats log stream: %w", err)
 	}
 
-	streamer, err := osstats.NewNDJSONStreamer(context.Background(), localPath, logger.L)
-	if err != nil {
-		return err
-	}
-	streamer.Start()
-	state.SetOSStatsStreamer(streamer, uploadKey)
+	// Start the OS stats collection goroutine that writes to the livelog writer
+	cancel := osstats.StartOSStatsStreaming(ctx, logWriter, logger.L)
+
+	// Store the writer and cancel function in state for later cleanup
+	state.SetOSStatsWriter(logWriter, setupReq.MemoryMetrics, cancel)
 
 	logger.L.WithField("memory_metrics", setupReq.MemoryMetrics).
-		WithField("memory_metrics_key", uploadKey).
-		WithField("os_stats_path", localPath).
-		Infoln("api: initialized os stats streaming")
+		Infoln("api: initialized os stats live streaming")
 
 	return nil
 }
