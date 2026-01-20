@@ -186,11 +186,6 @@ type (
 		Auth         *Auth  `json:"auth,omitempty"`
 		Username     string `json:"username,omitempty"`
 		Password     string `json:"password,omitempty"`
-		// IsCustomImage indicates this is a BYOI (Bring Your Own Image) custom image.
-		// This is a metadata flag for tracking purposes. Cloud-init still downloads all binaries
-		// as usual since customers don't pre-install Harness binaries in their custom images.
-		// Authentication uses the same mTLS mechanism as standard Harness Cloud images.
-		IsCustomImage bool `json:"is_custom_image,omitempty"`
 	}
 
 	ProcessConfig struct {
