@@ -93,9 +93,11 @@ type pipelineClient struct {
 
 // postAnnotationsToPipeline reads the per-step annotations file and posts annotations directly
 // to Pipeline Service. It never fails the step and logs errors on failures.
-func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
+//
+// This is a standalone function that can be called by any executor (StepExecutor or StepExecutorStateless).
+func postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
 	// Read annotations file (already validated and parsed)
-	file := e.readAnnotationsJSON(r.ID)
+	file := readAnnotationsJSON(r.ID)
 	if file == nil {
 		return
 	}
@@ -148,18 +150,29 @@ func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.Sta
 	// Prepare request
 	client := newPipelineClient(base, annToken, postAnnotationsTimeout)
 	for attempt := 1; attempt <= postAnnotationsMaxRetries+1; attempt++ {
-		_, _, err := client.PostJSON(ctx, endpoint, body)
+		statusCode, respBody, err := client.PostJSON(ctx, endpoint, body)
 		if err == nil {
 			return
 		}
-		logrus.WithField("attempt", attempt).WithField("endpoint", endpoint).WithError(err).Warnln("ANNOTATIONS: post failed")
+		logrus.WithField("attempt", attempt).WithField("endpoint", endpoint).
+			WithField("status_code", statusCode).
+			WithField("response_body", string(respBody)).
+			WithError(err).Warnln("ANNOTATIONS: post failed")
 	}
 	logrus.WithField("endpoint", endpoint).Warnln("ANNOTATIONS: post failed after retries")
 }
 
+// postAnnotationsToPipeline is a convenience wrapper that allows StepExecutor to call
+// the standalone postAnnotationsToPipeline function. This maintains backwards compatibility
+// with existing code that calls e.postAnnotationsToPipeline().
+func (e *StepExecutor) postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
+	// Delegate to the standalone function
+	postAnnotationsToPipeline(ctx, r)
+}
+
 // readAnnotationsJSON reads and parses the per-step annotations file from the shared volume.
 // Returns nil if the file does not exist, is too large, or contains invalid JSON.
-func (e *StepExecutor) readAnnotationsJSON(stepID string) *annotationsFileRaw {
+func readAnnotationsJSON(stepID string) *annotationsFileRaw {
 	if stepID == "" {
 		return nil
 	}
@@ -308,6 +321,7 @@ func resolveAnnotationsConfig(r *api.StartStepRequest) (base, token string) {
 	base = strings.TrimSpace(cfg.BaseURL)
 	base = strings.TrimRight(base, "/")
 	token = strings.TrimSpace(cfg.Token)
+
 	return base, token
 }
 

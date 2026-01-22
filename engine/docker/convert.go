@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/sirupsen/logrus"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -126,13 +127,27 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 			ReadOnly: true,
 		})
 	} else {
-		// Linux/macOS: Mount hcli binary directly if it exists
-		if _, err := os.Stat(hcliPath); err == nil {
+		// Linux/macOS: Determine source path based on OS
+		hcliSourcePath := hcliPath
+		if runtime.GOOS == "darwin" {
+			// macOS: Check $HOME/harness/bin/hcli-linux, fallback to /tmp/harness/bin/hcli-linux
+			if home, err := os.UserHomeDir(); err == nil && home != "" {
+				hcliSourcePath = filepath.Join(home, "harness", "bin", "hcli-linux")
+			} else {
+				hcliSourcePath = "/tmp/harness/bin/hcli-linux"
+			}
+		}
+		
+		// Common check and mount logic
+		if _, err := os.Stat(hcliSourcePath); err == nil {
 			config.Mounts = append(config.Mounts, mount.Mount{
-				Type:   mount.TypeBind,
-				Source: hcliPath,
-				Target: hcliPath,
+				Type:     mount.TypeBind,
+				Source:   hcliSourcePath,
+				Target:   hcliPath, // Always /usr/bin/hcli inside container
+				ReadOnly: true,
 			})
+		} else {
+			logrus.WithField("path", hcliSourcePath).Warnln("hcli binary not found for mounting - annotations may not work in containers")
 		}
 	}
 
