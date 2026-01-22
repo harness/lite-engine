@@ -53,17 +53,15 @@ func (e *StepExecutorStateless) Run(
 	state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(ctx, r, cfg, dockerClient, writer)
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
-	
+
 	// Post annotations if step succeeded and feature is enabled
-	// This matches the behavior of StepExecutor.StartStep() used by K8s/VM.
 	// Posting is done synchronously since we're returning the final result immediately.
 	ffEnabled := isAnnotationsEnabled(r.Envs)
 	if stepErr == nil && state != nil && state.ExitCode == 0 && ffEnabled {
 		logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: posting annotations for local/docker execution")
-		// Call the standalone function (same code used by K8s/VM via method wrapper)
 		postAnnotationsToPipeline(ctx, r)
 	}
-	
+
 	pollResponse := convertStatus(e.stepStatus)
 	return convertPollResponse(pollResponse, r.Envs), nil
 }
