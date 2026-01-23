@@ -27,7 +27,7 @@ const (
 	buildCacheStepName = "harness-build-cache"
 	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
 	hcliPath           = "/usr/bin/hcli"
-	autoinjectionPath  = "/tmp/harness/bin/autoinjection"
+	autoinjectionPath  = "/tmp/harness/bin/auto-injection "
 )
 
 // returns a container configuration.
