@@ -9,6 +9,7 @@
 package docker
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,14 +22,15 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
+	"github.com/sirupsen/logrus"
 )
 
 const (
-	buildCacheStepName = "harness-build-cache"
-	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
-	hcliPath           = "/usr/bin/hcli"
-	autoinjectionPath  = "/tmp/harness/bin/auto-injection"
-	autoinjectionPaths  = "usr/bin/auto-injection"
+	buildCacheStepName   = "harness-build-cache"
+	annotationsFFEnv     = "CI_ENABLE_HARNESS_ANNOTATIONS"
+	hcliPath             = "/usr/bin/hcli"
+	autoinjectionPath    = "/tmp/harness/bin/auto-injection"
+	autoinjectionPathAlt = "/usr/bin/auto-injection"
 )
 
 // returns a container configuration.
@@ -76,7 +78,7 @@ func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step, image string
 }
 
 // returns a container host configuration.
-func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *container.HostConfig {
+func toHostConfig(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step) *container.HostConfig {
 	config := &container.HostConfig{
 		LogConfig: container.LogConfig{
 			Type: "json-file",
@@ -143,13 +145,19 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 				Source: autoinjectionPath,
 				Target: autoinjectionPath,
 			})
+			logrus.WithContext(ctx).WithField("path", autoinjectionPath).Infoln("Mounted auto-injection binary")
+		} else {
+			logrus.WithContext(ctx).WithField("path", autoinjectionPath).WithField("error", err).Warnln("Auto-injection binary not found")
 		}
-		if _, err := os.Stat(autoinjectionPaths); err == nil {
+		if _, err := os.Stat(autoinjectionPathAlt); err == nil {
 			config.Mounts = append(config.Mounts, mount.Mount{
 				Type:   mount.TypeBind,
-				Source: autoinjectionPaths,
-				Target: autoinjectionPaths,
+				Source: autoinjectionPathAlt,
+				Target: autoinjectionPathAlt,
 			})
+			logrus.WithContext(ctx).WithField("path", autoinjectionPathAlt).Infoln("Mounted auto-injection binary")
+		} else {
+			logrus.WithContext(ctx).WithField("path", autoinjectionPathAlt).WithField("error", err).Warnln("Auto-injection binary not found")
 		}
 	}
 
@@ -169,6 +177,21 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		}
 		config.PortBindings = portBinding
 	}
+
+	// Log all mounts for debugging
+	if len(config.Mounts) > 0 {
+		logrus.WithContext(ctx).WithField("mount_count", len(config.Mounts)).Infoln("Container mounts configured")
+		for i, m := range config.Mounts {
+			logrus.WithContext(ctx).WithFields(logrus.Fields{
+				"index":    i,
+				"type":     m.Type,
+				"source":   m.Source,
+				"target":   m.Target,
+				"readonly": m.ReadOnly,
+			}).Debugln("Mount configuration")
+		}
+	}
+
 	return config
 }
 

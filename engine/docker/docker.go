@@ -423,7 +423,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 
 	containerCreateBody, err := e.client.ContainerCreate(ctx,
 		toConfig(pipelineConfig, step, selectedImage),
-		toHostConfig(pipelineConfig, step),
+		toHostConfig(ctx, pipelineConfig, step),
 		toNetConfig(pipelineConfig, step),
 		nil,
 		step.ID,
@@ -451,7 +451,7 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		// re-create the container.
 		containerCreateBody, err = e.client.ContainerCreate(ctx,
 			toConfig(pipelineConfig, step, selectedImage),
-			toHostConfig(pipelineConfig, step),
+			toHostConfig(ctx, pipelineConfig, step),
 			toNetConfig(pipelineConfig, step),
 			nil,
 			step.ID,
