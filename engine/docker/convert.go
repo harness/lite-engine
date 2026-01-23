@@ -27,6 +27,7 @@ const (
 	buildCacheStepName = "harness-build-cache"
 	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
 	hcliPath           = "/usr/bin/hcli"
+	autoinjectionPath  = "/tmp/harness/bin/autoinjection"
 )
 
 // returns a container configuration.
@@ -132,6 +133,14 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 				Type:   mount.TypeBind,
 				Source: hcliPath,
 				Target: hcliPath,
+			})
+		}
+		// Linux/macOS: Mount auto-injection binary directly if it exists
+		if _, err := os.Stat(autoinjectionPath); err == nil {
+			config.Mounts = append(config.Mounts, mount.Mount{
+				Type:   mount.TypeBind,
+				Source: autoinjectionPath,
+				Target: autoinjectionPath,
 			})
 		}
 	}
