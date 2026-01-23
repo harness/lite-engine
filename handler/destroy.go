@@ -53,6 +53,9 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		st := time.Now()
 		state := pipeline.GetState()
 
+		var logErr error
+
+		// Upload lite engine logs if key is set
 		var d api.DestroyRequest
 		err := json.NewDecoder(r.Body).Decode(&d)
 		if err != nil {
@@ -61,20 +64,27 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		destroyErr := engine.Destroy(r.Context())
-		if destroyErr != nil {
-			WriteError(w, fmt.Errorf("destroy error: %w", destroyErr))
+		if destroyErr != nil || logErr != nil {
+			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %s", destroyErr, logErr))
 		}
 
-		// Close lite-engine log stream (will flush and upload logs)
-		if closeErr := closeLELogStream(state); closeErr != nil {
-			logger.FromRequest(r).
-				WithField("time", time.Now().Format(time.RFC3339)).
-				WithError(closeErr).
-				Warnln("api: failed to close lite-engine log stream")
-		}
+		// upload engine logs
+		if d.LogKey != "" && d.LiteEnginePath != "" {
+			if !d.LogDrone {
 
-		if d.StageRuntimeID != "" {
-			pipeline.GetEnvState().Delete(d.StageRuntimeID)
+				// Close lite-engine log stream only if upload was successful
+				if closeErr := closeLELogStream(state); closeErr != nil {
+					logger.FromRequest(r).
+						WithField("time", time.Now().Format(time.RFC3339)).
+						WithError(closeErr).
+						Warnln("api: failed to close lite-engine log stream")
+				}
+
+			}
+			if d.StageRuntimeID != "" {
+				pipeline.GetEnvState().Delete(d.StageRuntimeID)
+			}
+
 		}
 
 		stats := &spec.OSStats{}
