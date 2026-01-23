@@ -27,7 +27,8 @@ const (
 	buildCacheStepName = "harness-build-cache"
 	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
 	hcliPath           = "/usr/bin/hcli"
-	autoinjectionPath  = "/tmp/harness/bin/auto-injection "
+	autoinjectionPath  = "/tmp/harness/bin/auto-injection"
+	autoinjectionPaths  = "usr/bin/auto-injection"
 )
 
 // returns a container configuration.
@@ -141,6 +142,13 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 				Type:   mount.TypeBind,
 				Source: autoinjectionPath,
 				Target: autoinjectionPath,
+			})
+		}
+		if _, err := os.Stat(autoinjectionPaths); err == nil {
+			config.Mounts = append(config.Mounts, mount.Mount{
+				Type:   mount.TypeBind,
+				Source: autoinjectionPaths,
+				Target: autoinjectionPaths,
 			})
 		}
 	}
