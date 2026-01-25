@@ -1,0 +1,102 @@
+# Example sanitize patterns file for lite-engine
+# This file demonstrates custom regex patterns for masking sensitive data in logs
+#
+# Location: /etc/lite-engine/sanitize-patterns.txt
+# Format: One regex pattern per line (Go regex syntax)
+#
+# Built-in patterns (already included, no need to add):
+# - GitHub tokens (ghp_*, github_pat_*)
+# - GitLab tokens (glpat-*)
+# - Slack webhooks
+# - Bearer/Basic auth tokens
+# - JWT tokens (with validation)
+# - Credit cards (Visa, Mastercard, Amex, Discover)
+# - SSN (###-##-####)
+# - Bank account numbers (8-17 digits)
+
+# ==============================================================================
+# FINANCIAL INSTITUTION PATTERNS (PCI DSS Compliance)
+# ==============================================================================
+
+# Internal account identifiers
+ACCT-\d{8,12}
+ACCOUNT-[A-Z0-9]{10,15}
+
+# Routing numbers (9 digits)
+\b\d{9}\b
+
+# SWIFT/BIC codes
+\b[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?\b
+
+# IBAN (International Bank Account Number)
+\b[A-Z]{2}\d{2}[A-Z0-9]{1,30}\b
+
+# ==============================================================================
+# XML/SOAP PATTERNS (for API responses)
+# ==============================================================================
+
+# Account codes in XML
+<accountCode>.*?</accountCode>
+<account_code>.*?</account_code>
+
+# Tax IDs in XML
+<taxIdNumber>.*?</taxIdNumber>
+<tax_id>.*?</tax_id>
+<b:taxIdNumber>.*?</b:taxIdNumber>
+
+# Customer IDs
+<customerId>.*?</customerId>
+<customer_id>.*?</customer_id>
+
+# ==============================================================================
+# DATABASE PATTERNS
+# ==============================================================================
+
+# Database connection strings
+jdbc:.*password=\S+
+mongodb://[^:]+:[^@]+@
+postgres://[^:]+:[^@]+@
+
+# SQL key-value pairs (from logs)
+\[SqlReader\]: Key: .*
+
+# ==============================================================================
+# HEALTHCARE PATTERNS (HIPAA Compliance)
+# ==============================================================================
+
+# Medical Record Numbers
+MRN[:-]?\d{6,10}
+
+# Patient IDs
+PAT\d{8}
+PATIENT-\d{6,10}
+
+# National Provider Identifier (NPI)
+\b\d{10}\b
+
+# Prescription numbers
+RX\d{10}
+PRESCRIPTION-\d{8,12}
+
+# ==============================================================================
+# CUSTOM APPLICATION PATTERNS
+# ==============================================================================
+
+# Custom API keys (adjust prefix as needed)
+API-KEY-[A-Za-z0-9]{32}
+SECRET-[A-Za-z0-9]{40}
+
+# Custom session IDs
+SESSION-[A-Fa-f0-9]{32}
+
+# Custom transaction IDs (if they contain sensitive info)
+TXN-\d{12,16}
+
+# ==============================================================================
+# NOTES
+# ==============================================================================
+# - Use word boundaries (\b) to avoid partial matches
+# - Use non-greedy matching (.*?) for XML/JSON patterns
+# - Test patterns at https://regex101.com/ (select "Golang" flavor)
+# - Restart lite-engine after modifying this file
+# - Monitor logs to ensure no false positives
