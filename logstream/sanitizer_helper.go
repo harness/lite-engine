@@ -20,10 +20,10 @@ const (
 
 	// Regex patterns for various token types
 	jwtRegex        = `[\w-]+\.[\w-]+\.[\w-]+`
-	githubTokens    = `ghp_[a-zA-Z0-9]{1,50}`
-	githubNewTokens = `github_pat_[a-zA-Z0-9_]+`
+	githubTokens    = `ghp_[a-zA-Z0-9]{1,50}`    // #nosec G101 -- This is a regex pattern, not a credential
+	githubNewTokens = `github_pat_[a-zA-Z0-9_]+` // #nosec G101 -- This is a regex pattern, not a credential
 	slackWebhook    = `T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8,10}/[a-zA-Z0-9_]{24}`
-	bearerTokens    = `Bearer\s+[A-Za-z0-9_\-.]+`    // Match token chars but not quotes
+	bearerTokens    = `Bearer\s+[A-Za-z0-9_\-.]+`    // #nosec G101 -- This is a regex pattern, not a credential
 	basicTokens     = `Basic\s+[A-Za-z0-9_\-.\+/=]+` // Match base64 chars but not quotes
 	gitlabToken     = `glpat-[A-Za-z0-9\-_]{20}`
 
@@ -48,6 +48,8 @@ var (
 )
 
 // init loads all built-in patterns and custom patterns from file
+//
+//nolint:gochecknoinits // Init required to compile regex patterns at startup for performance
 func init() {
 	// Compile JWT pattern
 	jwtPattern = regexp.MustCompile(jwtRegex)

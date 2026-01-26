@@ -357,7 +357,9 @@ func TestLoadPatternsFromFile_UnreadableFile(t *testing.T) {
 	if err != nil {
 		t.Skip("Cannot change file permissions on this system")
 	}
-	defer os.Chmod(patternFile, 0600) // Cleanup
+	defer func() {
+		_ = os.Chmod(patternFile, 0600) // Cleanup
+	}()
 
 	// Check if we're running as root (root can read files with 0000 permissions)
 	if os.Geteuid() == 0 {
