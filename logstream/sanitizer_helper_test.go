@@ -47,6 +47,7 @@ func TestSanitizeTokens_SlackWebhook(t *testing.T) {
 }
 
 func TestSanitizeTokens_BearerToken(t *testing.T) {
+	// gitleaks:allow - This is a test fixture, not a real secret (example JWT from jwt.io)
 	input := "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
 	expected := "Authorization: **************"
 
@@ -63,7 +64,7 @@ func TestSanitizeTokens_BasicAuth(t *testing.T) {
 }
 
 func TestSanitizeTokens_ValidJWT(t *testing.T) {
-	// Valid JWT from jwt.io
+	// gitleaks:allow - This is a test fixture, not a real secret (example JWT from jwt.io)
 	input := "Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
 	result := SanitizeTokens(input)
 
@@ -243,7 +244,7 @@ func TestGetMaskingPatternsCount(t *testing.T) {
 }
 
 func TestIsValidJWT_Valid(t *testing.T) {
-	// Valid JWT from jwt.io
+	// gitleaks:allow - This is a test fixture, not a real secret (example JWT from jwt.io)
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
 	assert.True(t, isValidJWT(token))
 }
@@ -487,7 +488,8 @@ func TestIsValidJWT_EdgeCases(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "valid JWT",
+			name: "valid JWT",
+			// gitleaks:allow - This is a test fixture, not a real secret (example JWT from jwt.io)
 			token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
 			expected: true,
 		},

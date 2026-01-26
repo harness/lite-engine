@@ -1,0 +1,11 @@
+# Gitleaks ignore file
+# Format: CommitID:FilePath:SecretType:LineNumber
+# This file contains test fixtures and example secrets that are not real credentials
+
+# JWT test fixtures from jwt.io (public examples, not real secrets)
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:51
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:68
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:73
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:248
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:493
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/replacer_integration_test.go:generic-api-key:189
