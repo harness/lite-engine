@@ -19,19 +19,19 @@ const (
 	secretMask = "**************"
 
 	// Regex patterns for various token types
-	jwtRegex          = `[\w-]+\.[\w-]+\.[\w-]+`
-	githubTokens      = `ghp_[a-zA-Z0-9]{1,50}`
-	githubNewTokens   = `github_pat_[a-zA-Z0-9_]+`
-	slackWebhook      = `T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8,10}/[a-zA-Z0-9_]{24}`
-	bearerTokens      = `Bearer\s+[A-Za-z0-9_\-\.]+`  // Match token chars but not quotes
-	basicTokens       = `Basic\s+[A-Za-z0-9_\-\.\+/=]+`  // Match base64 chars but not quotes
-	gitlabToken       = `glpat-[A-Za-z0-9\-_]{20}`
+	jwtRegex        = `[\w-]+\.[\w-]+\.[\w-]+`
+	githubTokens    = `ghp_[a-zA-Z0-9]{1,50}`
+	githubNewTokens = `github_pat_[a-zA-Z0-9_]+`
+	slackWebhook    = `T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8,10}/[a-zA-Z0-9_]{24}`
+	bearerTokens    = `Bearer\s+[A-Za-z0-9_\-.]+`    // Match token chars but not quotes
+	basicTokens     = `Basic\s+[A-Za-z0-9_\-.\+/=]+` // Match base64 chars but not quotes
+	gitlabToken     = `glpat-[A-Za-z0-9\-_]{20}`
 
 	// Financial patterns (PCI DSS compliance)
-	creditCardVisa       = `\b4[0-9]{12}(?:[0-9]{3})?\b`
-	creditCardMastercard = `\b5[1-5][0-9]{14}\b`
-	creditCardAmex       = `\b3[47][0-9]{13}\b`
-	creditCardDiscover   = `\b6(?:011|5[0-9]{2})[0-9]{12}\b`
+	creditCardVisa       = `\b4\d{12}(?:\d{3})?\b`
+	creditCardMastercard = `\b5[1-5]\d{14}\b`
+	creditCardAmex       = `\b3[47]\d{13}\b`
+	creditCardDiscover   = `\b6(?:011|5\d{2})\d{12}\b`
 	ssnPattern           = `\b\d{3}-\d{2}-\d{4}\b`
 	bankAccountPattern   = `\b\d{8,17}\b`
 

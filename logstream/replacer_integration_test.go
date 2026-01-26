@@ -14,13 +14,13 @@ import (
 // Test replacer interface methods (Open, Start, Error) for coverage
 
 type mockWriter struct {
-	data      []string
-	openErr   error
-	closeErr  error
-	writeErr  error
-	errorVal  error
-	opened    bool
-	started   bool
+	data     []string
+	openErr  error
+	closeErr error
+	writeErr error
+	errorVal error
+	opened   bool
+	started  bool
 }
 
 func (m *mockWriter) Write(p []byte) (n int, err error) {
