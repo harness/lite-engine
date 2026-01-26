@@ -358,6 +358,11 @@ func TestLoadPatternsFromFile_UnreadableFile(t *testing.T) {
 	}
 	defer os.Chmod(patternFile, 0600) // Cleanup
 
+	// Check if we're running as root (root can read files with 0000 permissions)
+	if os.Geteuid() == 0 {
+		t.Skip("Skipping unreadable file test when running as root")
+	}
+
 	patterns := loadPatternsFromFile(patternFile)
 
 	// Should return empty list on permission error
