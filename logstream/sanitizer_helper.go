@@ -24,14 +24,14 @@ const (
 	githubNewTokens = `github_pat_[a-zA-Z0-9_]+` // #nosec G101 -- This is a regex pattern, not a credential
 	slackWebhook    = `T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8,10}/[a-zA-Z0-9_]{24}`
 	bearerTokens    = `Bearer\s+[A-Za-z0-9_\-.]+`    // #nosec G101 -- This is a regex pattern, not a credential
-	basicTokens     = `Basic\s+[A-Za-z0-9_\-.\+/=]+` // Match base64 chars but not quotes
-	gitlabToken     = `glpat-[A-Za-z0-9\-_]{20}`
+	basicTokens     = `Basic\s+[A-Za-z0-9_\-.\+/=]+` // #nosec G101 -- This is a regex pattern, not a credential
+	gitlabToken     = `glpat-[A-Za-z0-9\-_]{20}`     // #nosec G101 -- This is a regex pattern, not a credential
 
 	// Financial patterns (PCI DSS compliance)
-	creditCardVisa       = `\b4\d{12}(?:\d{3})?\b`
-	creditCardMastercard = `\b5[1-5]\d{14}\b`
-	creditCardAmex       = `\b3[47]\d{13}\b`
-	creditCardDiscover   = `\b6(?:011|5\d{2})\d{12}\b`
+	creditCardVisa       = `\b4\d{12}(?:\d{3})?\b`     // #nosec G101 -- This is a regex pattern, not a credential
+	creditCardMastercard = `\b5[1-5]\d{14}\b`          // #nosec G101 -- This is a regex pattern, not a credential
+	creditCardAmex       = `\b3[47]\d{13}\b`           // #nosec G101 -- This is a regex pattern, not a credential
+	creditCardDiscover   = `\b6(?:011|5\d{2})\d{12}\b` // #nosec G101 -- This is a regex pattern, not a credential
 	ssnPattern           = `\b\d{3}-\d{2}-\d{4}\b`
 	bankAccountPattern   = `\b\d{8,17}\b`
 

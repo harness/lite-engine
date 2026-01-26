@@ -245,6 +245,7 @@ func TestGetMaskingPatternsCount(t *testing.T) {
 
 func TestIsValidJWT_Valid(t *testing.T) {
 	// gitleaks:allow - This is a test fixture, not a real secret (example JWT from jwt.io)
+	// #nosec G101 -- Test fixture from jwt.io
 	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
 	assert.True(t, isValidJWT(token))
 }
