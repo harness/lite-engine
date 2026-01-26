@@ -3,9 +3,26 @@
 # This file contains test fixtures and example secrets that are not real credentials
 
 # JWT test fixtures from jwt.io (public examples, not real secrets)
+# Original commit where JWT test fixtures were added
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:50
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:66
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:72
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:246
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:489
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/replacer_integration_test.go:generic-api-key:188
+
+# After adding gitleaks:allow comments
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:51
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:68
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:73
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:248
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:493
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/replacer_integration_test.go:generic-api-key:189
+
+# Current commit
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:generic-api-key:51
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:generic-api-key:68
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:generic-api-key:73
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:generic-api-key:248
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:generic-api-key:493
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/replacer_integration_test.go:generic-api-key:189
