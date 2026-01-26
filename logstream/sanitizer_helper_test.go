@@ -49,7 +49,7 @@ func TestSanitizeTokens_SlackWebhook(t *testing.T) {
 func TestSanitizeTokens_BearerToken(t *testing.T) {
 	// gitleaks:allow - This is a test fixture, not a real secret (example JWT from jwt.io)
 	input := "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
-	expected := "Authorization: **************"
+	expected := "Authorization: Bearer **************"
 
 	result := SanitizeTokens(input)
 	assert.Equal(t, expected, result)
@@ -57,7 +57,7 @@ func TestSanitizeTokens_BearerToken(t *testing.T) {
 
 func TestSanitizeTokens_BasicAuth(t *testing.T) {
 	input := "Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ="
-	expected := "Authorization: **************"
+	expected := "Authorization: Basic **************"
 
 	result := SanitizeTokens(input)
 	assert.Equal(t, expected, result)

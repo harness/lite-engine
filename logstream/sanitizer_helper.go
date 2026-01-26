@@ -23,8 +23,8 @@ const (
 	githubTokens      = `ghp_[a-zA-Z0-9]{1,50}`
 	githubNewTokens   = `github_pat_[a-zA-Z0-9_]+`
 	slackWebhook      = `T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8,10}/[a-zA-Z0-9_]{24}`
-	bearerTokens      = `Bearer\s+(\S+)`
-	basicTokens       = `Basic\s+(\S+)`
+	bearerTokens      = `Bearer\s+[A-Za-z0-9_\-\.]+`  // Match token chars but not quotes
+	basicTokens       = `Basic\s+[A-Za-z0-9_\-\.\+/=]+`  // Match base64 chars but not quotes
 	gitlabToken       = `glpat-[A-Za-z0-9\-_]{20}`
 
 	// Financial patterns (PCI DSS compliance)
@@ -83,8 +83,25 @@ func SanitizeTokens(message string) string {
 	// 1. JWT validation and masking (avoid false positives)
 	message = sanitizeJWTs(message)
 
-	// 2. Apply all other regex patterns
-	for _, pattern := range maskingPatterns {
+	// 2. Handle Bearer/Basic tokens specially (preserve prefix)
+	bearerPattern := regexp.MustCompile(bearerTokens)
+	message = bearerPattern.ReplaceAllStringFunc(message, func(match string) string {
+		// Replace "Bearer <token>" with "Bearer **************"
+		return "Bearer " + secretMask
+	})
+
+	basicPattern := regexp.MustCompile(basicTokens)
+	message = basicPattern.ReplaceAllStringFunc(message, func(match string) string {
+		// Replace "Basic <token>" with "Basic **************"
+		return "Basic " + secretMask
+	})
+
+	// 3. Apply all other regex patterns (exclude Bearer/Basic which we handled above)
+	for i, pattern := range maskingPatterns {
+		// Skip Bearer and Basic patterns (indices 3 and 4)
+		if i == 3 || i == 4 {
+			continue
+		}
 		message = pattern.ReplaceAllString(message, secretMask)
 	}
 
