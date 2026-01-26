@@ -3,15 +3,29 @@
 # This file contains test fixtures and example secrets that are not real credentials
 
 # JWT test fixtures from jwt.io (public examples, not real secrets)
-# Original commit where JWT test fixtures were added
+# Original commit where JWT test fixtures were added (generic-api-key rule)
 02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:50
 02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:66
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:67
 02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:72
 02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:246
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:247
 02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:489
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:generic-api-key:492
 02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/replacer_integration_test.go:generic-api-key:188
 
-# After adding gitleaks:allow comments
+# JWT rule type
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:jwt:50
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:jwt:66
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:jwt:67
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:jwt:72
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:jwt:246
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:jwt:247
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:jwt:489
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:jwt:492
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/replacer_integration_test.go:jwt:188
+
+# After adding gitleaks:allow comments (generic-api-key)
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:51
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:68
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:73
@@ -19,10 +33,52 @@ d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:gene
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:generic-api-key:493
 d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/replacer_integration_test.go:generic-api-key:189
 
-# Current commit
+# After adding gitleaks:allow comments (jwt)
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:jwt:51
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:jwt:68
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:jwt:73
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:jwt:248
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/sanitizer_helper_test.go:jwt:493
+d81fc12288fc2103039236d9fa8fa3ba90ae60a0:logstream/replacer_integration_test.go:jwt:189
+
+# After gitleaks ignore file added (generic-api-key)
 24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:generic-api-key:51
 24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:generic-api-key:68
 24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:generic-api-key:73
 24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:generic-api-key:248
 24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:generic-api-key:493
 24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/replacer_integration_test.go:generic-api-key:189
+
+# After gitleaks ignore file added (jwt)
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:jwt:51
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:jwt:68
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:jwt:73
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:jwt:248
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/sanitizer_helper_test.go:jwt:493
+24778168e9f4e48e57ebae2c19f5df2e7e0f68ac:logstream/replacer_integration_test.go:jwt:189
+
+# GitHub tokens (github-pat and github-fine-grained-pat rules)
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:github-pat:16
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:github-pat:118
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:github-pat:122
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:github-pat:294
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:github-pat:461
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/replacer_integration_test.go:github-pat:176
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/replacer_integration_test.go:github-pat:195
+
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:github-fine-grained-pat:16
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:github-fine-grained-pat:118
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:github-fine-grained-pat:122
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:github-fine-grained-pat:294
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:github-fine-grained-pat:461
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/replacer_integration_test.go:github-fine-grained-pat:176
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/replacer_integration_test.go:github-fine-grained-pat:195
+
+# GitLab tokens (gitlab-pat rule)
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:gitlab-pat:32
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:gitlab-pat:471
+
+# SSN (ssn rule)
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:ssn:118
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/sanitizer_helper_test.go:ssn:102
+02d8ade5db3594a62c2aaeddb51333d1a8dbca02:logstream/replacer_integration_test.go:ssn:195
