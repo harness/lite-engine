@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -162,11 +161,6 @@ func (c *HTTPClient) Upload(ctx context.Context, key string, lines []*logstream.
 	return nil
 }
 
-func escapeQueryParam(s string) string {
-	// Keys can contain '/', ':', etc. Always URL-encode before embedding into query string.
-	return url.QueryEscape(s)
-}
-
 // UploadRaw uploads raw bytes to remote storage (directly or via log service depending on config).
 func (c *HTTPClient) UploadRaw(ctx context.Context, key string, r io.Reader) error {
 	if c.IndirectUpload {
@@ -200,7 +194,7 @@ func (c *HTTPClient) UploadRaw(ctx context.Context, key string, r io.Reader) err
 
 // uploadToRemoteStorage uploads the file to remote storage.
 func (c *HTTPClient) uploadToRemoteStorage(ctx context.Context, key string, r io.Reader) error {
-	path := fmt.Sprintf(blobEndpoint, escapeQueryParam(c.AccountID), escapeQueryParam(key))
+	path := fmt.Sprintf(blobEndpoint, c.AccountID, key)
 	backoff := createInfiniteBackoff()
 	childCtx, cancel := context.WithTimeout(ctx, 60*time.Second) //nolint:mnd
 	defer cancel()
@@ -214,7 +208,7 @@ func (c *HTTPClient) uploadToRemoteStorage(ctx context.Context, key string, r io
 // uploadLink returns a secure link that can be used to
 // upload a file to remote storage.
 func (c *HTTPClient) uploadLink(ctx context.Context, key string) (*Link, error) {
-	path := fmt.Sprintf(uploadLinkEndpoint, escapeQueryParam(c.AccountID), escapeQueryParam(key))
+	path := fmt.Sprintf(uploadLinkEndpoint, c.AccountID, key)
 	out := new(Link)
 	backoff := createBackoff(60 * time.Second) //nolint:mnd
 	// 10s should be enought to get the upload link
@@ -236,7 +230,7 @@ func (c *HTTPClient) uploadUsingLink(ctx context.Context, link string, r io.Read
 
 // Open opens the data stream.
 func (c *HTTPClient) Open(ctx context.Context, key string) error {
-	path := fmt.Sprintf(streamEndpoint, escapeQueryParam(c.AccountID), escapeQueryParam(key))
+	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
 	backoff := createBackoff(10 * time.Second)                                //nolint:mnd
 	_, err := c.retry(ctx, c.Endpoint+path, "POST", nil, nil, false, backoff) //nolint:bodyclose
 	return err
@@ -248,14 +242,14 @@ func (c *HTTPClient) Close(ctx context.Context, key string, snapshot bool) error
 	if snapshot {
 		endpoint = streamWithSnapshotEndpoint
 	}
-	path := fmt.Sprintf(endpoint, escapeQueryParam(c.AccountID), escapeQueryParam(key))
+	path := fmt.Sprintf(endpoint, c.AccountID, key)
 	_, err := c.do(ctx, c.Endpoint+path, "DELETE", nil, nil) //nolint:bodyclose
 	return err
 }
 
 // Write writes logs to the data stream.
 func (c *HTTPClient) Write(ctx context.Context, key string, lines []*logstream.Line) error {
-	path := fmt.Sprintf(streamEndpoint, escapeQueryParam(c.AccountID), escapeQueryParam(key))
+	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
 	l := convertLines(lines)
 	_, err := c.do(ctx, c.Endpoint+path, "PUT", &l, nil) //nolint:bodyclose
 	return err
