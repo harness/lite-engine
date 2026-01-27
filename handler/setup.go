@@ -235,7 +235,7 @@ func initializeLELogStreaming(setupReq *api.SetupRequest, state *pipeline.State)
 // This collects OS stats once per second and streams them to the log service (similar to engine:main).
 func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.State) error {
 	// memory_metrics is the log key to stream this under.
-	if setupReq.MemoryMetrics == "" {
+	if setupReq.MemoryMetricsLogKey == "" {
 		return nil
 	}
 
@@ -247,7 +247,7 @@ func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.Stat
 	logWriter := livelog.New(
 		ctx,
 		logClient,
-		setupReq.MemoryMetrics,
+		setupReq.MemoryMetricsLogKey,
 		"os-stats",
 		[]logstream.Nudge{},
 		false, // don't print to stdout
@@ -265,12 +265,12 @@ func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.Stat
 	cancel := osstats.StartOSStatsStreaming(ctx, logWriter, logger.L)
 
 	// Store the writer and cancel function in state for later cleanup (keyed by metrics key)
-	state.SetOSStatsEntry(setupReq.MemoryMetrics, &pipeline.OSStatsEntry{
+	state.SetOSStatsEntry(setupReq.MemoryMetricsLogKey, &pipeline.OSStatsEntry{
 		Writer: logWriter,
 		Cancel: cancel,
 	})
 
-	logger.L.WithField("memory_metrics", setupReq.MemoryMetrics).
+	logger.L.WithField("memory_metrics", setupReq.MemoryMetricsLogKey).
 		Infoln("api: initialized os stats live streaming")
 
 	return nil
