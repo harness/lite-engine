@@ -83,20 +83,86 @@ This document describes the complete architecture for transferring `sanitize-pat
 │  │                                                                   │  │
 │  │ engine/engine.go: Setup()                                        │  │
 │  │   └─> setupHelper(pipelineConfig)                                │  │
-│  │       └─> createSanitizePatterns(sanitizeConfig)  [NEW]          │  │
-│  │           ├─> os.MkdirAll("/etc/lite-engine", 0755)              │  │
+│  │       ├─> createSanitizePatterns(sanitizeConfig)  [NEW]          │  │
+│  │       │   ├─> os.MkdirAll("/etc/lite-engine", 0755)              │  │
+│  │       │   ├─> Base64.decode(sanitizeConfig.Content)              │  │
+│  │       │   ├─> writeFile("/etc/lite-engine/sanitize-patterns.txt")│ │
+│  │       │   └─> Log: "wrote custom sanitize patterns, count=N"     │  │
+│  │       └─> loadSanitizePatternsIntoRuntime(sanitizeConfig) [NEW]  │  │
 │  │           ├─> Base64.decode(sanitizeConfig.Content)              │  │
-│  │           ├─> writeFile("/etc/lite-engine/sanitize-patterns.txt")│ │
-│  │           └─> Log: "loaded custom sanitize patterns, count=N"    │  │
+│  │           └─> logstream.LoadCustomPatternsFromString(content)    │  │
 │  │                                                                   │  │
-│  │ logstream/sanitizer_helper.go: init()                            │  │
-│  │   └─> loadPatternsFromFile("/etc/lite-engine/sanitize-patterns.txt")│
-│  │       └─> Compile regex patterns and add to maskingPatterns[]    │  │
+│  │ logstream/sanitizer_helper.go:                                   │  │
+│  │   ├─> init() - Runs on lite-engine startup                       │  │
+│  │   │   └─> loadPatternsFromFile("/etc/lite-engine/sanitize-patterns.txt")│
+│  │   │       └─> If file exists: Compile & add to maskingPatterns[] │  │
+│  │   │       └─> Set customPatternsLoaded = true                    │  │
+│  │   │                                                               │  │
+│  │   └─> LoadCustomPatternsFromString() - Called during setup       │  │
+│  │       ├─> Check: if customPatternsLoaded → skip (prevent dups)   │  │
+│  │       └─> Parse lines, compile regex, add to maskingPatterns[]   │  │
+│  │           └─> Set customPatternsLoaded = true                    │  │
 │  │                                                                   │  │
-│  │ ** Patterns now active for all log sanitization **               │  │
+│  │ ** Hybrid Approach: Disk + Memory **                             │  │
+│  │   • Disk: Survives VM hibernation/resume, service restarts       │  │
+│  │   • Memory: Fast runtime access, no I/O during log processing    │  │
+│  │   • Flag: Prevents duplicate loads in long-running process       │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## VM Lifecycle Handling
+
+### Hybrid Disk + Memory Approach
+
+The implementation uses a **hybrid approach** to handle VM hibernation/resume scenarios:
+
+#### Scenario 1: Long-Running Process (Current)
+```
+1. VM spawns → lite-engine starts
+   └─> init() loads from disk (file doesn't exist yet)
+
+2. Setup API called → patterns transferred
+   ├─> Write to /etc/lite-engine/sanitize-patterns.txt
+   └─> Load into memory (customPatternsLoaded = true)
+
+3. Build executes → Patterns work ✅
+
+4. VM hibernates → Process stays in memory
+
+5. VM resumes → Same process, patterns still in memory
+
+6. Setup API called again
+   └─> Skip reload (customPatternsLoaded = true) → No duplicates ✅
+```
+
+#### Scenario 2: Systemd Service Restart (Future)
+```
+1. VM spawns → systemd starts lite-engine
+   └─> init() loads from disk (file doesn't exist yet)
+
+2. Setup API called → patterns transferred
+   ├─> Write to /etc/lite-engine/sanitize-patterns.txt
+   └─> Load into memory (customPatternsLoaded = true)
+
+3. Build executes → Patterns work ✅
+
+4. VM hibernates → systemd stops lite-engine
+   └─> Process killed, memory cleared
+
+5. VM resumes → systemd starts NEW lite-engine process
+   └─> init() loads from /etc/lite-engine/sanitize-patterns.txt ✅
+
+6. Steps run immediately → Patterns work WITHOUT Setup API! ✅
+```
+
+#### Benefits:
+- **Disk persistence**: Survives process restarts, VM reboots, service restarts
+- **Memory performance**: Fast pattern matching (compiled regex in RAM)
+- **Duplicate prevention**: `customPatternsLoaded` flag prevents accumulation
+- **Fail-safe**: Even if Setup API skipped on resume, patterns loaded from disk
 
 ---
 
