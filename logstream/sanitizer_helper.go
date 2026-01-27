@@ -45,6 +45,10 @@ var (
 
 	// jwtPattern is used separately for JWT validation
 	jwtPattern *regexp.Regexp
+
+	// customPatternsLoaded tracks if custom patterns have been loaded to prevent duplicates
+	// This is important for VM hibernation/resume scenarios where lite-engine process persists
+	customPatternsLoaded bool
 )
 
 // init loads all built-in patterns and custom patterns from file
@@ -71,8 +75,13 @@ func init() {
 	}
 
 	// Load custom patterns from file if it exists
+	// This handles VM hibernation/resume scenarios where lite-engine service restarts
+	// and the file persists on disk from the previous setup call
 	customPatterns := loadPatternsFromFile(sanitizePatternsFile)
-	maskingPatterns = append(maskingPatterns, customPatterns...)
+	if len(customPatterns) > 0 {
+		maskingPatterns = append(maskingPatterns, customPatterns...)
+		customPatternsLoaded = true // Mark as loaded to prevent duplicates
+	}
 }
 
 // SanitizeTokens masks tokens and sensitive data using regex patterns
@@ -187,6 +196,70 @@ func AddCustomPattern(pattern string) error {
 		return err
 	}
 	maskingPatterns = append(maskingPatterns, compiled)
+	return nil
+}
+
+// LoadCustomPatternsFromFile loads custom patterns from the specified file path
+// This is used to dynamically load patterns after the file is created during setup
+func LoadCustomPatternsFromFile(filePath string) error {
+	patterns := loadPatternsFromFile(filePath)
+	if len(patterns) > 0 {
+		maskingPatterns = append(maskingPatterns, patterns...)
+		logrus.WithFields(logrus.Fields{
+			"file":           filePath,
+			"patterns_added": len(patterns),
+			"total_patterns": len(maskingPatterns),
+		}).Info("dynamically loaded custom sanitize patterns")
+	}
+	return nil
+}
+
+// LoadCustomPatternsFromString loads custom patterns from string content (one pattern per line)
+// This is used to load patterns directly from Base64-decoded content without writing to disk
+// Handles VM hibernation/resume: prevents duplicate loading if patterns already loaded in this process
+func LoadCustomPatternsFromString(content string) error {
+	if content == "" {
+		return nil
+	}
+
+	// Check if custom patterns were already loaded in this lite-engine process
+	// This handles VM hibernation/resume where the process stays alive across multiple builds
+	if customPatternsLoaded {
+		logrus.WithField("total_patterns", len(maskingPatterns)).
+			Debug("custom patterns already loaded in this process, skipping reload")
+		return nil
+	}
+
+	lines := strings.Split(content, "\n")
+	patternsAdded := 0
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Compile the pattern
+		pattern, err := regexp.Compile(line)
+		if err != nil {
+			logrus.WithError(err).WithField("pattern", line).Warn("invalid regex pattern, skipping")
+			continue
+		}
+
+		maskingPatterns = append(maskingPatterns, pattern)
+		patternsAdded++
+	}
+
+	if patternsAdded > 0 {
+		customPatternsLoaded = true // Mark as loaded to prevent duplicates on next build
+		logrus.WithFields(logrus.Fields{
+			"patterns_added": patternsAdded,
+			"total_patterns": len(maskingPatterns),
+		}).Info("dynamically loaded custom sanitize patterns from content")
+	}
+
 	return nil
 }
 

@@ -21,6 +21,7 @@ import (
 	"github.com/harness/lite-engine/engine/docker"
 	"github.com/harness/lite-engine/engine/exec"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -89,15 +90,19 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 		pipelineConfig.Envs["HARNESS_MTLS_CERTS_DIR"] = pipelineConfig.MtlsConfig.ClientCertDirPath
 	}
 
-	// create sanitize patterns file if provided
+	// Handle sanitize patterns with hybrid approach:
+	// 1. Write to disk (survives VM hibernation/resume when lite-engine service restarts)
+	// 2. Load into memory (available for current process)
 	patternsWritten, err := createSanitizePatterns(pipelineConfig.SanitizeConfig)
 	if err != nil {
 		// Log warning but don't fail setup - sanitization is optional
 		logrus.WithError(err).Warn("failed to create sanitize patterns file")
 	}
 	if patternsWritten {
-		logrus.WithField("path", pipelineConfig.SanitizeConfig.SanitizePatternsFilePath).
-			Info("sanitize patterns file created successfully")
+		// Load patterns into runtime for immediate use
+		if err := loadSanitizePatternsIntoRuntime(pipelineConfig.SanitizeConfig); err != nil {
+			logrus.WithError(err).Warn("failed to load sanitize patterns into runtime")
+		}
 	}
 
 	return nil
@@ -182,9 +187,32 @@ func createSanitizePatterns(sanitizeConfig spec.SanitizeConfig) (bool, error) {
 	logrus.WithFields(logrus.Fields{
 		"file":          sanitizeConfig.SanitizePatternsFilePath,
 		"pattern_count": patternCount,
-	}).Info("loaded custom sanitize patterns")
+	}).Info("wrote custom sanitize patterns file")
 
 	return true, nil
+}
+
+// loadSanitizePatternsIntoRuntime loads sanitize patterns directly into the runtime sanitizer
+// Decodes Base64 content and loads patterns in-memory (no disk write required)
+func loadSanitizePatternsIntoRuntime(sanitizeConfig spec.SanitizeConfig) error {
+	if sanitizeConfig.SanitizePatternsContent == "" {
+		return nil // No patterns to load
+	}
+
+	// Decode Base64 content
+	data, err := base64.StdEncoding.DecodeString(sanitizeConfig.SanitizePatternsContent)
+	if err != nil {
+		return errors.Wrap(err, "failed to decode sanitize patterns from Base64")
+	}
+
+	// Load patterns directly from decoded string content (in-memory)
+	content := string(data)
+	if err := logstream.LoadCustomPatternsFromString(content); err != nil {
+		return errors.Wrap(err, "failed to load sanitize patterns into runtime")
+	}
+
+	logrus.Info("successfully loaded custom sanitize patterns into runtime (in-memory)")
+	return nil
 }
 
 // writeBase64ToFile decodes base64 data and writes it to a file
