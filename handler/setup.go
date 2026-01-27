@@ -117,6 +117,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			EnableDockerSetup: s.MountDockerSocket,
 			TTY:               s.TTY,
 			MtlsConfig:        s.MtlsConfig,
+			SanitizeConfig:    s.SanitizeConfig,
 		}
 		collector.Start()
 		if err := engine.Setup(r.Context(), cfg); err != nil {

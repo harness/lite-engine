@@ -89,6 +89,17 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 		pipelineConfig.Envs["HARNESS_MTLS_CERTS_DIR"] = pipelineConfig.MtlsConfig.ClientCertDirPath
 	}
 
+	// create sanitize patterns file if provided
+	patternsWritten, err := createSanitizePatterns(pipelineConfig.SanitizeConfig)
+	if err != nil {
+		// Log warning but don't fail setup - sanitization is optional
+		logrus.WithError(err).Warn("failed to create sanitize patterns file")
+	}
+	if patternsWritten {
+		logrus.WithField("path", pipelineConfig.SanitizeConfig.SanitizePatternsFilePath).
+			Info("sanitize patterns file created successfully")
+	}
+
 	return nil
 }
 
@@ -130,6 +141,48 @@ func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
 				fmt.Sprintf("Failed to set permissions %o for file on host path: %q", permissions, certPath)))
 		}
 	}
+
+	return true, nil
+}
+
+// createSanitizePatterns handles creation of sanitize-patterns.txt from base64-encoded data
+func createSanitizePatterns(sanitizeConfig spec.SanitizeConfig) (bool, error) {
+	if sanitizeConfig.SanitizePatternsContent == "" || sanitizeConfig.SanitizePatternsFilePath == "" {
+		return false, nil // No patterns to process
+	}
+
+	// Create parent directory if it doesn't exist
+	dir := filepath.Dir(sanitizeConfig.SanitizePatternsFilePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return false, errors.Wrap(err, "failed to create sanitize patterns directory")
+	}
+
+	// Decode and write patterns file
+	if err := writeBase64ToFile(sanitizeConfig.SanitizePatternsFilePath,
+		sanitizeConfig.SanitizePatternsContent); err != nil {
+		return false, errors.Wrap(err, "failed to write sanitize patterns file")
+	}
+
+	// Set appropriate permissions (read-only for lite-engine process)
+	if err := os.Chmod(sanitizeConfig.SanitizePatternsFilePath, 0644); err != nil {
+		logrus.WithError(err).Warn("failed to set permissions on sanitize patterns file")
+	}
+
+	// Count patterns for logging
+	content, _ := os.ReadFile(sanitizeConfig.SanitizePatternsFilePath)
+	lines := strings.Split(string(content), "\n")
+	patternCount := 0
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			patternCount++
+		}
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"file":          sanitizeConfig.SanitizePatternsFilePath,
+		"pattern_count": patternCount,
+	}).Info("loaded custom sanitize patterns")
 
 	return true, nil
 }
