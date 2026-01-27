@@ -24,20 +24,20 @@ type (
 	}
 
 	SetupRequest struct {
-		Envs              map[string]string  `json:"envs,omitempty"`
-		Network           spec.Network       `json:"network"`
-		Volumes           []*spec.Volume     `json:"volumes,omitempty"`
-		Secrets           []string           `json:"secrets,omitempty"`
-		LogConfig         LogConfig          `json:"log_config,omitempty"`
-		TIConfig          TIConfig           `json:"ti_config,omitempty"`
-		Files             []*spec.File       `json:"files,omitempty"`
-		MountDockerSocket *bool              `json:"mount_docker_socket,omitempty"`
-		TTY               bool               `json:"tty,omitempty" default:"false"`
-		MtlsConfig        spec.MtlsConfig    `json:"mtls_config,omitempty"`
-		VMImageConfig     spec.VMImageConfig `json:"vm_image_config,omitempty"`
-		Timeout           int64              `json:"timeout,omitempty"`
-		LELogKey          string             `json:"le_log_key,omitempty"`
-		MemoryMetrics     string             `json:"memory_metrics,omitempty"`
+		Envs                map[string]string  `json:"envs,omitempty"`
+		Network             spec.Network       `json:"network"`
+		Volumes             []*spec.Volume     `json:"volumes,omitempty"`
+		Secrets             []string           `json:"secrets,omitempty"`
+		LogConfig           LogConfig          `json:"log_config,omitempty"`
+		TIConfig            TIConfig           `json:"ti_config,omitempty"`
+		Files               []*spec.File       `json:"files,omitempty"`
+		MountDockerSocket   *bool              `json:"mount_docker_socket,omitempty"`
+		TTY                 bool               `json:"tty,omitempty" default:"false"`
+		MtlsConfig          spec.MtlsConfig    `json:"mtls_config,omitempty"`
+		VMImageConfig       spec.VMImageConfig `json:"vm_image_config,omitempty"`
+		Timeout             int64              `json:"timeout,omitempty"`
+		LELogKey            string             `json:"le_log_key,omitempty"`
+		MemoryMetricsLogKey string             `json:"memory_metrics,omitempty"`
 	}
 
 	SetupResponse struct{}
@@ -51,11 +51,11 @@ type (
 	SuspendResponse struct{}
 
 	DestroyRequest struct {
-		LogDrone       bool   `json:"log_drone,omitempty"`
-		LogKey         string `json:"log_key,omitempty"`          // key to write the lite engine logs (optional)
-		LiteEnginePath string `json:"lite_engine_path,omitempty"` // where to find the lite engine logs
-		StageRuntimeID string `json:"stage_runtime_id,omitempty"`
-		MemoryMetrics  string `json:"memory_metrics,omitempty"` // key for OS stats stream to close
+		LogDrone            bool   `json:"log_drone,omitempty"`
+		LogKey              string `json:"log_key,omitempty"`          // key to write the lite engine logs (optional)
+		LiteEnginePath      string `json:"lite_engine_path,omitempty"` // where to find the lite engine logs
+		StageRuntimeID      string `json:"stage_runtime_id,omitempty"`
+		MemoryMetricsLogKey string `json:"memory_metrics,omitempty"` // key for OS stats stream to close
 	}
 
 	DestroyResponse struct {
