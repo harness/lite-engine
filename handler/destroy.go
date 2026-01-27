@@ -112,11 +112,11 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		// Stop OS stats live streaming and close the writer (which flushes and uploads).
-		if d.MemoryMetrics != "" {
-			if err := closeOSStatsStream(state, d.MemoryMetrics); err != nil {
+		if d.MemoryMetricsLogKey != "" {
+			if err := closeOSStatsStream(state, d.MemoryMetricsLogKey); err != nil {
 				logger.FromRequest(r).
 					WithField("time", time.Now().Format(time.RFC3339)).
-					WithField("memory_metrics", d.MemoryMetrics).
+					WithField("memory_metrics", d.MemoryMetricsLogKey).
 					WithError(err).
 					Warnln("api: failed to close os stats stream")
 			}
