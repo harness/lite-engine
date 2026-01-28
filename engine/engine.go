@@ -33,6 +33,7 @@ const (
 	DockerSockWinPath      = `\\.\pipe\docker_engine`
 	permissions            = 0777
 	defaultFilePermissions = 0644 // File permissions (rw-r--r--)
+	defaultDirPermissions  = 0755 // Directory permissions (rwxr-xr-x)
 	boldYellowColor        = "\u001b[33;1m"
 	trueValue              = "true"
 )
@@ -158,7 +159,7 @@ func createSanitizePatterns(sanitizeConfig spec.SanitizeConfig) (bool, error) {
 
 	// Create parent directory if it doesn't exist
 	dir := filepath.Dir(sanitizeConfig.SanitizePatternsFilePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, defaultDirPermissions); err != nil {
 		return false, errors.Wrap(err, "failed to create sanitize patterns directory")
 	}
 
@@ -169,7 +170,7 @@ func createSanitizePatterns(sanitizeConfig spec.SanitizeConfig) (bool, error) {
 	}
 
 	// Set appropriate permissions (read-only for lite-engine process)
-	if err := os.Chmod(sanitizeConfig.SanitizePatternsFilePath, 0644); err != nil {
+	if err := os.Chmod(sanitizeConfig.SanitizePatternsFilePath, defaultFilePermissions); err != nil {
 		logrus.WithError(err).Warn("failed to set permissions on sanitize patterns file")
 	}
 
