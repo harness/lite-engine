@@ -145,13 +145,11 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	}
 
 	// Parse and upload savings to TI
-	if tiConfig.GetParseSavings() {
-		stepType := common.StepTypePlugin
-		if step.Command != nil && len(step.Command) > 0 {
-			stepType = common.StepTypeRun
-		}
-		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, stepType)
+	stepType := common.StepTypePlugin
+	if step.Command != nil && len(step.Command) > 0 {
+		stepType = common.StepTypeRun
 	}
+	optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, stepType)
 
 	// only for git-clone-step
 	if buildLangFile, found := r.Envs["PLUGIN_BUILD_TOOL_FILE"]; found {
