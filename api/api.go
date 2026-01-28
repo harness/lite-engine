@@ -50,10 +50,11 @@ type (
 	SuspendResponse struct{}
 
 	DestroyRequest struct {
-		LogDrone       bool   `json:"log_drone,omitempty"`
-		LogKey         string `json:"log_key,omitempty"`          // key to write the lite engine logs (optional)
-		LiteEnginePath string `json:"lite_engine_path,omitempty"` // where to find the lite engine logs
-		StageRuntimeID string `json:"stage_runtime_id,omitempty"`
+		LogDrone       bool          `json:"log_drone,omitempty"`
+		LogKey         string        `json:"log_key,omitempty"`          // key to write the lite engine logs (optional)
+		LiteEnginePath string        `json:"lite_engine_path,omitempty"` // where to find the lite engine logs
+		StageRuntimeID string        `json:"stage_runtime_id,omitempty"`
+		Timeout        time.Duration `json:"timeout,omitempty"` // timeout for destroy operation (default 30s)
 	}
 
 	DestroyResponse struct {
