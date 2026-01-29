@@ -5,14 +5,109 @@
 package logstream
 
 import (
-	"os"
-	"path/filepath"
+	"encoding/base64"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+// Helper function to load patterns for testing (simulates delegate behavior)
+func loadTestPatterns(t *testing.T, patterns []string) {
+	t.Helper()
+
+	// Reset patterns for test isolation
+	maskingPatterns = []*regexp.Regexp{}
+	customPatternsLoaded = false
+
+	if len(patterns) == 0 {
+		return
+	}
+
+	// Join patterns and encode (same as delegate does)
+	content := ""
+	for i, pattern := range patterns {
+		if i > 0 {
+			content += "\n"
+		}
+		content += pattern
+	}
+
+	// Base64 encode
+	base64Content := base64.StdEncoding.EncodeToString([]byte(content))
+
+	// Decode and load (simulating what lite-engine does)
+	decoded, err := base64.StdEncoding.DecodeString(base64Content)
+	assert.NoError(t, err)
+
+	err = LoadCustomPatternsFromString(string(decoded))
+	assert.NoError(t, err)
+}
+
+func TestLoadCustomPatternsFromString_ValidPatterns(t *testing.T) {
+	patterns := []string{
+		`ghp_[a-zA-Z0-9]{1,50}`,
+		`github_pat_[a-zA-Z0-9_]+`,
+		`Bearer\s+[A-Za-z0-9_\-.]+`,
+	}
+
+	loadTestPatterns(t, patterns)
+
+	assert.Equal(t, 3, GetMaskingPatternsCount())
+}
+
+func TestLoadCustomPatternsFromString_EmptyContent(t *testing.T) {
+	maskingPatterns = []*regexp.Regexp{}
+	customPatternsLoaded = false
+
+	err := LoadCustomPatternsFromString("")
+	assert.NoError(t, err)
+	assert.Equal(t, 0, GetMaskingPatternsCount())
+}
+
+func TestLoadCustomPatternsFromString_SkipComments(t *testing.T) {
+	content := `# This is a comment
+ghp_[a-zA-Z0-9]{1,50}
+# Another comment
+github_pat_[a-zA-Z0-9_]+`
+
+	maskingPatterns = []*regexp.Regexp{}
+	customPatternsLoaded = false
+
+	err := LoadCustomPatternsFromString(content)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, GetMaskingPatternsCount())
+}
+
+func TestLoadCustomPatternsFromString_InvalidPattern(t *testing.T) {
+	content := `valid_pattern
+[invalid(pattern
+another_valid`
+
+	maskingPatterns = []*regexp.Regexp{}
+	customPatternsLoaded = false
+
+	err := LoadCustomPatternsFromString(content)
+	assert.NoError(t, err)
+	// Should load 2 valid patterns, skip invalid
+	assert.Equal(t, 2, GetMaskingPatternsCount())
+}
+
+func TestLoadCustomPatternsFromString_PreventDuplicateLoad(t *testing.T) {
+	patterns := []string{`test_pattern`}
+
+	loadTestPatterns(t, patterns)
+	assert.Equal(t, 1, GetMaskingPatternsCount())
+
+	// Try loading again - should skip
+	err := LoadCustomPatternsFromString("test_pattern")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, GetMaskingPatternsCount(), "Should not add duplicate patterns")
+}
+
 func TestSanitizeTokens_GitHubTokens(t *testing.T) {
+	loadTestPatterns(t, []string{`ghp_[a-zA-Z0-9]{1,50}`})
+
 	input := "My GitHub token is ghp_1234567890abcdefghijklmnopqrstuvwxy in this log"
 	expected := "My GitHub token is ************** in this log"
 
@@ -21,6 +116,8 @@ func TestSanitizeTokens_GitHubTokens(t *testing.T) {
 }
 
 func TestSanitizeTokens_GitHubPAT(t *testing.T) {
+	loadTestPatterns(t, []string{`github_pat_[a-zA-Z0-9_]+`})
+
 	input := "Using github_pat_11ABCDEFG0123456789_abcdefghijklmnopqrstuvwxyz for authentication"
 	expected := "Using ************** for authentication"
 
@@ -29,6 +126,8 @@ func TestSanitizeTokens_GitHubPAT(t *testing.T) {
 }
 
 func TestSanitizeTokens_GitLabToken(t *testing.T) {
+	loadTestPatterns(t, []string{`glpat-[A-Za-z0-9\-_]{20}`})
+
 	input := "GitLab token: glpat-ABCDEFGHIJ1234567890"
 	expected := "GitLab token: **************"
 
@@ -37,6 +136,8 @@ func TestSanitizeTokens_GitLabToken(t *testing.T) {
 }
 
 func TestSanitizeTokens_SlackWebhook(t *testing.T) {
+	loadTestPatterns(t, []string{`T[a-zA-Z0-9_]{8}/B[a-zA-Z0-9_]{8,10}/[a-zA-Z0-9_]{24}`})
+
 	// Using FAKE Slack webhook URL for testing (not a real webhook)
 	// Pattern: T[8 chars]/B[8-10 chars]/[24 chars]
 	input := "Slack webhook: https://example.com/TXXXXXXXX/BXXXXXXXX/FakeFakeFakeFakeFake1234"
@@ -47,23 +148,29 @@ func TestSanitizeTokens_SlackWebhook(t *testing.T) {
 }
 
 func TestSanitizeTokens_BearerToken(t *testing.T) {
+	loadTestPatterns(t, []string{`Bearer\s+[A-Za-z0-9_\-.]+`})
+
 	// gitleaks:allow - This is a test fixture, not a real secret (example JWT from jwt.io)
 	input := "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
-	expected := "Authorization: Bearer **************"
+	expected := "Authorization: **************"
 
 	result := SanitizeTokens(input)
 	assert.Equal(t, expected, result)
 }
 
 func TestSanitizeTokens_BasicAuth(t *testing.T) {
+	loadTestPatterns(t, []string{`Basic\s+[A-Za-z0-9_\-.\+/=]+`})
+
 	input := "Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ="
-	expected := "Authorization: Basic **************"
+	expected := "Authorization: **************"
 
 	result := SanitizeTokens(input)
 	assert.Equal(t, expected, result)
 }
 
-func TestSanitizeTokens_ValidJWT(t *testing.T) {
+func TestSanitizeTokens_JWT(t *testing.T) {
+	loadTestPatterns(t, []string{`[\w-]+\.[\w-]+\.[\w-]+`})
+
 	// gitleaks:allow - This is a test fixture, not a real secret (example JWT from jwt.io)
 	input := "Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
 	result := SanitizeTokens(input)
@@ -73,16 +180,9 @@ func TestSanitizeTokens_ValidJWT(t *testing.T) {
 	assert.NotContains(t, result, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9")
 }
 
-func TestSanitizeTokens_InvalidJWT_NotMasked(t *testing.T) {
-	// This looks like JWT format but is invalid
-	input := "Not a token: abc.def.ghi just some text"
-	result := SanitizeTokens(input)
-
-	// Should NOT be masked because it's not a valid JWT
-	assert.Equal(t, input, result)
-}
-
 func TestSanitizeTokens_CreditCardVisa(t *testing.T) {
+	loadTestPatterns(t, []string{`\b4\d{12}(?:\d{3})?\b`})
+
 	input := "Credit card: 4111111111111111 for payment"
 	expected := "Credit card: ************** for payment"
 
@@ -91,6 +191,8 @@ func TestSanitizeTokens_CreditCardVisa(t *testing.T) {
 }
 
 func TestSanitizeTokens_CreditCardMastercard(t *testing.T) {
+	loadTestPatterns(t, []string{`\b5[1-5]\d{14}\b`})
+
 	input := "Card number: 5500000000000004"
 	expected := "Card number: **************"
 
@@ -99,6 +201,8 @@ func TestSanitizeTokens_CreditCardMastercard(t *testing.T) {
 }
 
 func TestSanitizeTokens_CreditCardAmex(t *testing.T) {
+	loadTestPatterns(t, []string{`\b3[47]\d{13}\b`})
+
 	input := "Amex: 340000000000009"
 	expected := "Amex: **************"
 
@@ -107,6 +211,8 @@ func TestSanitizeTokens_CreditCardAmex(t *testing.T) {
 }
 
 func TestSanitizeTokens_SSN(t *testing.T) {
+	loadTestPatterns(t, []string{`\b\d{3}-\d{2}-\d{4}\b`})
+
 	input := "SSN: 123-45-6789 on file"
 	expected := "SSN: ************** on file"
 
@@ -115,6 +221,11 @@ func TestSanitizeTokens_SSN(t *testing.T) {
 }
 
 func TestSanitizeTokens_MultiplePatterns(t *testing.T) {
+	loadTestPatterns(t, []string{
+		`ghp_[a-zA-Z0-9]{1,50}`,
+		`\b\d{3}-\d{2}-\d{4}\b`,
+	})
+
 	input := "GitHub token ghp_abcdefg123456789 and SSN 123-45-6789 leaked"
 	result := SanitizeTokens(input)
 
@@ -125,144 +236,38 @@ func TestSanitizeTokens_MultiplePatterns(t *testing.T) {
 }
 
 func TestSanitizeTokens_EmptyString(t *testing.T) {
+	loadTestPatterns(t, []string{})
+
 	input := ""
 	result := SanitizeTokens(input)
 	assert.Equal(t, "", result)
 }
 
 func TestSanitizeTokens_NoSecrets(t *testing.T) {
+	loadTestPatterns(t, []string{`ghp_[a-zA-Z0-9]{1,50}`})
+
 	input := "This is a normal log line with no secrets"
 	result := SanitizeTokens(input)
 	assert.Equal(t, input, result)
 }
 
-func TestLoadPatternsFromFile_ValidFile(t *testing.T) {
-	// Create temp file with patterns
-	tmpDir := t.TempDir()
-	patternFile := filepath.Join(tmpDir, "patterns.txt")
+func TestSanitizeTokens_NoPatternsLoaded(t *testing.T) {
+	// Reset to empty
+	maskingPatterns = []*regexp.Regexp{}
+	customPatternsLoaded = false
 
-	content := `<accountCode>.*?</accountCode>
-<b:taxIdNumber>.*?</b:taxIdNumber>
-\[SqlReader\]: Key: .*`
-
-	err := os.WriteFile(patternFile, []byte(content), 0600)
-	assert.NoError(t, err)
-
-	// Load patterns
-	patterns := loadPatternsFromFile(patternFile)
-
-	assert.Len(t, patterns, 3)
-	assert.Equal(t, "<accountCode>.*?</accountCode>", patterns[0].String())
-	assert.Equal(t, "<b:taxIdNumber>.*?</b:taxIdNumber>", patterns[1].String())
-	assert.Equal(t, `\[SqlReader\]: Key: .*`, patterns[2].String())
-}
-
-func TestLoadPatternsFromFile_EmptyFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	patternFile := filepath.Join(tmpDir, "empty.txt")
-
-	err := os.WriteFile(patternFile, []byte(""), 0600)
-	assert.NoError(t, err)
-
-	patterns := loadPatternsFromFile(patternFile)
-	assert.Len(t, patterns, 0)
-}
-
-func TestLoadPatternsFromFile_FileNotExist(t *testing.T) {
-	patterns := loadPatternsFromFile("/nonexistent/file.txt")
-	assert.Len(t, patterns, 0)
-}
-
-func TestLoadPatternsFromFile_InvalidPattern(t *testing.T) {
-	tmpDir := t.TempDir()
-	patternFile := filepath.Join(tmpDir, "invalid.txt")
-
-	// Invalid regex (unclosed bracket)
-	content := `valid_pattern
-[invalid(pattern
-another_valid`
-
-	err := os.WriteFile(patternFile, []byte(content), 0600)
-	assert.NoError(t, err)
-
-	patterns := loadPatternsFromFile(patternFile)
-
-	// Should skip invalid pattern and only load valid ones
-	assert.Len(t, patterns, 2)
-}
-
-func TestSanitizeTokens_CustomPatterns(t *testing.T) {
-	// Create temp file with custom patterns
-	tmpDir := t.TempDir()
-	patternFile := filepath.Join(tmpDir, "custom.txt")
-
-	content := `<CreditCard>.*?</CreditCard>
-<SSN>.*?</SSN>
-ACCT-\d{8,12}`
-
-	err := os.WriteFile(patternFile, []byte(content), 0600)
-	assert.NoError(t, err)
-
-	// Load patterns
-	customPatterns := loadPatternsFromFile(patternFile)
-
-	// Manually add to maskingPatterns for this test
-	originalLen := len(maskingPatterns)
-	maskingPatterns = append(maskingPatterns, customPatterns...)
-	defer func() {
-		// Restore original patterns after test
-		maskingPatterns = maskingPatterns[:originalLen]
-	}()
-
-	input := "Data: <CreditCard>4111-1111-1111-1111</CreditCard> and <SSN>123-45-6789</SSN> and ACCT-123456789"
+	input := "GitHub token ghp_1234567890abcdefghijklmnopqrstuvwxy"
 	result := SanitizeTokens(input)
 
-	// The regex ACCT-\d{8,12} matches just the digits after ACCT-, so result will be "ACCT-**************"
-	assert.Equal(t, "Data: ************** and ************** and ACCT-**************", result)
+	// Without patterns, nothing should be masked
+	assert.Equal(t, input, result)
 }
 
-func TestSanitizeTokens_XMLPattern(t *testing.T) {
-	// Add custom XML pattern for this test
-	err := AddCustomPattern(`<accountCode>.*?</accountCode>`)
-	assert.NoError(t, err)
-
-	input := "Response: <accountCode>ACCT123456</accountCode>"
-	result := SanitizeTokens(input)
-
-	assert.Equal(t, "Response: **************", result)
-}
-
-func TestAddCustomPattern_InvalidRegex(t *testing.T) {
-	err := AddCustomPattern("[invalid(")
-	assert.Error(t, err)
-}
-
-func TestGetMaskingPatternsCount(t *testing.T) {
-	count := GetMaskingPatternsCount()
-	// Should have at least the built-in patterns (12 financial + auth patterns)
-	assert.GreaterOrEqual(t, count, 12)
-}
-
-func TestIsValidJWT_Valid(t *testing.T) {
-	// gitleaks:allow - This is a test fixture, not a real secret (example JWT from jwt.io)
-	// #nosec G101 -- Test fixture from jwt.io
-	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
-	assert.True(t, isValidJWT(token))
-}
-
-func TestIsValidJWT_Invalid(t *testing.T) {
-	assert.False(t, isValidJWT("not.a.token"))
-	assert.False(t, isValidJWT("abc"))
-	assert.False(t, isValidJWT(""))
-}
-
-// Integration test with Capital One use case (XML patterns)
-func TestSanitizeTokens_CapitalOneXMLPatterns(t *testing.T) {
-	// Add Capital One specific patterns
-	err := AddCustomPattern(`<accountCode>.*?</accountCode>`)
-	assert.NoError(t, err)
-	err = AddCustomPattern(`<b:taxIdNumber>.*?</b:taxIdNumber>`)
-	assert.NoError(t, err)
+func TestSanitizeTokens_CustomXMLPatterns(t *testing.T) {
+	loadTestPatterns(t, []string{
+		`<accountCode>.*?</accountCode>`,
+		`<b:taxIdNumber>.*?</b:taxIdNumber>`,
+	})
 
 	input := `<response>
 		<accountCode>12345ABC</accountCode>
@@ -281,99 +286,9 @@ func TestSanitizeTokens_CapitalOneXMLPatterns(t *testing.T) {
 	assert.Contains(t, result, "1000.00")
 }
 
-// Performance test: ensure regex patterns don't cause significant slowdown
-func BenchmarkSanitizeTokens_NoSecrets(b *testing.B) {
-	input := "This is a normal log line with no secrets or tokens to mask"
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = SanitizeTokens(input)
-	}
-}
-
-func BenchmarkSanitizeTokens_WithSecrets(b *testing.B) {
-	input := "GitHub token ghp_abcdefghijklmnopqrstuvwxyz123456 and credit card 4111111111111111"
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = SanitizeTokens(input)
-	}
-}
-
-// Additional edge case tests for better coverage
-
-func TestLoadPatternsFromFile_FileWithBlankLines(t *testing.T) {
-	tmpDir := t.TempDir()
-	patternFile := filepath.Join(tmpDir, "patterns.txt")
-
-	// File with blank lines and whitespace
-	content := `
-pattern1
-
-pattern2
-
-
-pattern3
-   `
-
-	err := os.WriteFile(patternFile, []byte(content), 0600)
-	assert.NoError(t, err)
-
-	patterns := loadPatternsFromFile(patternFile)
-
-	// Should only load non-empty patterns
-	assert.Len(t, patterns, 3)
-}
-
-func TestLoadPatternsFromFile_MixedValidInvalid(t *testing.T) {
-	tmpDir := t.TempDir()
-	patternFile := filepath.Join(tmpDir, "patterns.txt")
-
-	// Mix of valid and invalid patterns
-	content := `validPattern1
-[invalid(pattern
-validPattern2
-**invalid
-validPattern3`
-
-	err := os.WriteFile(patternFile, []byte(content), 0600)
-	assert.NoError(t, err)
-
-	patterns := loadPatternsFromFile(patternFile)
-
-	// Should skip invalid patterns
-	assert.Len(t, patterns, 3, "Should load 3 valid patterns")
-}
-
-func TestLoadPatternsFromFile_UnreadableFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	patternFile := filepath.Join(tmpDir, "patterns.txt")
-
-	// Create file
-	err := os.WriteFile(patternFile, []byte("pattern1"), 0600)
-	assert.NoError(t, err)
-
-	// Make file unreadable (permissions 000)
-	err = os.Chmod(patternFile, 0000)
-	if err != nil {
-		t.Skip("Cannot change file permissions on this system")
-	}
-	defer func() {
-		_ = os.Chmod(patternFile, 0600) // Cleanup
-	}()
-
-	// Check if we're running as root (root can read files with 0000 permissions)
-	if os.Geteuid() == 0 {
-		t.Skip("Skipping unreadable file test when running as root")
-	}
-
-	patterns := loadPatternsFromFile(patternFile)
-
-	// Should return empty list on permission error
-	assert.Len(t, patterns, 0)
-}
-
 func TestSanitizeTokens_LongString(t *testing.T) {
+	loadTestPatterns(t, []string{`ghp_[a-zA-Z0-9]{1,50}`})
+
 	// Test with very long input (performance check)
 	longInput := ""
 	for i := 0; i < 1000; i++ {
@@ -387,6 +302,8 @@ func TestSanitizeTokens_LongString(t *testing.T) {
 }
 
 func TestSanitizeTokens_SpecialCharacters(t *testing.T) {
+	loadTestPatterns(t, []string{})
+
 	input := "Special chars: \n\t\r !@#$%^&*()_+-=[]{}|;':\",./<>?"
 	result := SanitizeTokens(input)
 
@@ -395,6 +312,8 @@ func TestSanitizeTokens_SpecialCharacters(t *testing.T) {
 }
 
 func TestSanitizeTokens_Unicode(t *testing.T) {
+	loadTestPatterns(t, []string{})
+
 	input := "Unicode: 你好世界 🚀 Emoji test"
 	result := SanitizeTokens(input)
 
@@ -403,6 +322,12 @@ func TestSanitizeTokens_Unicode(t *testing.T) {
 }
 
 func TestSanitizeTokens_BoundaryConditions(t *testing.T) {
+	loadTestPatterns(t, []string{
+		`\b\d{3}-\d{2}-\d{4}\b`,
+		`\b4\d{12}(?:\d{3})?\b`,
+		`\b5[1-5]\d{14}\b`,
+	})
+
 	tests := []struct {
 		name     string
 		input    string
@@ -438,22 +363,12 @@ func TestSanitizeTokens_BoundaryConditions(t *testing.T) {
 	}
 }
 
-func TestAddCustomPattern_DuplicatePattern(t *testing.T) {
-	// Get initial count
-	initialCount := GetMaskingPatternsCount()
-
-	// Add same pattern twice
-	err1 := AddCustomPattern(`DUPLICATE-\d{8}`)
-	err2 := AddCustomPattern(`DUPLICATE-\d{8}`)
-
-	assert.NoError(t, err1)
-	assert.NoError(t, err2)
-
-	// Both should be added (no deduplication logic)
-	assert.Equal(t, initialCount+2, GetMaskingPatternsCount())
-}
-
 func TestSanitizeTokens_CaseSensitivity(t *testing.T) {
+	loadTestPatterns(t, []string{
+		`ghp_[a-zA-Z0-9]{1,50}`,
+		`glpat-[A-Za-z0-9\-_]{20}`,
+	})
+
 	tests := []struct {
 		name     string
 		input    string
@@ -484,44 +399,46 @@ func TestSanitizeTokens_CaseSensitivity(t *testing.T) {
 	}
 }
 
-func TestIsValidJWT_EdgeCases(t *testing.T) {
-	tests := []struct {
-		name     string
-		token    string
-		expected bool
-	}{
-		{
-			name: "valid JWT",
-			// gitleaks:allow - This is a test fixture, not a real secret (example JWT from jwt.io)
-			token:    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
-			expected: true,
-		},
-		{
-			name:     "empty string",
-			token:    "",
-			expected: false,
-		},
-		{
-			name:     "single dot",
-			token:    ".",
-			expected: false,
-		},
-		{
-			name:     "two dots only",
-			token:    "..",
-			expected: false,
-		},
-		{
-			name:     "looks like JWT but invalid",
-			token:    "header.payload.signature",
-			expected: false,
-		},
-	}
+func TestGetMaskingPatternsCount(t *testing.T) {
+	loadTestPatterns(t, []string{
+		`pattern1`,
+		`pattern2`,
+		`pattern3`,
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := isValidJWT(tt.token)
-			assert.Equal(t, tt.expected, result)
-		})
+	count := GetMaskingPatternsCount()
+	assert.Equal(t, 3, count)
+}
+
+// Performance test: ensure regex patterns don't cause significant slowdown
+func BenchmarkSanitizeTokens_NoSecrets(b *testing.B) {
+	// Load typical patterns
+	loadTestPatterns(&testing.T{}, []string{
+		`ghp_[a-zA-Z0-9]{1,50}`,
+		`github_pat_[a-zA-Z0-9_]+`,
+		`Bearer\s+[A-Za-z0-9_\-.]+`,
+		`\b4\d{12}(?:\d{3})?\b`,
+	})
+
+	input := "This is a normal log line with no secrets or tokens to mask"
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = SanitizeTokens(input)
+	}
+}
+
+func BenchmarkSanitizeTokens_WithSecrets(b *testing.B) {
+	// Load typical patterns
+	loadTestPatterns(&testing.T{}, []string{
+		`ghp_[a-zA-Z0-9]{1,50}`,
+		`\b4\d{12}(?:\d{3})?\b`,
+	})
+
+	input := "GitHub token ghp_abcdefghijklmnopqrstuvwxyz123456 and credit card 4111111111111111"
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = SanitizeTokens(input)
 	}
 }

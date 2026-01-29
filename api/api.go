@@ -24,20 +24,19 @@ type (
 	}
 
 	SetupRequest struct {
-		Envs              map[string]string   `json:"envs,omitempty"`
-		Network           spec.Network        `json:"network"`
-		Volumes           []*spec.Volume      `json:"volumes,omitempty"`
-		Secrets           []string            `json:"secrets,omitempty"`
-		LogConfig         LogConfig           `json:"log_config,omitempty"`
-		TIConfig          TIConfig            `json:"ti_config,omitempty"`
-		Files             []*spec.File        `json:"files,omitempty"`
-		MountDockerSocket *bool               `json:"mount_docker_socket,omitempty"`
-		TTY               bool                `json:"tty,omitempty" default:"false"`
-		MtlsConfig        spec.MtlsConfig     `json:"mtls_config,omitempty"`
-		SanitizeConfig    spec.SanitizeConfig `json:"sanitize_config,omitempty"`
-		VMImageConfig     spec.VMImageConfig  `json:"vm_image_config,omitempty"`
-		Timeout           int64               `json:"timeout,omitempty"`
-		LELogKey          string              `json:"le_log_key,omitempty"`
+		Envs              map[string]string  `json:"envs,omitempty"`
+		Network           spec.Network       `json:"network"`
+		Volumes           []*spec.Volume     `json:"volumes,omitempty"`
+		Secrets           []string           `json:"secrets,omitempty"`
+		LogConfig         LogConfig          `json:"log_config,omitempty"`
+		TIConfig          TIConfig           `json:"ti_config,omitempty"`
+		Files             []*spec.File       `json:"files,omitempty"`
+		MountDockerSocket *bool              `json:"mount_docker_socket,omitempty"`
+		TTY               bool               `json:"tty,omitempty" default:"false"`
+		MtlsConfig        spec.MtlsConfig    `json:"mtls_config,omitempty"`
+		VMImageConfig     spec.VMImageConfig `json:"vm_image_config,omitempty"`
+		Timeout           int64              `json:"timeout,omitempty"`
+		LELogKey          string             `json:"le_log_key,omitempty"`
 	}
 
 	SetupResponse struct{}
@@ -207,11 +206,12 @@ type (
 	}
 
 	LogConfig struct {
-		AccountID         string `json:"account_id,omitempty"`
-		IndirectUpload    bool   `json:"indirect_upload,omitempty"` // Whether to directly upload via signed link or using log service
-		URL               string `json:"url,omitempty"`
-		Token             string `json:"token,omitempty"`
-		TrimNewLineSuffix bool   `json:"trim_new_line_suffix,omitempty"`
+		AccountID         string              `json:"account_id,omitempty"`
+		IndirectUpload    bool                `json:"indirect_upload,omitempty"` // Whether to directly upload via signed link or using log service
+		URL               string              `json:"url,omitempty"`
+		Token             string              `json:"token,omitempty"`
+		TrimNewLineSuffix bool                `json:"trim_new_line_suffix,omitempty"`
+		SanitizeConfig    spec.SanitizeConfig `json:"sanitize_config,omitempty"`
 		// Note: setting `skipOpeningStream` as `true` has the effect of making the `Writer` in
 		// livelog.go use a stream snapshot to save the final logs, instead of calling `upload`.
 		// There is a limit of 5k lines for log-service's snapshot, so this parameter should NOT

@@ -6,6 +6,7 @@ package logstream
 
 import (
 	"errors"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -165,6 +166,34 @@ func TestReplacer_Error(t *testing.T) {
 
 // Integration test: replacer with regex sanitization
 func TestReplacer_WithRegexSanitization(t *testing.T) {
+	// Save original state
+	originalPatterns := maskingPatterns
+	originalLoaded := customPatternsLoaded
+
+	// Cleanup after test
+	defer func() {
+		maskingPatterns = originalPatterns
+		customPatternsLoaded = originalLoaded
+	}()
+
+	// Load patterns from delegate (simulating setup)
+	patterns := []string{
+		`ghp_[a-zA-Z0-9]{1,50}`,
+		`\b4\d{12}(?:\d{3})?\b`,
+		`[\w-]+\.[\w-]+\.[\w-]+`,
+		`\b\d{3}-\d{2}-\d{4}\b`,
+	}
+
+	// Reset and load patterns for this test
+	maskingPatterns = []*regexp.Regexp{}
+	customPatternsLoaded = false
+
+	for _, pattern := range patterns {
+		compiled, err := regexp.Compile(pattern)
+		assert.NoError(t, err)
+		maskingPatterns = append(maskingPatterns, compiled)
+	}
+
 	tests := []struct {
 		name     string
 		input    string

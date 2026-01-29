@@ -91,19 +91,11 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 		pipelineConfig.Envs["HARNESS_MTLS_CERTS_DIR"] = pipelineConfig.MtlsConfig.ClientCertDirPath
 	}
 
-	// Handle sanitize patterns with hybrid approach:
-	// 1. Write to disk (survives VM hibernation/resume when lite-engine service restarts)
-	// 2. Load into memory (available for current process)
-	patternsWritten, err := createSanitizePatterns(pipelineConfig.SanitizeConfig)
-	if err != nil {
+	// Load sanitize patterns directly into memory (in-memory only, no disk persistence)
+	// Patterns come from delegate and are loaded into runtime for immediate use
+	if err := loadSanitizePatternsIntoRuntime(pipelineConfig.SanitizeConfig); err != nil {
 		// Log warning but don't fail setup - sanitization is optional
-		logrus.WithError(err).Warn("failed to create sanitize patterns file")
-	}
-	if patternsWritten {
-		// Load patterns into runtime for immediate use
-		if err := loadSanitizePatternsIntoRuntime(pipelineConfig.SanitizeConfig); err != nil {
-			logrus.WithError(err).Warn("failed to load sanitize patterns into runtime")
-		}
+		logrus.WithError(err).Warn("failed to load sanitize patterns into runtime")
 	}
 
 	return nil
@@ -147,48 +139,6 @@ func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
 				fmt.Sprintf("Failed to set permissions %o for file on host path: %q", permissions, certPath)))
 		}
 	}
-
-	return true, nil
-}
-
-// createSanitizePatterns handles creation of sanitize-patterns.txt from base64-encoded data
-func createSanitizePatterns(sanitizeConfig spec.SanitizeConfig) (bool, error) {
-	if sanitizeConfig.SanitizePatternsContent == "" || sanitizeConfig.SanitizePatternsFilePath == "" {
-		return false, nil // No patterns to process
-	}
-
-	// Create parent directory if it doesn't exist
-	dir := filepath.Dir(sanitizeConfig.SanitizePatternsFilePath)
-	if err := os.MkdirAll(dir, defaultDirPermissions); err != nil {
-		return false, errors.Wrap(err, "failed to create sanitize patterns directory")
-	}
-
-	// Decode and write patterns file
-	if err := writeBase64ToFile(sanitizeConfig.SanitizePatternsFilePath,
-		sanitizeConfig.SanitizePatternsContent); err != nil {
-		return false, errors.Wrap(err, "failed to write sanitize patterns file")
-	}
-
-	// Set appropriate permissions (read-only for lite-engine process)
-	if err := os.Chmod(sanitizeConfig.SanitizePatternsFilePath, defaultFilePermissions); err != nil {
-		logrus.WithError(err).Warn("failed to set permissions on sanitize patterns file")
-	}
-
-	// Count patterns for logging
-	content, _ := os.ReadFile(sanitizeConfig.SanitizePatternsFilePath)
-	lines := strings.Split(string(content), "\n")
-	patternCount := 0
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line != "" && !strings.HasPrefix(line, "#") {
-			patternCount++
-		}
-	}
-
-	logrus.WithFields(logrus.Fields{
-		"file":          sanitizeConfig.SanitizePatternsFilePath,
-		"pattern_count": patternCount,
-	}).Info("wrote custom sanitize patterns file")
 
 	return true, nil
 }
