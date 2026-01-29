@@ -1,10 +1,17 @@
 package common
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
+	"github.com/mholt/archives"
 )
 
 const (
@@ -123,4 +130,56 @@ func SimpleAutoDetectTestFiles(workspace string, testGlobs []string) ([]string, 
 	}
 
 	return uniqueFiles, nil
+}
+
+// ExtractArchive extracts an archive to the destination directory using mholt/archives.
+// It includes path traversal protection by validating extracted file paths.
+func ExtractArchive(archivePath, destDir string) error {
+	ctx := context.Background()
+
+	fsys, err := archives.FileSystem(ctx, archivePath, nil)
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %w", err)
+	}
+
+	return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if path == "." {
+			return nil
+		}
+
+		targetPath := filepath.Join(destDir, path)
+		if !strings.HasPrefix(filepath.Clean(targetPath), filepath.Clean(destDir)+string(os.PathSeparator)) {
+			return fmt.Errorf("invalid file path: %s", path)
+		}
+
+		if d.IsDir() {
+			return os.MkdirAll(targetPath, 0755)
+		}
+
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+
+		srcFile, err := fsys.Open(path)
+		if err != nil {
+			return fmt.Errorf("failed to open file in archive: %w", err)
+		}
+		defer srcFile.Close()
+
+		dstFile, err := os.Create(targetPath)
+		if err != nil {
+			return fmt.Errorf("failed to create file: %w", err)
+		}
+		defer dstFile.Close()
+
+		if _, err := io.Copy(dstFile, srcFile); err != nil {
+			return fmt.Errorf("failed to copy file contents: %w", err)
+		}
+
+		return nil
+	})
 }
