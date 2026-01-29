@@ -129,9 +129,12 @@ func CheckAndUpdateExitCodeForQuarantinedTests(
 	currentErr error,
 ) (int, error) {
 	// Check if feature flag is enabled
-	if os.Getenv(QuarantineSkipEnvVar) != "true" {
+	envVal := os.Getenv(QuarantineSkipEnvVar)
+	if envVal != "true" {
 		return currentExitCode, currentErr
 	}
+
+	log.Infof("Quarantine skip feature enabled, checking failed tests (exit_code=%d, num_tests=%d)", currentExitCode, len(tests))
 
 	// Nothing to do if already successful
 	if currentExitCode == 0 {
@@ -140,15 +143,21 @@ func CheckAndUpdateExitCodeForQuarantinedTests(
 
 	// No tests to check
 	if len(tests) == 0 {
+		log.Warnf("Skipping quarantine check - no test results available")
 		return currentExitCode, currentErr
 	}
 
 	// Fetch quarantined tests
+	log.Infof("Fetching quarantined tests from TI service (url=%s, account=%s, org=%s, project=%s, repo=%s)",
+		tiConfig.GetURL(), tiConfig.GetAccountID(), tiConfig.GetOrgID(), tiConfig.GetProjectID(), tiConfig.GetRepo())
 	quarantinedTests, err := GetQuarantinedTests(ctx, tiConfig, log)
 	if err != nil {
 		// If we can't fetch quarantined tests, keep the original exit code and error
+		log.Warnf("Failed to fetch quarantined tests, keeping original exit code: %v", err)
 		return currentExitCode, currentErr
 	}
+
+	log.Infof("Fetched %d quarantined tests from TI service", len(quarantinedTests))
 
 	if len(quarantinedTests) == 0 {
 		return currentExitCode, currentErr
