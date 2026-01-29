@@ -18,7 +18,6 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
-	"github.com/mholt/archiver/v3"
 
 	"github.com/sirupsen/logrus"
 )
@@ -66,11 +65,8 @@ func (b *nunitConsoleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest
 	var cmd string
 	pathToInjector := filepath.Join(agentInstallDir, "dotnet-agent", "dotnet-agent.injector.exe")
 
-	zip := archiver.Zip{
-		OverwriteExisting: true,
-	}
 	// Unzip everything at agentInstallDir/dotnet-agent.zip
-	err := zip.Unarchive(filepath.Join(agentInstallDir, "dotnet-agent.zip"), agentInstallDir)
+	err := common.ExtractArchive(filepath.Join(agentInstallDir, "dotnet-agent.zip"), agentInstallDir)
 	if err != nil {
 		b.log.WithError(err).Println("could not unarchive the dotnet agent")
 		return "", err
