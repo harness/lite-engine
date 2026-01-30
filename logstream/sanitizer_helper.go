@@ -48,7 +48,7 @@ func SanitizeTokens(message string) string {
 // Handles VM hibernation/resume: prevents duplicate loading if patterns already loaded in this process
 func LoadCustomPatternsFromString(content string) error {
 	if content == "" {
-		logrus.Debug("no sanitize patterns provided from delegate")
+		logrus.Info("SANITIZE_PATTERNS: No patterns provided from delegate (empty content)")
 		return nil
 	}
 
@@ -56,7 +56,7 @@ func LoadCustomPatternsFromString(content string) error {
 	// This handles VM hibernation/resume where the process stays alive across multiple builds
 	if customPatternsLoaded {
 		logrus.WithField("total_patterns", len(maskingPatterns)).
-			Debug("patterns already loaded in this process, skipping reload")
+			Info("SANITIZE_PATTERNS: Patterns already loaded in this lite-engine process (VM hibernation/resume), skipping reload")
 		return nil
 	}
 
@@ -87,9 +87,9 @@ func LoadCustomPatternsFromString(content string) error {
 		logrus.WithFields(logrus.Fields{
 			"patterns_added": patternsAdded,
 			"total_patterns": len(maskingPatterns),
-		}).Info("loaded sanitize patterns from delegate")
+		}).Info("SANITIZE_PATTERNS: Successfully loaded sanitize patterns from delegate")
 	} else {
-		logrus.Warn("no valid sanitize patterns loaded from delegate")
+		logrus.Warn("SANITIZE_PATTERNS: No valid sanitize patterns loaded from delegate (all patterns failed regex compilation)")
 	}
 
 	return nil
