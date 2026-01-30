@@ -147,6 +147,7 @@ func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
 // Decodes Base64 content and loads patterns in-memory (no disk write required)
 func loadSanitizePatternsIntoRuntime(sanitizeConfig spec.SanitizeConfig) error {
 	if sanitizeConfig.SanitizePatternsContent == "" {
+		logrus.Info("no sanitize patterns provided from delegate (SanitizePatternsContent is empty)")
 		return nil // No patterns to load
 	}
 
@@ -158,11 +159,21 @@ func loadSanitizePatternsIntoRuntime(sanitizeConfig spec.SanitizeConfig) error {
 
 	// Load patterns directly from decoded string content (in-memory)
 	content := string(data)
+
+	// Count patterns (newline-separated)
+	patternLines := strings.Split(strings.TrimSpace(content), "\n")
+	patternCount := 0
+	for _, line := range patternLines {
+		if strings.TrimSpace(line) != "" {
+			patternCount++
+		}
+	}
+
 	if err := logstream.LoadCustomPatternsFromString(content); err != nil {
 		return errors.Wrap(err, "failed to load sanitize patterns into runtime")
 	}
 
-	logrus.Info("successfully loaded custom sanitize patterns into runtime (in-memory)")
+	logrus.WithField("pattern_count", patternCount).Info("successfully loaded sanitize patterns from delegate into runtime (in-memory)")
 	return nil
 }
 
