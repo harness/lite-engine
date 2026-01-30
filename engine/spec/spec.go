@@ -182,8 +182,7 @@ type (
 	}
 
 	SanitizeConfig struct {
-		SanitizePatternsContent  string `json:"sanitize_patterns_content,omitempty"`
-		SanitizePatternsFilePath string `json:"sanitize_patterns_file_path,omitempty"`
+		SanitizePatternsContent string `json:"sanitize_patterns_content,omitempty"`
 	}
 
 	VMImageConfig struct {
