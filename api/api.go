@@ -206,11 +206,12 @@ type (
 	}
 
 	LogConfig struct {
-		AccountID         string `json:"account_id,omitempty"`
-		IndirectUpload    bool   `json:"indirect_upload,omitempty"` // Whether to directly upload via signed link or using log service
-		URL               string `json:"url,omitempty"`
-		Token             string `json:"token,omitempty"`
-		TrimNewLineSuffix bool   `json:"trim_new_line_suffix,omitempty"`
+		AccountID         string              `json:"account_id,omitempty"`
+		IndirectUpload    bool                `json:"indirect_upload,omitempty"` // Whether to directly upload via signed link or using log service
+		URL               string              `json:"url,omitempty"`
+		Token             string              `json:"token,omitempty"`
+		TrimNewLineSuffix bool                `json:"trim_new_line_suffix,omitempty"`
+		SanitizeConfig    spec.SanitizeConfig `json:"sanitize_config,omitempty"`
 		// Note: setting `skipOpeningStream` as `true` has the effect of making the `Writer` in
 		// livelog.go use a stream snapshot to save the final logs, instead of calling `upload`.
 		// There is a limit of 5k lines for log-service's snapshot, so this parameter should NOT

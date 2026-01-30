@@ -21,6 +21,7 @@ type (
 		EnableDockerSetup *bool             `json:"mount_docker_socket"`
 		TTY               bool              `json:"tty,omitempty" default:"false"`
 		MtlsConfig        MtlsConfig        `json:"mtls_config,omitempty"`
+		SanitizeConfig    SanitizeConfig    `json:"sanitize_config,omitempty"`
 	}
 
 	// Step defines a pipeline step.
@@ -178,6 +179,10 @@ type (
 		ClientCert        string `json:"client_cert,omitempty"`
 		ClientCertKey     string `json:"client_cert_key,omitempty"`
 		ClientCertDirPath string `json:"client_cert_dir_path,omitempty"`
+	}
+
+	SanitizeConfig struct {
+		SanitizePatternsContent string `json:"sanitize_patterns_content,omitempty"`
 	}
 
 	VMImageConfig struct {

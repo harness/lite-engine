@@ -288,7 +288,7 @@ func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 	envMap[ti.InfraEnv] = ti.HarnessInfra
 }
 
-func getLogServiceClient(cfg api.LogConfig) logstream.Client {
+func getLogServiceClient(cfg *api.LogConfig) logstream.Client {
 	if cfg.URL != "" {
 		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "")
 	}
@@ -298,7 +298,7 @@ func getLogServiceClient(cfg api.LogConfig) logstream.Client {
 // Used to create a log service client which handles secrets
 // If the URL is not set, it will write to stdout instead.
 func GetReplacer(
-	cfg api.LogConfig, logKey, name string, secrets []string,
+	cfg *api.LogConfig, logKey, name string, secrets []string,
 ) logstream.Writer {
 	client := getLogServiceClient(cfg)
 	wc := livelog.New(context.Background(), client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream)
@@ -306,7 +306,7 @@ func GetReplacer(
 }
 
 func GetReplacerWithCustomLogClient(
-	ctx context.Context, client logstream.Client, cfg api.LogConfig, logKey, name string, secrets []string,
+	ctx context.Context, client logstream.Client, cfg *api.LogConfig, logKey, name string, secrets []string,
 ) logstream.Writer {
 	wc := livelog.New(ctx, client, logKey, name, []logstream.Nudge{}, false, cfg.TrimNewLineSuffix, cfg.SkipOpeningStream, cfg.SkipClosingStream)
 	return logstream.NewReplacer(wc, secrets)

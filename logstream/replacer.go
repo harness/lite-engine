@@ -235,8 +235,13 @@ func NewReplacerWithEnvs(w Writer, secrets []string, envs map[string]string) Wri
 			}
 		}
 
+		// Always return a replacer to ensure regex sanitization runs
+		// Even with no explicit secrets, we still need to apply regex patterns
 		if len(oldnew) == 0 {
-			return w
+			return &replacer{
+				w: w,
+				r: strings.NewReplacer(), // Empty replacer, but Write() still calls SanitizeTokens()
+			}
 		}
 		return &replacer{
 			w: w,
@@ -261,8 +266,13 @@ func NewReplacerWithEnvs(w Writer, secrets []string, envs map[string]string) Wri
 				oldnew = append(oldnew, part, maskedStr)
 			}
 		}
+		// Always return a replacer to ensure regex sanitization runs
+		// Even with no explicit secrets, we still need to apply regex patterns
 		if len(oldnew) == 0 {
-			return w
+			return &replacer{
+				w: w,
+				r: strings.NewReplacer(), // Empty replacer, but Write() still calls SanitizeTokens()
+			}
 		}
 		return &replacer{
 			w: w,
@@ -274,7 +284,15 @@ func NewReplacerWithEnvs(w Writer, secrets []string, envs map[string]string) Wri
 // Write writes p to the base writer. The method scans for any
 // sensitive data in p and masks before writing.
 func (r *replacer) Write(p []byte) (n int, err error) {
-	_, err = r.w.Write([]byte(r.r.Replace(string(p))))
+	message := string(p)
+
+	// Step 1: Explicit secret masking (existing behavior)
+	message = r.r.Replace(message)
+
+	// Step 2: Regex pattern masking (NEW - ported from delegate)
+	message = SanitizeTokens(message)
+
+	_, err = r.w.Write([]byte(message))
 	return len(p), err
 }
 

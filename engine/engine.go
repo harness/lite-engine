@@ -21,6 +21,7 @@ import (
 	"github.com/harness/lite-engine/engine/docker"
 	"github.com/harness/lite-engine/engine/exec"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -32,6 +33,7 @@ const (
 	DockerSockWinPath      = `\\.\pipe\docker_engine`
 	permissions            = 0777
 	defaultFilePermissions = 0644 // File permissions (rw-r--r--)
+	defaultDirPermissions  = 0755 // Directory permissions (rwxr-xr-x)
 	boldYellowColor        = "\u001b[33;1m"
 	trueValue              = "true"
 )
@@ -89,6 +91,13 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 		pipelineConfig.Envs["HARNESS_MTLS_CERTS_DIR"] = pipelineConfig.MtlsConfig.ClientCertDirPath
 	}
 
+	// Load sanitize patterns directly into memory (in-memory only, no disk persistence)
+	// Patterns come from delegate and are loaded into runtime for immediate use
+	if err := loadSanitizePatternsIntoRuntime(pipelineConfig.SanitizeConfig); err != nil {
+		// Log warning but don't fail setup - sanitization is optional
+		logrus.WithError(err).Warn("failed to load sanitize patterns into runtime")
+	}
+
 	return nil
 }
 
@@ -132,6 +141,40 @@ func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// loadSanitizePatternsIntoRuntime loads sanitize patterns directly into the runtime sanitizer
+// Decodes Base64 content and loads patterns in-memory (no disk write required)
+func loadSanitizePatternsIntoRuntime(sanitizeConfig spec.SanitizeConfig) error {
+	if sanitizeConfig.SanitizePatternsContent == "" {
+		logrus.Info("no sanitize patterns provided from delegate (SanitizePatternsContent is empty)")
+		return nil // No patterns to load
+	}
+
+	// Decode Base64 content
+	data, err := base64.StdEncoding.DecodeString(sanitizeConfig.SanitizePatternsContent)
+	if err != nil {
+		return errors.Wrap(err, "failed to decode sanitize patterns from Base64")
+	}
+
+	// Load patterns directly from decoded string content (in-memory)
+	content := string(data)
+
+	// Count patterns (newline-separated)
+	patternLines := strings.Split(strings.TrimSpace(content), "\n")
+	patternCount := 0
+	for _, line := range patternLines {
+		if strings.TrimSpace(line) != "" {
+			patternCount++
+		}
+	}
+
+	if err := logstream.LoadCustomPatternsFromString(content); err != nil {
+		return errors.Wrap(err, "failed to load sanitize patterns into runtime")
+	}
+
+	logrus.WithField("pattern_count", patternCount).Info("successfully loaded sanitize patterns from delegate into runtime (in-memory)")
+	return nil
 }
 
 // writeBase64ToFile decodes base64 data and writes it to a file
