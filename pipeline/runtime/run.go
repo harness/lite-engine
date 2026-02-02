@@ -246,23 +246,48 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	// Return outputs from file when step fails but output file exists
 	// Presently, we do not return the output variables in case of step failures, which makes it difficult to debug CD plugins
 	// in the unified stage. To solve this, we now return the output variables even in case of step failures.
-	outputMapVars, _ := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion)
-	for k, v := range outputMapVars {
-		summaryOutputsV2 = append(summaryOutputsV2, &api.OutputV2{
-			Key:   k,
-			Value: v,
-			Type:  api.OutputTypeString,
-		})
+	outputs, _ := fetchExportedVarsFromEnvFile(outputFile, out, useCINewGodotEnvVersion)
+
+	outputsV2 := []*api.OutputV2{}
+	if len(r.Outputs) > 0 {
+		for _, output := range r.Outputs {
+			if _, ok := outputs[output.Key]; ok {
+				outputsV2 = append(outputsV2, &api.OutputV2{
+					Key:   output.Key,
+					Value: outputs[output.Key],
+					Type:  output.Type,
+				})
+			}
+		}
+	} else {
+		for key, value := range outputs {
+			output := &api.OutputV2{
+				Key:   key,
+				Value: value,
+				Type:  api.OutputTypeString,
+			}
+			outputsV2 = append(outputsV2, output)
+		}
 	}
+
+	summaryOutputsV2 = report.AppendWithoutDuplicates(summaryOutputsV2, outputsV2)
 
 	if r.DeleteTempStepFiles {
 		// Remove temporary internal step files
 		removeFiles(internalTempFiles, log)
 	}
-	if len(summaryOutputsV2) == 0 || !report.TestSummaryAsOutputEnabled(r.Envs) {
+
+	// If FF is off, return only regular outputs (no summary outputs)
+	if !report.TestSummaryAsOutputEnabled(r.Envs) {
+		return exited, outputs, exportEnvs, artifact, outputsV2, telemetryData, string(optimizationState), err
+	}
+
+	// If FF is on but there are no outputs to return, return nil
+	if len(summaryOutputsV2) == 0 {
 		return exited, nil, exportEnvs, artifact, nil, telemetryData, string(optimizationState), err
 	}
-	// even if the step failed, we still want to return the summary outputs
+
+	// If FF is on and we have outputs, return summary outputs with regular outputs merged in
 	return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
 }
 
