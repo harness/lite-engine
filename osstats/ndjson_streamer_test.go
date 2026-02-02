@@ -58,4 +58,23 @@ func TestStartOSStatsStreaming_WritesNDJSON(t *testing.T) {
 	if len(rec) != 1 {
 		t.Fatalf("expected exactly 1 timestamp key, got %d", len(rec))
 	}
+
+	// The final NDJSON line should be a summary record with p90 CPU usage.
+	lastLine := strings.TrimSpace(lines[len(lines)-1])
+	if lastLine == "" {
+		t.Fatalf("expected non-empty last line")
+	}
+
+	var summary map[string]map[string]interface{}
+	if err := json.Unmarshal([]byte(lastLine), &summary); err != nil {
+		t.Fatalf("unmarshal last line: %v; line=%q", err, lastLine)
+	}
+	if len(summary) != 1 {
+		t.Fatalf("expected exactly 1 timestamp key in last line, got %d", len(summary))
+	}
+	for _, payload := range summary {
+		if _, ok := payload["p90CPUUsagePct"]; !ok {
+			t.Fatalf("expected last line to contain p90CPUUsagePct; payload=%v", payload)
+		}
+	}
 }
