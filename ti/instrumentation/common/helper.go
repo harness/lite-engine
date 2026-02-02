@@ -16,6 +16,7 @@ import (
 
 const (
 	HarnessDefaultReportPath = "harness_test_results.xml"
+	defaultDirPerm           = 0755
 )
 
 type NodeType int32
@@ -137,14 +138,40 @@ func SimpleAutoDetectTestFiles(workspace string, testGlobs []string) ([]string, 
 func ExtractArchive(archivePath, destDir string) error {
 	ctx := context.Background()
 
+	if err := os.MkdirAll(destDir, defaultDirPerm); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
 	fsys, err := archives.FileSystem(ctx, archivePath, nil)
 	if err != nil {
 		return fmt.Errorf("failed to open archive: %w", err)
 	}
 
-	return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+	var allPaths []string
+	err = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if path != "." {
+			allPaths = append(allPaths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to read archive contents: %w", err)
+	}
+
+	// If files don't share a common root, extract to a subfolder
+	if multipleTopLevels(allPaths) {
+		destDir = filepath.Join(destDir, folderNameFromFileName(archivePath))
+		if err := os.MkdirAll(destDir, defaultDirPerm); err != nil {
+			return fmt.Errorf("failed to create implicit top-level folder: %w", err)
+		}
+	}
+
+	return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
 		}
 
 		if path == "." {
@@ -152,34 +179,79 @@ func ExtractArchive(archivePath, destDir string) error {
 		}
 
 		targetPath := filepath.Join(destDir, path)
-		if !strings.HasPrefix(filepath.Clean(targetPath), filepath.Clean(destDir)+string(os.PathSeparator)) {
-			return fmt.Errorf("invalid file path: %s", path)
+		if rel, relErr := filepath.Rel(destDir, targetPath); relErr != nil || strings.HasPrefix(rel, "..") {
+			return nil
 		}
 
 		if d.IsDir() {
-			return os.MkdirAll(targetPath, 0755)
+			if mkdirErr := os.MkdirAll(targetPath, defaultDirPerm); mkdirErr != nil {
+				return nil
+			}
+			return nil
 		}
 
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
-			return fmt.Errorf("failed to create directory: %w", err)
+		if mkdirErr := os.MkdirAll(filepath.Dir(targetPath), defaultDirPerm); mkdirErr != nil {
+			return nil
 		}
 
-		srcFile, err := fsys.Open(path)
-		if err != nil {
-			return fmt.Errorf("failed to open file in archive: %w", err)
+		info, infoErr := d.Info()
+		if infoErr != nil {
+			return nil
+		}
+
+		srcFile, openErr := fsys.Open(path)
+		if openErr != nil {
+			return nil
 		}
 		defer srcFile.Close()
 
-		dstFile, err := os.Create(targetPath)
-		if err != nil {
-			return fmt.Errorf("failed to create file: %w", err)
+		dstFile, createErr := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+		if createErr != nil {
+			return nil
 		}
 		defer dstFile.Close()
 
-		if _, err := io.Copy(dstFile, srcFile); err != nil {
-			return fmt.Errorf("failed to copy file contents: %w", err)
+		if _, copyErr := io.Copy(dstFile, srcFile); copyErr != nil {
+			os.Remove(targetPath)
+			return nil
 		}
 
 		return nil
 	})
+}
+
+// multipleTopLevels checks if files have multiple top-level directories
+func multipleTopLevels(files []string) bool {
+	if len(files) == 0 {
+		return false
+	}
+
+	var topLevel string
+	for _, f := range files {
+		parts := strings.Split(filepath.ToSlash(f), "/")
+		if len(parts) == 0 {
+			continue
+		}
+		currentTop := parts[0]
+
+		if topLevel == "" {
+			topLevel = currentTop
+		} else if topLevel != currentTop {
+			return true
+		}
+	}
+	return false
+}
+
+// folderNameFromFileName extracts a folder name from the archive filename
+func folderNameFromFileName(archivePath string) string {
+	base := filepath.Base(archivePath)
+	for {
+		ext := filepath.Ext(base)
+		if ext == "" {
+			break
+		}
+		base = strings.TrimSuffix(base, ext)
+	}
+	return base
 }
