@@ -5,13 +5,9 @@
 package quarantine
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
-	"time"
 
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/ti-client/types"
@@ -21,58 +17,22 @@ import (
 const (
 	// QuarantineSkipEnvVar is the environment variable/FF to enable quarantined test skip feature
 	QuarantineSkipEnvVar = "CI_ENABLE_QUARANTINED_TEST_SKIP"
-
-	// httpTimeoutSeconds is the timeout for HTTP requests to TI service
-	httpTimeoutSeconds = 30
 )
 
-// GetQuarantinedTests fetches the list of quarantined tests from TI service
+// GetQuarantinedTests fetches the list of quarantined tests from TI service using the TI client
 func GetQuarantinedTests(ctx context.Context, tiConfig *tiCfg.Cfg, log *logrus.Logger) ([]types.MarkedTest, error) {
-	// Build the URL for the quarantined tests endpoint
-	endpoint := fmt.Sprintf("%s/test-management/quarantined?accountId=%s&orgId=%s&projectId=%s&repo=%s",
-		tiConfig.GetURL(),
-		tiConfig.GetAccountID(),
-		tiConfig.GetOrgID(),
-		tiConfig.GetProjectID(),
-		tiConfig.GetRepo(),
-	)
-
-	// Create HTTP request with timeout
-	reqCtx, cancel := context.WithTimeout(ctx, httpTimeoutSeconds*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpoint, &bytes.Buffer{})
-	if err != nil {
-		log.WithError(err).Warnln("Failed to create request for quarantined tests")
-		return nil, err
+	client := tiConfig.GetClient()
+	if client == nil {
+		return nil, fmt.Errorf("TI client is not initialized")
 	}
 
-	// Add authorization header
-	req.Header.Set("X-Harness-Token", tiConfig.GetToken())
-	req.Header.Set("Content-Type", "application/json")
-
-	// Make the request
-	client := &http.Client{Timeout: httpTimeoutSeconds * time.Second}
-	resp, err := client.Do(req)
+	resp, err := client.GetQuarantinedTests(ctx)
 	if err != nil {
 		log.WithError(err).Warnln("Failed to fetch quarantined tests from TI service")
 		return nil, err
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		log.Warnf("Quarantined tests endpoint returned status %d", resp.StatusCode)
-		return nil, fmt.Errorf("quarantined tests endpoint returned status %d", resp.StatusCode)
-	}
-
-	// Parse the response
-	var result types.MarkedTestsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		log.WithError(err).Warnln("Failed to parse quarantined tests response")
-		return nil, err
-	}
-
-	return result.Tests, nil
+	return resp.Tests, nil
 }
 
 // AreAllFailedTestsQuarantined checks if all failed tests are in the quarantined list
