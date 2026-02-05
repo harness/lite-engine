@@ -12,7 +12,7 @@ import (
 	"github.com/harness/godotenv/v3"
 	"github.com/harness/lite-engine/config"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 )
 
 const certPermissions = os.FileMode(0600)

@@ -19,7 +19,7 @@ import (
 
 	"github.com/harness/godotenv/v3"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 )
 
 type Client interface {

@@ -12,7 +12,7 @@ import (
 	"github.com/harness/lite-engine/cli/server"
 	"github.com/harness/lite-engine/version"
 
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 )
 
 // Command parses the command line arguments and then executes a
