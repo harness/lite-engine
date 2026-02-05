@@ -5,6 +5,7 @@
 package junit
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +13,6 @@ import (
 	"github.com/harness/lite-engine/ti/report/parser/junit/gojunit"
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -240,7 +240,7 @@ func expandTilde(path string) (string, error) {
 
 	dir, err := os.UserHomeDir()
 	if err != nil {
-		return "", errors.Wrap(err, "failed to fetch home directory")
+		return "", fmt.Errorf("failed to fetch home directory: %w", err)
 	}
 
 	return filepath.Join(dir, path[1:]), nil

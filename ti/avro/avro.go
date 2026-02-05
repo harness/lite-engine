@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	goavro "github.com/linkedin/goavro/v2"
-	"github.com/pkg/errors"
 
 	cg "github.com/harness/lite-engine/ti/avro/schema/callgraph"
 	cg_1_1 "github.com/harness/lite-engine/ti/avro/schema/callgraph_1_1"
@@ -52,7 +51,7 @@ func NewCgphSerialzer(typ, version string) (*CgphSerialzer, error) {
 		return nil, fmt.Errorf("type %s is not supported", typ)
 	}
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read schema file")
+		return nil, fmt.Errorf("failed to read schema file: %w", err)
 	}
 
 	codec, err := goavro.NewCodec(string(schema))
@@ -69,7 +68,7 @@ func NewCgphSerialzer(typ, version string) (*CgphSerialzer, error) {
 func (c *CgphSerialzer) Serialize(datum interface{}) ([]byte, error) {
 	bin, err := c.codec.BinaryFromNative(nil, datum)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to encode the data")
+		return nil, fmt.Errorf("failed to encode the data: %w", err)
 	}
 	return bin, nil
 }

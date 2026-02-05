@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/internal/filesystem"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -75,12 +74,12 @@ func (cg *CallGraphParser) readFiles(files []string) ([]string, error) {
 	for _, file := range files {
 		f, err := cg.fs.Open(file)
 		if err != nil {
-			return []string{}, errors.Wrap(err, fmt.Sprintf("failed to open file %s", file))
+			return []string{}, fmt.Errorf("failed to open file %s: %w", file, err)
 		}
 		r := bufio.NewReader(f)
 		cgStr, err := rFile(r)
 		if err != nil {
-			return []string{}, errors.Wrap(err, fmt.Sprintf("failed to parse file %s", file))
+			return []string{}, fmt.Errorf("failed to parse file %s: %w", file, err)
 		}
 		finalData = append(finalData, cgStr...)
 	}
@@ -163,7 +162,7 @@ func parseCg(cgStr []string) (*Callgraph, error) {
 		tinp := &Input{}
 		err = json.Unmarshal([]byte(line), tinp)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("data unmarshalling to json failed for line [%s]", line))
+			return nil, fmt.Errorf("data unmarshalling to json failed for line [%s]: %w", line, err)
 		}
 		inp = append(inp, *tinp)
 	}

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/harness/lite-engine/api"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	mocks "github.com/harness/lite-engine/ti/instrumentation/mocks"
