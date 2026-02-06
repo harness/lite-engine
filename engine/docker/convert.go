@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/sirupsen/logrus"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -26,8 +27,21 @@ import (
 const (
 	buildCacheStepName = "harness-build-cache"
 	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
-	hcliPath           = "/usr/bin/hcli"
+	hcliPath           = "/usr/bin/hcli"               // Standard Linux location and container target path
+	hcliMacOSFallback  = "/tmp/harness/bin/hcli-linux" // macOS fallback path for hcli binary
 )
+
+// getHcliSourcePath returns the host path for hcli binary based on OS
+func getHcliSourcePath() string {
+	if runtime.GOOS == "darwin" {
+		// macOS: Check $HOME/harness/bin/hcli-linux, fallback to /tmp/harness/bin/hcli-linux
+		if home, err := os.UserHomeDir(); err == nil && home != "" {
+			return filepath.Join(home, "harness", "bin", "hcli-linux")
+		}
+		return hcliMacOSFallback
+	}
+	return hcliPath // Linux uses /usr/bin/hcli for both source and target
+}
 
 // returns a container configuration.
 func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step, image string) *container.Config {
@@ -126,13 +140,17 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 			ReadOnly: true,
 		})
 	} else {
-		// Linux/macOS: Mount hcli binary directly if it exists
-		if _, err := os.Stat(hcliPath); err == nil {
+		// Linux/macOS: Mount hcli binary
+		hcliSourcePath := getHcliSourcePath()
+		if _, err := os.Stat(hcliSourcePath); err == nil {
 			config.Mounts = append(config.Mounts, mount.Mount{
-				Type:   mount.TypeBind,
-				Source: hcliPath,
-				Target: hcliPath,
+				Type:     mount.TypeBind,
+				Source:   hcliSourcePath,
+				Target:   hcliPath, // Always /usr/bin/hcli inside container
+				ReadOnly: true,
 			})
+		} else {
+			logrus.WithField("path", hcliSourcePath).Warnln("hcli binary not found for mounting - annotations may not work in containers")
 		}
 	}
 
