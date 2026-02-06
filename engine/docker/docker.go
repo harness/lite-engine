@@ -189,18 +189,25 @@ func (e *Docker) destroyContainers(
 	pipelineConfig *spec.PipelineConfig,
 	containers []Container,
 ) error {
+	log := logrus.WithContext(ctx)
+
 	// Phase 1: Stop/Kill all containers
+	log.WithField("phase", "stop").WithField("container_count", len(containers)).Infoln("docker: phase 1 - stopping all containers")
 	e.stopAllContainers(ctx, containers)
 
 	// Phase 2: Wait for all non-softStop containers to stop
+	log.WithField("phase", "wait").Infoln("docker: phase 2 - waiting for containers to stop")
 	e.waitForAllContainersToStop(ctx, containers)
 
 	// Phase 3: Remove all containers with retry and verification
+	log.WithField("phase", "remove").Infoln("docker: phase 3 - removing all containers")
 	e.removeAllContainers(ctx, containers)
 
 	// Phase 4-5: Cleanup volumes and network
+	log.WithField("phase", "cleanup").WithField("volume_count", len(pipelineConfig.Volumes)).Infoln("docker: phase 4-5 - cleaning up volumes and network")
 	e.cleanupResources(ctx, pipelineConfig)
 
+	log.Infoln("docker: destroy completed successfully")
 	// We still return nil to not fail the pipeline on cleanup errors,
 	// but the robust retry logic should ensure cleanup succeeds in most cases.
 	return nil
@@ -210,8 +217,10 @@ func (e *Docker) destroyContainers(
 func (e *Docker) stopAllContainers(ctx context.Context, containers []Container) {
 	for _, ctr := range containers {
 		if ctr.SoftStop {
+			logrus.WithContext(ctx).WithField("container", ctr.ID).Infoln("docker: soft-stop container")
 			e.softStop(ctx, ctr.ID)
 		} else {
+			logrus.WithContext(ctx).WithField("container", ctr.ID).Infoln("docker: killing container (SIGKILL)")
 			if err := e.client.ContainerKill(ctx, ctr.ID, "9"); err != nil {
 				// Ignore "not found" or "not running" errors - these are expected
 				if !client.IsErrNotFound(err) && !strings.Contains(err.Error(), "is not running") {
@@ -246,6 +255,7 @@ func (e *Docker) removeAllContainers(ctx context.Context, containers []Container
 	}
 
 	for _, ctr := range containers {
+		logrus.WithContext(ctx).WithField("container", ctr.ID).Infoln("docker: removing container")
 		if err := e.removeContainerWithRetry(ctx, ctr.ID, removeOpts); err != nil {
 			logrus.WithContext(ctx).WithField("container", ctr.ID).
 				WithError(err).Errorln("failed to remove container after retries")
@@ -264,8 +274,10 @@ func (e *Docker) cleanupResources(ctx context.Context, pipelineConfig *spec.Pipe
 		// tempfs volumes do not have a volume entry,
 		// and therefore do not require removal.
 		if vol.EmptyDir.Medium == "memory" {
+			logrus.WithContext(ctx).WithField("volume", vol.EmptyDir.ID).Infoln("docker: skipping tempfs volume (memory)")
 			continue
 		}
+		logrus.WithContext(ctx).WithField("volume", vol.EmptyDir.ID).Infoln("docker: removing volume")
 		if err := e.client.VolumeRemove(ctx, vol.EmptyDir.ID, true); err != nil {
 			logrus.WithContext(ctx).WithField("volume", vol.EmptyDir.ID).
 				WithError(err).Warnln("failed to remove volume")
@@ -273,6 +285,7 @@ func (e *Docker) cleanupResources(ctx context.Context, pipelineConfig *spec.Pipe
 	}
 
 	// Cleanup the network
+	logrus.WithContext(ctx).WithField("network", pipelineConfig.Network.ID).Infoln("docker: removing network")
 	if err := e.client.NetworkRemove(ctx, pipelineConfig.Network.ID); err != nil {
 		logrus.WithContext(ctx).WithField("network", pipelineConfig.Network.ID).
 			WithError(err).Warnln("failed to remove network")
@@ -284,6 +297,16 @@ func (e *Docker) Destroy(ctx context.Context, pipelineConfig *spec.PipelineConfi
 	e.mu.Lock()
 	containers := e.containers
 	e.mu.Unlock()
+
+	containerCount := len(containers)
+	logrus.WithContext(ctx).
+		WithField("container_count", containerCount).
+		WithField("network_id", pipelineConfig.Network.ID).
+		Infoln("docker: Destroy started, cleaning up tracked containers")
+
+	if containerCount == 0 {
+		logrus.WithContext(ctx).Infoln("docker: no containers to destroy, proceeding to cleanup volumes and network")
+	}
 
 	return e.destroyContainers(ctx, pipelineConfig, containers)
 }
