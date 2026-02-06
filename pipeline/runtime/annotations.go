@@ -99,12 +99,14 @@ func postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
 	// Read annotations file (already validated and parsed)
 	file := readAnnotationsJSON(r.ID)
 	if file == nil {
+		logrus.WithField("step_id", r.ID).Warnln("ANNOTATIONS: failed to read annotations file")
 		return
 	}
 
 	// Extract planExecutionID (present in file) and ensure there are annotations
 	planExecutionID := file.PlanExecutionID
 	if len(file.Annotations) == 0 {
+		logrus.WithField("step_id", r.ID).Warnln("ANNOTATIONS: no annotations found in file")
 		return
 	}
 
@@ -114,10 +116,12 @@ func postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
 	// Fold and sanitize annotations into a final slice
 	annList := foldAnnotationsToSlice(file, r.ID)
 	if len(annList) == 0 {
+		logrus.WithField("step_id", r.ID).Warnln("ANNOTATIONS: all annotations filtered out during folding/sanitization")
 		return
 	}
 
 	if accountID == "" {
+		logrus.WithField("step_id", r.ID).Warnln("ANNOTATIONS: account ID is missing")
 		return
 	}
 
@@ -132,6 +136,7 @@ func postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
+		logrus.WithField("step_id", r.ID).WithError(err).Warnln("ANNOTATIONS: failed to marshal payload")
 		return
 	}
 
@@ -144,6 +149,7 @@ func postAnnotationsToPipeline(ctx context.Context, r *api.StartStepRequest) {
 
 	// Resolve annotations token from merged config (request or setup state)
 	if annToken == "" {
+		logrus.WithField("step_id", r.ID).Warnln("ANNOTATIONS: token is missing")
 		return
 	}
 

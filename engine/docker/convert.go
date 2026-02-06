@@ -27,7 +27,8 @@ import (
 const (
 	buildCacheStepName = "harness-build-cache"
 	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
-	hcliPath           = "/usr/bin/hcli" // Standard Linux location and container target path
+	hcliPath           = "/usr/bin/hcli"               // Standard Linux location and container target path
+	hcliMacOSFallback  = "/tmp/harness/bin/hcli-linux" // macOS fallback path for hcli binary
 )
 
 // getHcliSourcePath returns the host path for hcli binary based on OS
@@ -37,7 +38,7 @@ func getHcliSourcePath() string {
 		if home, err := os.UserHomeDir(); err == nil && home != "" {
 			return filepath.Join(home, "harness", "bin", "hcli-linux")
 		}
-		return "/tmp/harness/bin/hcli-linux"
+		return hcliMacOSFallback
 	}
 	return hcliPath // Linux uses /usr/bin/hcli for both source and target
 }
