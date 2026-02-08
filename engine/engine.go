@@ -23,7 +23,6 @@ import (
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -58,8 +57,7 @@ func NewEnv(opts docker.Opts) (*Engine, error) {
 func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 	// create global files and folders
 	if err := createFiles(pipelineConfig.Files); err != nil {
-		return errors.Wrap(err,
-			fmt.Sprintf("failed to create files/folders for pipeline %v", pipelineConfig.Files))
+		return fmt.Errorf("failed to create files/folders for pipeline %v: %w", pipelineConfig.Files, err)
 	}
 	// create volumes
 	for _, vol := range pipelineConfig.Volumes {
@@ -75,8 +73,7 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 		}
 
 		if err := os.MkdirAll(path, permissions); err != nil {
-			return errors.Wrap(err,
-				fmt.Sprintf("failed to create directory for host volume path: %q", path))
+			return fmt.Errorf("failed to create directory for host volume path: %q: %w", path, err)
 		}
 		_ = os.Chmod(path, permissions)
 	}
@@ -84,7 +81,7 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 	// create mTLS certs and set environment variable if successful
 	certsWritten, err := createMtlsCerts(pipelineConfig.MtlsConfig)
 	if err != nil {
-		return errors.Wrap(err, "failed to create mTLS certificates")
+		return fmt.Errorf("failed to create mTLS certificates: %w", err)
 	}
 	if certsWritten {
 		// This can be used by STO and SSCA plugins to support mTLS
@@ -109,34 +106,32 @@ func createMtlsCerts(mtlsConfig spec.MtlsConfig) (bool, error) {
 
 	// Create the mTLS directory
 	if err := os.MkdirAll(mtlsConfig.ClientCertDirPath, permissions); err != nil {
-		return false, errors.Wrap(err, "failed to create mTLS directory")
+		return false, fmt.Errorf("failed to create mTLS directory: %w", err)
 	}
 
 	// Decode and write certificate
 	certPath := filepath.Join(mtlsConfig.ClientCertDirPath, "client.crt")
 	if err := writeBase64ToFile(certPath, mtlsConfig.ClientCert); err != nil {
-		return false, errors.Wrap(err, "failed to write mTLS certificate")
+		return false, fmt.Errorf("failed to write mTLS certificate: %w", err)
 	}
 
 	// Set 0777 permissions for the certificate
 	if _, err := os.Stat(certPath); err == nil {
 		if err := os.Chmod(certPath, permissions); err != nil {
-			logrus.Error(errors.Wrap(err,
-				fmt.Sprintf("Failed to set permissions %o for file on host path: %q", permissions, certPath)))
+			logrus.Errorf("Failed to set permissions %o for file on host path: %q: %v", permissions, certPath, err)
 		}
 	}
 
 	// Decode and write key
 	keyPath := filepath.Join(mtlsConfig.ClientCertDirPath, "client.key")
 	if err := writeBase64ToFile(keyPath, mtlsConfig.ClientCertKey); err != nil {
-		return false, errors.Wrap(err, "failed to write mTLS key")
+		return false, fmt.Errorf("failed to write mTLS key: %w", err)
 	}
 
 	// Set 0777 permissions for the key
 	if _, err := os.Stat(keyPath); err == nil {
 		if err := os.Chmod(keyPath, permissions); err != nil {
-			logrus.Error(errors.Wrap(err,
-				fmt.Sprintf("Failed to set permissions %o for file on host path: %q", permissions, certPath)))
+			logrus.Errorf("Failed to set permissions %o for file on host path: %q: %v", permissions, keyPath, err)
 		}
 	}
 
@@ -154,7 +149,7 @@ func loadSanitizePatternsIntoRuntime(sanitizeConfig spec.SanitizeConfig) error {
 	// Decode Base64 content
 	data, err := base64.StdEncoding.DecodeString(sanitizeConfig.SanitizePatternsContent)
 	if err != nil {
-		return errors.Wrap(err, "failed to decode sanitize patterns from Base64")
+		return fmt.Errorf("failed to decode sanitize patterns from Base64: %w", err)
 	}
 
 	// Load patterns directly from decoded string content (in-memory)
@@ -170,7 +165,7 @@ func loadSanitizePatternsIntoRuntime(sanitizeConfig spec.SanitizeConfig) error {
 	}
 
 	if err := logstream.LoadCustomPatternsFromString(content); err != nil {
-		return errors.Wrap(err, "failed to load sanitize patterns into runtime")
+		return fmt.Errorf("failed to load sanitize patterns into runtime: %w", err)
 	}
 
 	logrus.WithField("pattern_count", patternCount).Info("successfully loaded sanitize patterns from delegate into runtime (in-memory)")
@@ -181,11 +176,11 @@ func loadSanitizePatternsIntoRuntime(sanitizeConfig spec.SanitizeConfig) error {
 func writeBase64ToFile(filePath, base64Data string) error {
 	data, err := base64.StdEncoding.DecodeString(base64Data)
 	if err != nil {
-		return errors.Wrap(err, "failed to decode base64 data")
+		return fmt.Errorf("failed to decode base64 data: %w", err)
 	}
 
 	if err := os.WriteFile(filePath, data, permissions); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to write to file: %s", filePath))
+		return fmt.Errorf("failed to write to file: %s: %w", filePath, err)
 	}
 
 	return nil
@@ -354,8 +349,7 @@ func createFiles(paths []*spec.File) error {
 		// make the file writable (if it exists)
 		if _, err := os.Stat(path); err == nil {
 			if err = os.Chmod(path, defaultFilePermissions); err != nil {
-				logrus.Error(errors.Wrap(err,
-					fmt.Sprintf("failed to set permissions for file on host path: %q", path)))
+				logrus.Errorf("failed to set permissions for file on host path: %q: %v", path, err)
 				continue
 			}
 		}
@@ -363,8 +357,7 @@ func createFiles(paths []*spec.File) error {
 		if f.IsDir {
 			// create a folder
 			if err := os.MkdirAll(path, fs.FileMode(f.Mode)); err != nil {
-				return errors.Wrap(err,
-					fmt.Sprintf("failed to create directory for host path: %q", path))
+				return fmt.Errorf("failed to create directory for host path: %q: %w", path, err)
 			}
 			continue
 		}
@@ -373,28 +366,25 @@ func createFiles(paths []*spec.File) error {
 		dir := filepath.Dir(path)
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			if err := os.MkdirAll(dir, fs.FileMode(permissions)); err != nil {
-				return errors.Wrap(err, fmt.Sprintf("failed to create directory: for path %q", path))
+				return fmt.Errorf("failed to create directory for path %q: %w", path, err)
 			}
 		}
 
 		// Create (or overwrite) the file
 		file, err := os.Create(path)
 		if err != nil {
-			return errors.Wrap(err,
-				fmt.Sprintf("failed to create file for host path: %q", path))
+			return fmt.Errorf("failed to create file for host path: %q: %w", path, err)
 		}
 
 		if _, err = file.WriteString(f.Data); err != nil {
 			_ = file.Close()
-			return errors.Wrap(err,
-				fmt.Sprintf("failed to write file for host path: %q", path))
+			return fmt.Errorf("failed to write file for host path: %q: %w", path, err)
 		}
 
 		_ = file.Close()
 
 		if err = os.Chmod(path, fs.FileMode(f.Mode)); err != nil {
-			return errors.Wrap(err,
-				fmt.Sprintf("failed to change permissions for file on host path: %q", path))
+			return fmt.Errorf("failed to change permissions for file on host path: %q: %w", path, err)
 		}
 	}
 	return nil

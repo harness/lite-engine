@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"sort"
 
-	"github.com/bmatcuk/doublestar"
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // ProcessFiles removes non-existent files and adds new files to the file-times map.
@@ -42,7 +42,7 @@ func GetTestData(patterns, excludePatterns []string) (map[string]bool, error) {
 	// We are not using filepath.Glob,
 	// because it doesn't support '**' (to match all files in all nested directories)
 	for _, pattern := range patterns {
-		currentFiles, err := doublestar.Glob(pattern)
+		currentFiles, err := doublestar.FilepathGlob(pattern)
 		if err != nil {
 			return currentFileSet, err
 		}
@@ -54,7 +54,7 @@ func GetTestData(patterns, excludePatterns []string) (map[string]bool, error) {
 
 	// Exclude the specified files
 	for _, excludePattern := range excludePatterns {
-		excludedFiles, err := doublestar.Glob(excludePattern)
+		excludedFiles, err := doublestar.FilepathGlob(excludePattern)
 		if err != nil {
 			return currentFileSet, err
 		}

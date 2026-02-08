@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"

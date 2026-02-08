@@ -9,7 +9,7 @@
 package filesystem
 
 import (
-	gomock "github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 	io "io"
 	os "os"
 	reflect "reflect"

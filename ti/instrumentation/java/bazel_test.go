@@ -11,7 +11,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/golang/mock/gomock"
+	"go.uber.org/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"

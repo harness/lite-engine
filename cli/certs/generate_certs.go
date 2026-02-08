@@ -11,9 +11,8 @@ import (
 
 	"github.com/harness/godotenv/v3"
 	"github.com/harness/lite-engine/config"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 )
 
 const certPermissions = os.FileMode(0600)
@@ -26,35 +25,35 @@ type certCommand struct {
 func generateCert(serverName, relPath string) error {
 	ca, err := GenerateCA()
 	if err != nil {
-		return errors.Wrap(err, "failed to generate ca certificate")
+		return fmt.Errorf("failed to generate ca certificate: %w", err)
 	}
 
 	tlsCert, err := GenerateCert(serverName, ca)
 	if err != nil {
-		return errors.Wrap(err, "failed to generate certificate")
+		return fmt.Errorf("failed to generate certificate: %w", err)
 	}
 
 	err = os.MkdirAll(relPath, os.ModePerm)
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to create directory at path: %s", relPath))
+		return fmt.Errorf("failed to create directory at path: %s: %w", relPath, err)
 	}
 
 	caCertFilePath := filepath.Join(relPath, "ca-cert.pem")
 	caKeyFilePath := filepath.Join(relPath, "ca-key.pem")
 	if err := os.WriteFile(caCertFilePath, ca.Cert, certPermissions); err != nil {
-		return errors.Wrap(err, "failed to write CA cert file")
+		return fmt.Errorf("failed to write CA cert file: %w", err)
 	}
 	if err := os.WriteFile(caKeyFilePath, ca.Key, certPermissions); err != nil {
-		return errors.Wrap(err, "failed to write CA key file")
+		return fmt.Errorf("failed to write CA key file: %w", err)
 	}
 
 	certFilePath := filepath.Join(relPath, "server-cert.pem")
 	keyFilePath := filepath.Join(relPath, "server-key.pem")
 	if err := os.WriteFile(certFilePath, tlsCert.Cert, certPermissions); err != nil {
-		return errors.Wrap(err, "failed to write server cert file")
+		return fmt.Errorf("failed to write server cert file: %w", err)
 	}
 	if err := os.WriteFile(keyFilePath, tlsCert.Key, certPermissions); err != nil {
-		return errors.Wrap(err, "failed to write server key file")
+		return fmt.Errorf("failed to write server key file: %w", err)
 	}
 	return nil
 }

@@ -27,7 +27,6 @@ import (
 	tiClient "github.com/harness/ti-client/client"
 	tiClientTypes "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -73,24 +72,24 @@ func Upload(
 		}
 		cg, err := parseCallgraphFiles(fmt.Sprintf(dir, stepDataDir), log)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to parse callgraph files")
+			return nil, fmt.Errorf("failed to parse callgraph files: %w", err)
 		}
 		fileChecksums, err := instrumentation.GetGitFileChecksums(ctx, r.WorkingDir, log)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to get file hashes")
+			return nil, fmt.Errorf("failed to get file hashes: %w", err)
 		}
 		uploadPayload, err := CreateUploadPayload(cg, fileChecksums, repo, cfg, sha, tests, log, r.Envs)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to create upload payload")
+			return nil, fmt.Errorf("failed to create upload payload: %w", err)
 		}
 		err = cfg.GetClient().UploadCgV2(ctx, *uploadPayload, stepID, timeMs, cfg.GetSourceBranch(), cfg.GetTargetBranch())
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to upload callgraph")
+			return nil, fmt.Errorf("failed to upload callgraph: %w", err)
 		}
 	} else {
 		encCg, cgIsEmpty, matched, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "1_1", rerunFailedTests)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to get avro encoded callgraph")
+			return nil, fmt.Errorf("failed to get avro encoded callgraph: %w", err)
 		}
 
 		c := cfg.GetClient()
@@ -101,7 +100,7 @@ func Upload(
 				// try with version ""
 				encCg, cgIsEmpty, matched, avroErr := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "", rerunFailedTests)
 				if avroErr != nil {
-					return nil, errors.Wrap(avroErr, "failed to get avro encoded callgraph")
+					return nil, fmt.Errorf("failed to get avro encoded callgraph: %w", avroErr)
 				}
 				if !cgIsEmpty {
 					if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched); cgErr != nil {
@@ -126,13 +125,13 @@ func parseCallgraphFiles(dataDir string, log *logrus.Logger) (*Callgraph, error)
 	}
 	cgFiles, visFiles, err := getCgFiles(dataDir, "json", "csv", log)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to fetch files inside the directory")
+		return nil, fmt.Errorf("failed to fetch files inside the directory: %w", err)
 	}
 	parser = NewCallGraphParser(log, fs)
 
 	cg, err := parser.Parse(cgFiles, visFiles)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse visgraph")
+		return nil, fmt.Errorf("failed to parse visgraph: %w", err)
 	}
 	return cg, nil
 }
@@ -148,14 +147,14 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 	}
 	cgFiles, visFiles, err := getCgFiles(dataDir, "json", "csv", log)
 	if err != nil {
-		return nil, cgIsEmpty, false, errors.Wrap(err, "failed to fetch files inside the directory")
+		return nil, cgIsEmpty, false, fmt.Errorf("failed to fetch files inside the directory: %w", err)
 	}
 	parser = NewCallGraphParser(log, fs)
 	log.Infoln(fmt.Sprintf("Found callgraph files: %v", cgFiles))
 
 	cg, err := parser.Parse(cgFiles, visFiles)
 	if err != nil {
-		return nil, cgIsEmpty, false, errors.Wrap(err, "failed to parse callgraph")
+		return nil, cgIsEmpty, false, fmt.Errorf("failed to parse callgraph: %w", err)
 	}
 
 	log.Infof("Callgraph parsing completed. Total nodes: %d", len(cg.Nodes))
@@ -215,11 +214,11 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 	cgMap := cg.ToStringMap()
 	cgSer, err := avro.NewCgphSerialzer(cgSchemaType, version)
 	if err != nil {
-		return nil, cgIsEmpty, false, errors.Wrap(err, "failed to create serializer")
+		return nil, cgIsEmpty, false, fmt.Errorf("failed to create serializer: %w", err)
 	}
 	encCg, err := cgSer.Serialize(cgMap)
 	if err != nil {
-		return nil, cgIsEmpty, false, errors.Wrap(err, "failed to encode callgraph")
+		return nil, cgIsEmpty, false, fmt.Errorf("failed to encode callgraph: %w", err)
 	}
 	return encCg, cgIsEmpty, allMatched, nil
 }
@@ -317,7 +316,7 @@ func fetchFailedTests(filePath string) ([]string, error) {
 	})
 
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to read file %s", filePath))
+		return nil, fmt.Errorf("failed to read file %s: %w", filePath, err)
 	}
 
 	return lines, nil

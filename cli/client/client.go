@@ -18,9 +18,8 @@ import (
 	"github.com/harness/lite-engine/logger"
 
 	"github.com/harness/godotenv/v3"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/alecthomas/kingpin.v2"
+	"github.com/alecthomas/kingpin/v2"
 )
 
 type Client interface {
@@ -86,7 +85,7 @@ func (c *clientCommand) run(*kingpin.ParseContext) error {
 		if err != nil {
 			logrus.WithError(err).
 				Errorln("failed to create client")
-			return errors.Wrap(err, "failed to create client")
+			return fmt.Errorf("failed to create client: %w", err)
 		}
 	}
 
@@ -103,7 +102,7 @@ func checkServerHealth(client Client) error {
 	if healthErr != nil {
 		logrus.WithError(healthErr).
 			Errorln("cannot check the health of the server")
-		return errors.Wrap(healthErr, "cannot check the health of the server")
+		return fmt.Errorf("cannot check the health of the server: %w", healthErr)
 	}
 	logrus.WithField("response", response).Info("health check")
 	return nil

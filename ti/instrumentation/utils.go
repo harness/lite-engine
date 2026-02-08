@@ -22,9 +22,8 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/mattn/go-zglob"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/harness/lite-engine/internal/filesystem"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -814,11 +813,11 @@ func getTiConfig(workspace string, fs filesystem.FileSystem) (ti.TiConfig, error
 		return err
 	})
 	if err != nil {
-		return res, errors.Wrap(err, "could not read ticonfig file")
+		return res, fmt.Errorf("could not read ticonfig file: %w", err)
 	}
 	err = yaml.Unmarshal(data, &res)
 	if err != nil {
-		return res, errors.Wrap(err, "could not unmarshal ticonfig file")
+		return res, fmt.Errorf("could not unmarshal ticonfig file: %w", err)
 	}
 	return res, nil
 }
