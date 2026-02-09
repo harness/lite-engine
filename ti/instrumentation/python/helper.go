@@ -15,7 +15,6 @@ import (
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 
-	"github.com/mholt/archiver/v3"
 	"github.com/sirupsen/logrus"
 )
 
@@ -72,11 +71,8 @@ func GetPythonGlobs(testGlobs []string) (includeGlobs, excludeGlobs []string) {
 // In case of errors, return a pair of empty string as test information.
 func UnzipAndGetTestInfo(agentInstallDir string, ignoreInstr bool, testHarness string,
 	userArgs string, log *logrus.Logger) (scriptPath, testHarnessCmd string, err error) {
-	zip := archiver.Zip{
-		OverwriteExisting: true,
-	}
 	// Unzip everything at agentInstallDir/python-agent.zip
-	err = zip.Unarchive(filepath.Join(agentInstallDir, "python-agent.zip"), agentInstallDir)
+	err = common.ExtractArchive(filepath.Join(agentInstallDir, "python-agent.zip"), agentInstallDir)
 	if err != nil {
 		log.WithError(err).Println("could not unzip the python agent")
 		return "", "", nil
@@ -93,15 +89,11 @@ func UnzipAndGetTestInfo(agentInstallDir string, ignoreInstr bool, testHarness s
 	return scriptPath, testHarnessCmd, nil
 }
 
-// UnzipAndGetTestInfo unzips the Python agent zip file, and return a pair of
+// UnzipAndGetTestInfoV2 unzips the Python agent zip file, and return a pair of
 // string for script path and test harness command as test information.
 // In case of errors, return a pair of empty string as test information.
 func UnzipAndGetTestInfoV2(agentInstallDir string, log *logrus.Logger) (scriptPath string, err error) {
-	zip := archiver.Zip{
-		OverwriteExisting: true,
-	}
-	// Unzip everything at agentInstallDir/ruby-agent.zip
-	err = zip.Unarchive(filepath.Join(agentInstallDir, "python-agent-v2.zip"), agentInstallDir)
+	err = common.ExtractArchive(filepath.Join(agentInstallDir, "python-agent-v2.zip"), agentInstallDir)
 	if err != nil {
 		log.WithError(err).Println("could not unzip the python agent")
 		return "", err

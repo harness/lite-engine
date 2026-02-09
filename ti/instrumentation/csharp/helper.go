@@ -8,7 +8,6 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
-	"github.com/mholt/archiver/v3"
 	"github.com/sirupsen/logrus"
 )
 
@@ -66,16 +65,10 @@ func ParseCsharpNode(filename string, testGlobs []string) (*common.Node, error) 
 // Unzip unzips the dotnet agent zip file
 // In case of errors, return the error
 func Unzip(agentInstallDir string, log *logrus.Logger) (err error) {
-	zip := archiver.Zip{
-		OverwriteExisting: true,
-	}
-
-	// Unzip everything at agentInstallDir/
-	err = zip.Unarchive(filepath.Join(agentInstallDir, "dotnet-agent.zip"), agentInstallDir)
+	err = common.ExtractArchive(filepath.Join(agentInstallDir, "dotnet-agent.zip"), agentInstallDir)
 	if err != nil {
 		log.WithError(err).Println("could not unzip the .net agent")
 		return err
 	}
-
 	return nil
 }

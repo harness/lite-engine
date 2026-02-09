@@ -51,6 +51,9 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 }
 
 func (c *Cfg) GetClient() client.Client {
+	if c.client == nil {
+		return nil
+	}
 	return c.client
 }
 

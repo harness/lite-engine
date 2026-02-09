@@ -1,14 +1,22 @@
 package common
 
 import (
+	"context"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
+	"github.com/mholt/archives"
 )
 
 const (
 	HarnessDefaultReportPath = "harness_test_results.xml"
+	defaultDirPerm           = 0755
 )
 
 type NodeType int32
@@ -123,4 +131,161 @@ func SimpleAutoDetectTestFiles(workspace string, testGlobs []string) ([]string, 
 	}
 
 	return uniqueFiles, nil
+}
+
+// ExtractArchive extracts an archive to the destination directory using mholt/archives.
+// It includes path traversal protection by validating extracted file paths.
+func ExtractArchive(archivePath, destDir string) error {
+	ctx := context.Background()
+
+	if err := os.MkdirAll(destDir, defaultDirPerm); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	fsys, err := archives.FileSystem(ctx, archivePath, nil)
+	if err != nil {
+		return fmt.Errorf("failed to open archive: %w", err)
+	}
+
+	allPaths, err := collectArchivePaths(fsys)
+	if err != nil {
+		return err
+	}
+
+	destDir, err = adjustDestDirIfNeeded(destDir, archivePath, allPaths)
+	if err != nil {
+		return err
+	}
+
+	return extractArchiveFiles(fsys, destDir)
+}
+
+// collectArchivePaths collects all paths from the archive filesystem.
+func collectArchivePaths(fsys fs.FS) ([]string, error) {
+	var allPaths []string
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if path != "." {
+			allPaths = append(allPaths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read archive contents: %w", err)
+	}
+	return allPaths, nil
+}
+
+// adjustDestDirIfNeeded creates a subfolder if files don't share a common root.
+func adjustDestDirIfNeeded(destDir, archivePath string, allPaths []string) (string, error) {
+	if multipleTopLevels(allPaths) {
+		destDir = filepath.Join(destDir, folderNameFromFileName(archivePath))
+		if err := os.MkdirAll(destDir, defaultDirPerm); err != nil {
+			return "", fmt.Errorf("failed to create implicit top-level folder: %w", err)
+		}
+	}
+	return destDir, nil
+}
+
+// extractArchiveFiles walks through the archive and extracts each file.
+func extractArchiveFiles(fsys fs.FS, destDir string) error {
+	return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || path == "." {
+			return nil
+		}
+
+		targetPath := filepath.Join(destDir, path)
+		if !isPathSafe(destDir, targetPath) {
+			return nil
+		}
+
+		if d.IsDir() {
+			return extractDirectory(targetPath)
+		}
+
+		return extractFile(fsys, path, targetPath, d)
+	})
+}
+
+// isPathSafe validates that the target path doesn't escape the destination directory.
+func isPathSafe(destDir, targetPath string) bool {
+	rel, err := filepath.Rel(destDir, targetPath)
+	return err == nil && !strings.HasPrefix(rel, "..")
+}
+
+// extractDirectory creates a directory at the target path.
+func extractDirectory(targetPath string) error {
+	if err := os.MkdirAll(targetPath, defaultDirPerm); err != nil {
+		return nil
+	}
+	return nil
+}
+
+// extractFile extracts a single file from the archive to the target path.
+func extractFile(fsys fs.FS, path, targetPath string, d fs.DirEntry) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), defaultDirPerm); err != nil {
+		return nil
+	}
+
+	info, err := d.Info()
+	if err != nil {
+		return nil
+	}
+
+	srcFile, err := fsys.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return nil
+	}
+	defer dstFile.Close()
+
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		os.Remove(targetPath)
+		return nil
+	}
+
+	return nil
+}
+
+// multipleTopLevels checks if files have multiple top-level directories
+func multipleTopLevels(files []string) bool {
+	if len(files) == 0 {
+		return false
+	}
+
+	var topLevel string
+	for _, f := range files {
+		parts := strings.Split(filepath.ToSlash(f), "/")
+		if len(parts) == 0 {
+			continue
+		}
+		currentTop := parts[0]
+
+		if topLevel == "" {
+			topLevel = currentTop
+		} else if topLevel != currentTop {
+			return true
+		}
+	}
+	return false
+}
+
+// folderNameFromFileName extracts a folder name from the archive filename
+func folderNameFromFileName(archivePath string) string {
+	base := filepath.Base(archivePath)
+	for {
+		ext := filepath.Ext(base)
+		if ext == "" {
+			break
+		}
+		base = strings.TrimSuffix(base, ext)
+	}
+	return base
 }

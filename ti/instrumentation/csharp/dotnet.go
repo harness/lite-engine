@@ -19,7 +19,6 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
-	"github.com/mholt/archiver/v3"
 
 	"github.com/sirupsen/logrus"
 )
@@ -74,11 +73,8 @@ func (b *dotnetRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		return "", errors.New("PATH_TO_DLL env variable needs to be set")
 	}
 
-	zip := archiver.Zip{
-		OverwriteExisting: true,
-	}
 	// Unzip everything at agentInstallDir/dotnet-agent.zip
-	err := zip.Unarchive(filepath.Join(agentInstallDir, "dotnet-agent.zip"), agentInstallDir)
+	err := common.ExtractArchive(filepath.Join(agentInstallDir, "dotnet-agent.zip"), agentInstallDir)
 	if err != nil {
 		b.log.WithError(err).Println("could not unarchive the dotnet agent")
 		return "", err

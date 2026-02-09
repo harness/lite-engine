@@ -13,10 +13,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 
-	"github.com/mholt/archiver/v3"
 	"github.com/sirupsen/logrus"
 )
 
@@ -103,7 +103,7 @@ func GetRubyTests(workspace string, testGlobs, excludeGlobs []string, log *logru
 	return tests, nil
 }
 
-// GetRubyTests returns list of RunnableTests in the workspace with python extension.
+// GetRubyTestsV2 returns list of RunnableTests in the workspace with ruby extension.
 // In case of errors, return empty list
 func GetRubyTestsV2(workspace string, testGlobs, excludeGlobs []string, log *logrus.Logger) ([]ti.RunnableTest, error) {
 	if len(testGlobs) == 0 {
@@ -120,15 +120,12 @@ func GetRubyTestsV2(workspace string, testGlobs, excludeGlobs []string, log *log
 	return tests, nil
 }
 
-// UnzipAndGetTestInfo unzips the Python agent zip file, and return a pair of
-// string for script path and test harness command as test information.
-// In case of errors, return a pair of empty string as test information.
+// UnzipAndGetTestInfo unzips the Ruby agent zip file, and return a
+// string for script path as test information.
+// In case of errors, return empty string as test information.
 func UnzipAndGetTestInfo(agentInstallDir string, log *logrus.Logger) (scriptPath string, err error) {
-	zip := archiver.Zip{
-		OverwriteExisting: true,
-	}
 	// Unzip everything at agentInstallDir/ruby-agent.zip
-	err = zip.Unarchive(filepath.Join(agentInstallDir, "ruby-agent.zip"), agentInstallDir)
+	err = common.ExtractArchive(filepath.Join(agentInstallDir, "ruby-agent.zip"), agentInstallDir)
 	if err != nil {
 		log.WithError(err).Println("could not unzip the ruby agent")
 		return "", err
