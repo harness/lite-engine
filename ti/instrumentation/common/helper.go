@@ -147,8 +147,23 @@ func ExtractArchive(archivePath, destDir string) error {
 		return fmt.Errorf("failed to open archive: %w", err)
 	}
 
+	allPaths, err := collectArchivePaths(fsys)
+	if err != nil {
+		return err
+	}
+
+	destDir, err = adjustDestDirIfNeeded(destDir, archivePath, allPaths)
+	if err != nil {
+		return err
+	}
+
+	return extractArchiveFiles(fsys, destDir)
+}
+
+// collectArchivePaths collects all paths from the archive filesystem.
+func collectArchivePaths(fsys fs.FS) ([]string, error) {
 	var allPaths []string
-	err = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -158,66 +173,85 @@ func ExtractArchive(archivePath, destDir string) error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to read archive contents: %w", err)
+		return nil, fmt.Errorf("failed to read archive contents: %w", err)
 	}
+	return allPaths, nil
+}
 
-	// If files don't share a common root, extract to a subfolder
+// adjustDestDirIfNeeded creates a subfolder if files don't share a common root.
+func adjustDestDirIfNeeded(destDir, archivePath string, allPaths []string) (string, error) {
 	if multipleTopLevels(allPaths) {
 		destDir = filepath.Join(destDir, folderNameFromFileName(archivePath))
 		if err := os.MkdirAll(destDir, defaultDirPerm); err != nil {
-			return fmt.Errorf("failed to create implicit top-level folder: %w", err)
+			return "", fmt.Errorf("failed to create implicit top-level folder: %w", err)
 		}
 	}
+	return destDir, nil
+}
 
+// extractArchiveFiles walks through the archive and extracts each file.
+func extractArchiveFiles(fsys fs.FS, destDir string) error {
 	return fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-
-		if path == "." {
+		if err != nil || path == "." {
 			return nil
 		}
 
 		targetPath := filepath.Join(destDir, path)
-		if rel, relErr := filepath.Rel(destDir, targetPath); relErr != nil || strings.HasPrefix(rel, "..") {
+		if !isPathSafe(destDir, targetPath) {
 			return nil
 		}
 
 		if d.IsDir() {
-			if mkdirErr := os.MkdirAll(targetPath, defaultDirPerm); mkdirErr != nil {
-				return nil
-			}
-			return nil
+			return extractDirectory(targetPath)
 		}
 
-		if mkdirErr := os.MkdirAll(filepath.Dir(targetPath), defaultDirPerm); mkdirErr != nil {
-			return nil
-		}
-
-		info, infoErr := d.Info()
-		if infoErr != nil {
-			return nil
-		}
-
-		srcFile, openErr := fsys.Open(path)
-		if openErr != nil {
-			return nil
-		}
-		defer srcFile.Close()
-
-		dstFile, createErr := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
-		if createErr != nil {
-			return nil
-		}
-		defer dstFile.Close()
-
-		if _, copyErr := io.Copy(dstFile, srcFile); copyErr != nil {
-			os.Remove(targetPath)
-			return nil
-		}
-
-		return nil
+		return extractFile(fsys, path, targetPath, d)
 	})
+}
+
+// isPathSafe validates that the target path doesn't escape the destination directory.
+func isPathSafe(destDir, targetPath string) bool {
+	rel, err := filepath.Rel(destDir, targetPath)
+	return err == nil && !strings.HasPrefix(rel, "..")
+}
+
+// extractDirectory creates a directory at the target path.
+func extractDirectory(targetPath string) error {
+	if err := os.MkdirAll(targetPath, defaultDirPerm); err != nil {
+		return nil
+	}
+	return nil
+}
+
+// extractFile extracts a single file from the archive to the target path.
+func extractFile(fsys fs.FS, path, targetPath string, d fs.DirEntry) error {
+	if err := os.MkdirAll(filepath.Dir(targetPath), defaultDirPerm); err != nil {
+		return nil
+	}
+
+	info, err := d.Info()
+	if err != nil {
+		return nil
+	}
+
+	srcFile, err := fsys.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return nil
+	}
+	defer dstFile.Close()
+
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		os.Remove(targetPath)
+		return nil
+	}
+
+	return nil
 }
 
 // multipleTopLevels checks if files have multiple top-level directories
