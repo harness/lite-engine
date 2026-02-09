@@ -10,7 +10,7 @@ require (
 	github.com/docker/docker v28.0.2+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/drone/drone-go v1.7.1
-	github.com/drone/runner-go v1.12.1-0.20260205183937-320be7515cd8
+	github.com/drone/runner-go v1.13.0
 	github.com/go-chi/chi/v5 v5.0.8
 	github.com/harness/ti-client v0.0.0-20260106231425-06bf65d965b0
 	github.com/hashicorp/go-multierror v1.1.1
