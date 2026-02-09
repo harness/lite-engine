@@ -12,11 +12,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"go.uber.org/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
+	"go.uber.org/mock/gomock"
 )
 
 func TestMaven_GetCmd(t *testing.T) { //nolint:funlen

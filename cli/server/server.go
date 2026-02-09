@@ -20,9 +20,9 @@ import (
 	"github.com/harness/lite-engine/server"
 	"github.com/harness/lite-engine/setup"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/harness/godotenv/v3"
 	"github.com/sirupsen/logrus"
-	"github.com/alecthomas/kingpin/v2"
 )
 
 type serverCommand struct {

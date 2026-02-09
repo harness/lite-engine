@@ -9,10 +9,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/harness/godotenv/v3"
 	"github.com/harness/lite-engine/config"
 	"github.com/sirupsen/logrus"
-	"github.com/alecthomas/kingpin/v2"
 )
 
 const certPermissions = os.FileMode(0600)

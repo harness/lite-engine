@@ -8,9 +8,9 @@ import (
 	context "context"
 	reflect "reflect"
 
-	gomock "go.uber.org/mock/gomock"
 	common "github.com/harness/lite-engine/ti/instrumentation/common"
 	types "github.com/harness/ti-client/types"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockTestRunner is a mock of TestRunner interface.

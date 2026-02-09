@@ -8,11 +8,11 @@ import (
 	"context"
 	"testing"
 
-	"go.uber.org/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 const (

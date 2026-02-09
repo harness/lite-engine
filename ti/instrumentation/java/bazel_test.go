@@ -11,12 +11,12 @@ import (
 	"os/exec"
 	"testing"
 
-	"go.uber.org/mock/gomock"
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti/instrumentation/common"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 const bazelRuleStringsBazelAutoDetectTests = "//module1:pkg1.cls1\n//module1:pkg1.cls2\n//module1:pkg2\n//module1:pkg2/cls2\n"

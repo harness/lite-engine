@@ -6,13 +6,13 @@ import (
 	"strconv"
 	"testing"
 
-	"go.uber.org/mock/gomock"
 	"github.com/harness/lite-engine/api"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	mocks "github.com/harness/lite-engine/ti/instrumentation/mocks"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 func TestComputeSelected(t *testing.T) { //nolint:funlen

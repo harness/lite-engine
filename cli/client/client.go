@@ -17,9 +17,9 @@ import (
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logger"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/harness/godotenv/v3"
 	"github.com/sirupsen/logrus"
-	"github.com/alecthomas/kingpin/v2"
 )
 
 type Client interface {
