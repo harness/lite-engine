@@ -45,7 +45,7 @@ func IsCustomErrorCategorizationEnabled(envs map[string]string) bool {
 func pathConverter(path string) string {
 	if runtime.GOOS == "windows" {
 		path = strings.ReplaceAll(path, "/", "\\")
-		if len(path) > 0 && path[0] == '\\' {
+		if path != "" && path[0] == '\\' {
 			path = "c:" + path
 		}
 	}
