@@ -37,8 +37,14 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*pruntime.Stat
 
 	cmd.Dir = step.WorkingDir
 	cmd.Env = spec.ToEnv(step.Envs)
-	cmd.Stderr = output
-	cmd.Stdout = output
+
+	// Custom Error Categorization: Create log files when CI_CUSTOM_ERROR_CATEGORIZATION is enabled
+	logHandles := CreateCustomErrorCategorizationLogFiles(step.ID, step.Envs)
+	defer logHandles.Close()
+
+	// Use MultiWriter to write to both original output and log files
+	cmd.Stdout = logHandles.GetStdoutWriter(output)
+	cmd.Stderr = logHandles.GetStderrWriter(output)
 
 	startTime := time.Now()
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on host for step %s %s", step.ID, step.Name))
