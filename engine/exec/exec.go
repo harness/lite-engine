@@ -39,12 +39,21 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*pruntime.Stat
 	cmd.Env = spec.ToEnv(step.Envs)
 
 	// Custom Error Categorization: Create log files when CI_CUSTOM_ERROR_CATEGORIZATION is enabled
-	logHandles := CreateCustomErrorCategorizationLogFiles(step.ID, step.Envs)
-	defer logHandles.Close()
+	logrus.Infof("[CustomErrorCategorization] exec.Run called for stepID=%s, detach=%v", step.ID, step.Detach)
 
-	// Use MultiWriter to write to both original output and log files
-	cmd.Stdout = logHandles.GetStdoutWriter(output)
-	cmd.Stderr = logHandles.GetStderrWriter(output)
+	var logHandles *LogFileHandles
+	if step.Detach {
+		logrus.Infof("[CustomErrorCategorization] stepID=%s is detach step, skipping log file creation", step.ID)
+		cmd.Stdout = output
+		cmd.Stderr = output
+	} else {
+		logHandles = CreateCustomErrorCategorizationLogFiles(step.ID, step.Envs)
+		defer logHandles.Close()
+		// Use MultiWriter to write to both original output and log files
+		cmd.Stdout = logHandles.GetStdoutWriter(output)
+		cmd.Stderr = logHandles.GetStderrWriter(output)
+		logrus.Infof("[CustomErrorCategorization] stepID=%s, hasLogFiles=%v", step.ID, logHandles.HasLogFiles())
+	}
 
 	startTime := time.Now()
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on host for step %s %s", step.ID, step.Name))

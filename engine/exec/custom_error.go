@@ -74,33 +74,47 @@ func EnsureLogDirectory() error {
 func CreateCustomErrorCategorizationLogFiles(stepID string, envs map[string]string) *LogFileHandles {
 	handles := &LogFileHandles{}
 
-	if !IsCustomErrorCategorizationEnabled(envs) {
+	// Log env var status for debugging
+	if val, ok := envs[CustomErrorCategorizationEnvVar]; ok {
+		logrus.Infof("[CustomErrorCategorization] stepID=%s, env %s=%s", stepID, CustomErrorCategorizationEnvVar, val)
+	} else {
+		logrus.Infof("[CustomErrorCategorization] stepID=%s, env %s not found in step envs, skipping", stepID, CustomErrorCategorizationEnvVar)
 		return handles
 	}
 
+	if !IsCustomErrorCategorizationEnabled(envs) {
+		logrus.Infof("[CustomErrorCategorization] stepID=%s, feature disabled (value != 'true'), skipping", stepID)
+		return handles
+	}
+
+	logDir := pathConverter(fmt.Sprintf("%s/%s", pipeline.GetSharedVolPath(), HarnessInternalLogsDir))
+	logrus.Infof("[CustomErrorCategorization] stepID=%s, creating log directory: %s", stepID, logDir)
+
 	if err := EnsureLogDirectory(); err != nil {
-		logrus.Warnf("Failed to create log directory for custom error categorization, continuing without log files: %v", err)
+		logrus.Warnf("[CustomErrorCategorization] stepID=%s, failed to create log directory %s: %v", stepID, logDir, err)
 		return handles
 	}
 
 	// Create stdout log file
 	handles.StdoutPath = GetStdoutLogFilePath(stepID)
+	logrus.Infof("[CustomErrorCategorization] stepID=%s, creating stdout log file: %s", stepID, handles.StdoutPath)
 	if f, err := os.Create(handles.StdoutPath); err != nil {
-		logrus.Warnf("Failed to create stdout log file at %s, continuing without it: %v", handles.StdoutPath, err)
+		logrus.Warnf("[CustomErrorCategorization] stepID=%s, failed to create stdout log file: %v", stepID, err)
 		handles.StdoutPath = ""
 	} else {
 		handles.StdoutFile = f
-		logrus.Debugf("Created stdout log file for custom error categorization: %s", handles.StdoutPath)
+		logrus.Infof("[CustomErrorCategorization] stepID=%s, stdout log file created successfully", stepID)
 	}
 
 	// Create stderr log file
 	handles.StderrPath = GetStderrLogFilePath(stepID)
+	logrus.Infof("[CustomErrorCategorization] stepID=%s, creating stderr log file: %s", stepID, handles.StderrPath)
 	if f, err := os.Create(handles.StderrPath); err != nil {
-		logrus.Warnf("Failed to create stderr log file at %s, continuing without it: %v", handles.StderrPath, err)
+		logrus.Warnf("[CustomErrorCategorization] stepID=%s, failed to create stderr log file: %v", stepID, err)
 		handles.StderrPath = ""
 	} else {
 		handles.StderrFile = f
-		logrus.Debugf("Created stderr log file for custom error categorization: %s", handles.StderrPath)
+		logrus.Infof("[CustomErrorCategorization] stepID=%s, stderr log file created successfully", stepID)
 	}
 
 	return handles
