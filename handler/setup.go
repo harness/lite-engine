@@ -262,12 +262,13 @@ func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.Stat
 	}
 
 	// Start the OS stats collection goroutine that writes to the livelog writer
-	cancel := osstats.StartOSStatsStreaming(ctx, logWriter, logger.L)
+	cancel, getSummaryData := osstats.StartOSStatsStreaming(ctx, logWriter, logger.L)
 
-	// Store the writer and cancel function in state for later cleanup (keyed by metrics key)
+	// Store the writer, cancel, and getSummaryData in state for later cleanup (keyed by metrics key)
 	state.SetOSStatsEntry(setupReq.MemoryMetrics, &pipeline.OSStatsEntry{
-		Writer: logWriter,
-		Cancel: cancel,
+		Writer:         logWriter,
+		Cancel:         cancel,
+		GetSummaryData: getSummaryData,
 	})
 
 	logger.L.WithField("memory_metrics", setupReq.MemoryMetrics).

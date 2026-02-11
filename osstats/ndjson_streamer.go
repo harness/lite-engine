@@ -37,7 +37,9 @@ type OSStatsPayload struct {
 
 // OSStatsSummaryPayload is the final NDJSON line written when streaming stops.
 // It includes P90 CPU usage, total cores, and the last memory/disk metrics (same as regular lines).
+// osStatsSummary is always true so consumers can reliably identify this line (e.g. grep "osStatsSummary").
 type OSStatsSummaryPayload struct {
+	OSStatsSummary  bool    `json:"osStatsSummary"`  // true = this line is the P90 summary (last line)
 	P90CPUUsagePct float64 `json:"p90CPUUsagePct"`
 	TotalCPU       int     `json:"totalCPU"`
 	TotalMemory    float64 `json:"totalMemory"`
@@ -49,11 +51,11 @@ type OSStatsSummaryPayload struct {
 }
 
 // StartOSStatsStreaming starts a goroutine that collects OS stats once per second
-// and writes JSON lines to the provided io.Writer (e.g., a livelog.Writer).
-// When the returned cancel function is called, it stops the loop, computes P90 CPU
-// from all samples, and writes one final NDJSON line with p90CPUUsagePct, totalCPU,
-// and the last memory/disk metrics. Returns a cancel function to stop the collection.
-func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) (cancel func()) {
+// and writes JSON lines to the provided io.Writer. Returns (1) a cancel function to
+// stop the collection and (2) getSummaryData to read the collected CPU samples and
+// last payload after cancel. The caller must write the P90 summary to the stream
+// (via WriteP90SummaryToStream) before closing the writer.
+func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) (cancel func(), getSummaryData func() (cpuSamples []float64, lastPayload OSStatsPayload)) {
 	if log == nil {
 		log = logrus.NewEntry(logrus.StandardLogger())
 	}
@@ -71,7 +73,7 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 		runOSStatsLoop(ctx, done, w, log, &cpuUsedPctSamples, &lastPayload)
 	})
 
-	return func() {
+	cancel = func() {
 		stopOnce.Do(func() {
 			select {
 			case <-done:
@@ -81,8 +83,13 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 			}
 		})
 		wg.Wait()
-		// P90 summary is written by the streaming goroutine when it sees done/ctx.Done()
 	}
+
+	getSummaryData = func() ([]float64, OSStatsPayload) {
+		return cpuUsedPctSamples, lastPayload
+	}
+
+	return cancel, getSummaryData
 }
 
 func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *logrus.Entry, cpuSamples *[]float64, lastPayload *OSStatsPayload) {
@@ -92,13 +99,8 @@ func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *l
 	for {
 		select {
 		case <-ctx.Done():
-			// Write P90 summary from this goroutine so it is always in the stream before any close
-			p90 := p90NearestRank(*cpuSamples)
-			writeOSStatsSummaryRecord(w, p90, lastPayload, log)
 			return
 		case <-done:
-			p90 := p90NearestRank(*cpuSamples)
-			writeOSStatsSummaryRecord(w, p90, lastPayload, log)
 			return
 		default:
 		}
@@ -170,19 +172,27 @@ func writeOSStatsRecord(w io.Writer, rec map[string]OSStatsPayload, log *logrus.
 	_, _ = w.Write(append(b, '\n'))
 }
 
-func writeOSStatsSummaryRecord(w io.Writer, p90CPUPct float64, last *OSStatsPayload, log *logrus.Entry) {
+// WriteP90SummaryToStream writes the final P90 summary line to the stream. Call this
+// after stopping the collection (cancel returned from StartOSStatsStreaming) and
+// before closing the writer, so the memory_metrics file always ends with this line.
+func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload OSStatsPayload, log *logrus.Entry) {
 	if w == nil {
 		return
 	}
+	if log == nil {
+		log = logrus.NewEntry(logrus.StandardLogger())
+	}
+	p90 := p90NearestRank(cpuSamples)
 	summary := OSStatsSummaryPayload{
-		P90CPUUsagePct: p90CPUPct,
-		TotalCPU:       last.TotalCPU,
-		TotalMemory:    last.TotalMemory,
-		AvaMemory:      last.AvaMemory,
-		TotalDiskGB:    last.TotalDiskGB,
-		UsedDiskGB:     last.UsedDiskGB,
-		AvaDiskGB:      last.AvaDiskGB,
-		UsedDiskPct:    last.UsedDiskPct,
+		OSStatsSummary:  true,
+		P90CPUUsagePct: p90,
+		TotalCPU:       lastPayload.TotalCPU,
+		TotalMemory:    lastPayload.TotalMemory,
+		AvaMemory:      lastPayload.AvaMemory,
+		TotalDiskGB:    lastPayload.TotalDiskGB,
+		UsedDiskGB:     lastPayload.UsedDiskGB,
+		AvaDiskGB:      lastPayload.AvaDiskGB,
+		UsedDiskPct:    lastPayload.UsedDiskPct,
 	}
 	rec := map[string]OSStatsSummaryPayload{
 		time.Now().UTC().Format(time.RFC3339Nano): summary,
