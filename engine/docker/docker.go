@@ -18,6 +18,7 @@ import (
 	"time"
 
 	dockerimage "github.com/harness/lite-engine/engine/docker/image"
+	"github.com/harness/lite-engine/engine/logutil"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/internal/docker/errors"
 	"github.com/harness/lite-engine/internal/docker/jsonmessage"
@@ -261,21 +262,26 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 				ctxBg, cancel = context.WithTimeout(ctxBg, time.Until(deadline))
 				defer cancel()
 			}
-			e.startContainer(ctxBg, step.ID, pipelineConfig.TTY, output) //nolint:errcheck
+			e.startContainer(ctxBg, step.ID, pipelineConfig.TTY, output, nil) //nolint:errcheck
 			if wr, ok := output.(logstream.Writer); ok {
 				wr.Close()
 			}
 		})
 		return &runtime.State{Exited: false}, nil
 	}
-	return e.startContainer(ctx, step.ID, pipelineConfig.TTY, output)
+
+	// Custom Error Categorization: Create log files when CI_CUSTOM_ERROR_CATEGORIZATION is enabled
+	logHandles := logutil.CreateLogFiles(step.ID, step.Envs)
+	defer logHandles.Close()
+
+	return e.startContainer(ctx, step.ID, pipelineConfig.TTY, output, logHandles)
 }
 
 func (e *Docker) Suspend(ctx context.Context, labels map[string]string) error {
 	return e.destroyStoppedContainers(ctx, labels)
 }
 
-func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, output io.Writer) (*runtime.State, error) {
+func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, output io.Writer, logHandles *logutil.LogFileHandles) (*runtime.State, error) {
 	// start the container
 	startTime := time.Now()
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on container for step %s", stepID))
@@ -294,7 +300,7 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, ou
 		return nil, errors.TrimExtraInfo(err)
 	}
 	// grab the logs from the container execution
-	err = e.logs(ctx, stepID, tty, output)
+	err = e.logs(ctx, stepID, tty, output, logHandles)
 	if err != nil {
 		return nil, errors.TrimExtraInfo(err)
 	}
@@ -494,7 +500,7 @@ func (e *Docker) wait(ctx context.Context, id string) (*runtime.State, error) {
 
 // helper function which emulates the docker logs command and writes the log output to
 // the writer
-func (e *Docker) logs(ctx context.Context, id string, tty bool, output io.Writer) error {
+func (e *Docker) logs(ctx context.Context, id string, tty bool, output io.Writer, logHandles *logutil.LogFileHandles) error {
 	opts := container.LogsOptions{
 		Follow:     true,
 		ShowStdout: true,
@@ -512,8 +518,18 @@ func (e *Docker) logs(ctx context.Context, id string, tty bool, output io.Writer
 	}
 	defer logs.Close()
 
+	// Get stdout and stderr writers (with MultiWriter if custom error categorization is enabled)
+	var stdoutWriter, stderrWriter io.Writer
+	if logHandles != nil && logHandles.HasLogFiles() {
+		stdoutWriter = logHandles.GetStdoutWriter(output)
+		stderrWriter = logHandles.GetStderrWriter(output)
+	} else {
+		stdoutWriter = output
+		stderrWriter = output
+	}
+
 	if tty {
-		_, err = io.Copy(output, logs)
+		_, err = io.Copy(stdoutWriter, logs)
 		if err != nil && err != io.EOF {
 			logger.FromContext(ctx).WithError(err).
 				WithField("container", id).
@@ -521,7 +537,7 @@ func (e *Docker) logs(ctx context.Context, id string, tty bool, output io.Writer
 		}
 	} else {
 		// multiplexed copy of stdout and stderr
-		_, err = stdcopy.StdCopy(output, output, logs)
+		_, err = stdcopy.StdCopy(stdoutWriter, stderrWriter, logs)
 		if err != nil {
 			logger.FromContext(ctx).WithError(err).
 				WithField("container", id).
