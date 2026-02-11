@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -35,41 +34,19 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
-		destroyErr := engine.Destroy(r.Context())
+		ctx := r.Context()
+		destroyErr := engine.Destroy(ctx)
 
-		// upload engine logs
-		if d.LogKey != "" && d.LiteEnginePath != "" {
-			if !d.LogDrone {
-				client := state.GetLogStreamClient()
-				logs, logErr = GetLiteEngineLog(d.LiteEnginePath)
-				if logErr != nil {
-					logger.FromRequest(r).WithField("time", time.Now().
-						Format(time.RFC3339)).WithError(err).Errorln("could not fetch lite engine logs")
-				} else {
-					// error out if logs don't upload in a minute so that the VM can be destroyed
-					ctx, cancel := context.WithTimeout(r.Context(), 1*time.Minute)
-					defer cancel()
-					logErr = client.Upload(ctx, d.LogKey, convert(logs))
-					if logErr != nil {
-						logger.FromRequest(r).WithField("time", time.Now().
-							Format(time.RFC3339)).WithError(err).Errorln("could not upload lite engine logs")
-					} else {
-						// Close lite-engine log stream only if upload was successful
-						if closeErr := closeLELogStream(state); closeErr != nil {
-							logger.FromRequest(r).
-								WithField("time", time.Now().Format(time.RFC3339)).
-								WithError(closeErr).
-								Warnln("api: failed to close lite-engine log stream")
-						}
-					}
-				}
-				if d.StageRuntimeID != "" {
-					pipeline.GetEnvState().Delete(d.StageRuntimeID)
-				}
-			}
-			// else {
-			// TODO: handle drone case for lite engine log upload
-			// }
+		// Close lite-engine log stream to flush logs (always attempt so logs are uploaded)
+		log.Infoln("api: closing lite-engine log stream")
+		if closeErr := closeLELogStream(ctx, state); closeErr != nil {
+			log.WithField("time", time.Now().Format(time.RFC3339)).
+				WithError(closeErr).
+				Warnln("api: failed to close lite-engine log stream")
+		}
+
+		if d.StageRuntimeID != "" {
+			pipeline.GetEnvState().Delete(d.StageRuntimeID)
 		}
 
 		stats := &spec.OSStats{}
@@ -82,18 +59,18 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		// Stop OS stats live streaming and close the writer (which flushes and uploads).
-		if d.MemoryMetricsLogKey != "" {
-			if err := closeOSStatsStream(state, d.MemoryMetricsLogKey); err != nil {
+		if d.MemoryMetrics != "" {
+			if err := closeOSStatsStream(state, d.MemoryMetrics); err != nil {
 				logger.FromRequest(r).
 					WithField("time", time.Now().Format(time.RFC3339)).
-					WithField("memory_metrics", d.MemoryMetricsLogKey).
+					WithField("memory_metrics", d.MemoryMetrics).
 					WithError(err).
 					Warnln("api: failed to close os stats stream")
 			}
 		}
 
-		if destroyErr != nil || logErr != nil {
-			WriteError(w, fmt.Errorf("destroy error: %w, lite engine log error: %v", destroyErr, logErr))
+		if destroyErr != nil {
+			WriteError(w, fmt.Errorf("destroy error: %w", destroyErr))
 			return
 		}
 
