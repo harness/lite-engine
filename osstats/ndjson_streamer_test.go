@@ -37,13 +37,18 @@ func TestStartOSStatsStreaming_WritesNDJSON(t *testing.T) {
 	buf := &safeBuffer{}
 
 	// Start streaming to the buffer
-	cancel := StartOSStatsStreaming(ctx, buf, logrus.NewEntry(logrus.New()))
+	log := logrus.NewEntry(logrus.New())
+	cancel, getSummaryData := StartOSStatsStreaming(ctx, buf, log)
 
 	// Allow at least 1 sample (cpu.Percent waits ~1s)
 	time.Sleep(1200 * time.Millisecond)
 
 	// Stop the streaming
 	cancel()
+
+	// Write P90 summary to stream before "closing" (same as handler does)
+	samples, lastPayload := getSummaryData()
+	WriteP90SummaryToStream(buf, samples, lastPayload, log)
 
 	output := buf.String()
 	lines := strings.Split(strings.TrimSpace(output), "\n")

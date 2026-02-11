@@ -15,6 +15,7 @@ import (
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/osstats"
 	"github.com/harness/lite-engine/pipeline"
 )
 
@@ -105,23 +106,30 @@ func closeLELogStream(_ context.Context, state *pipeline.State) error {
 	return nil
 }
 
-// closeOSStatsStream stops the OS stats collection goroutine and closes the log stream writer for the given key.
+// closeOSStatsStream stops the OS stats collection, writes the P90 summary to the stream,
+// then closes the writer so the memory_metrics file always ends with the summary line.
 func closeOSStatsStream(state *pipeline.State, key string) error {
 	entry := state.GetOSStatsEntry(key)
 	if entry == nil {
 		return nil
 	}
 
-	// First, stop the stats collection goroutine
+	// 1. Stop the stats collection goroutine (no more per-second lines)
 	if entry.Cancel != nil {
 		entry.Cancel()
 	}
 
 	logger.L.
 		WithField("os_stats_key", key).
-		Infoln("api: closing os stats log stream")
+		Infoln("api: writing P90 summary to memory_metrics stream")
 
-	// Close the writer to flush and upload remaining logs
+	// 2. Write the P90 summary to the stream before closing, so it is included in memory_metrics
+	if entry.Writer != nil && entry.GetSummaryData != nil {
+		cpuSamples, lastPayload := entry.GetSummaryData()
+		osstats.WriteP90SummaryToStream(entry.Writer, cpuSamples, lastPayload, logger.L)
+	}
+
+	// 3. Only then close the writer (flush and upload)
 	if entry.Writer != nil {
 		if err := entry.Writer.Close(); err != nil {
 			return fmt.Errorf("failed to close os stats log writer: %w", err)
