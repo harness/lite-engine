@@ -20,8 +20,8 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation/ruby"
 	"github.com/harness/lite-engine/ti/testsplitter"
 	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
-	"github.com/harness/ti-client/types"    //nolint:stylecheck
-	ti "github.com/harness/ti-client/types" //nolint:stylecheck // Aliased import used within this file
+	"github.com/harness/ti-client/types"    //nolint:staticcheck
+	ti "github.com/harness/ti-client/types" //nolint:staticcheck // Aliased import used within this file
 	"github.com/sirupsen/logrus"
 )
 

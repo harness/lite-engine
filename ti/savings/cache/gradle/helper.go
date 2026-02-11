@@ -48,7 +48,7 @@ func parseGradleVerseTimeMs(t string) int64 {
 	return int64(durationMs)
 }
 
-func parseProfileFromHtml(n *html.Node) (gradleTypes.Profile, bool, error) { //nolint:gocyclo,revive,stylecheck
+func parseProfileFromHtml(n *html.Node) (gradleTypes.Profile, bool, error) { //nolint:gocyclo,revive,staticcheck
 	profile := gradleTypes.Profile{}
 	rootNode := JsonNode{}
 	rootNode.populateFrom(n)
@@ -216,7 +216,7 @@ func parseProjectsFromContentDiv(contentDiv *JsonNode) ([]gradleTypes.Project, e
 }
 
 // JsonNode is a JSON-ready representation of an HTML node.
-type JsonNode struct { //nolint:revive,stylecheck
+type JsonNode struct { //nolint:revive,staticcheck
 	// Name is the name/tag of the element
 	Name string `json:"name,omitempty"`
 	// Attributes contains the attributes of the element other than id, class, and href
@@ -224,7 +224,7 @@ type JsonNode struct { //nolint:revive,stylecheck
 	// Class contains the class attribute of the element
 	Class string `json:"class,omitempty"`
 	// Id contains the id attribute of the element
-	Id string `json:"id,omitempty"` //nolint:revive,stylecheck
+	Id string `json:"id,omitempty"` //nolint:revive,staticcheck
 	// Href contains the href attribute of the element
 	Href string `json:"href,omitempty"`
 	// Text contains the inner text of the element

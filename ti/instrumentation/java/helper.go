@@ -22,14 +22,17 @@ import (
 const (
 	AgentArg     = "-javaagent:%s=%s"
 	JavaAgentJar = "java-agent.jar"
+
+	// SkipTestRunMsg is the echo command returned when no tests need to be executed.
+	SkipTestRunMsg = `echo "Skipping test run, received no tests to execute"`
 )
 
 const (
-	JAVA_SRC_PATH      = "src/main/java/"      //nolint:revive,stylecheck
-	JAVA_TEST_PATH     = "src/test/java/"      //nolint:revive,stylecheck
-	JAVA_RESOURCE_PATH = "src/test/resources/" //nolint:revive,stylecheck
-	SCALA_TEST_PATH    = "src/test/scala/"     //nolint:revive,stylecheck
-	KOTLIN_TEST_PATH   = "src/test/kotlin/"    //nolint:revive,stylecheck
+	JAVA_SRC_PATH      = "src/main/java/"      //nolint:revive,staticcheck
+	JAVA_TEST_PATH     = "src/test/java/"      //nolint:revive,staticcheck
+	JAVA_RESOURCE_PATH = "src/test/resources/" //nolint:revive,staticcheck
+	SCALA_TEST_PATH    = "src/test/scala/"     //nolint:revive,staticcheck
+	KOTLIN_TEST_PATH   = "src/test/kotlin/"    //nolint:revive,staticcheck
 )
 
 var (

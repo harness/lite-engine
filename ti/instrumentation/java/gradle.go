@@ -120,7 +120,7 @@ func (g *gradleRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, user
 		return strings.TrimSpace(fmt.Sprintf("%s %s -DHARNESS_JAVA_AGENT=%s %s", gc, userArgs, agentArg, orCmd)), nil
 	}
 	if len(tests) == 0 {
-		return "echo \"Skipping test run, received no tests to execute\"", nil
+		return SkipTestRunMsg, nil
 	}
 	// Use only unique <package, class> tuples
 	set := make(map[ti.RunnableTest]interface{})

@@ -85,7 +85,7 @@ func (m *mavenRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		return strings.TrimSpace(fmt.Sprintf("%s -am -DharnessArgLine=%s -DargLine=%s %s", mavenCmd, instrArg, instrArg, userArgs)), nil
 	}
 	if len(tests) == 0 {
-		return "echo \"Skipping test run, received no tests to execute\"", nil
+		return SkipTestRunMsg, nil
 	}
 
 	// Use only unique <package, class> tuples

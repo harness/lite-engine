@@ -98,6 +98,9 @@ linters:
       - linters:
           - noctx
         path: engine/docker/docker\.go
+      - linters:
+          - noctx
+        path: setup/setup\.go
     paths:
       - third_party$
       - builtin$

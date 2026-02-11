@@ -149,7 +149,7 @@ func (b *bazelRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userA
 		return defaultCmd, nil
 	}
 	if len(tests) == 0 && len(runnerArgs.ModuleList) == 0 {
-		return "echo \"Skipping test run, received no tests to execute\"", nil //nolint:goconst
+		return SkipTestRunMsg, nil
 	}
 	// Populate the test rules in tests
 	tests = getBazelTestRules(ctx, b.log, tests, workspace)

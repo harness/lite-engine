@@ -69,7 +69,7 @@ func (s *sbtRunner) GetCmd(ctx context.Context, tests []ti.RunnableTest, userArg
 		return fmt.Sprintf("%s %s %s 'test'", sbtCmd, userArgs, instrArg), nil
 	}
 	if len(tests) == 0 {
-		return "echo \"Skipping test run, received no tests to execute\"", nil
+		return SkipTestRunMsg, nil
 	}
 
 	// Use only unique classes

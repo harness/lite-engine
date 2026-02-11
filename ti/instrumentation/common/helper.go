@@ -22,20 +22,20 @@ const (
 type NodeType int32
 
 const (
-	NodeType_SOURCE   NodeType = 0 //nolint:revive,stylecheck
-	NodeType_TEST     NodeType = 1 //nolint:revive,stylecheck
-	NodeType_CONF     NodeType = 2 //nolint:revive,stylecheck
-	NodeType_RESOURCE NodeType = 3 //nolint:revive,stylecheck
-	NodeType_OTHER    NodeType = 4 //nolint:revive,stylecheck
+	NodeType_SOURCE   NodeType = 0 //nolint:revive,staticcheck
+	NodeType_TEST     NodeType = 1 //nolint:revive,staticcheck
+	NodeType_CONF     NodeType = 2 //nolint:revive,staticcheck
+	NodeType_RESOURCE NodeType = 3 //nolint:revive,staticcheck
+	NodeType_OTHER    NodeType = 4 //nolint:revive,staticcheck
 )
 
 type LangType int32
 
 const (
-	LangType_JAVA    LangType = 0 //nolint:revive,stylecheck
-	LangType_CSHARP  LangType = 1 //nolint:revive,stylecheck
-	LangType_PYTHON  LangType = 2 //nolint:revive,stylecheck
-	LangType_UNKNOWN LangType = 3 //nolint:revive,stylecheck
+	LangType_JAVA    LangType = 0 //nolint:revive,staticcheck
+	LangType_CSHARP  LangType = 1 //nolint:revive,staticcheck
+	LangType_PYTHON  LangType = 2 //nolint:revive,staticcheck
+	LangType_UNKNOWN LangType = 3 //nolint:revive,staticcheck
 )
 
 // Node holds data about a source code
