@@ -18,7 +18,7 @@ import (
 // OSStatsPayload is the JSON structure for each OS stats record.
 // The JSON line format includes CPU, memory, and disk metrics.
 //
-// Note: Memory and disk values are in MB. CPU values:
+// Note: Memory and disk values are in GB. CPU values:
 // - totalCPU: number of cores
 // - avalCPU: available CPU percent (100 - usedPercent)
 // - disk: root partition (or primary mount); usedPercent is 0 if disk stats unavailable
@@ -27,9 +27,9 @@ type OSStatsPayload struct {
 	TotalCPU      int     `json:"totalCPU"`
 	AvaMemory     float64 `json:"avaMemory"`
 	AvalCPU       float64 `json:"avalCPU"`
-	TotalDiskMB   float64 `json:"totalDiskMB"`
-	UsedDiskMB    float64 `json:"usedDiskMB"`
-	AvaDiskMB     float64 `json:"avaDiskMB"`
+	TotalDiskGB   float64 `json:"totalDiskGB"`
+	UsedDiskGB    float64 `json:"usedDiskGB"`
+	AvaDiskGB     float64 `json:"avaDiskGB"`
 	UsedDiskPct   float64 `json:"usedDiskPct"`
 }
 
@@ -105,17 +105,17 @@ func sampleOSStats() (map[string]OSStatsPayload, error) {
 	}
 
 	payload := OSStatsPayload{
-		TotalMemory: formatMB(vm.Total),
+		TotalMemory: formatGB(vm.Total),
 		TotalCPU:    totalCPU,
-		AvaMemory:   formatMB(vm.Available),
+		AvaMemory:   formatGB(vm.Available),
 		AvalCPU:     avalCPU,
 	}
 
 	// Disk usage for root (or primary) partition; same gopsutil package as cpu/mem
 	if du, err := disk.Usage("/"); err == nil {
-		payload.TotalDiskMB = formatMB(du.Total)
-		payload.UsedDiskMB = formatMB(du.Used)
-		payload.AvaDiskMB = formatMB(du.Free)
+		payload.TotalDiskGB = formatGB(du.Total)
+		payload.UsedDiskGB = formatGB(du.Used)
+		payload.AvaDiskGB = formatGB(du.Free)
 		payload.UsedDiskPct = du.UsedPercent
 	}
 
