@@ -31,7 +31,7 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*pruntime.Stat
 	cmdArgs := step.Entrypoint[1:]
 	cmdArgs = append(cmdArgs, step.Command...)
 
-	cmd := exec.CommandContext(ctx, step.Entrypoint[0], cmdArgs...) //nolint:gosec // nosemgrep
+	cmd := exec.Command(step.Entrypoint[0], cmdArgs...) //nolint:gosec,noctx // nosemgrep — CommandContext not used intentionally: KillProcessOnContextCancel controls process lifecycle
 
 	SetSysProcAttr(cmd, step.User, step.ProcessConfig.KillProcessOnContextCancel)
 

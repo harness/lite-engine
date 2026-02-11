@@ -97,10 +97,7 @@ linters:
         text: 'ST1019:'
       - linters:
           - noctx
-        path: engine/docker/docker\.go
-      - linters:
-          - noctx
-        path: setup/setup\.go
+        path: engine/docker/docker\.go|setup/setup\.go
     paths:
       - third_party$
       - builtin$
