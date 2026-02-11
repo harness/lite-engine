@@ -10,22 +10,27 @@ import (
 
 	"github.com/harness/lite-engine/internal/safego"
 	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/sirupsen/logrus"
 )
 
 // OSStatsPayload is the JSON structure for each OS stats record.
-// The JSON line format matches:
-// {"<timestamp>":{"totalMemory":<val>,"totalCPU":<val>,"avaMemory":<val>,"avalCPU":<val>}}
+// The JSON line format includes CPU, memory, and disk metrics.
 //
-// Note: Memory values are in MB. CPU values:
+// Note: Memory and disk values are in MB. CPU values:
 // - totalCPU: number of cores
 // - avalCPU: available CPU percent (100 - usedPercent)
+// - disk: root partition (or primary mount); usedPercent is 0 if disk stats unavailable
 type OSStatsPayload struct {
-	TotalMemory float64 `json:"totalMemory"`
-	TotalCPU    int     `json:"totalCPU"`
-	AvaMemory   float64 `json:"avaMemory"`
-	AvalCPU     float64 `json:"avalCPU"`
+	TotalMemory   float64 `json:"totalMemory"`
+	TotalCPU      int     `json:"totalCPU"`
+	AvaMemory     float64 `json:"avaMemory"`
+	AvalCPU       float64 `json:"avalCPU"`
+	TotalDiskMB   float64 `json:"totalDiskMB"`
+	UsedDiskMB    float64 `json:"usedDiskMB"`
+	AvaDiskMB     float64 `json:"avaDiskMB"`
+	UsedDiskPct   float64 `json:"usedDiskPct"`
 }
 
 // StartOSStatsStreaming starts a goroutine that collects OS stats once per second
@@ -99,15 +104,23 @@ func sampleOSStats() (map[string]OSStatsPayload, error) {
 		avalCPU = 0
 	}
 
+	payload := OSStatsPayload{
+		TotalMemory: formatMB(vm.Total),
+		TotalCPU:    totalCPU,
+		AvaMemory:   formatMB(vm.Available),
+		AvalCPU:     avalCPU,
+	}
+
+	// Disk usage for root (or primary) partition; same gopsutil package as cpu/mem
+	if du, err := disk.Usage("/"); err == nil {
+		payload.TotalDiskMB = formatMB(du.Total)
+		payload.UsedDiskMB = formatMB(du.Used)
+		payload.AvaDiskMB = formatMB(du.Free)
+		payload.UsedDiskPct = du.UsedPercent
+	}
+
 	ts := time.Now().UTC().Format(time.RFC3339Nano)
-	return map[string]OSStatsPayload{
-		ts: {
-			TotalMemory: formatMB(vm.Total),
-			TotalCPU:    totalCPU,
-			AvaMemory:   formatMB(vm.Available),
-			AvalCPU:     avalCPU,
-		},
-	}, nil
+	return map[string]OSStatsPayload{ts: payload}, nil
 }
 
 func writeOSStatsRecord(w io.Writer, rec map[string]OSStatsPayload, log *logrus.Entry) {
