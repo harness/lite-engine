@@ -61,7 +61,6 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 	done := make(chan struct{})
 	var wg sync.WaitGroup
 	var stopOnce sync.Once
-	var summaryOnce sync.Once
 
 	var cpuUsedPctSamples []float64
 	var lastPayload OSStatsPayload
@@ -82,11 +81,7 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 			}
 		})
 		wg.Wait()
-
-		summaryOnce.Do(func() {
-			p90 := p90NearestRank(cpuUsedPctSamples)
-			writeOSStatsSummaryRecord(w, p90, &lastPayload, log)
-		})
+		// P90 summary is written by the streaming goroutine when it sees done/ctx.Done()
 	}
 }
 
@@ -97,8 +92,13 @@ func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *l
 	for {
 		select {
 		case <-ctx.Done():
+			// Write P90 summary from this goroutine so it is always in the stream before any close
+			p90 := p90NearestRank(*cpuSamples)
+			writeOSStatsSummaryRecord(w, p90, lastPayload, log)
 			return
 		case <-done:
+			p90 := p90NearestRank(*cpuSamples)
+			writeOSStatsSummaryRecord(w, p90, lastPayload, log)
 			return
 		default:
 		}
