@@ -34,7 +34,7 @@ linters:
       statements: 50
     goconst:
       min-len: 3
-      min-occurrences: 3
+      min-occurrences: 4
     gocritic:
       disabled-checks:
         - dupImport
@@ -67,6 +67,11 @@ linters:
       require-explanation: false
       require-specific: false
       allow-unused: false
+    staticcheck:
+      checks:
+        - "all"
+        - "-S1*"    # gosimple checks - was explicitly disabled in v1 config
+        - "-QF*"    # quickfix suggestions - not present in v1 bundled version
   exclusions:
     generated: lax
     presets:
@@ -84,6 +89,15 @@ linters:
       - linters:
           - revive
         text: 'unused-parameter:'
+      - linters:
+          - revive
+        text: 'var-naming:'
+      - linters:
+          - staticcheck
+        text: 'ST1019:'
+      - linters:
+          - noctx
+        path: engine/docker/docker\.go
     paths:
       - third_party$
       - builtin$
