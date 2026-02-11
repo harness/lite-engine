@@ -12,16 +12,15 @@ import (
 
 	"github.com/harness/lite-engine/internal/safego"
 	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/sirupsen/logrus"
 )
 
 // OSStatsPayload is the JSON structure for each OS stats record.
 // The JSON line format matches:
-// {"<timestamp>":{"totalMemory":<val>,"totalCPU":<val>,"avaMemory":<val>,"avalCPU":<val>,"totalDisk":<val>,"avaDisk":<val>}}
+// {"<timestamp>":{"totalMemory":<val>,"totalCPU":<val>,"avaMemory":<val>,"avalCPU":<val>}}
 //
-// Note: Memory and Disk values are in MB. CPU values:
+// Note: Memory values are in MB. CPU values:
 // - totalCPU: number of cores
 // - avalCPU: available CPU percent (100 - usedPercent)
 type OSStatsPayload struct {
@@ -29,12 +28,6 @@ type OSStatsPayload struct {
 	TotalCPU    int     `json:"totalCPU"`
 	AvaMemory   float64 `json:"avaMemory"`
 	AvalCPU     float64 `json:"avalCPU"`
-	TotalDisk   float64 `json:"totalDisk"`
-	AvaDisk     float64 `json:"avaDisk"`
-}
-
-type osStatsSummaryPayload struct {
-	P90CPUUsagePct float64 `json:"p90CPUUsagePct"`
 }
 
 // StartOSStatsStreaming starts a goroutine that collects OS stats once per second
@@ -116,11 +109,6 @@ func sampleOSStats() (map[string]OSStatsPayload, float64, error) {
 		return nil, 0, err
 	}
 
-	du, err := disk.Usage(defaultDiskUsagePath())
-	if err != nil {
-		return nil, 0, err
-	}
-
 	totalCPU := runtime.NumCPU()
 	usedCPU := percent[0]
 	avalCPU := 100.0 - usedCPU
@@ -135,19 +123,8 @@ func sampleOSStats() (map[string]OSStatsPayload, float64, error) {
 			TotalCPU:    totalCPU,
 			AvaMemory:   formatMB(vm.Available),
 			AvalCPU:     avalCPU,
-			TotalDisk:   formatMB(du.Total),
-			AvaDisk:     formatMB(du.Free),
 		},
 	}, usedCPU, nil
-}
-
-func defaultDiskUsagePath() string {
-	// disk.Usage expects a mount point or path. "/" works for unix-likes; for
-	// windows we default to the system drive.
-	if runtime.GOOS == "windows" {
-		return `C:\`
-	}
-	return "/"
 }
 
 func writeOSStatsRecord(w io.Writer, rec map[string]OSStatsPayload, log *logrus.Entry) {
