@@ -88,7 +88,9 @@ func TestStartOSStatsStreaming_WritesNDJSON(t *testing.T) {
 		if s.TotalCPU == 0 {
 			t.Fatalf("expected totalCPU in summary; got %+v", s)
 		}
-		// p90CPUUsagePct is always present (0 if no samples)
+		// Summary must include the three CPU metrics: peak, avgUtilization, p90
+		_ = s.PeakCPUUsagePct
+		_ = s.AvgCPUUsagePct
 		_ = s.P90CPUUsagePct
 	}
 }
