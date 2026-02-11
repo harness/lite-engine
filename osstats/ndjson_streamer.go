@@ -36,18 +36,21 @@ type OSStatsPayload struct {
 }
 
 // OSStatsSummaryPayload is the final NDJSON line written when streaming stops.
-// It includes P90 CPU usage, total cores, and the last memory/disk metrics (same as regular lines).
-// osStatsSummary is always true so consumers can reliably identify this line (e.g. grep "osStatsSummary").
+// It includes the three required CPU metrics (peak, avgUtilization, p90), total cores,
+// and the last memory/disk metrics. osStatsSummary is always true so consumers can
+// reliably identify this line (e.g. grep "osStatsSummary").
 type OSStatsSummaryPayload struct {
-	OSStatsSummary  bool    `json:"osStatsSummary"`  // true = this line is the P90 summary (last line)
-	P90CPUUsagePct float64 `json:"p90CPUUsagePct"`
-	TotalCPU       int     `json:"totalCPU"`
-	TotalMemory    float64 `json:"totalMemory"`
-	AvaMemory      float64 `json:"avaMemory"`
-	TotalDiskGB    float64 `json:"totalDiskGB"`
-	UsedDiskGB     float64 `json:"usedDiskGB"`
-	AvaDiskGB      float64 `json:"avaDiskGB"`
-	UsedDiskPct    float64 `json:"usedDiskPct"`
+	OSStatsSummary   bool    `json:"osStatsSummary"`   // true = this line is the summary (last line)
+	PeakCPUUsagePct float64 `json:"peakCPUUsagePct"`  // max (peak) CPU utilization %
+	AvgCPUUsagePct  float64 `json:"avgCPUUsagePct"`   // average CPU utilization %
+	P90CPUUsagePct  float64 `json:"p90CPUUsagePct"`   // P90 CPU utilization %
+	TotalCPU        int     `json:"totalCPU"`
+	TotalMemory     float64 `json:"totalMemory"`
+	AvaMemory       float64 `json:"avaMemory"`
+	TotalDiskGB     float64 `json:"totalDiskGB"`
+	UsedDiskGB      float64 `json:"usedDiskGB"`
+	AvaDiskGB       float64 `json:"avaDiskGB"`
+	UsedDiskPct     float64 `json:"usedDiskPct"`
 }
 
 // StartOSStatsStreaming starts a goroutine that collects OS stats once per second
@@ -172,9 +175,10 @@ func writeOSStatsRecord(w io.Writer, rec map[string]OSStatsPayload, log *logrus.
 	_, _ = w.Write(append(b, '\n'))
 }
 
-// WriteP90SummaryToStream writes the final P90 summary line to the stream. Call this
-// after stopping the collection (cancel returned from StartOSStatsStreaming) and
-// before closing the writer, so the memory_metrics file always ends with this line.
+// WriteP90SummaryToStream writes the final summary line to the stream with the three
+// CPU metrics: peak (max), avgUtilization (average), and p90. Call this after
+// stopping the collection (cancel returned from StartOSStatsStreaming) and before
+// closing the writer, so the memory_metrics file always ends with this line.
 func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload OSStatsPayload, log *logrus.Entry) {
 	if w == nil {
 		return
@@ -182,17 +186,20 @@ func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload OSSt
 	if log == nil {
 		log = logrus.NewEntry(logrus.StandardLogger())
 	}
+	peak, avg := peakAndAvg(cpuSamples)
 	p90 := p90NearestRank(cpuSamples)
 	summary := OSStatsSummaryPayload{
-		OSStatsSummary:  true,
-		P90CPUUsagePct: p90,
-		TotalCPU:       lastPayload.TotalCPU,
-		TotalMemory:    lastPayload.TotalMemory,
-		AvaMemory:      lastPayload.AvaMemory,
-		TotalDiskGB:    lastPayload.TotalDiskGB,
-		UsedDiskGB:     lastPayload.UsedDiskGB,
-		AvaDiskGB:      lastPayload.AvaDiskGB,
-		UsedDiskPct:    lastPayload.UsedDiskPct,
+		OSStatsSummary:   true,
+		PeakCPUUsagePct: peak,
+		AvgCPUUsagePct:  avg,
+		P90CPUUsagePct:  p90,
+		TotalCPU:        lastPayload.TotalCPU,
+		TotalMemory:     lastPayload.TotalMemory,
+		AvaMemory:       lastPayload.AvaMemory,
+		TotalDiskGB:     lastPayload.TotalDiskGB,
+		UsedDiskGB:      lastPayload.UsedDiskGB,
+		AvaDiskGB:       lastPayload.AvaDiskGB,
+		UsedDiskPct:     lastPayload.UsedDiskPct,
 	}
 	rec := map[string]OSStatsSummaryPayload{
 		time.Now().UTC().Format(time.RFC3339Nano): summary,
@@ -203,6 +210,21 @@ func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload OSSt
 		return
 	}
 	_, _ = w.Write(append(b, '\n'))
+}
+
+// peakAndAvg returns the max (peak) and average of the given CPU usage samples.
+func peakAndAvg(values []float64) (peak, avg float64) {
+	if len(values) == 0 {
+		return 0, 0
+	}
+	var sum float64
+	for _, v := range values {
+		if v > peak {
+			peak = v
+		}
+		sum += v
+	}
+	return peak, sum / float64(len(values))
 }
 
 // p90NearestRank computes the 90th percentile (nearest-rank) of the given samples.
