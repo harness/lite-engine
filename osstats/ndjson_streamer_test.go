@@ -66,4 +66,24 @@ func TestStartOSStatsStreaming_WritesNDJSON(t *testing.T) {
 			t.Fatalf("expected totalCPU in payload; got %+v", payload)
 		}
 	}
+
+	// Last line must be the P90 summary with totalCPU and same memory/disk metrics
+	lastLine := strings.TrimSpace(lines[len(lines)-1])
+	if lastLine == "" {
+		t.Fatalf("expected non-empty last line (summary)")
+	}
+	var summaryRec map[string]OSStatsSummaryPayload
+	if err := json.Unmarshal([]byte(lastLine), &summaryRec); err != nil {
+		t.Fatalf("unmarshal last line (summary): %v; line=%q", err, lastLine)
+	}
+	if len(summaryRec) != 1 {
+		t.Fatalf("expected exactly 1 timestamp key in summary, got %d", len(summaryRec))
+	}
+	for _, s := range summaryRec {
+		if s.TotalCPU == 0 {
+			t.Fatalf("expected totalCPU in summary; got %+v", s)
+		}
+		// p90CPUUsagePct is always present (0 if no samples)
+		_ = s.P90CPUUsagePct
+	}
 }
