@@ -274,7 +274,14 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	logHandles := logutil.CreateLogFiles(step.ID, step.Envs)
 	defer logHandles.Close()
 
-	return e.startContainer(ctx, step.ID, pipelineConfig.TTY, output, logHandles)
+	state, err := e.startContainer(ctx, step.ID, pipelineConfig.TTY, output, logHandles)
+
+	// Cleanup log files on success
+	if logHandles != nil && err == nil && state != nil && state.ExitCode == 0 {
+		logHandles.Cleanup()
+	}
+
+	return state, err
 }
 
 func (e *Docker) Suspend(ctx context.Context, labels map[string]string) error {

@@ -116,6 +116,22 @@ func (h *LogFileHandles) Close() {
 	}
 }
 
+// Cleanup closes and removes the log files
+func (h *LogFileHandles) Cleanup() {
+	h.Close()
+
+	if h.StdoutPath != "" {
+		if err := os.Remove(h.StdoutPath); err != nil && !os.IsNotExist(err) {
+			logrus.Warnf("Failed to cleanup stdout log file at %s: %v", h.StdoutPath, err)
+		}
+	}
+	if h.StderrPath != "" {
+		if err := os.Remove(h.StderrPath); err != nil && !os.IsNotExist(err) {
+			logrus.Warnf("Failed to cleanup stderr log file at %s: %v", h.StderrPath, err)
+		}
+	}
+}
+
 // GetStdoutWriter returns an io.Writer that writes to both the original output and the stdout log file
 func (h *LogFileHandles) GetStdoutWriter(originalOutput io.Writer) io.Writer {
 	if h.StdoutFile != nil {
