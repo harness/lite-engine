@@ -78,6 +78,10 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*pruntime.Stat
 		return nil, fmt.Errorf("command context completed with error %v", ctx.Err())
 	case result := <-cmdSignal:
 		logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on host for step %s, took %.2f seconds", step.ID, time.Since(startTime).Seconds()))
+		// Cleanup log files on success
+		if logHandles != nil && result.err == nil && result.state != nil && result.state.ExitCode == 0 {
+			logHandles.Cleanup()
+		}
 		return result.state, result.err
 	}
 }
