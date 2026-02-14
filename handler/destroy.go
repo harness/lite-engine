@@ -15,6 +15,7 @@ import (
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/osstats"
 	"github.com/harness/lite-engine/pipeline"
 )
@@ -60,11 +61,13 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		// Stop OS stats live streaming and close the writer (which flushes and uploads).
-		if d.MemoryMetrics != "" {
-			if err := closeOSStatsStream(state, d.MemoryMetrics); err != nil {
+		// Close all OS stats streams so the P90 summary is always written before upload,
+		// even if destroy is called without MemoryMetrics or stream was closed elsewhere.
+		for _, key := range state.GetAllOSStatsKeys() {
+			if err := closeOSStatsStream(state, key); err != nil {
 				logger.FromRequest(r).
 					WithField("time", time.Now().Format(time.RFC3339)).
-					WithField("memory_metrics", d.MemoryMetrics).
+					WithField("memory_metrics", key).
 					WithError(err).
 					Warnln("api: failed to close os stats stream")
 			}
@@ -127,6 +130,10 @@ func closeOSStatsStream(state *pipeline.State, key string) error {
 	if entry.Writer != nil && entry.GetSummaryData != nil {
 		cpuSamples, lastPayload := entry.GetSummaryData()
 		osstats.WriteP90SummaryToStream(entry.Writer, cpuSamples, lastPayload, logger.L)
+		// Flush so the summary is sent to the stream before Close() runs (upload + stream close)
+		if lw, ok := entry.Writer.(*livelog.Writer); ok {
+			_ = lw.Flush()
+		}
 	}
 
 	// 3. Only then close the writer (flush and upload)
