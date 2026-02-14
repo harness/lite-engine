@@ -263,6 +263,12 @@ func (b *Writer) upload() error {
 	return b.client.Upload(b.ctx, b.key, b.history)
 }
 
+// Flush sends any buffered log lines to the stream. Call after writing the final
+// summary line so it is included before Close() uploads and closes the stream.
+func (b *Writer) Flush() error {
+	return b.flush()
+}
+
 // flush batch uploads all buffered logs to the server.
 func (b *Writer) flush() error {
 	if !b.opened {
