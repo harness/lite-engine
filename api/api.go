@@ -235,7 +235,6 @@ type (
 		TargetBranch string `json:"target_branch,omitempty"`
 		CommitBranch string `json:"commit_branch,omitempty"`
 		CommitLink   string `json:"commit_link,omitempty"`
-		ParseSavings bool   `json:"parse_savings,omitempty"`
 	}
 
 	// AnnotationsConfig carries configuration for posting annotations to Pipeline Service
