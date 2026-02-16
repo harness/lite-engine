@@ -114,12 +114,6 @@ func (c *Cfg) GetIgnoreInstr() bool {
 	return c.ignoreInstr
 }
 
-// Deprecated: GetParseSavings is deprecated. Savings parsing is now always enabled.
-// This method now always returns true for backward compatibility.
-func (c *Cfg) GetParseSavings() bool {
-	return true
-}
-
 func (c *Cfg) WriteFeatureState(stepID string, feature types.SavingsFeature, state types.IntelligenceExecutionState) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
