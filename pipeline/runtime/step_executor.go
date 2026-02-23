@@ -15,6 +15,7 @@ import (
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
+	errorparser "github.com/harness/lite-engine/engine/errors"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/internal/safego"
@@ -314,6 +315,9 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 
 func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
 	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
+	// Temporary test for YAML parsing
+	testYAMLParsing(r)
+
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, nil, nil, nil, "", err
@@ -583,6 +587,36 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 		r.Error = stepErr.Error()
 	}
 	return r
+}
+
+// testYAMLParsing is a temporary test function to verify YAML parsing and caching works correctly
+func testYAMLParsing(r *api.StartStepRequest) {
+	logrus.WithField("step_id", r.ID).Infoln("TEST_YAML_PARSE: Starting YAML parsing test")
+
+	// Resolve path (resolver logs will show source)
+	yamlPath, err := errorparser.ResolveErrorsYAMLPath(r)
+	if err != nil {
+		logrus.WithField("step_id", r.ID).WithError(err).Infoln("TEST_YAML_PARSE: No errors.yaml found")
+		return
+	}
+
+	// Parse (cache logs will show hit/miss)
+	rules, err := errorparser.GetCachedRulesOrParse(yamlPath, func() (*errorparser.ErrorRules, error) {
+		return errorparser.ParseErrorsYAML(yamlPath)
+	})
+
+	if err != nil {
+		logrus.WithField("step_id", r.ID).WithError(err).Warnln("TEST_YAML_PARSE: Failed to parse YAML")
+		return
+	}
+
+	if rules != nil && rules.Config != nil {
+		logrus.WithFields(logrus.Fields{
+			"step_id":     r.ID,
+			"version":     rules.Config.Version,
+			"rule_groups": len(rules.Config.RuleGroups),
+		}).Infoln("TEST_YAML_PARSE: Parsed rules summary")
+	}
 }
 
 func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VMTaskExecutionResponse {
