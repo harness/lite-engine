@@ -13,6 +13,7 @@ import (
 	"time"
 
 	pruntime "github.com/drone/runner-go/pipeline/runtime"
+	"github.com/harness/lite-engine/engine/logutil"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/internal/safego"
 	"github.com/sirupsen/logrus"
@@ -37,8 +38,20 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*pruntime.Stat
 
 	cmd.Dir = step.WorkingDir
 	cmd.Env = spec.ToEnv(step.Envs)
-	cmd.Stderr = output
-	cmd.Stdout = output
+
+	// Custom Error Categorization: Create log files when CI_CUSTOM_ERROR_CATEGORIZATION is enabled
+	var logHandles *logutil.LogFileHandles
+	if step.Detach {
+		// Skip log file creation for detach/background steps
+		cmd.Stdout = output
+		cmd.Stderr = output
+	} else {
+		logHandles = logutil.CreateLogFiles(step.ID, step.Envs)
+		defer logHandles.Close()
+		// Use MultiWriter to write to both original output and log files
+		cmd.Stdout = logHandles.GetStdoutWriter(output)
+		cmd.Stderr = logHandles.GetStderrWriter(output)
+	}
 
 	startTime := time.Now()
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting command on host for step %s %s", step.ID, step.Name))
@@ -65,6 +78,10 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*pruntime.Stat
 		return nil, fmt.Errorf("command context completed with error %v", ctx.Err())
 	case result := <-cmdSignal:
 		logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed command on host for step %s, took %.2f seconds", step.ID, time.Since(startTime).Seconds()))
+		// Cleanup log files on success
+		if logHandles != nil && result.err == nil && result.state != nil && result.state.ExitCode == 0 {
+			logHandles.Cleanup()
+		}
 		return result.state, result.err
 	}
 }
