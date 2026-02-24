@@ -10,9 +10,9 @@ const (
 	FieldKeyStandardOutput      = "standardOutput"      // Step stdout
 	FieldKeyStandardErrorOutput = "standardErrorOutput" // Step stderr
 	FieldKeyErrorCode           = "errorCode"           // Exit code
-	FieldKeyStepId              = "stepId"              // Step identifier
-	FieldKeyStageId             = "stageId"             // Stage identifier
-	FieldKeyPipelineId          = "pipelineId"          // Pipeline identifier
+	FieldKeyStepID              = "stepId"              // Step identifier
+	FieldKeyStageID             = "stageId"             // Stage identifier
+	FieldKeyPipelineID          = "pipelineId"          // Pipeline identifier
 )
 
 // Operands for condition matching
@@ -78,7 +78,7 @@ type RuleGroup struct {
 // This struct is used internally by validateConditionExpression when validating leaf conditions
 // RuleGroup only uses ConditionExpression (unified format)
 type Condition struct {
-	Key     string      `yaml:"key"`     // e.g., FieldKeyStandardOutput, FieldKeyStandardErrorOutput, FieldKeyErrorCode, FieldKeyStepId, FieldKeyStageId, FieldKeyPipelineId
+	Key     string      `yaml:"key"`     // e.g., FieldKeyStandardOutput, FieldKeyStandardErrorOutput, FieldKeyErrorCode, FieldKeyStepID, FieldKeyStageID, FieldKeyPipelineID
 	Operand string      `yaml:"operand"` // e.g., OperandContains, OperandIs, OperandRegex, OperandIsNot, OperandDoesNotMatch
 	Value   interface{} `yaml:"value"`   // The value to match against (string, int, etc.)
 }
@@ -88,7 +88,7 @@ type ConditionExpression struct {
 	Operator   string                `yaml:"operator"`   // OperatorAND or OperatorOR
 	Conditions []ConditionExpression `yaml:"conditions"` // Nested conditions
 	// For leaf conditions (actual condition data)
-	Key     string      `yaml:"key,omitempty"`     // e.g., FieldKeyStandardOutput, FieldKeyStandardErrorOutput, FieldKeyErrorCode, FieldKeyStepId, FieldKeyStageId, FieldKeyPipelineId
+	Key     string      `yaml:"key,omitempty"`     // e.g., FieldKeyStandardOutput, FieldKeyStandardErrorOutput, FieldKeyErrorCode, FieldKeyStepID, FieldKeyStageID, FieldKeyPipelineID
 	Operand string      `yaml:"operand,omitempty"` // e.g., OperandContains, OperandIs, OperandRegex, OperandIsNot, OperandDoesNotMatch
 	Value   interface{} `yaml:"value,omitempty"`
 }

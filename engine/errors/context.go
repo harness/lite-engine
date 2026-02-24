@@ -18,15 +18,15 @@ const (
 )
 
 // StepContext contains the execution context for error rule evaluation
-// Contains only metadata identifiers (exitCode, stepId, stageId, pipelineId)
+// Contains only metadata identifiers (exitCode, stepID, stageID, pipelineID)
 // Log file paths are stored for line-by-line streaming during evaluation — content is NOT loaded into memory
 type StepContext struct {
 	StdoutPath string // Path to stdout log file (streamed line-by-line during evaluation)
 	StderrPath string // Path to stderr log file (streamed line-by-line during evaluation)
 	ErrorCode  int    // Exit code from step execution
-	StepId     string // Step identifier (from step request)
-	StageId    string // Stage identifier (from environment)
-	PipelineId string // Pipeline identifier (from environment)
+	StepID     string // Step identifier (from step request)
+	StageID    string // Stage identifier (from environment)
+	PipelineID string // Pipeline identifier (from environment)
 }
 
 // BuildStepContext builds step execution context from available data sources
@@ -39,18 +39,18 @@ func BuildStepContext(step *api.StartStepRequest, exitCode int) (*StepContext, e
 	}
 
 	// Get step identifier
-	ctx.StepId = step.ID
+	ctx.StepID = step.ID
 
 	// Get stage identifier from step environment variables
 	if stageID, ok := step.Envs[HarnessStageIDEnv]; ok && stageID != "" {
-		ctx.StageId = stageID
+		ctx.StageID = stageID
 	} else {
 		logrus.WithField("step_id", step.ID).Debug("Could not get stage ID from step envs, using empty string")
 	}
 
 	// Get pipeline identifier from step environment variables
 	if pipelineID, ok := step.Envs[HarnessPipelineIDEnv]; ok && pipelineID != "" {
-		ctx.PipelineId = pipelineID
+		ctx.PipelineID = pipelineID
 	} else {
 		logrus.WithField("step_id", step.ID).Debug("Could not get pipeline ID from step envs, using empty string")
 	}
@@ -66,12 +66,12 @@ func BuildStepContext(step *api.StartStepRequest, exitCode int) (*StepContext, e
 	ctx.StderrPath = logutil.GetStderrLogFilePath(step.ID)
 
 	logrus.WithFields(logrus.Fields{
-		"step_id":     ctx.StepId,
+		"step_id":     ctx.StepID,
 		"stdout_path": ctx.StdoutPath,
 		"stderr_path": ctx.StderrPath,
 		"error_code":  ctx.ErrorCode,
-		"stage_id":    ctx.StageId,
-		"pipeline_id": ctx.PipelineId,
+		"stage_id":    ctx.StageID,
+		"pipeline_id": ctx.PipelineID,
 	}).Debug("Built step context")
 
 	return ctx, nil

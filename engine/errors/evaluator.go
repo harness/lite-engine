@@ -65,9 +65,11 @@ const (
 // scannerBufPool provides reusable 64KB buffers for file scanning via sync.Pool
 // Reduces GC pressure when multiple steps fail concurrently
 // Memory: ~65KB per active scan, ~130KB per step (2 files), ~13MB for 100 concurrent failures
+// Uses *[]byte to avoid allocations when putting back into pool (SA6002)
 var scannerBufPool = sync.Pool{
 	New: func() interface{} {
-		return make([]byte, MaxLineSize)
+		buf := make([]byte, MaxLineSize)
+		return &buf
 	},
 }
 
@@ -161,7 +163,7 @@ func EvaluateRules(rules *ErrorRules, stepContext *StepContext) (*ErrorCategoriz
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"step_id":           stepContext.StepId,
+		"step_id":           stepContext.StepID,
 		"stdout_conditions": len(stdoutConds),
 		"stderr_conditions": len(stderrConds),
 		"duration_ms":       time.Since(phase1Start).Milliseconds(),
@@ -174,7 +176,7 @@ func EvaluateRules(rules *ErrorRules, stepContext *StepContext) (*ErrorCategoriz
 			logrus.WithError(err).Warn("Log file scanning encountered errors, continuing with partial results")
 		}
 		logrus.WithFields(logrus.Fields{
-			"step_id":     stepContext.StepId,
+			"step_id":     stepContext.StepID,
 			"duration_ms": time.Since(phase2Start).Milliseconds(),
 		}).Info("Phase 2 complete: log file scanning")
 	} else {
@@ -221,7 +223,7 @@ func EvaluateRules(rules *ErrorRules, stepContext *StepContext) (*ErrorCategoriz
 			}
 
 			logrus.WithFields(logrus.Fields{
-				"step_id":                      stepContext.StepId,
+				"step_id":                      stepContext.StepID,
 				"rule_group":                   group.Name,
 				"category":                     categorization.Category,
 				"subcategory":                  categorization.Subcategory,
@@ -234,7 +236,7 @@ func EvaluateRules(rules *ErrorRules, stepContext *StepContext) (*ErrorCategoriz
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"step_id":                      stepContext.StepId,
+		"step_id":                      stepContext.StepID,
 		"phase3_duration_ms":           time.Since(phase3Start).Milliseconds(),
 		"total_evaluation_duration_ms": time.Since(evalStart).Milliseconds(),
 	}).Info("No rule groups matched")
@@ -317,14 +319,14 @@ func collectLogConditions(expr *ConditionExpression, stdout, stderr *[]logCondit
 // ==============================
 
 // logFileSize logs the size of a log file before scanning for performance tracking
-func logFileSize(path, label, stepId string, needed bool) {
+func logFileSize(path, label, stepID string, needed bool) {
 	if !needed {
 		return
 	}
 	info, err := os.Stat(path)
 	if err != nil {
 		logrus.WithFields(logrus.Fields{
-			"step_id": stepId,
+			"step_id": stepID,
 			"file":    label,
 			"path":    path,
 		}).Debug("Log file not found for size check")
@@ -334,7 +336,7 @@ func logFileSize(path, label, stepId string, needed bool) {
 	sizeMB := float64(sizeBytes) / (1024 * 1024)
 	tailOnly := sizeBytes > MaxLogFileSize
 	logrus.WithFields(logrus.Fields{
-		"step_id":    stepId,
+		"step_id":    stepID,
 		"file":       label,
 		"size_bytes": sizeBytes,
 		"size_mb":    fmt.Sprintf("%.2f", sizeMB),
@@ -350,8 +352,8 @@ func scanLogFiles(ctx context.Context, stepContext *StepContext, stdoutConds, st
 	needsStderr := len(stderrConds) > 0
 
 	// Log file sizes before scanning for stress test validation
-	logFileSize(stepContext.StdoutPath, "stdout", stepContext.StepId, needsStdout)
-	logFileSize(stepContext.StderrPath, "stderr", stepContext.StepId, needsStderr)
+	logFileSize(stepContext.StdoutPath, "stdout", stepContext.StepID, needsStdout)
+	logFileSize(stepContext.StderrPath, "stderr", stepContext.StepID, needsStderr)
 
 	// Parallel scanning when both files needed
 	if needsStdout && needsStderr {
@@ -428,11 +430,11 @@ func scanFileForConditions(ctx context.Context, filePath string, conditions []lo
 	}
 
 	// Get pooled buffer (64KB initial)
-	buf := scannerBufPool.Get().([]byte)
-	defer scannerBufPool.Put(buf)
+	bufPtr := scannerBufPool.Get().(*[]byte)
+	defer scannerBufPool.Put(bufPtr)
 
 	scanner := bufio.NewScanner(file)
-	scanner.Buffer(buf, MaxScannerBufSize) // 64KB initial, 512KB max
+	scanner.Buffer(*bufPtr, MaxScannerBufSize) // 64KB initial, 512KB max
 
 	// After seeking mid-file, the first read lands on a partial line — discard it
 	if tailSeeked {
@@ -684,12 +686,12 @@ func evaluateLeafFromCache(key, operand string, value interface{}, stepContext *
 	switch key {
 	case FieldKeyErrorCode:
 		return evaluateIntCondition(operand, stepContext.ErrorCode, value)
-	case FieldKeyStepId:
-		return evaluateStringCondition(operand, stepContext.StepId, value)
-	case FieldKeyStageId:
-		return evaluateStringCondition(operand, stepContext.StageId, value)
-	case FieldKeyPipelineId:
-		return evaluateStringCondition(operand, stepContext.PipelineId, value)
+	case FieldKeyStepID:
+		return evaluateStringCondition(operand, stepContext.StepID, value)
+	case FieldKeyStageID:
+		return evaluateStringCondition(operand, stepContext.StageID, value)
+	case FieldKeyPipelineID:
+		return evaluateStringCondition(operand, stepContext.PipelineID, value)
 	default:
 		return false, fmt.Errorf("unknown field key: %s", key)
 	}

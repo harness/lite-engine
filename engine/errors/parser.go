@@ -185,13 +185,13 @@ func validateCondition(condition *Condition, context string) error {
 		FieldKeyStandardOutput:      true,
 		FieldKeyStandardErrorOutput: true,
 		FieldKeyErrorCode:           true,
-		FieldKeyStepId:              true,
-		FieldKeyStageId:             true,
-		FieldKeyPipelineId:          true,
+		FieldKeyStepID:              true,
+		FieldKeyStageID:             true,
+		FieldKeyPipelineID:          true,
 	}
 	if !validFieldKeys[condition.Key] {
 		return fmt.Errorf("%s has invalid key '%s', must be one of: %s, %s, %s, %s, %s, %s", context, condition.Key,
-			FieldKeyStandardOutput, FieldKeyStandardErrorOutput, FieldKeyErrorCode, FieldKeyStepId, FieldKeyStageId, FieldKeyPipelineId)
+			FieldKeyStandardOutput, FieldKeyStandardErrorOutput, FieldKeyErrorCode, FieldKeyStepID, FieldKeyStageID, FieldKeyPipelineID)
 	}
 
 	if condition.Operand == "" {
