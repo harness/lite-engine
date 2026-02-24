@@ -36,21 +36,15 @@ type OSStatsPayload struct {
 }
 
 // OSStatsSummaryPayload is the final NDJSON line written when streaming stops.
-// It includes the three required CPU metrics (peak, avgUtilization, p90), total cores,
-// and the last memory/disk metrics. osStatsSummary is always true so consumers can
-// reliably identify this line (e.g. grep "osStatsSummary").
+// It embeds OSStatsPayload for memory/disk metrics and adds the three CPU summary
+// metrics (peak, avgUtilization, p90). osStatsSummary is always true so consumers
+// can reliably identify this line (e.g. grep "osStatsSummary").
 type OSStatsSummaryPayload struct {
-	OSStatsSummary   bool    `json:"osStatsSummary"`   // true = this line is the summary (last line)
-	PeakCPUUsagePct float64 `json:"peakCPUUsagePct"`  // max (peak) CPU utilization %
-	AvgCPUUsagePct  float64 `json:"avgCPUUsagePct"`   // average CPU utilization %
-	P90CPUUsagePct  float64 `json:"p90CPUUsagePct"`   // P90 CPU utilization %
-	TotalCPU        int     `json:"totalCPU"`
-	TotalMemory     float64 `json:"totalMemory"`
-	AvaMemory       float64 `json:"avaMemory"`
-	TotalDiskGB     float64 `json:"totalDiskGB"`
-	UsedDiskGB      float64 `json:"usedDiskGB"`
-	AvaDiskGB       float64 `json:"avaDiskGB"`
-	UsedDiskPct     float64 `json:"usedDiskPct"`
+	OSStatsSummary  bool    `json:"osStatsSummary"`  // true = this line is the summary (last line)
+	PeakCPUUsagePct float64 `json:"peakCPUUsagePct"` // max (peak) CPU utilization %
+	AvgCPUUsagePct  float64 `json:"avgCPUUsagePct"`  // average CPU utilization %
+	P90CPUUsagePct  float64 `json:"p90CPUUsagePct"`  // P90 CPU utilization %
+	OSStatsPayload          // Embedded: TotalCPU, TotalMemory, AvaMemory, AvalCPU, disk fields
 }
 
 // StartOSStatsStreaming starts a goroutine that collects OS stats once per second
@@ -189,17 +183,11 @@ func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload OSSt
 	peak, avg := peakAndAvg(cpuSamples)
 	p90 := p90NearestRank(cpuSamples)
 	summary := OSStatsSummaryPayload{
-		OSStatsSummary:   true,
+		OSStatsSummary:  true,
 		PeakCPUUsagePct: peak,
 		AvgCPUUsagePct:  avg,
 		P90CPUUsagePct:  p90,
-		TotalCPU:        lastPayload.TotalCPU,
-		TotalMemory:     lastPayload.TotalMemory,
-		AvaMemory:       lastPayload.AvaMemory,
-		TotalDiskGB:     lastPayload.TotalDiskGB,
-		UsedDiskGB:      lastPayload.UsedDiskGB,
-		AvaDiskGB:       lastPayload.AvaDiskGB,
-		UsedDiskPct:     lastPayload.UsedDiskPct,
+		OSStatsPayload:  lastPayload,
 	}
 	rec := map[string]OSStatsSummaryPayload{
 		time.Now().UTC().Format(time.RFC3339Nano): summary,

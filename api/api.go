@@ -37,7 +37,7 @@ type (
 		VMImageConfig     spec.VMImageConfig `json:"vm_image_config,omitempty"`
 		Timeout           int64              `json:"timeout,omitempty"`
 		LELogKey          string             `json:"le_log_key,omitempty"`
-		MemoryMetrics     string             `json:"memory_metrics,omitempty"`
+		MemoryMetricsLogKey string           `json:"memory_metrics_log_key,omitempty"`
 	}
 
 	SetupResponse struct{}
@@ -55,7 +55,6 @@ type (
 		LogKey         string `json:"log_key,omitempty"`          // key to write the lite engine logs (optional)
 		LiteEnginePath string `json:"lite_engine_path,omitempty"` // where to find the lite engine logs
 		StageRuntimeID string `json:"stage_runtime_id,omitempty"`
-		MemoryMetrics  string `json:"memory_metrics,omitempty"` // key for OS stats stream to close
 	}
 
 	DestroyResponse struct {

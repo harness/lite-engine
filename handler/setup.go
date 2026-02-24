@@ -91,7 +91,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 				Warnln("api: failed to initialize lite-engine log streaming")
 		}
 
-		// Initialize OS stats NDJSON streaming (file + upload) if MemoryMetrics key is provided
+		// Initialize OS stats NDJSON streaming (file + upload) if MemoryMetricsLogKey is provided
 		if err := initializeOSStatsStreaming(&s, state); err != nil {
 			logger.FromRequest(r).
 				WithField("time", time.Now().Format(time.RFC3339)).
@@ -231,11 +231,11 @@ func initializeLELogStreaming(setupReq *api.SetupRequest, state *pipeline.State)
 	return nil
 }
 
-// initializeOSStatsStreaming sets up live log streaming for OS stats using the provided MemoryMetrics key.
+// initializeOSStatsStreaming sets up live log streaming for OS stats using the provided MemoryMetricsLogKey.
 // This collects OS stats once per second and streams them to the log service (similar to engine:main).
 func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.State) error {
-	// memory_metrics is the log key to stream this under.
-	if setupReq.MemoryMetrics == "" {
+	// MemoryMetricsLogKey is the log key to stream this under.
+	if setupReq.MemoryMetricsLogKey == "" {
 		return nil
 	}
 
@@ -247,7 +247,7 @@ func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.Stat
 	logWriter := livelog.New(
 		ctx,
 		logClient,
-		setupReq.MemoryMetrics,
+		setupReq.MemoryMetricsLogKey,
 		"os-stats",
 		[]logstream.Nudge{},
 		false, // don't print to stdout
@@ -265,13 +265,13 @@ func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.Stat
 	cancel, getSummaryData := osstats.StartOSStatsStreaming(ctx, logWriter, logger.L)
 
 	// Store the writer, cancel, and getSummaryData in state for later cleanup (keyed by metrics key)
-	state.SetOSStatsEntry(setupReq.MemoryMetrics, &pipeline.OSStatsEntry{
+	state.SetOSStatsEntry(setupReq.MemoryMetricsLogKey, &pipeline.OSStatsEntry{
 		Writer:         logWriter,
 		Cancel:         cancel,
 		GetSummaryData: getSummaryData,
 	})
 
-	logger.L.WithField("memory_metrics", setupReq.MemoryMetrics).
+	logger.L.WithField("memory_metrics_log_key", setupReq.MemoryMetricsLogKey).
 		Infoln("api: initialized os stats live streaming")
 
 	return nil

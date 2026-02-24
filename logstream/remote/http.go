@@ -167,37 +167,6 @@ func escapeQueryParam(s string) string {
 	return url.QueryEscape(s)
 }
 
-// UploadRaw uploads raw bytes to remote storage (directly or via log service depending on config).
-func (c *HTTPClient) UploadRaw(ctx context.Context, key string, r io.Reader) error {
-	if c.IndirectUpload {
-		logrus.WithField("key", key).
-			Infoln("uploading blob through log service as indirectUpload is specified as true")
-		if err := c.uploadToRemoteStorage(ctx, key, r); err != nil {
-			logrus.WithError(err).WithField("key", key).
-				Errorln("failed to upload blob through log service")
-			return err
-		}
-		return nil
-	}
-
-	logrus.WithField("key", key).Infoln("calling upload link")
-	link, err := c.uploadLink(ctx, key)
-	if err != nil {
-		logrus.WithError(err).WithField("key", key).
-			Errorln("errored while trying to get upload link")
-		return err
-	}
-
-	logrus.WithField("key", key).Infoln("uploading blob using link")
-	if err := c.uploadUsingLink(context.Background(), link.Value, r); err != nil {
-		logrus.WithError(err).WithField("key", key).
-			Errorln("failed to upload using link")
-		return err
-	}
-
-	return nil
-}
-
 // uploadToRemoteStorage uploads the file to remote storage.
 func (c *HTTPClient) uploadToRemoteStorage(ctx context.Context, key string, r io.Reader) error {
 	path := fmt.Sprintf(blobEndpoint, escapeQueryParam(c.AccountID), escapeQueryParam(key))

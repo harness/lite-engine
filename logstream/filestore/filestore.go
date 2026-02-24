@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -43,23 +42,6 @@ type FileStore struct {
 
 func (f *FileStore) Upload(_ context.Context, key string, lines []*logstream.Line) error {
 	return nil
-}
-
-func (f *FileStore) UploadRaw(_ context.Context, key string, r io.Reader) error {
-	fullPath := path.Join(f.relPath, key)
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil { //nolint:mnd
-		return err
-	}
-	file, err := os.Create(fullPath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	if _, err := io.Copy(file, r); err != nil {
-		return err
-	}
-	return file.Sync()
 }
 
 // Open opens the data stream.

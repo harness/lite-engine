@@ -62,12 +62,12 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 
 		// Stop OS stats live streaming and close the writer (which flushes and uploads).
 		// Close all OS stats streams so the P90 summary is always written before upload,
-		// even if destroy is called without MemoryMetrics or stream was closed elsewhere.
+		// even if destroy is called without MemoryMetricsLogKey or stream was closed elsewhere.
 		for _, key := range state.GetAllOSStatsKeys() {
 			if err := closeOSStatsStream(state, key); err != nil {
 				logger.FromRequest(r).
 					WithField("time", time.Now().Format(time.RFC3339)).
-					WithField("memory_metrics", key).
+					WithField("memory_metrics_log_key", key).
 					WithError(err).
 					Warnln("api: failed to close os stats stream")
 			}
