@@ -315,9 +315,6 @@ func (e *StepExecutor) executeStepDrone(r *api.StartStepRequest) (*runtime.State
 
 func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer) (*runtime.State, map[string]string, //nolint:gocritic
 	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
-	// Temporary test for YAML parsing
-	testYAMLParsing(r)
-
 	if r.LogDrone {
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, nil, nil, nil, "", err
@@ -429,6 +426,11 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 			logrus.WithContext(ctx).WithField("id", r.ID).Infof("received exit code %d\n", exited.ExitCode)
 		}
 	}
+
+	// Test YAML parsing AFTER step execution (when pipeline config envs are merged)
+	// This validates error categorization will work when implemented
+	testYAMLParsing(r)
+
 	return exited, outputs, envs, artifact, outputV2, telemetryData, optimizationState, result
 }
 
