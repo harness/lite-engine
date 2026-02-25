@@ -11,7 +11,6 @@ import (
 	"errors"
 	"os"
 	"path"
-	"path/filepath"
 	"sync"
 
 	"github.com/drone/drone-go/drone"
@@ -46,11 +45,7 @@ func (f *FileStore) Upload(_ context.Context, key string, lines []*logstream.Lin
 
 // Open opens the data stream.
 func (f *FileStore) Open(_ context.Context, key string) error {
-	fullPath := path.Join(f.relPath, key)
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil { //nolint:mnd
-		return err
-	}
-	file, err := os.Create(fullPath)
+	file, err := os.Create(path.Join(f.relPath, key))
 	if err != nil {
 		return err
 	}
