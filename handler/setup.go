@@ -91,6 +91,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 				Warnln("api: failed to initialize lite-engine log streaming")
 		}
 
+		// Initialize OS stats NDJSON streaming (file + upload) if MemoryMetricsLogKey is provided
+		if err := initializeOSStatsStreaming(&s, state); err != nil {
+			logger.FromRequest(r).
+				WithField("time", time.Now().Format(time.RFC3339)).
+				WithError(err).
+				Warnln("api: failed to initialize os stats streaming")
+		}
+
 		if s.MountDockerSocket == nil || *s.MountDockerSocket { // required to support m1 where docker isn't installed.
 			s.Volumes = append(s.Volumes, getDockerSockVolume())
 		}
@@ -219,6 +227,52 @@ func initializeLELogStreaming(setupReq *api.SetupRequest, state *pipeline.State)
 	logger.L.
 		WithField("le_log_key", setupReq.LELogKey).
 		Infoln("api: successfully initialized lite-engine log streaming")
+
+	return nil
+}
+
+// initializeOSStatsStreaming sets up live log streaming for OS stats using the provided MemoryMetricsLogKey.
+// This collects OS stats once per second and streams them to the log service (similar to engine:main).
+func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.State) error {
+	// MemoryMetricsLogKey is the log key to stream this under.
+	if setupReq.MemoryMetricsLogKey == "" {
+		return nil
+	}
+
+	// Get or create the log stream client
+	logClient := state.GetLogStreamClient()
+
+	// Create a live log writer for streaming OS stats
+	ctx := context.Background()
+	logWriter := livelog.New(
+		ctx,
+		logClient,
+		setupReq.MemoryMetricsLogKey,
+		"os-stats",
+		[]logstream.Nudge{},
+		false, // don't print to stdout
+		setupReq.LogConfig.TrimNewLineSuffix,
+		false, // don't skip opening stream
+		false, // don't skip closing stream
+	)
+
+	// Open the log stream
+	if err := logWriter.Open(); err != nil {
+		return fmt.Errorf("failed to open os stats log stream: %w", err)
+	}
+
+	// Start the OS stats collection goroutine that writes to the livelog writer
+	cancel, getSummaryData := osstats.StartOSStatsStreaming(ctx, logWriter, logger.L)
+
+	// Store the writer, cancel, and getSummaryData in state for later cleanup (keyed by metrics key)
+	state.SetOSStatsEntry(setupReq.MemoryMetricsLogKey, &pipeline.OSStatsEntry{
+		Writer:         logWriter,
+		Cancel:         cancel,
+		GetSummaryData: getSummaryData,
+	})
+
+	logger.L.WithField("memory_metrics_log_key", setupReq.MemoryMetricsLogKey).
+		Infoln("api: initialized os stats live streaming")
 
 	return nil
 }

@@ -9,9 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/harness/lite-engine/engine/spec"
-
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/filestore"
 	"github.com/harness/lite-engine/logstream/remote"
@@ -51,6 +50,18 @@ type State struct {
 	// Lite-engine log streaming
 	leLogWriter logstream.Writer
 	leLogKey    string
+
+	// OS stats live log streaming - map of key -> entry to support multiple concurrent stages
+	osStatsEntries map[string]*OSStatsEntry
+}
+
+// OSStatsEntry holds the writer, cancel function, and getSummaryData for a single OS stats stream.
+// GetSummaryData returns the collected CPU samples and last payload after Cancel() has been called;
+// the caller should then write the P90 summary to Writer and only after that call Writer.Close().
+type OSStatsEntry struct {
+	Writer         logstream.Writer
+	Cancel         func()
+	GetSummaryData func() ([]float64, osstats.Payload)
 }
 
 func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
@@ -125,6 +136,49 @@ func (s *State) GetLELogKey() string {
 	return s.leLogKey
 }
 
+// SetOSStatsEntry stores an OS stats entry for the given key.
+func (s *State) SetOSStatsEntry(key string, entry *OSStatsEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.osStatsEntries == nil {
+		s.osStatsEntries = make(map[string]*OSStatsEntry)
+	}
+	s.osStatsEntries[key] = entry
+}
+
+// GetOSStatsEntry retrieves the OS stats entry for the given key.
+func (s *State) GetOSStatsEntry(key string) *OSStatsEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.osStatsEntries == nil {
+		return nil
+	}
+	return s.osStatsEntries[key]
+}
+
+// DeleteOSStatsEntry removes the OS stats entry for the given key.
+func (s *State) DeleteOSStatsEntry(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.osStatsEntries != nil {
+		delete(s.osStatsEntries, key)
+	}
+}
+
+// GetAllOSStatsKeys returns all currently registered OS stats keys.
+func (s *State) GetAllOSStatsKeys() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.osStatsEntries == nil {
+		return nil
+	}
+	keys := make([]string, 0, len(s.osStatsEntries))
+	for k := range s.osStatsEntries {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func GetState() *State {
 	once.Do(func() {
 		state = &State{
@@ -137,6 +191,7 @@ func GetState() *State {
 			mtlsConfig:     spec.MtlsConfig{},
 			leLogWriter:    nil,
 			leLogKey:       "",
+			osStatsEntries: make(map[string]*OSStatsEntry),
 		}
 	})
 	return state

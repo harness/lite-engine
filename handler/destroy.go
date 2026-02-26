@@ -14,7 +14,9 @@ import (
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/osstats"
 	"github.com/harness/lite-engine/pipeline"
 )
 
@@ -34,21 +36,13 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
-		// Use caller's context - timeout is controlled at the API caller level (drone-runner-aws)
 		ctx := r.Context()
-
-		log.Infoln("api: calling engine.Destroy")
 		destroyErr := engine.Destroy(ctx)
-		if destroyErr != nil {
-			WriteError(w, fmt.Errorf("destroy error: %w", destroyErr))
-			// Continue to close log stream even on destroy error to ensure logs are flushed
-		}
 
-		// Close lite-engine log stream - always attempt this to flush logs
+		// Close lite-engine log stream to flush logs (always attempt so logs are uploaded)
 		log.Infoln("api: closing lite-engine log stream")
 		if closeErr := closeLELogStream(ctx, state); closeErr != nil {
-			logger.FromRequest(r).
-				WithField("time", time.Now().Format(time.RFC3339)).
+			log.WithField("time", time.Now().Format(time.RFC3339)).
 				WithError(closeErr).
 				Warnln("api: failed to close lite-engine log stream")
 		}
@@ -64,6 +58,24 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			collector.Stop()
 			collector.Aggregate()
 			stats = collector.Stats()
+		}
+
+		// Stop OS stats live streaming and close the writer (which flushes and uploads).
+		// Close all OS stats streams so the P90 summary is always written before upload,
+		// even if destroy is called without MemoryMetricsLogKey or stream was closed elsewhere.
+		for _, key := range state.GetAllOSStatsKeys() {
+			if err := closeOSStatsStream(state, key); err != nil {
+				logger.FromRequest(r).
+					WithField("time", time.Now().Format(time.RFC3339)).
+					WithField("memory_metrics_log_key", key).
+					WithError(err).
+					Warnln("api: failed to close os stats stream")
+			}
+		}
+
+		if destroyErr != nil {
+			WriteError(w, fmt.Errorf("destroy error: %w", destroyErr))
+			return
 		}
 
 		WriteJSON(w, api.DestroyResponse{OSStats: stats}, http.StatusOK)
@@ -94,5 +106,44 @@ func closeLELogStream(_ context.Context, state *pipeline.State) error {
 
 	// Clear the writer from state
 	state.SetLELogWriter(nil, "")
+	return nil
+}
+
+// closeOSStatsStream stops the OS stats collection, writes the P90 summary to the stream,
+// then closes the writer so the memory_metrics file always ends with the summary line.
+func closeOSStatsStream(state *pipeline.State, key string) error {
+	entry := state.GetOSStatsEntry(key)
+	if entry == nil {
+		return nil
+	}
+
+	// 1. Stop the stats collection goroutine (no more per-second lines)
+	if entry.Cancel != nil {
+		entry.Cancel()
+	}
+
+	logger.L.
+		WithField("os_stats_key", key).
+		Infoln("api: writing P90 summary to memory_metrics stream")
+
+	// 2. Write the P90 summary to the stream before closing, so it is included in memory_metrics
+	if entry.Writer != nil && entry.GetSummaryData != nil {
+		cpuSamples, lastPayload := entry.GetSummaryData()
+		osstats.WriteP90SummaryToStream(entry.Writer, cpuSamples, lastPayload, logger.L)
+		// Flush so the summary is sent to the stream before Close() runs (upload + stream close)
+		if lw, ok := entry.Writer.(*livelog.Writer); ok {
+			_ = lw.Flush()
+		}
+	}
+
+	// 3. Only then close the writer (flush and upload)
+	if entry.Writer != nil {
+		if err := entry.Writer.Close(); err != nil {
+			return fmt.Errorf("failed to close os stats log writer: %w", err)
+		}
+	}
+
+	// Remove the entry from state
+	state.DeleteOSStatsEntry(key)
 	return nil
 }
