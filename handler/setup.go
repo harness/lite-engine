@@ -173,7 +173,9 @@ func getDockerSockVolume() *spec.Volume {
 func setProxyEnvs(environment map[string]string) {
 	proxyEnvs := []string{"http_proxy", "https_proxy", "no_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"}
 	for _, v := range proxyEnvs {
-		os.Setenv(v, environment[v])
+		if val, ok := environment[v]; ok {
+			os.Setenv(v, val)
+		}
 	}
 }
 
