@@ -14,8 +14,8 @@ import (
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
-	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/livelog"
+	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/osstats"
 	"github.com/harness/lite-engine/pipeline"
 )

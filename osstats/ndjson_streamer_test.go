@@ -56,7 +56,7 @@ func TestStartOSStatsStreaming_WritesNDJSON(t *testing.T) {
 		t.Fatalf("expected at least 1 json line, got %d", len(lines))
 	}
 
-	var rec map[string]OSStatsPayload
+	var rec map[string]Payload
 	if err := json.Unmarshal([]byte(lines[0]), &rec); err != nil {
 		t.Fatalf("unmarshal first line: %v; line=%q", err, lines[0])
 	}
@@ -77,7 +77,7 @@ func TestStartOSStatsStreaming_WritesNDJSON(t *testing.T) {
 	if lastLine == "" {
 		t.Fatalf("expected non-empty last line (summary)")
 	}
-	var summaryRec map[string]OSStatsSummaryPayload
+	var summaryRec map[string]SummaryPayload
 	if err := json.Unmarshal([]byte(lastLine), &summaryRec); err != nil {
 		t.Fatalf("unmarshal last line (summary): %v; line=%q", err, lastLine)
 	}

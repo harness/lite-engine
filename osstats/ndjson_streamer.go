@@ -17,34 +17,36 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// OSStatsPayload is the JSON structure for each OS stats record.
+const maxCPUPercent = 100.0
+
+// Payload is the JSON structure for each OS stats record.
 // The JSON line format includes CPU, memory, and disk metrics.
 //
 // Note: Memory and disk values are in GB. CPU values:
 // - totalCPU: number of cores
 // - avalCPU: available CPU percent (100 - usedPercent)
 // - disk: root partition (or primary mount); usedPercent is 0 if disk stats unavailable
-type OSStatsPayload struct {
-	TotalMemory   float64 `json:"totalMemory"`
-	TotalCPU      int     `json:"totalCPU"`
-	AvaMemory     float64 `json:"avaMemory"`
-	AvalCPU       float64 `json:"avalCPU"`
-	TotalDiskGB   float64 `json:"totalDiskGB"`
-	UsedDiskGB    float64 `json:"usedDiskGB"`
-	AvaDiskGB     float64 `json:"avaDiskGB"`
-	UsedDiskPct   float64 `json:"usedDiskPct"`
+type Payload struct {
+	TotalMemory float64 `json:"totalMemory"`
+	TotalCPU    int     `json:"totalCPU"`
+	AvaMemory   float64 `json:"avaMemory"`
+	AvalCPU     float64 `json:"avalCPU"`
+	TotalDiskGB float64 `json:"totalDiskGB"`
+	UsedDiskGB  float64 `json:"usedDiskGB"`
+	AvaDiskGB   float64 `json:"avaDiskGB"`
+	UsedDiskPct float64 `json:"usedDiskPct"`
 }
 
-// OSStatsSummaryPayload is the final NDJSON line written when streaming stops.
-// It embeds OSStatsPayload for memory/disk metrics and adds the three CPU summary
+// SummaryPayload is the final NDJSON line written when streaming stops.
+// It embeds Payload for memory/disk metrics and adds the three CPU summary
 // metrics (peak, avgUtilization, p90). osStatsSummary is always true so consumers
 // can reliably identify this line (e.g. grep "osStatsSummary").
-type OSStatsSummaryPayload struct {
+type SummaryPayload struct {
 	OSStatsSummary  bool    `json:"osStatsSummary"`  // true = this line is the summary (last line)
 	PeakCPUUsagePct float64 `json:"peakCPUUsagePct"` // max (peak) CPU utilization %
 	AvgCPUUsagePct  float64 `json:"avgCPUUsagePct"`  // average CPU utilization %
 	P90CPUUsagePct  float64 `json:"p90CPUUsagePct"`  // P90 CPU utilization %
-	OSStatsPayload          // Embedded: TotalCPU, TotalMemory, AvaMemory, AvalCPU, disk fields
+	Payload                 // Embedded: TotalCPU, TotalMemory, AvaMemory, AvalCPU, disk fields
 }
 
 // StartOSStatsStreaming starts a goroutine that collects OS stats once per second
@@ -52,7 +54,7 @@ type OSStatsSummaryPayload struct {
 // stop the collection and (2) getSummaryData to read the collected CPU samples and
 // last payload after cancel. The caller must write the P90 summary to the stream
 // (via WriteP90SummaryToStream) before closing the writer.
-func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) (cancel func(), getSummaryData func() (cpuSamples []float64, lastPayload OSStatsPayload)) {
+func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) (cancel func(), getSummaryData func() (cpuSamples []float64, lastPayload Payload)) {
 	if log == nil {
 		log = logrus.NewEntry(logrus.StandardLogger())
 	}
@@ -62,7 +64,7 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 	var stopOnce sync.Once
 
 	var cpuUsedPctSamples []float64
-	var lastPayload OSStatsPayload
+	var lastPayload Payload
 
 	wg.Add(1)
 	safego.SafeGo("os_stats_streaming", func() {
@@ -82,14 +84,14 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 		wg.Wait()
 	}
 
-	getSummaryData = func() ([]float64, OSStatsPayload) {
+	getSummaryData = func() ([]float64, Payload) {
 		return cpuUsedPctSamples, lastPayload
 	}
 
 	return cancel, getSummaryData
 }
 
-func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *logrus.Entry, cpuSamples *[]float64, lastPayload *OSStatsPayload) {
+func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *logrus.Entry, cpuSamples *[]float64, lastPayload *Payload) {
 	// Prime CPU percent calculation (gopsutil uses time delta between calls).
 	_, _ = cpu.Percent(0, false)
 
@@ -121,7 +123,7 @@ func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *l
 	}
 }
 
-func sampleOSStats() (map[string]OSStatsPayload, float64, error) {
+func sampleOSStats() (rec map[string]Payload, usedCPU float64, err error) {
 	percent, err := cpu.Percent(time.Second, false)
 	if err != nil || len(percent) == 0 {
 		return nil, 0, err
@@ -133,13 +135,13 @@ func sampleOSStats() (map[string]OSStatsPayload, float64, error) {
 	}
 
 	totalCPU := runtime.NumCPU()
-	usedCPU := percent[0]
-	avalCPU := 100.0 - usedCPU
+	usedCPU = percent[0]
+	avalCPU := maxCPUPercent - usedCPU
 	if avalCPU < 0 {
 		avalCPU = 0
 	}
 
-	payload := OSStatsPayload{
+	payload := Payload{
 		TotalMemory: formatGB(vm.Total),
 		TotalCPU:    totalCPU,
 		AvaMemory:   formatGB(vm.Available),
@@ -155,10 +157,10 @@ func sampleOSStats() (map[string]OSStatsPayload, float64, error) {
 	}
 
 	ts := time.Now().UTC().Format(time.RFC3339Nano)
-	return map[string]OSStatsPayload{ts: payload}, usedCPU, nil
+	return map[string]Payload{ts: payload}, usedCPU, nil
 }
 
-func writeOSStatsRecord(w io.Writer, rec map[string]OSStatsPayload, log *logrus.Entry) {
+func writeOSStatsRecord(w io.Writer, rec map[string]Payload, log *logrus.Entry) {
 	b, err := json.Marshal(rec)
 	if err != nil {
 		log.WithError(err).Debugln("osstats: failed to marshal record")
@@ -173,7 +175,7 @@ func writeOSStatsRecord(w io.Writer, rec map[string]OSStatsPayload, log *logrus.
 // CPU metrics: peak (max), avgUtilization (average), and p90. Call this after
 // stopping the collection (cancel returned from StartOSStatsStreaming) and before
 // closing the writer, so the memory_metrics file always ends with this line.
-func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload OSStatsPayload, log *logrus.Entry) {
+func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload Payload, log *logrus.Entry) {
 	if w == nil {
 		return
 	}
@@ -182,14 +184,14 @@ func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload OSSt
 	}
 	peak, avg := peakAndAvg(cpuSamples)
 	p90 := p90NearestRank(cpuSamples)
-	summary := OSStatsSummaryPayload{
+	summary := SummaryPayload{
 		OSStatsSummary:  true,
 		PeakCPUUsagePct: peak,
 		AvgCPUUsagePct:  avg,
 		P90CPUUsagePct:  p90,
-		OSStatsPayload:  lastPayload,
+		Payload:         lastPayload,
 	}
-	rec := map[string]OSStatsSummaryPayload{
+	rec := map[string]SummaryPayload{
 		time.Now().UTC().Format(time.RFC3339Nano): summary,
 	}
 	b, err := json.Marshal(rec)
