@@ -24,13 +24,19 @@ ARG TARGETARCH
 
 # Build the application for target platform
 # CGO is disabled for cross-compilation support
+# Version is set via BUILD_VERSION arg from Harness CI pipeline
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg \
     set -e; \
     if [ "${TARGETOS}" = "windows" ]; then \
-      CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -buildvcs=false -o /app/lite-engine.exe; \
+      CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+        -buildvcs=false \
+        -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${BUILD_VERSION}" \
+        -o /app/lite-engine.exe; \
     else \
-      CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /app/lite-engine; \
+      CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+        -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${BUILD_VERSION}" \
+        -o /app/lite-engine; \
     fi
 
 # ---------------------------------------------------------#
