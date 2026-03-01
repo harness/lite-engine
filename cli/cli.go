@@ -20,7 +20,7 @@ import (
 func Command() {
 	app := kingpin.New("lite-engine", "Lite engine to execute steps")
 	app.HelpFlag.Short('h')
-	app.Version(version.Version)
+	app.Version(version.GetVersion())
 	app.VersionFlag.Short('v')
 	server.Register(app)
 	certs.Register(app)
