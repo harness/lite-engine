@@ -1,0 +1,2 @@
+DOCKER_FILE_PATH: /harness/lite-engine/docker/Dockerfile-lite-engine
+CONTEXT_PATH: /harness/lite-engine

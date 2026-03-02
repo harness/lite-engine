@@ -25,7 +25,7 @@ const (
 func HandleHealth() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logrus.Infoln("handler: HandleHealth()")
-		version := version.Version
+		version := version.GetVersion()
 		response := api.HealthResponse{
 			Version: version,
 			OK:      true,

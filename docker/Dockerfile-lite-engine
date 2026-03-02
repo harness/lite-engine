@@ -1,0 +1,73 @@
+# ---------------------------------------------------------#
+#                   Build Lite Engine Binaries             #
+# ---------------------------------------------------------#
+FROM us-west1-docker.pkg.dev/gar-setup/docker/golang:1.25-alpine3.21 as builder
+
+RUN apk add --no-cache git ca-certificates
+
+WORKDIR /app
+
+# Copy go module files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build arguments for version information and target platform
+ARG BUILD_VERSION
+ARG BUILD_TIME
+ARG COMMIT_SHA
+ARG BRANCH_NAME
+ARG TARGETOS=linux
+ARG TARGETARCH
+
+# Build the application for target platform
+# CGO is disabled for cross-compilation support
+# Version is set via BUILD_VERSION arg from Harness CI pipeline
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg \
+    set -e; \
+    if [ "${TARGETOS}" = "windows" ]; then \
+      CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+        -buildvcs=false \
+        -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${BUILD_VERSION}" \
+        -o /app/lite-engine.exe; \
+    else \
+      CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+        -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${BUILD_VERSION}" \
+        -o /app/lite-engine; \
+    fi
+
+# ---------------------------------------------------------#
+#                   Create final image                     #
+# ---------------------------------------------------------#
+FROM scratch
+
+WORKDIR /binaries
+
+# Copy the binary (handle both Linux/macOS and Windows)
+ARG TARGETOS
+COPY --from=builder /app/lite-engine* /binaries/
+
+# Build metadata labels
+ARG BUILD_VERSION
+ARG BUILD_TIME
+ARG COMMIT_SHA
+ARG BRANCH_NAME
+ARG TARGETARCH
+ARG TARGETOS
+
+LABEL org.opencontainers.image.title="Harness Lite Engine"
+LABEL org.opencontainers.image.description="Harness CI execution engine binary"
+LABEL org.opencontainers.image.vendor="Harness Inc."
+LABEL org.opencontainers.image.created="${BUILD_TIME}"
+LABEL org.opencontainers.image.revision="${COMMIT_SHA}"
+LABEL org.opencontainers.image.source="https://github.com/harness/lite-engine"
+LABEL org.opencontainers.image.version="${BUILD_VERSION}"
+LABEL BUILD_VERSION="${BUILD_VERSION}"
+LABEL BUILD_TIME="${BUILD_TIME}"
+LABEL BRANCH_NAME="${BRANCH_NAME}"
+LABEL COMMIT_SHA="${COMMIT_SHA}"
+LABEL ARCHITECTURE="${TARGETARCH}"
+LABEL OS="${TARGETOS}"
