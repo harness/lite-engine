@@ -1,2 +1,3 @@
 DOCKER_FILE_PATH: /harness/lite-engine/docker/Dockerfile-lite-engine
 CONTEXT_PATH: /harness/lite-engine
+HELM_CHART_SOURCE_DIRECTORY: /harness/lite-engine/chart
