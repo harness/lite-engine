@@ -1,7 +1,7 @@
 # ---------------------------------------------------------#
 #                   Build Lite Engine Binaries             #
 # ---------------------------------------------------------#
-FROM us-west1-docker.pkg.dev/gar-setup/docker/golang:1.25-alpine3.21 as builder
+FROM golang:1.25.7-alpine as builder
 
 RUN apk add --no-cache git ca-certificates
 
