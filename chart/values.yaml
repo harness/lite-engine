@@ -1,0 +1,5 @@
+image:
+  registry: ""
+  repository: "harness-vm-runner-lite-engine"
+  tag: "latest"
+  pullPolicy: IfNotPresent
