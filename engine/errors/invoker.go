@@ -23,6 +23,7 @@ type EvaluationResult struct {
 	Message     string `json:"message,omitempty"`
 	MatchedRule string `json:"matched_rule,omitempty"`
 	Source      string `json:"source,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 // InvokeHcliEvaluate calls hcli errors evaluate to evaluate rules against log files.
@@ -55,6 +56,14 @@ func InvokeHcliEvaluate(ctx context.Context, yamlPath, cacheDir, stdoutPath, std
 	var result EvaluationResult
 	if err := json.Unmarshal(output, &result); err != nil {
 		return nil, fmt.Errorf("failed to parse hcli evaluate output: %w", err)
+	}
+
+	if result.Error != "" {
+		logrus.WithFields(logrus.Fields{
+			"step_id": stepID,
+			"error":   result.Error,
+		}).Warnln("hcli evaluate returned error")
+		return nil, nil
 	}
 
 	if !result.Matched {
