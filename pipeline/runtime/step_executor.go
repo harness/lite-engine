@@ -16,6 +16,7 @@ import (
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	errorcat "github.com/harness/lite-engine/engine/errors"
+	"github.com/harness/lite-engine/engine/logutil"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/internal/safego"
@@ -168,6 +169,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			}
 
 			errorDetails := e.categorizeStepError(r, state, pollResponse)
+			logutil.CleanupLogFiles(r.ID)
+
 			if errorDetails != nil {
 				logrus.WithContext(ctx).WithFields(logrus.Fields{
 					"step_id":         r.ID,

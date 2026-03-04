@@ -24,6 +24,7 @@ func CategorizeErrorWithTimeout(step *api.StartStepRequest, exitCode int, pipeli
 		return nil
 	}
 
+	startTime := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), CategorizationTimeout)
 	defer cancel()
 
@@ -44,10 +45,16 @@ func CategorizeErrorWithTimeout(step *api.StartStepRequest, exitCode int, pipeli
 
 	select {
 	case result := <-resultCh:
+		logrus.WithFields(logrus.Fields{
+			"step_id":     step.ID,
+			"duration_ms": time.Since(startTime).Milliseconds(),
+			"matched":     result != nil,
+		}).Infoln("Error categorization completed")
 		return result
 	case <-ctx.Done():
 		logrus.WithFields(logrus.Fields{
-			"step_id": step.ID,
+			"step_id":     step.ID,
+			"duration_ms": time.Since(startTime).Milliseconds(),
 		}).Warnln("Error categorization timed out")
 		return nil
 	}
@@ -57,6 +64,10 @@ func CategorizeErrorWithTimeout(step *api.StartStepRequest, exitCode int, pipeli
 func categorizeError(ctx context.Context, step *api.StartStepRequest, exitCode int, pipelineEnvs map[string]string) *api.ErrorDetails {
 	yamlPath, err := ResolveErrorsYAMLPath(step, pipelineEnvs)
 	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"step_id": step.ID,
+			"error":   err.Error(),
+		}).Warnln("Error categorization skipped: YAML not found")
 		return nil
 	}
 
@@ -69,6 +80,10 @@ func categorizeError(ctx context.Context, step *api.StartStepRequest, exitCode i
 
 	result, err := InvokeHcliEvaluate(ctx, yamlPath, cacheDir, stdoutPath, stderrPath, exitCode, step.ID, stageID, pipelineID)
 	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"step_id": step.ID,
+			"error":   err.Error(),
+		}).Warnln("Error categorization failed: hcli error")
 		return nil
 	}
 

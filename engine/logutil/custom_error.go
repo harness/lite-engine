@@ -135,6 +135,19 @@ func (h *LogFileHandles) Cleanup() {
 	}
 }
 
+// CleanupLogFiles removes log files for a step. Safe to call if files don't exist.
+func CleanupLogFiles(stepID string) {
+	stdoutPath := GetStdoutLogFilePath(stepID)
+	if err := os.Remove(stdoutPath); err != nil && !os.IsNotExist(err) {
+		logrus.Warnf("Failed to cleanup stdout log file at %s: %v", stdoutPath, err)
+	}
+
+	stderrPath := GetStderrLogFilePath(stepID)
+	if err := os.Remove(stderrPath); err != nil && !os.IsNotExist(err) {
+		logrus.Warnf("Failed to cleanup stderr log file at %s: %v", stderrPath, err)
+	}
+}
+
 // GetStdoutWriter returns an io.Writer that writes to both the original output and the stdout log file
 func (h *LogFileHandles) GetStdoutWriter(originalOutput io.Writer) io.Writer {
 	if h.StdoutFile != nil {
