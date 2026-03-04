@@ -77,6 +77,12 @@ func GetCacheDir() string {
 	return ConvertPath(path)
 }
 
+// EnsureCacheDirectory creates the cache directory if it doesn't exist
+func EnsureCacheDirectory() error {
+	cacheDir := fmt.Sprintf("%s/%s", pipeline.GetSharedVolPath(), HarnessInternalCacheDir)
+	return os.MkdirAll(ConvertPath(cacheDir), DirPermissions)
+}
+
 // CreateLogFiles creates stdout and stderr log files for custom error categorization
 func CreateLogFiles(stepID string, envs map[string]string) *LogFileHandles {
 	handles := &LogFileHandles{}

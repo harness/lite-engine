@@ -71,6 +71,13 @@ func categorizeError(ctx context.Context, step *api.StartStepRequest, exitCode i
 		return nil
 	}
 
+	if err := logutil.EnsureCacheDirectory(); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"step_id": step.ID,
+			"error":   err.Error(),
+		}).Warnln("Failed to create cache directory")
+	}
+
 	cacheDir := logutil.GetCacheDir()
 	stdoutPath := logutil.GetStdoutLogFilePath(step.ID)
 	stderrPath := logutil.GetStderrLogFilePath(step.ID)
