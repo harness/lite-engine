@@ -113,6 +113,30 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	return nil
 }
 
+// getStepTimeout calculates the timeout duration with bounds checking
+func getStepTimeout(timeoutSeconds int) time.Duration {
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	if timeout < defaultStepTimeout {
+		return defaultStepTimeout
+	}
+	if timeout > maxStepTimeout {
+		return maxStepTimeout
+	}
+	return timeout
+}
+
+// categorizeStepError performs error categorization if the step failed
+func (e *StepExecutor) categorizeStepError(r *api.StartStepRequest, state *runtime.State, pollResponse *api.PollStepResponse) *api.ErrorDetails {
+	if pollResponse.Error == "" && (state == nil || state.ExitCode == 0) {
+		return nil
+	}
+	exitCode := 1
+	if state != nil {
+		exitCode = state.ExitCode
+	}
+	return errorcat.CategorizeErrorWithTimeout(r, exitCode, e.engine.GetPipelineEnvs())
+}
+
 func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.StartStepRequest) error {
 	if r.ID == "" {
 		return &errors.BadRequestError{Msg: "ID needs to be set"}
@@ -122,13 +146,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		done := make(chan api.VMTaskExecutionResponse, 1)
 		var resp api.VMTaskExecutionResponse
 		var wr logstream.Writer
-
-		timeout := time.Duration(r.Timeout) * time.Second
-		if timeout < defaultStepTimeout {
-			timeout = defaultStepTimeout
-		} else if timeout > maxStepTimeout {
-			timeout = maxStepTimeout
-		}
+		timeout := getStepTimeout(r.Timeout)
 
 		safego.SafeGo("step_execution", func() {
 			if r.StageRuntimeID != "" && r.Image == "" {
@@ -149,16 +167,17 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
 			}
 
-			// Perform custom error categorization if step failed
-			var errorDetails *api.ErrorDetails
-			if pollResponse.Error != "" || (state != nil && state.ExitCode != 0) {
-				exitCode := 1
-				if state != nil {
-					exitCode = state.ExitCode
-				}
-				errorDetails = errorcat.CategorizeErrorWithTimeout(r, exitCode, e.engine.GetPipelineEnvs())
+			errorDetails := e.categorizeStepError(r, state, pollResponse)
+			if errorDetails != nil {
+				logrus.WithContext(ctx).WithFields(logrus.Fields{
+					"step_id":         r.ID,
+					"failure_type":    errorDetails.FailureType,
+					"failure_subtype": errorDetails.FailureSubType,
+					"message":         errorDetails.Message,
+					"matched_rule":    errorDetails.MatchedRule,
+					"source":          errorDetails.Source,
+				}).Infoln("Custom error categorization result")
 			}
-
 			resp = convertPollResponseWithErrorDetails(pollResponse, r.Envs, errorDetails)
 			done <- resp
 		})
