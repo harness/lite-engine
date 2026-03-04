@@ -44,11 +44,17 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 # ---------------------------------------------------------#
 FROM scratch
 
+# Copy minimal passwd file for non-root user
+COPY --from=builder /etc/passwd /etc/passwd
+
 WORKDIR /binaries
 
 # Copy the binary (handle both Linux/macOS and Windows)
 ARG TARGETOS
 COPY --from=builder /app/lite-engine* /binaries/
+
+# Run as non-root user (nobody:nobody is typically uid:gid 65534:65534)
+USER 65534:65534
 
 # Build metadata labels
 ARG BUILD_VERSION
