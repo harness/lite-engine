@@ -233,6 +233,16 @@ func (e *Engine) Suspend(ctx context.Context, labels map[string]string) error {
 	return e.docker.Suspend(ctx, labels)
 }
 
+// GetPipelineEnvs returns the pipeline/stage level environment variables
+func (e *Engine) GetPipelineEnvs() map[string]string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.pipelineConfig == nil {
+		return nil
+	}
+	return e.pipelineConfig.Envs
+}
+
 func destroyHelper(cfg *spec.PipelineConfig) {
 	for _, vol := range cfg.Volumes {
 		if vol == nil || vol.HostPath == nil {

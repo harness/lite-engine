@@ -266,6 +266,15 @@ type (
 		TaskStatusV2   bool   `json:"task_status_v2,omitempty"`
 	}
 
+	// ErrorDetails contains custom error categorization information
+	ErrorDetails struct {
+		FailureType    string `json:"failureType,omitempty"`
+		FailureSubType string `json:"failureSubType,omitempty"`
+		Message        string `json:"message,omitempty"`
+		MatchedRule    string `json:"matchedRule,omitempty"`
+		Source         string `json:"source,omitempty"`
+	}
+
 	VMTaskExecutionResponse struct {
 		ErrorMessage           string                 `json:"error_message,omitempty"`
 		OutputVars             map[string]string      `json:"output_vars,omitempty"`
@@ -274,6 +283,7 @@ type (
 		Outputs                []*OutputV2            `json:"outputs,omitempty"`
 		OptimizationState      string                 `json:"optimization_state,omitempty"`
 		TelemetryData          *types.TelemetryData   `json:"telemetry_data,omitempty"`
+		ErrorDetails           *ErrorDetails          `json:"error_details,omitempty"`
 	}
 )
 

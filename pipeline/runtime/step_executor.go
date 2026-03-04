@@ -15,6 +15,7 @@ import (
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
+	errorcat "github.com/harness/lite-engine/engine/errors"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/internal/safego"
@@ -147,7 +148,18 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
 			}
-			resp = convertPollResponse(pollResponse, r.Envs)
+
+			// Perform custom error categorization if step failed
+			var errorDetails *api.ErrorDetails
+			if pollResponse.Error != "" || (state != nil && state.ExitCode != 0) {
+				exitCode := 1
+				if state != nil {
+					exitCode = state.ExitCode
+				}
+				errorDetails = errorcat.CategorizeErrorWithTimeout(r, exitCode, e.engine.GetPipelineEnvs())
+			}
+
+			resp = convertPollResponseWithErrorDetails(pollResponse, r.Envs, errorDetails)
 			done <- resp
 		})
 
@@ -586,6 +598,10 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 }
 
 func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VMTaskExecutionResponse {
+	return convertPollResponseWithErrorDetails(r, envs, nil)
+}
+
+func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[string]string, errorDetails *api.ErrorDetails) api.VMTaskExecutionResponse {
 	if r.Error == "" {
 		return api.VMTaskExecutionResponse{
 			CommandExecutionStatus: api.Success,
@@ -604,11 +620,13 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 			ErrorMessage:           r.Error,
 			OptimizationState:      r.OptimizationState,
 			TelemetryData:          r.TelemetryData,
+			ErrorDetails:           errorDetails,
 		}
 	}
 	return api.VMTaskExecutionResponse{
 		CommandExecutionStatus: api.Failure,
 		ErrorMessage:           r.Error,
 		OptimizationState:      r.OptimizationState,
+		ErrorDetails:           errorDetails,
 	}
 }
