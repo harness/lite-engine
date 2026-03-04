@@ -59,11 +59,7 @@ func InvokeHcliEvaluate(ctx context.Context, yamlPath, cacheDir, stdoutPath, std
 	}
 
 	if result.Error != "" {
-		logrus.WithFields(logrus.Fields{
-			"step_id": stepID,
-			"error":   result.Error,
-		}).Warnln("hcli evaluate returned error")
-		return nil, nil
+		return nil, fmt.Errorf("hcli evaluate error: %s", result.Error)
 	}
 
 	if !result.Matched {
