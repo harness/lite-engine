@@ -23,6 +23,8 @@ type EvaluationResult struct {
 	Message     string `json:"message,omitempty"`
 	MatchedRule string `json:"matched_rule,omitempty"`
 	Source      string `json:"source,omitempty"`
+	RuleCount   int    `json:"rule_count,omitempty"`
+	TimedOut    bool   `json:"timed_out,omitempty"`
 	Error       string `json:"error,omitempty"`
 }
 
