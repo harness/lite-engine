@@ -19,9 +19,10 @@ import (
 // Constants for custom error categorization log files
 const (
 	HarnessInternalLogsDir          = ".harness-internal/logs"
+	HarnessInternalCacheDir         = ".harness-internal/cache"
 	StdoutLogSuffix                 = "-stdout.log"
 	StderrLogSuffix                 = "-stderr.log"
-	LogDirPermissions               = 0700
+	DirPermissions                  = 0777
 	CustomErrorCategorizationEnvVar = "CI_CUSTOM_ERROR_CATEGORIZATION"
 	trueValue                       = "true"
 	windowsOS                       = "windows"
@@ -35,12 +36,10 @@ type LogFileHandles struct {
 	StderrPath string
 }
 
-// IsCustomErrorCategorizationEnabled checks if the custom error categorization feature is enabled
+// IsCustomErrorCategorizationEnabled checks if the feature is enabled
 func IsCustomErrorCategorizationEnabled(envs map[string]string) bool {
-	if val, ok := envs[CustomErrorCategorizationEnvVar]; ok && val == trueValue {
-		return true
-	}
-	return false
+	val, ok := envs[CustomErrorCategorizationEnvVar]
+	return ok && val == trueValue
 }
 
 // ConvertPath converts Unix-style paths to Windows format on Windows OS.
@@ -54,25 +53,37 @@ func ConvertPath(path string) string {
 	return path
 }
 
-// GetStdoutLogFilePath returns the path for stdout log file used by custom error categorization.
+// GetStdoutLogFilePath returns the path for stdout log file
 func GetStdoutLogFilePath(stepID string) string {
 	path := fmt.Sprintf("%s/%s/%s%s", pipeline.GetSharedVolPath(), HarnessInternalLogsDir, stepID, StdoutLogSuffix)
 	return ConvertPath(path)
 }
 
-// GetStderrLogFilePath returns the path for stderr log file used by custom error categorization.
+// GetStderrLogFilePath returns the path for stderr log file
 func GetStderrLogFilePath(stepID string) string {
 	path := fmt.Sprintf("%s/%s/%s%s", pipeline.GetSharedVolPath(), HarnessInternalLogsDir, stepID, StderrLogSuffix)
 	return ConvertPath(path)
 }
 
-// EnsureLogDirectory creates the log directory for error categorization if it doesn't exist.
+// EnsureLogDirectory creates the log directory if it doesn't exist
 func EnsureLogDirectory() error {
 	logDir := fmt.Sprintf("%s/%s", pipeline.GetSharedVolPath(), HarnessInternalLogsDir)
-	return os.MkdirAll(ConvertPath(logDir), LogDirPermissions)
+	return os.MkdirAll(ConvertPath(logDir), DirPermissions)
 }
 
-// CreateLogFiles creates stdout and stderr log files for custom error categorization.
+// GetCacheDir returns the cache directory path
+func GetCacheDir() string {
+	path := fmt.Sprintf("%s/%s", pipeline.GetSharedVolPath(), HarnessInternalCacheDir)
+	return ConvertPath(path)
+}
+
+// EnsureCacheDirectory creates the cache directory if it doesn't exist
+func EnsureCacheDirectory() error {
+	cacheDir := fmt.Sprintf("%s/%s", pipeline.GetSharedVolPath(), HarnessInternalCacheDir)
+	return os.MkdirAll(ConvertPath(cacheDir), DirPermissions)
+}
+
+// CreateLogFiles creates stdout and stderr log files for custom error categorization
 func CreateLogFiles(stepID string, envs map[string]string) *LogFileHandles {
 	handles := &LogFileHandles{}
 
@@ -85,7 +96,6 @@ func CreateLogFiles(stepID string, envs map[string]string) *LogFileHandles {
 		return handles
 	}
 
-	// Create stdout log file
 	handles.StdoutPath = GetStdoutLogFilePath(stepID)
 	if f, err := os.Create(handles.StdoutPath); err != nil {
 		logrus.Warnf("Failed to create stdout log file at %s: %v", handles.StdoutPath, err)
@@ -94,7 +104,6 @@ func CreateLogFiles(stepID string, envs map[string]string) *LogFileHandles {
 		handles.StdoutFile = f
 	}
 
-	// Create stderr log file
 	handles.StderrPath = GetStderrLogFilePath(stepID)
 	if f, err := os.Create(handles.StderrPath); err != nil {
 		logrus.Warnf("Failed to create stderr log file at %s: %v", handles.StderrPath, err)
@@ -106,7 +115,7 @@ func CreateLogFiles(stepID string, envs map[string]string) *LogFileHandles {
 	return handles
 }
 
-// Close closes the log file handles if they are open.
+// Close closes the log file handles
 func (h *LogFileHandles) Close() {
 	if h.StdoutFile != nil {
 		h.StdoutFile.Close()
@@ -132,6 +141,19 @@ func (h *LogFileHandles) Cleanup() {
 	}
 }
 
+// CleanupLogFiles removes log files for a step. Safe to call if files don't exist.
+func CleanupLogFiles(stepID string) {
+	stdoutPath := GetStdoutLogFilePath(stepID)
+	if err := os.Remove(stdoutPath); err != nil && !os.IsNotExist(err) {
+		logrus.Warnf("Failed to cleanup stdout log file at %s: %v", stdoutPath, err)
+	}
+
+	stderrPath := GetStderrLogFilePath(stepID)
+	if err := os.Remove(stderrPath); err != nil && !os.IsNotExist(err) {
+		logrus.Warnf("Failed to cleanup stderr log file at %s: %v", stderrPath, err)
+	}
+}
+
 // GetStdoutWriter returns an io.Writer that writes to both the original output and the stdout log file
 func (h *LogFileHandles) GetStdoutWriter(originalOutput io.Writer) io.Writer {
 	if h.StdoutFile != nil {
@@ -148,7 +170,7 @@ func (h *LogFileHandles) GetStderrWriter(originalOutput io.Writer) io.Writer {
 	return originalOutput
 }
 
-// HasLogFiles returns true if either stdout or stderr log files were created.
+// HasLogFiles returns true if either stdout or stderr log files were created
 func (h *LogFileHandles) HasLogFiles() bool {
 	return h.StdoutFile != nil && h.StderrFile != nil
 }

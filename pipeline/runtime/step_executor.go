@@ -15,6 +15,8 @@ import (
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
+	errorcat "github.com/harness/lite-engine/engine/errors"
+	"github.com/harness/lite-engine/engine/logutil"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/internal/safego"
@@ -112,6 +114,30 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	return nil
 }
 
+// getStepTimeout calculates the timeout duration with bounds checking
+func getStepTimeout(timeoutSeconds int) time.Duration {
+	timeout := time.Duration(timeoutSeconds) * time.Second
+	if timeout < defaultStepTimeout {
+		return defaultStepTimeout
+	}
+	if timeout > maxStepTimeout {
+		return maxStepTimeout
+	}
+	return timeout
+}
+
+// categorizeStepError performs error categorization if the step failed
+func (e *StepExecutor) categorizeStepError(r *api.StartStepRequest, state *runtime.State, pollResponse *api.PollStepResponse) *api.ErrorDetails {
+	if pollResponse.Error == "" && (state == nil || state.ExitCode == 0) {
+		return nil
+	}
+	exitCode := 1
+	if state != nil {
+		exitCode = state.ExitCode
+	}
+	return errorcat.CategorizeErrorWithTimeout(r, exitCode, e.engine.GetPipelineEnvs())
+}
+
 func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.StartStepRequest) error {
 	if r.ID == "" {
 		return &errors.BadRequestError{Msg: "ID needs to be set"}
@@ -121,13 +147,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		done := make(chan api.VMTaskExecutionResponse, 1)
 		var resp api.VMTaskExecutionResponse
 		var wr logstream.Writer
-
-		timeout := time.Duration(r.Timeout) * time.Second
-		if timeout < defaultStepTimeout {
-			timeout = defaultStepTimeout
-		} else if timeout > maxStepTimeout {
-			timeout = maxStepTimeout
-		}
+		timeout := getStepTimeout(r.Timeout)
 
 		safego.SafeGo("step_execution", func() {
 			if r.StageRuntimeID != "" && r.Image == "" {
@@ -147,7 +167,21 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
 			}
-			resp = convertPollResponse(pollResponse, r.Envs)
+
+			errorDetails := e.categorizeStepError(r, state, pollResponse)
+			logutil.CleanupLogFiles(r.ID)
+
+			if errorDetails != nil {
+				logrus.WithContext(ctx).WithFields(logrus.Fields{
+					"step_id":         r.ID,
+					"failure_type":    errorDetails.FailureType,
+					"failure_subtype": errorDetails.FailureSubType,
+					"message":         errorDetails.Message,
+					"matched_rule":    errorDetails.MatchedRule,
+					"source":          errorDetails.Source,
+				}).Infoln("Custom error categorization result")
+			}
+			resp = convertPollResponseWithErrorDetails(pollResponse, r.Envs, errorDetails)
 			done <- resp
 		})
 
@@ -586,6 +620,10 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 }
 
 func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VMTaskExecutionResponse {
+	return convertPollResponseWithErrorDetails(r, envs, nil)
+}
+
+func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[string]string, errorDetails *api.ErrorDetails) api.VMTaskExecutionResponse {
 	if r.Error == "" {
 		return api.VMTaskExecutionResponse{
 			CommandExecutionStatus: api.Success,
@@ -604,11 +642,13 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 			ErrorMessage:           r.Error,
 			OptimizationState:      r.OptimizationState,
 			TelemetryData:          r.TelemetryData,
+			ErrorDetails:           errorDetails,
 		}
 	}
 	return api.VMTaskExecutionResponse{
 		CommandExecutionStatus: api.Failure,
 		ErrorMessage:           r.Error,
 		OptimizationState:      r.OptimizationState,
+		ErrorDetails:           errorDetails,
 	}
 }
