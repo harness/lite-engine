@@ -173,12 +173,17 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 
 			if errorDetails != nil {
 				logrus.WithContext(ctx).WithFields(logrus.Fields{
-					"step_id":         r.ID,
-					"failure_type":    errorDetails.FailureType,
-					"failure_subtype": errorDetails.FailureSubType,
-					"message":         errorDetails.Message,
-					"matched_rule":    errorDetails.MatchedRule,
-					"source":          errorDetails.Source,
+					"step_id":                r.ID,
+					"failure_type":           errorDetails.FailureType,
+					"failure_subtype":        errorDetails.FailureSubType,
+					"message":                errorDetails.Message,
+					"matched_rule":           errorDetails.MatchedRule,
+					"source":                 errorDetails.Source,
+					"evaluation_duration_ms": errorDetails.EvaluationDurationMs,
+					"stdout_size_bytes":      errorDetails.StdoutSizeBytes,
+					"stderr_size_bytes":      errorDetails.StderrSizeBytes,
+					"rule_count":             errorDetails.RuleCount,
+					"timed_out":              errorDetails.TimedOut,
 				}).Infoln("Custom error categorization result")
 			}
 			resp = convertPollResponseWithErrorDetails(pollResponse, r.Envs, errorDetails)
