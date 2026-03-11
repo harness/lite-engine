@@ -27,12 +27,11 @@ type Cfg struct {
 	commitBranch    string
 	dataDir         string
 	ignoreInstr     bool
-	parseSavings    bool
 	featureStateMap map[stepFeature]types.IntelligenceExecutionState
 }
 
 func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink,
-	sourceBranch, targetBranch, commitBranch, dataDir, parentUniqueID string, parseSavings, skipVerify bool, mtlsClientCert, mtlsClientCertKey string) Cfg {
+	sourceBranch, targetBranch, commitBranch, dataDir, parentUniqueID string, skipVerify bool, mtlsClientCert, mtlsClientCertKey string) Cfg {
 	tiClient := client.NewHTTPClient(
 		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify, "", mtlsClientCert, mtlsClientCertKey, parentUniqueID)
 	cfg := Cfg{
@@ -44,7 +43,6 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 		commitBranch:    commitBranch,
 		dataDir:         dataDir,
 		ignoreInstr:     false,
-		parseSavings:    parseSavings,
 		featureStateMap: map[stepFeature]types.IntelligenceExecutionState{},
 	}
 	return cfg
@@ -115,10 +113,6 @@ func (c *Cfg) SetIgnoreInstr(ignoreInstr bool) {
 
 func (c *Cfg) GetIgnoreInstr() bool {
 	return c.ignoreInstr
-}
-
-func (c *Cfg) GetParseSavings() bool {
-	return c.parseSavings
 }
 
 func (c *Cfg) WriteFeatureState(stepID string, feature types.SavingsFeature, state types.IntelligenceExecutionState) {

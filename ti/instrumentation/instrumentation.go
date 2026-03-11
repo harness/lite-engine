@@ -46,14 +46,12 @@ func getTestSelection(ctx context.Context, runner TestRunner, config *api.RunTes
 	}
 	defer func(config *api.RunTestConfig) {
 		// Determine TI Feature state for Push / PR runs
-		if tiConfig.GetParseSavings() {
-			if config.RunOnlySelectedTests {
-				// TI selected subset of tests
-				tiConfig.WriteFeatureState(stepID, ti.TI, ti.OPTIMIZED)
-			} else {
-				// TI selected all tests or returned an error which resulted in full run
-				tiConfig.WriteFeatureState(stepID, ti.TI, ti.FULL_RUN)
-			}
+		if config.RunOnlySelectedTests {
+			// TI selected subset of tests
+			tiConfig.WriteFeatureState(stepID, ti.TI, ti.OPTIMIZED)
+		} else {
+			// TI selected all tests or returned an error which resulted in full run
+			tiConfig.WriteFeatureState(stepID, ti.TI, ti.FULL_RUN)
 		}
 	}(config)
 

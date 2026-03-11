@@ -143,9 +143,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		exited.ExitCode, err = quarantine.CheckAndUpdateExitCodeForQuarantinedTests(ctx, tests, tiConfig, log, exited.ExitCode, err)
 	}
 
-	if tiConfig.GetParseSavings() {
-		optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, common.StepTypeRunTestsV2)
-	}
+	optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, common.StepTypeRunTestsV2)
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
@@ -1067,14 +1065,12 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	isManualExecution := instrumentation.IsManualExecution(tiConfig)
 	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig, envs, runV2Config)
 	if runV2Config.IntelligenceMode {
-		if tiConfig.GetParseSavings() {
-			if isFilterFilePresent {
-				// TI selected subset of tests
-				tiConfig.WriteFeatureState(stepID, types.TI, types.OPTIMIZED)
-			} else {
-				// TI selected all tests or returned an error which resulted in full run
-				tiConfig.WriteFeatureState(stepID, types.TI, types.FULL_RUN)
-			}
+		if isFilterFilePresent {
+			// TI selected subset of tests
+			tiConfig.WriteFeatureState(stepID, types.TI, types.OPTIMIZED)
+		} else {
+			// TI selected all tests or returned an error which resulted in full run
+			tiConfig.WriteFeatureState(stepID, types.TI, types.FULL_RUN)
 		}
 	}
 
