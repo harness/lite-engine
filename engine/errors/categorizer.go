@@ -121,8 +121,7 @@ func categorizeError(ctx context.Context, step *api.StartStepRequest, exitCode i
 }
 
 // getLogFileSizes returns the sizes of the stdout and stderr log files.
-func getLogFileSizes(stepID string) (int64, int64) {
-	var stdoutSize, stderrSize int64
+func getLogFileSizes(stepID string) (stdoutSize, stderrSize int64) {
 	if info, err := os.Stat(logutil.GetStdoutLogFilePath(stepID)); err == nil {
 		stdoutSize = info.Size()
 	}
