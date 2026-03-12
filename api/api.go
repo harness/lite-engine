@@ -267,11 +267,16 @@ type (
 
 	// ErrorDetails contains custom error categorization information
 	ErrorDetails struct {
-		FailureType    string `json:"failureType,omitempty"`
-		FailureSubType string `json:"failureSubType,omitempty"`
-		Message        string `json:"message,omitempty"`
-		MatchedRule    string `json:"matchedRule,omitempty"`
-		Source         string `json:"source,omitempty"`
+		FailureType          string `json:"failureType,omitempty"`
+		FailureSubType       string `json:"failureSubType,omitempty"`
+		Message              string `json:"message,omitempty"`
+		MatchedRule          string `json:"matchedRule,omitempty"`
+		Source               string `json:"source,omitempty"`
+		EvaluationDurationMs int64  `json:"evaluationDurationMs,omitempty"`
+		StdoutSizeBytes      int64  `json:"stdoutSizeBytes,omitempty"`
+		StderrSizeBytes      int64  `json:"stderrSizeBytes,omitempty"`
+		RuleCount            int32  `json:"ruleCount,omitempty"`
+		TimedOut             bool   `json:"timedOut,omitempty"`
 	}
 
 	VMTaskExecutionResponse struct {
