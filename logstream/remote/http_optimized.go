@@ -83,22 +83,25 @@ type OptimizedHTTPClient struct {
 	token          string
 	accountID      string
 	indirectUpload bool
+	customKafkaTopic string // when set, sent as X-Kafka-Topic on Write requests only
 }
 
 // NewOptimizedHTTPClient returns a new OptimizedHTTPClient.
+// When customKafkaTopic is non-empty, Write requests include X-Kafka-Topic so log-service also pushes to that topic.
 // When no custom TLS configuration is needed (skipverify=false and no mTLS
 // certs), the shared defaultOptimizedClient is reused to benefit from
 // connection pooling. A dedicated http.Client is created only when skipverify
 // or mTLS is enabled.
-func NewOptimizedHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string) *OptimizedHTTPClient {
+func NewOptimizedHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string, customKafkaTopic string) *OptimizedHTTPClient {
 	endpoint = strings.TrimSuffix(endpoint, "/")
 
 	c := &OptimizedHTTPClient{
-		client:         defaultOptimizedClient,
-		endpoint:       endpoint,
-		token:          token,
-		accountID:      accountID,
-		indirectUpload: indirectUpload,
+		client:            defaultOptimizedClient,
+		endpoint:          endpoint,
+		token:             token,
+		accountID:         accountID,
+		indirectUpload:    indirectUpload,
+		customKafkaTopic:  customKafkaTopic,
 	}
 
 	// Load mTLS certificates if available
@@ -154,7 +157,7 @@ func (c *OptimizedHTTPClient) Open(ctx context.Context, key string) error {
 	ctx, cancel := context.WithTimeout(ctx, openTimeout)
 	defer cancel()
 	b := newContextBackoff(ctx)
-	return c.retry(ctx, c.endpoint+path, "POST", nil, nil, b)
+	return c.retry(ctx, c.endpoint+path, "POST", nil, nil, b, false)
 }
 
 // Close closes the data stream.
@@ -167,7 +170,7 @@ func (c *OptimizedHTTPClient) Close(ctx context.Context, key string, snapshot bo
 	ctx, cancel := context.WithTimeout(ctx, closeTimeout)
 	defer cancel()
 	b := newContextBackoff(ctx)
-	return c.retry(ctx, c.endpoint+path, "DELETE", nil, nil, b)
+	return c.retry(ctx, c.endpoint+path, "DELETE", nil, nil, b, false)
 }
 
 // Write writes logs to the data stream.
@@ -177,7 +180,7 @@ func (c *OptimizedHTTPClient) Write(ctx context.Context, key string, lines []*lo
 	ctx, cancel := context.WithTimeout(ctx, writeTimeout)
 	defer cancel()
 	b := newContextBackoff(ctx)
-	return c.retry(ctx, c.endpoint+path, "PUT", &l, nil, b)
+	return c.retry(ctx, c.endpoint+path, "PUT", &l, nil, b, true)
 }
 
 // Upload uploads the full log history to the data store or via log service.
@@ -245,7 +248,7 @@ func (c *OptimizedHTTPClient) uploadLink(ctx context.Context, key string) (*Link
 	ctx, cancel := context.WithTimeout(ctx, uploadLinkTimeout)
 	defer cancel()
 	b := newContextBackoff(ctx)
-	err := c.retry(ctx, c.endpoint+path, "POST", nil, out, b)
+	err := c.retry(ctx, c.endpoint+path, "POST", nil, out, b, false)
 	return out, err
 }
 
@@ -263,12 +266,12 @@ func (c *OptimizedHTTPClient) uploadUsingLink(ctx context.Context, link string, 
 
 // retry executes an HTTP request with retries on transient errors and 5xx
 // responses. Non-transient errors (4xx, encoding failures, etc.) are returned
-// immediately without retry.
-func (c *OptimizedHTTPClient) retry(ctx context.Context, url, method string, in, out interface{}, b backoff.BackOff) error {
+// immediately without retry. includeCustomKafkaTopic should be true only for Write (PUT /stream) requests.
+func (c *OptimizedHTTPClient) retry(ctx context.Context, url, method string, in, out interface{}, b backoff.BackOff, includeCustomKafkaTopic bool) error {
 	attempt := 0
 	for {
 		attempt++
-		res, err := c.do(ctx, url, method, in, out) //nolint:bodyclose
+		res, err := c.do(ctx, url, method, in, out, includeCustomKafkaTopic) //nolint:bodyclose
 
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			logrus.WithError(ctxErr).WithField("url", url).
@@ -375,7 +378,8 @@ func (c *OptimizedHTTPClient) shouldRetry(res *http.Response, err error) bool {
 // ---------------------------------------------------------------------------
 
 // do executes an HTTP request with JSON encoding/decoding.
-func (c *OptimizedHTTPClient) do(ctx context.Context, url, method string, in, out interface{}) (*http.Response, error) {
+// includeCustomKafkaTopic should be true only for Write (PUT /stream) requests.
+func (c *OptimizedHTTPClient) do(ctx context.Context, url, method string, in, out interface{}, includeCustomKafkaTopic bool) (*http.Response, error) {
 	var r io.Reader
 	if in != nil {
 		buf := new(bytes.Buffer)
@@ -391,6 +395,9 @@ func (c *OptimizedHTTPClient) do(ctx context.Context, url, method string, in, ou
 		return nil, err
 	}
 	req.Header.Set("X-Harness-Token", c.token)
+	if includeCustomKafkaTopic && c.customKafkaTopic != "" {
+		req.Header.Set(headerXKafkaTopic, c.customKafkaTopic)
+	}
 
 	res, err := c.client.Do(req)
 	if res != nil {

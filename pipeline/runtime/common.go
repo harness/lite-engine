@@ -289,11 +289,12 @@ func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 }
 
 func getLogServiceClient(cfg *api.LogConfig, useOptimizedClient bool) logstream.Client {
+	customKafkaTopic := os.Getenv(remote.EnvVarPluginHarnessLogServiceCustomKafkaTopic)
 	if cfg.URL != "" {
 		if useOptimizedClient {
-			return remote.NewOptimizedHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "")
+			return remote.NewOptimizedHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "", customKafkaTopic)
 		}
-		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "")
+		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "", customKafkaTopic)
 	}
 	return stdout.New()
 }

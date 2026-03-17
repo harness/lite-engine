@@ -28,6 +28,11 @@ const (
 	streamWithSnapshotEndpoint = "/stream?accountID=%s&key=%s&snapshot=true"
 	blobEndpoint               = "/blob?accountID=%s&key=%s"
 	uploadLinkEndpoint         = "/blob/link/upload?accountID=%s&key=%s"
+
+	// EnvVarPluginHarnessLogServiceCustomKafkaTopic is the environment variable for the optional custom Kafka topic;
+	// when set, lite-engine sends X-Kafka-Topic on Write requests so log-service also pushes to that topic.
+	EnvVarPluginHarnessLogServiceCustomKafkaTopic = "PLUGIN_HARNESS_LOG_SERVICE_CUSTOM_KAFKA_TOPIC"
+	headerXKafkaTopic                             = "X-Kafka-Topic"
 )
 
 var _ logstream.Client = (*HTTPClient)(nil)
@@ -40,14 +45,16 @@ var defaultClient = &http.Client{
 }
 
 // NewHTTPClient returns a new HTTPClient.
-func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string) *HTTPClient {
+// When customKafkaTopic is non-empty, Write requests include X-Kafka-Topic so log-service also pushes to that topic.
+func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string, customKafkaTopic string) *HTTPClient {
 	endpoint = strings.TrimSuffix(endpoint, "/")
 	client := &HTTPClient{
-		Endpoint:       endpoint,
-		AccountID:      accountID,
-		Token:          token,
-		SkipVerify:     skipverify,
-		IndirectUpload: indirectUpload,
+		Endpoint:          endpoint,
+		AccountID:         accountID,
+		Token:             token,
+		SkipVerify:        skipverify,
+		IndirectUpload:    indirectUpload,
+		CustomKafkaTopic:  customKafkaTopic,
 	}
 
 	// Load mTLS certificates if available
@@ -117,6 +124,7 @@ type HTTPClient struct {
 	AccountID      string
 	SkipVerify     bool
 	IndirectUpload bool
+	CustomKafkaTopic string // when set, sent as X-Kafka-Topic on Write requests only
 }
 
 // UploadFile uploads the file directly to data store or via log service
@@ -212,7 +220,7 @@ func (c *HTTPClient) Close(ctx context.Context, key string, snapshot bool) error
 		endpoint = streamWithSnapshotEndpoint
 	}
 	path := fmt.Sprintf(endpoint, c.AccountID, key)
-	_, err := c.do(ctx, c.Endpoint+path, "DELETE", nil, nil) //nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "DELETE", nil, nil, false) //nolint:bodyclose
 	return err
 }
 
@@ -220,7 +228,7 @@ func (c *HTTPClient) Close(ctx context.Context, key string, snapshot bool) error
 func (c *HTTPClient) Write(ctx context.Context, key string, lines []*logstream.Line) error {
 	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
 	l := convertLines(lines)
-	_, err := c.do(ctx, c.Endpoint+path, "PUT", &l, nil) //nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "PUT", &l, nil, true) //nolint:bodyclose
 	return err
 }
 
@@ -229,7 +237,7 @@ func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out int
 		var res *http.Response
 		var err error
 		if !isOpen {
-			res, err = c.do(ctx, method, path, in, out)
+			res, err = c.do(ctx, method, path, in, out, false)
 		} else {
 			res, err = c.open(ctx, method, path, in.(io.Reader))
 		}
@@ -270,7 +278,8 @@ func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out int
 
 // do is a helper function that posts a signed http request with
 // the input encoded and response decoded from json.
-func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interface{}) (*http.Response, error) {
+// includeCustomKafkaTopic should be true only for Write (PUT /stream) requests.
+func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interface{}, includeCustomKafkaTopic bool) (*http.Response, error) {
 	var r io.Reader
 
 	if in != nil {
@@ -290,6 +299,9 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 	// the request should include the secret shared between
 	// the agent and server for authorization.
 	req.Header.Add("X-Harness-Token", c.Token)
+	if includeCustomKafkaTopic && c.CustomKafkaTopic != "" {
+		req.Header.Add(headerXKafkaTopic, c.CustomKafkaTopic)
+	}
 	res, err := c.client().Do(req)
 	if res != nil {
 		defer func() {
