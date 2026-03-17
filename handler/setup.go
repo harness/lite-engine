@@ -298,16 +298,13 @@ func syncSystemClock() {
 	}
 
 	// Restart chrony to reset source state (clears the "too variable" flag from post-resume measurements)
-	if out, err := exec.Command("systemctl", "restart", "chrony").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(context.Background(), "systemctl", "restart", "chrony").CombinedOutput(); err != nil {
 		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to restart chrony")
 		return
 	}
 
-	// Wait briefly for chrony to poll the NTP source
-	time.Sleep(2 * time.Second)
-
 	// Force an immediate clock step
-	if out, err := exec.Command("chronyc", "-a", "makestep").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(context.Background(), "chronyc", "-a", "makestep").CombinedOutput(); err != nil {
 		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to force chrony clock step")
 		return
 	}
