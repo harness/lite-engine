@@ -46,15 +46,15 @@ var defaultClient = &http.Client{
 
 // NewHTTPClient returns a new HTTPClient.
 // When customKafkaTopic is non-empty, Write requests include X-Kafka-Topic so log-service also pushes to that topic.
-func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string, customKafkaTopic string) *HTTPClient {
+func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey, customKafkaTopic string) *HTTPClient {
 	endpoint = strings.TrimSuffix(endpoint, "/")
 	client := &HTTPClient{
-		Endpoint:          endpoint,
-		AccountID:         accountID,
-		Token:             token,
-		SkipVerify:        skipverify,
-		IndirectUpload:    indirectUpload,
-		CustomKafkaTopic:  customKafkaTopic,
+		Endpoint:         endpoint,
+		AccountID:        accountID,
+		Token:            token,
+		SkipVerify:       skipverify,
+		IndirectUpload:   indirectUpload,
+		CustomKafkaTopic: customKafkaTopic,
 	}
 
 	// Load mTLS certificates if available
@@ -118,12 +118,12 @@ func clientWithTLSConfig(skipverify bool, mtlsEnabled bool, cert tls.Certificate
 
 // HTTPClient provides an http service client.
 type HTTPClient struct {
-	Client         *http.Client
-	Endpoint       string // Example: http://localhost:port
-	Token          string // Per account token to validate against
-	AccountID      string
-	SkipVerify     bool
-	IndirectUpload bool
+	Client           *http.Client
+	Endpoint         string // Example: http://localhost:port
+	Token            string // Per account token to validate against
+	AccountID        string
+	SkipVerify       bool
+	IndirectUpload   bool
 	CustomKafkaTopic string // when set, sent as X-Kafka-Topic on Write requests only
 }
 

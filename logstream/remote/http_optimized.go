@@ -78,11 +78,11 @@ var defaultOptimizedClient = newHTTPClientWithTransport(&tls.Config{}) //nolint:
 // OptimizedHTTPClient provides an HTTP log-service client with proper timeouts,
 // a well-configured transport, and retries only on transient errors.
 type OptimizedHTTPClient struct {
-	client         *http.Client
-	endpoint       string // e.g. http://localhost:port
-	token          string
-	accountID      string
-	indirectUpload bool
+	client           *http.Client
+	endpoint         string // e.g. http://localhost:port
+	token            string
+	accountID        string
+	indirectUpload   bool
 	customKafkaTopic string // when set, sent as X-Kafka-Topic on Write requests only
 }
 
@@ -92,16 +92,16 @@ type OptimizedHTTPClient struct {
 // certs), the shared defaultOptimizedClient is reused to benefit from
 // connection pooling. A dedicated http.Client is created only when skipverify
 // or mTLS is enabled.
-func NewOptimizedHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string, customKafkaTopic string) *OptimizedHTTPClient {
+func NewOptimizedHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey, customKafkaTopic string) *OptimizedHTTPClient {
 	endpoint = strings.TrimSuffix(endpoint, "/")
 
 	c := &OptimizedHTTPClient{
-		client:            defaultOptimizedClient,
-		endpoint:          endpoint,
-		token:             token,
-		accountID:         accountID,
-		indirectUpload:    indirectUpload,
-		customKafkaTopic:  customKafkaTopic,
+		client:           defaultOptimizedClient,
+		endpoint:         endpoint,
+		token:            token,
+		accountID:        accountID,
+		indirectUpload:   indirectUpload,
+		customKafkaTopic: customKafkaTopic,
 	}
 
 	// Load mTLS certificates if available
