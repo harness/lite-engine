@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -128,6 +129,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 			SanitizeConfig:    s.LogConfig.SanitizeConfig,
 		}
 		collector.Start()
+
+		// Fix clock skew on Linux ARM64 VMs after hibernate resume.
+		// ARM64 uses arch_sys_counter which doesn't auto-adjust after GCP suspend/resume.
+		// Restarting chrony resets its source state and with makestep 1 -1 config, it steps immediately.
+		if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
+			syncSystemClock()
+		}
+
 		if err := engine.Setup(r.Context(), cfg); err != nil {
 			logger.FromRequest(r).
 				WithField("latency", time.Since(st)).
@@ -277,4 +286,28 @@ func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.Stat
 		Infoln("api: initialized os stats live streaming")
 
 	return nil
+}
+
+// syncSystemClock forces chrony to step the system clock if there is significant drift.
+// This fixes clock skew on ARM64 VMs after GCP hibernate resume, where the arch_sys_counter
+// clock source doesn't auto-adjust (unlike x86's kvm-clock). Without this, chrony may
+// mark the NTP source as too variable and refuse to step, leaving the clock minutes behind.
+func syncSystemClock() {
+	if _, err := exec.LookPath("chronyc"); err != nil {
+		return
+	}
+
+	// Restart chrony to reset source state (clears the "too variable" flag from post-resume measurements)
+	if out, err := exec.CommandContext(context.Background(), "systemctl", "restart", "chrony").CombinedOutput(); err != nil {
+		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to restart chrony")
+		return
+	}
+
+	// Force an immediate clock step
+	if out, err := exec.CommandContext(context.Background(), "chronyc", "-a", "makestep").CombinedOutput(); err != nil {
+		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to force chrony clock step")
+		return
+	}
+
+	logrus.Infoln("setup: forced chrony clock sync on ARM64")
 }
