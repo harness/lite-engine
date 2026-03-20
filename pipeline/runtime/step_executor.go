@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/duallog"
 	"github.com/harness/lite-engine/engine"
 	errorcat "github.com/harness/lite-engine/engine/errors"
 	"github.com/harness/lite-engine/engine/logutil"
@@ -497,6 +499,29 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 		pipelineState.GetLogConfig().TrimNewLineSuffix,
 		r.LogConfig.SkipOpeningStream,
 		r.LogConfig.SkipClosingStream)
+
+	if pipelineState.GetLogConfig().DualLoggingEnabled {
+		tiCfg := pipelineState.GetTIConfig()
+		var accountID, orgID, projectID, pipelineID, buildID, stageID string
+		if tiCfg != nil && tiCfg.GetClient() != nil {
+			accountID = tiCfg.GetAccountID()
+			orgID = tiCfg.GetOrgID()
+			projectID = tiCfg.GetProjectID()
+			pipelineID = tiCfg.GetPipelineID()
+			buildID = tiCfg.GetBuildID()
+			stageID = tiCfg.GetStageID()
+		}
+		meta := duallog.NewMetaFromTIConfig(
+			accountID, orgID, projectID,
+			pipelineID, buildID,
+			os.Getenv("HARNESS_EXECUTION_ID"),
+			stageID,
+			duallog.ExtractStepID(r.LogKey),
+			r.StepStatus.TaskID,
+		)
+		wc.SetDualLogConfig(meta, "LITE_ENGINE_STEP_LOGS")
+	}
+
 	wr := logstream.NewReplacerWithEnvs(wc, secrets, r.Envs)
 	safego.SafeGo("log_stream_open", func() {
 		wr.Open() //nolint:errcheck

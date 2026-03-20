@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/harness/lite-engine/duallog"
 	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/remote"
@@ -64,6 +65,9 @@ type Writer struct {
 	trimNewLineSuffix bool
 	lastFlushTime     time.Time
 	ctx               context.Context
+
+	dualLogMeta *duallog.Meta
+	dualLogType string
 }
 
 // New returns a new writer
@@ -97,6 +101,12 @@ func (b *Writer) SetLimit(limit int) {
 // SetInterval sets the Writer flusher interval.
 func (b *Writer) SetInterval(interval time.Duration) {
 	b.interval = interval
+}
+
+// SetDualLogConfig enables dual logging to stdout in flat JSON format.
+func (b *Writer) SetDualLogConfig(meta *duallog.Meta, logType string) {
+	b.dualLogMeta = meta
+	b.dualLogType = logType
 }
 
 // Write uploads the live log stream to the server.
@@ -136,6 +146,10 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			Number:      b.num,
 			Timestamp:   time.Now(),
 			ElaspedTime: int64(time.Since(b.now).Seconds()),
+		}
+
+		if b.dualLogMeta != nil {
+			duallog.EmitLine(b.dualLogMeta, line.Message, line.Timestamp, b.dualLogType)
 		}
 
 		jsonLine, _ := getLineBytes(line)
