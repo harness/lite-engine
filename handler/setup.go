@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/duallog"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/livelog"
@@ -90,6 +91,10 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 				WithField("time", time.Now().Format(time.RFC3339)).
 				WithError(err).
 				Warnln("api: failed to initialize lite-engine log streaming")
+		}
+
+		if s.LogConfig.DualLoggingEnabled {
+			initializeDualLogHook(&s)
 		}
 
 		// Initialize OS stats NDJSON streaming (file + upload) if MemoryMetricsLogKey is provided
@@ -286,6 +291,34 @@ func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.Stat
 		Infoln("api: initialized os stats live streaming")
 
 	return nil
+}
+
+// initializeDualLogHook adds a logrus hook that emits each lite-engine internal log entry
+// as flat JSON to stdout for OTel collection, when dual logging is enabled.
+func initializeDualLogHook(setupReq *api.SetupRequest) {
+	ti := &setupReq.TIConfig
+	taskID := ""
+	if setupReq.Envs != nil {
+		taskID = setupReq.Envs["HARNESS_DELEGATE_TASK_ID"]
+	}
+
+	planExecID := ""
+	if setupReq.Envs != nil {
+		if v, ok := setupReq.Envs["HARNESS_EXECUTION_ID"]; ok {
+			planExecID = v
+		}
+	}
+
+	meta := duallog.NewMetaFromTIConfig(
+		ti.AccountID, ti.OrgID, ti.ProjectID, ti.PipelineID,
+		ti.BuildID, planExecID, ti.StageID, "lite-engine", taskID,
+	)
+	logrus.AddHook(logger.NewDualLogHook(meta, "LITE_ENGINE_LOGS"))
+
+	logger.L.WithFields(logrus.Fields{
+		"accountId": ti.AccountID, "pipelineId": ti.PipelineID,
+		"stageId": ti.StageID, "taskId": taskID,
+	}).Infoln("api: initialized dual log hook for lite-engine internal logs")
 }
 
 // syncSystemClock forces chrony to step the system clock if there is significant drift.

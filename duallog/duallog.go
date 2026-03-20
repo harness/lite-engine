@@ -63,12 +63,18 @@ func ExtractStepID(logKey string) string {
 	return stepID
 }
 
-// EmitLine writes a single flat-JSON log line to os.Stdout.
+// EmitLine writes a single flat-JSON log line to os.Stdout with level "INFO".
 // It uses fmt.Fprintln (NOT logrus) to avoid re-ingestion loops.
 func EmitLine(meta *Meta, message string, ts time.Time, logType string) {
+	EmitLineWithLevel(meta, message, ts, logType, "INFO")
+}
+
+// EmitLineWithLevel writes a single flat-JSON log line to os.Stdout with the specified level.
+// It uses fmt.Fprintln (NOT logrus) to avoid re-ingestion loops.
+func EmitLineWithLevel(meta *Meta, message string, ts time.Time, logType string, level string) {
 	payload := map[string]interface{}{
 		"timestamp":  float64(ts.UnixNano()) / 1e9,
-		"level":      "INFO",
+		"level":      level,
 		"message":    message,
 		"logType":    logType,
 		"log_source": "streaming",
@@ -90,10 +96,8 @@ func EmitLine(meta *Meta, message string, ts time.Time, logType string) {
 	}
 	jsonBytes, err := json.Marshal(payload)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"error": err, "logType": logType, "accountId": meta.AccountID,
-			"stepIdentifier": meta.StepIdentifier,
-		}).Error("duallog: EmitLine failed to marshal JSON payload")
+		fmt.Fprintf(os.Stderr, "duallog: EmitLineWithLevel failed to marshal JSON: %v (logType=%s, accountId=%s)\n",
+			err, logType, meta.AccountID)
 		return
 	}
 	fmt.Fprintln(os.Stdout, string(jsonBytes))
