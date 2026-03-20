@@ -107,6 +107,13 @@ func (b *Writer) SetInterval(interval time.Duration) {
 func (b *Writer) SetDualLogConfig(meta *duallog.Meta, logType string) {
 	b.dualLogMeta = meta
 	b.dualLogType = logType
+	logrus.WithFields(logrus.Fields{
+		"logType": logType, "logKey": b.key, "logSource": b.name,
+		"accountId": meta.AccountID, "orgId": meta.OrgID, "projectId": meta.ProjectID,
+		"pipelineId": meta.PipelineID, "runSequence": meta.RunSequence,
+		"planExecutionId": meta.PlanExecutionID, "stageIdentifier": meta.StageIdentifier,
+		"stepIdentifier": meta.StepIdentifier, "taskId": meta.TaskID,
+	}).Info("livelog: dual log config set on Writer")
 }
 
 // Write uploads the live log stream to the server.

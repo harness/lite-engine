@@ -500,6 +500,13 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 		r.LogConfig.SkipOpeningStream,
 		r.LogConfig.SkipClosingStream)
 
+	logrus.WithFields(logrus.Fields{
+		"dual_logging_enabled": pipelineState.GetLogConfig().DualLoggingEnabled,
+		"log_key":              r.LogKey,
+		"step_name":            r.Name,
+		"task_id":              r.StepStatus.TaskID,
+	}).Info("getLogStreamWriter: checking dual logging config")
+
 	if pipelineState.GetLogConfig().DualLoggingEnabled {
 		tiCfg := pipelineState.GetTIConfig()
 		var accountID, orgID, projectID, pipelineID, buildID, stageID string
@@ -510,16 +517,41 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 			pipelineID = tiCfg.GetPipelineID()
 			buildID = tiCfg.GetBuildID()
 			stageID = tiCfg.GetStageID()
+			logrus.WithFields(logrus.Fields{
+				"accountID": accountID, "orgID": orgID, "projectID": projectID,
+				"pipelineID": pipelineID, "buildID": buildID, "stageID": stageID,
+			}).Info("getLogStreamWriter: TIConfig metadata extracted for dual logging")
+		} else {
+			logrus.Warn("getLogStreamWriter: TIConfig or TIConfig.Client is nil, metadata may be incomplete")
 		}
+
+		harnessExecID := os.Getenv("HARNESS_EXECUTION_ID")
+		extractedStepID := duallog.ExtractStepID(r.LogKey)
+		logrus.WithFields(logrus.Fields{
+			"HARNESS_EXECUTION_ID": harnessExecID,
+			"extractedStepID":     extractedStepID,
+			"logKey":              r.LogKey,
+			"taskID":              r.StepStatus.TaskID,
+		}).Info("getLogStreamWriter: building dual log meta")
+
 		meta := duallog.NewMetaFromTIConfig(
 			accountID, orgID, projectID,
 			pipelineID, buildID,
-			os.Getenv("HARNESS_EXECUTION_ID"),
+			harnessExecID,
 			stageID,
-			duallog.ExtractStepID(r.LogKey),
+			extractedStepID,
 			r.StepStatus.TaskID,
 		)
 		wc.SetDualLogConfig(meta, "LITE_ENGINE_STEP_LOGS")
+
+		logrus.WithFields(logrus.Fields{
+			"accountID": meta.AccountID, "orgID": meta.OrgID, "projectID": meta.ProjectID,
+			"pipelineID": meta.PipelineID, "runSequence": meta.RunSequence,
+			"planExecutionID": meta.PlanExecutionID, "stageIdentifier": meta.StageIdentifier,
+			"stepIdentifier": meta.StepIdentifier, "taskID": meta.TaskID,
+		}).Info("getLogStreamWriter: dual log meta configured on livelog writer")
+	} else {
+		logrus.WithField("log_key", r.LogKey).Info("getLogStreamWriter: dual logging is NOT enabled for this execution")
 	}
 
 	wr := logstream.NewReplacerWithEnvs(wc, secrets, r.Envs)

@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Meta holds metadata fields for dual-log JSON payloads.
@@ -28,6 +30,11 @@ type Meta struct {
 
 // NewMetaFromTIConfig constructs a Meta from TI config fields and other sources.
 func NewMetaFromTIConfig(accountID, orgID, projectID, pipelineID, buildID, planExecID, stageID, stepID, taskID string) *Meta {
+	logrus.WithFields(logrus.Fields{
+		"accountID": accountID, "orgID": orgID, "projectID": projectID,
+		"pipelineID": pipelineID, "buildID": buildID, "planExecID": planExecID,
+		"stageID": stageID, "stepID": stepID, "taskID": taskID,
+	}).Info("duallog: NewMetaFromTIConfig called")
 	return &Meta{
 		AccountID:       accountID,
 		OrgID:           orgID,
@@ -45,10 +52,15 @@ func NewMetaFromTIConfig(accountID, orgID, projectID, pipelineID, buildID, planE
 // accountId/orgId/projectId/pipelineId/runSequence/stageId/stepId.
 func ExtractStepID(logKey string) string {
 	if logKey == "" {
+		logrus.Warn("duallog: ExtractStepID called with empty logKey")
 		return ""
 	}
 	parts := strings.Split(logKey, "/")
-	return parts[len(parts)-1]
+	stepID := parts[len(parts)-1]
+	logrus.WithFields(logrus.Fields{
+		"logKey": logKey, "extractedStepID": stepID, "partsCount": len(parts),
+	}).Info("duallog: ExtractStepID result")
+	return stepID
 }
 
 // EmitLine writes a single flat-JSON log line to os.Stdout.
@@ -78,6 +90,10 @@ func EmitLine(meta *Meta, message string, ts time.Time, logType string) {
 	}
 	jsonBytes, err := json.Marshal(payload)
 	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"error": err, "logType": logType, "accountId": meta.AccountID,
+			"stepIdentifier": meta.StepIdentifier,
+		}).Error("duallog: EmitLine failed to marshal JSON payload")
 		return
 	}
 	fmt.Fprintln(os.Stdout, string(jsonBytes))
