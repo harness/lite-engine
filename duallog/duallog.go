@@ -11,8 +11,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 // Meta holds metadata fields for dual-log JSON payloads.
@@ -30,11 +28,6 @@ type Meta struct {
 
 // NewMetaFromTIConfig constructs a Meta from TI config fields and other sources.
 func NewMetaFromTIConfig(accountID, orgID, projectID, pipelineID, buildID, planExecID, stageID, stepID, taskID string) *Meta {
-	logrus.WithFields(logrus.Fields{
-		"accountID": accountID, "orgID": orgID, "projectID": projectID,
-		"pipelineID": pipelineID, "buildID": buildID, "planExecID": planExecID,
-		"stageID": stageID, "stepID": stepID, "taskID": taskID,
-	}).Info("duallog: NewMetaFromTIConfig called")
 	return &Meta{
 		AccountID:       accountID,
 		OrgID:           orgID,
@@ -52,15 +45,10 @@ func NewMetaFromTIConfig(accountID, orgID, projectID, pipelineID, buildID, planE
 // accountId/orgId/projectId/pipelineId/runSequence/stageId/stepId.
 func ExtractStepID(logKey string) string {
 	if logKey == "" {
-		logrus.Warn("duallog: ExtractStepID called with empty logKey")
 		return ""
 	}
 	parts := strings.Split(logKey, "/")
-	stepID := parts[len(parts)-1]
-	logrus.WithFields(logrus.Fields{
-		"logKey": logKey, "extractedStepID": stepID, "partsCount": len(parts),
-	}).Info("duallog: ExtractStepID result")
-	return stepID
+	return parts[len(parts)-1]
 }
 
 // EmitLine writes a single flat-JSON log line to os.Stdout with level "INFO".
@@ -73,11 +61,10 @@ func EmitLine(meta *Meta, message string, ts time.Time, logType string) {
 // It uses fmt.Fprintln (NOT logrus) to avoid re-ingestion loops.
 func EmitLineWithLevel(meta *Meta, message string, ts time.Time, logType string, level string) {
 	payload := map[string]interface{}{
-		"timestamp":  float64(ts.UnixNano()) / 1e9,
-		"level":      level,
-		"message":    message,
-		"logType":    logType,
-		"log_source": "streaming",
+		"timestamp": float64(ts.UnixNano()) / 1e9,
+		"level":     level,
+		"message":   message,
+		"logType":   "EXECUTION_LOGS",
 		"logAbstractions": map[string]string{
 			"accountId":       meta.AccountID,
 			"orgId":           meta.OrgID,
