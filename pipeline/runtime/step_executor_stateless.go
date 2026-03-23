@@ -77,7 +77,7 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 	runFunc := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
 		return engine.RunStep(ctx, engine.Opts{Opts: docker.Opts{DockerClient: dockerClient}}, step, output, cfg, isDrone, isHosted)
 	}
-	// Temporary: this should be removed once we have a better way of handling test intelligence.
+	//  Temporary: this should be removed once we have a better way of handling test intelligence.
 	tiConfig := getTiCfg(&r.TIConfig, &r.MtlsConfig, r.Envs)
 
 	r.DeleteTempStepFiles = true
