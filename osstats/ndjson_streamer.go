@@ -27,22 +27,17 @@ type diskIOState struct {
 }
 
 // Payload is the JSON structure for each OS stats record.
-// The JSON line format includes CPU, memory, and disk metrics.
+// The JSON line format includes CPU, memory, and disk I/O metrics.
 //
-// Note: Memory and disk values are in GB. CPU values:
+// Note: Memory values are in GB. CPU values:
 // - totalCPU: number of cores
 // - avalCPU: available CPU percent (100 - usedPercent)
-// - disk: root partition (or primary mount); usedPercent is 0 if disk stats unavailable
 // - diskIO: read/write throughput in bytes per second
 type Payload struct {
 	TotalMemory       float64 `json:"totalMemory"`
 	TotalCPU          int     `json:"totalCPU"`
 	AvaMemory         float64 `json:"avaMemory"`
 	AvalCPU           float64 `json:"avalCPU"`
-	TotalDiskGB       float64 `json:"totalDiskGB"`
-	UsedDiskGB        float64 `json:"usedDiskGB"`
-	AvaDiskGB         float64 `json:"avaDiskGB"`
-	UsedDiskPct       float64 `json:"usedDiskPct"`
 	DiskReadBytesSec  float64 `json:"diskReadBytesSec"`
 	DiskWriteBytesSec float64 `json:"diskWriteBytesSec"`
 }
@@ -161,14 +156,6 @@ func sampleOSStats(ioState *diskIOState) (rec map[string]Payload, usedCPU float6
 		AvalCPU:     avalCPU,
 	}
 
-	// Disk usage for root (or primary) partition; same gopsutil package as cpu/mem
-	if du, err := disk.Usage("/"); err == nil {
-		payload.TotalDiskGB = formatGB(du.Total)
-		payload.UsedDiskGB = formatGB(du.Used)
-		payload.AvaDiskGB = formatGB(du.Free)
-		payload.UsedDiskPct = du.UsedPercent
-	}
-
 	// Disk I/O throughput: calculate bytes/sec from delta between samples
 	if ioCounters, err := disk.IOCounters(); err == nil && len(ioCounters) > 0 {
 		var totalReadBytes, totalWriteBytes uint64
@@ -179,8 +166,13 @@ func sampleOSStats(ioState *diskIOState) (rec map[string]Payload, usedCPU float6
 
 		if ioState.initialized {
 			// Calculate delta (bytes per second since last sample)
-			payload.DiskReadBytesSec = float64(totalReadBytes - ioState.prevReadBytes)
-			payload.DiskWriteBytesSec = float64(totalWriteBytes - ioState.prevWriteBytes)
+			// Guard against counter reset (reboot, wrap)
+			if totalReadBytes >= ioState.prevReadBytes {
+				payload.DiskReadBytesSec = float64(totalReadBytes - ioState.prevReadBytes)
+			}
+			if totalWriteBytes >= ioState.prevWriteBytes {
+				payload.DiskWriteBytesSec = float64(totalWriteBytes - ioState.prevWriteBytes)
+			}
 		}
 
 		// Update state for next sample
