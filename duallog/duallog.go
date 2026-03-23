@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -41,16 +40,6 @@ func NewMetaFromTIConfig(accountID, orgID, projectID, pipelineID, buildID, planE
 	}
 }
 
-// ExtractStepID extracts the last segment from a logKey of the form
-// accountId/orgId/projectId/pipelineId/runSequence/stageId/stepId.
-func ExtractStepID(logKey string) string {
-	if logKey == "" {
-		return ""
-	}
-	parts := strings.Split(logKey, "/")
-	return parts[len(parts)-1]
-}
-
 // EmitLine writes a single flat-JSON log line to os.Stdout with level "INFO".
 // It uses fmt.Fprintln (NOT logrus) to avoid re-ingestion loops.
 func EmitLine(meta *Meta, message string, ts time.Time, logType string) {
@@ -64,7 +53,7 @@ func EmitLineWithLevel(meta *Meta, message string, ts time.Time, logType string,
 		"timestamp": float64(ts.UnixNano()) / 1e9,
 		"level":     level,
 		"message":   message,
-		"logType":   "EXECUTION_LOGS",
+		"logType":   logType,
 		"logAbstractions": map[string]string{
 			"accountId":       meta.AccountID,
 			"orgId":           meta.OrgID,

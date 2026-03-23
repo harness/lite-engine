@@ -313,7 +313,7 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 		ti.AccountID, ti.OrgID, ti.ProjectID, ti.PipelineID,
 		ti.BuildID, planExecID, ti.StageID, "lite-engine", taskID,
 	)
-	logrus.AddHook(logger.NewDualLogHook(meta, "LITE_ENGINE_LOGS"))
+	logrus.AddHook(logger.NewDualLogHook(meta, "EXECUTION_LOGS"))
 
 	logger.L.WithFields(logrus.Fields{
 		"accountId": ti.AccountID, "pipelineId": ti.PipelineID,

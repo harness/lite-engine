@@ -502,33 +502,18 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 
 	if pipelineState.GetLogConfig().DualLoggingEnabled {
 		tiCfg := pipelineState.GetTIConfig()
-		var accountID, orgID, projectID, pipelineID, buildID, stageID string
-		if tiCfg != nil && tiCfg.GetClient() != nil {
-			accountID = tiCfg.GetAccountID()
-			orgID = tiCfg.GetOrgID()
-			projectID = tiCfg.GetProjectID()
-			pipelineID = tiCfg.GetPipelineID()
-			buildID = tiCfg.GetBuildID()
-			stageID = tiCfg.GetStageID()
-		} else {
-			logrus.Warn("getLogStreamWriter: TIConfig or TIConfig.Client is nil, dual log metadata may be incomplete")
+		meta := &duallog.Meta{
+			AccountID:       pipelineState.GetLogConfig().AccountID,
+			OrgID:           tiCfg.GetOrgID(),
+			ProjectID:       tiCfg.GetProjectID(),
+			PipelineID:      tiCfg.GetPipelineID(),
+			RunSequence:     tiCfg.GetBuildID(),
+			PlanExecutionID: os.Getenv("HARNESS_EXECUTION_ID"),
+			StageIdentifier: tiCfg.GetStageID(),
+			StepIdentifier:  r.Name,
+			TaskID:          r.StepStatus.TaskID,
 		}
-
-		harnessExecID := os.Getenv("HARNESS_EXECUTION_ID")
-		extractedStepID := duallog.ExtractStepID(r.LogKey)
-
-		meta := duallog.NewMetaFromTIConfig(
-			accountID, orgID, projectID,
-			pipelineID, buildID,
-			harnessExecID,
-			stageID,
-			extractedStepID,
-			r.StepStatus.TaskID,
-		)
-		wc.SetDualLogConfig(meta, "LITE_ENGINE_STEP_LOGS")
-		logrus.WithFields(logrus.Fields{
-			"accountId": accountID, "stepName": r.Name, "logKey": r.LogKey,
-		}).Info("getLogStreamWriter: dual logging enabled for step")
+		wc.SetDualLogConfig(meta, "EXECUTION_LOGS")
 	}
 
 	wr := logstream.NewReplacerWithEnvs(wc, secrets, r.Envs)

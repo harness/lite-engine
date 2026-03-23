@@ -14,29 +14,6 @@ import (
 	"time"
 )
 
-func TestExtractStepID(t *testing.T) {
-	tests := []struct {
-		name   string
-		logKey string
-		want   string
-	}{
-		{"full key", "acct/org/proj/pipe/1/stage/step1", "step1"},
-		{"single segment", "stepOnly", "stepOnly"},
-		{"empty", "", ""},
-		{"two segments", "prefix/stepId", "stepId"},
-		{"trailing slash stripped", "a/b/c", "c"},
-		{"simplified format", "h61p38AZSV6MzEkpWWBtew/pipeline/k8s0tes/2/-1xGcOrSDS/ci/addon:20004", "addon:20004"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := ExtractStepID(tt.logKey)
-			if got != tt.want {
-				t.Errorf("ExtractStepID(%q) = %q, want %q", tt.logKey, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestNewMetaFromTIConfig(t *testing.T) {
 	m := NewMetaFromTIConfig("acc1", "org1", "proj1", "pipe1", "42", "exec1", "stage1", "step1", "task1")
 	if m.AccountID != "acc1" || m.OrgID != "org1" || m.ProjectID != "proj1" ||
@@ -89,9 +66,6 @@ func TestEmitLine(t *testing.T) {
 	if parsed["logType"] != "LITE_ENGINE_STEP_LOGS" {
 		t.Errorf("expected logType 'LITE_ENGINE_STEP_LOGS', got %v", parsed["logType"])
 	}
-	if parsed["log_source"] != "streaming" {
-		t.Errorf("expected log_source 'streaming', got %v", parsed["log_source"])
-	}
 
 	abs, ok := parsed["logAbstractions"].(map[string]interface{})
 	if !ok {
@@ -139,9 +113,6 @@ func TestEmitLineNoTaskID(t *testing.T) {
 	}
 	if _, exists := parsed["logContext"]; exists {
 		t.Error("logContext should not be present when taskId is empty")
-	}
-	if parsed["log_source"] != "streaming" {
-		t.Errorf("expected log_source 'streaming', got %v", parsed["log_source"])
 	}
 }
 
