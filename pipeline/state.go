@@ -15,8 +15,8 @@ import (
 	"github.com/harness/lite-engine/logstream/filestore"
 	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/osstats"
-	"github.com/sirupsen/logrus"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/sirupsen/logrus"
 )
 
 var (

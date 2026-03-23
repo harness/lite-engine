@@ -44,7 +44,7 @@ func TestEmitLine(t *testing.T) {
 
 	w.Close()
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	os.Stdout = oldStdout
 
 	line := buf.String()
@@ -104,7 +104,7 @@ func TestEmitLineNoTaskID(t *testing.T) {
 
 	w.Close()
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	os.Stdout = oldStdout
 
 	var parsed map[string]interface{}
@@ -126,7 +126,7 @@ func TestEmitLineNilMetaDoesNotPanic(t *testing.T) {
 
 	w.Close()
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	os.Stdout = oldStdout
 
 	if buf.Len() == 0 {
