@@ -19,6 +19,13 @@ import (
 
 const maxCPUPercent = 100.0
 
+// diskIOState tracks disk I/O counters between samples to calculate throughput.
+type diskIOState struct {
+	prevReadBytes  uint64
+	prevWriteBytes uint64
+	initialized    bool
+}
+
 // Payload is the JSON structure for each OS stats record.
 // The JSON line format includes CPU, memory, and disk metrics.
 //
@@ -26,15 +33,18 @@ const maxCPUPercent = 100.0
 // - totalCPU: number of cores
 // - avalCPU: available CPU percent (100 - usedPercent)
 // - disk: root partition (or primary mount); usedPercent is 0 if disk stats unavailable
+// - diskIO: read/write throughput in bytes per second
 type Payload struct {
-	TotalMemory float64 `json:"totalMemory"`
-	TotalCPU    int     `json:"totalCPU"`
-	AvaMemory   float64 `json:"avaMemory"`
-	AvalCPU     float64 `json:"avalCPU"`
-	TotalDiskGB float64 `json:"totalDiskGB"`
-	UsedDiskGB  float64 `json:"usedDiskGB"`
-	AvaDiskGB   float64 `json:"avaDiskGB"`
-	UsedDiskPct float64 `json:"usedDiskPct"`
+	TotalMemory       float64 `json:"totalMemory"`
+	TotalCPU          int     `json:"totalCPU"`
+	AvaMemory         float64 `json:"avaMemory"`
+	AvalCPU           float64 `json:"avalCPU"`
+	TotalDiskGB       float64 `json:"totalDiskGB"`
+	UsedDiskGB        float64 `json:"usedDiskGB"`
+	AvaDiskGB         float64 `json:"avaDiskGB"`
+	UsedDiskPct       float64 `json:"usedDiskPct"`
+	DiskReadBytesSec  float64 `json:"diskReadBytesSec"`
+	DiskWriteBytesSec float64 `json:"diskWriteBytesSec"`
 }
 
 // SummaryPayload is the final NDJSON line written when streaming stops.
@@ -95,6 +105,9 @@ func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *l
 	// Prime CPU percent calculation (gopsutil uses time delta between calls).
 	_, _ = cpu.Percent(0, false)
 
+	// Track disk I/O state for throughput calculation
+	var ioState diskIOState
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -104,7 +117,7 @@ func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *l
 		default:
 		}
 
-		rec, usedCPU, err := sampleOSStats()
+		rec, usedCPU, err := sampleOSStats(&ioState)
 		if err == nil {
 			writeOSStatsRecord(w, rec, log)
 			if cpuSamples != nil {
@@ -123,7 +136,7 @@ func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *l
 	}
 }
 
-func sampleOSStats() (rec map[string]Payload, usedCPU float64, err error) {
+func sampleOSStats(ioState *diskIOState) (rec map[string]Payload, usedCPU float64, err error) {
 	percent, err := cpu.Percent(time.Second, false)
 	if err != nil || len(percent) == 0 {
 		return nil, 0, err
@@ -154,6 +167,26 @@ func sampleOSStats() (rec map[string]Payload, usedCPU float64, err error) {
 		payload.UsedDiskGB = formatGB(du.Used)
 		payload.AvaDiskGB = formatGB(du.Free)
 		payload.UsedDiskPct = du.UsedPercent
+	}
+
+	// Disk I/O throughput: calculate bytes/sec from delta between samples
+	if ioCounters, err := disk.IOCounters(); err == nil && len(ioCounters) > 0 {
+		var totalReadBytes, totalWriteBytes uint64
+		for _, counter := range ioCounters {
+			totalReadBytes += counter.ReadBytes
+			totalWriteBytes += counter.WriteBytes
+		}
+
+		if ioState.initialized {
+			// Calculate delta (bytes per second since last sample)
+			payload.DiskReadBytesSec = float64(totalReadBytes - ioState.prevReadBytes)
+			payload.DiskWriteBytesSec = float64(totalWriteBytes - ioState.prevWriteBytes)
+		}
+
+		// Update state for next sample
+		ioState.prevReadBytes = totalReadBytes
+		ioState.prevWriteBytes = totalWriteBytes
+		ioState.initialized = true
 	}
 
 	ts := time.Now().UTC().Format(time.RFC3339Nano)
