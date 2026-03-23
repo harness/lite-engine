@@ -159,9 +159,9 @@ func sampleOSStats(ioState *diskIOState) (rec map[string]Payload, usedCPU float6
 	// Disk I/O throughput: calculate bytes/sec from delta between samples
 	if ioCounters, err := disk.IOCounters(); err == nil && len(ioCounters) > 0 {
 		var totalReadBytes, totalWriteBytes uint64
-		for _, counter := range ioCounters {
-			totalReadBytes += counter.ReadBytes
-			totalWriteBytes += counter.WriteBytes
+		for name := range ioCounters {
+			totalReadBytes += ioCounters[name].ReadBytes
+			totalWriteBytes += ioCounters[name].WriteBytes
 		}
 
 		if ioState.initialized {
