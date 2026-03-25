@@ -14,12 +14,12 @@ import (
 	"time"
 )
 
-func TestNewMetaFromTIConfig(t *testing.T) {
-	m := NewMetaFromTIConfig("acc1", "org1", "proj1", "pipe1", "42", "exec1", "stage1", "step1", "task1")
+func TestNewMetaConfig(t *testing.T) {
+	m := NewMetaConfig("acc1", "org1", "proj1", "pipe1", "42", "exec1", "stage1", "step1", "task1")
 	if m.AccountID != "acc1" || m.OrgID != "org1" || m.ProjectID != "proj1" ||
 		m.PipelineID != "pipe1" || m.RunSequence != "42" || m.PlanExecutionID != "exec1" ||
 		m.StageIdentifier != "stage1" || m.StepIdentifier != "step1" || m.TaskID != "task1" {
-		t.Errorf("NewMetaFromTIConfig did not populate fields correctly: %+v", m)
+		t.Errorf("NewMetaConfig did not populate fields correctly: %+v", m)
 	}
 }
 

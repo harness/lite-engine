@@ -25,8 +25,8 @@ type Meta struct {
 	TaskID          string
 }
 
-// NewMetaFromTIConfig constructs a Meta from TI config fields and other sources.
-func NewMetaFromTIConfig(accountID, orgID, projectID, pipelineID, buildID, planExecID, stageID, stepID, taskID string) *Meta {
+// NewMetaConfig constructs a Meta with the given pipeline context fields.
+func NewMetaConfig(accountID, orgID, projectID, pipelineID, buildID, planExecID, stageID, stepID, taskID string) *Meta {
 	return &Meta{
 		AccountID:       accountID,
 		OrgID:           orgID,

@@ -309,7 +309,7 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 		}
 	}
 
-	meta := duallog.NewMetaFromTIConfig(
+	meta := duallog.NewMetaConfig(
 		ti.AccountID, ti.OrgID, ti.ProjectID, ti.PipelineID,
 		ti.BuildID, planExecID, ti.StageID, "lite-engine", taskID,
 	)
