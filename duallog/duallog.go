@@ -49,9 +49,8 @@ func EmitLine(meta *Meta, message string, ts time.Time, logType string) {
 // EmitLineWithLevel writes a single flat-JSON log line to os.Stdout with the specified level.
 // It uses fmt.Fprintln (NOT logrus) to avoid re-ingestion loops.
 func EmitLineWithLevel(meta *Meta, message string, ts time.Time, logType, level string) {
-	const nanosecondsPerSecond = 1e9
 	payload := map[string]interface{}{
-		"timestamp": float64(ts.UnixNano()) / nanosecondsPerSecond,
+		"timestamp": ts.UTC().Format(time.RFC3339Nano),
 		"level":     level,
 		"message":   message,
 		"logType":   logType,

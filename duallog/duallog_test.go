@@ -86,9 +86,13 @@ func TestEmitLine(t *testing.T) {
 		t.Errorf("expected taskId 'task-abc-DEL', got %v", logCtx["taskId"])
 	}
 
-	ts64, ok := parsed["timestamp"].(float64)
-	if !ok || ts64 <= 0 {
-		t.Errorf("expected positive timestamp, got %v", parsed["timestamp"])
+	tsStr, ok := parsed["timestamp"].(string)
+	if !ok || tsStr == "" {
+		t.Fatalf("expected non-empty timestamp string, got %v", parsed["timestamp"])
+	}
+	expectedTS := ts.UTC().Format(time.RFC3339Nano)
+	if tsStr != expectedTS {
+		t.Errorf("expected timestamp %q, got %q", expectedTS, tsStr)
 	}
 }
 
