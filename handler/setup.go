@@ -82,6 +82,11 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc {
 		collector := osstats.New(context.Background(), statsInterval, logProcess)
 
 		setProxyEnvs(s.Envs)
+
+		if val, ok := s.Envs["HARNESS_CI_DUAL_LOGGING"]; ok && val == "true" {
+			s.LogConfig.DualLoggingEnabled = true
+		}
+
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs), s.MtlsConfig, collector)
 
