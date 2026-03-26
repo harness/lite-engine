@@ -65,7 +65,7 @@ func GetNetrcFile(env map[string]string) (*spec.File, error) {
 }
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
-func HandleSetup(engine *engine.Engine) http.HandlerFunc {
+func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
