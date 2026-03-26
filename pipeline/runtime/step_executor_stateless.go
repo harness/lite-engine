@@ -81,16 +81,24 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 	tiConfig := getTiCfg(&r.TIConfig, &r.MtlsConfig, r.Envs)
 
 	r.DeleteTempStepFiles = true
-	return executeStepHelper(ctx, r, runFunc, writer, &tiConfig, true)
+	return executeStepHelper(ctx, r, runFunc, writer, tiConfig, true)
 }
 
-func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig, envs map[string]string) tiCfg.Cfg {
+func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig, envs map[string]string) *tiCfg.Cfg {
+	if t == nil || t.URL == "" {
+		return nil
+	}
+	var clientCert, clientCertKey string
+	if mtlsConfig != nil {
+		clientCert = mtlsConfig.ClientCert
+		clientCertKey = mtlsConfig.ClientCertKey
+	}
 	// Extract parent unique ID from environment variables
 	parentUniqueID := ""
 	if envs != nil {
 		parentUniqueID = envs["HARNESS_PARENT_UNIQUE_ID"]
 	}
 	cfg := tiCfg.New(t.URL, t.Token, t.AccountID, t.OrgID, t.ProjectID, t.PipelineID, t.BuildID, t.StageID, t.Repo,
-		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.GetSharedVolPath(), parentUniqueID, false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
-	return cfg
+		t.Sha, t.CommitLink, t.SourceBranch, t.TargetBranch, t.CommitBranch, pipeline.GetSharedVolPath(), parentUniqueID, false, clientCert, clientCertKey)
+	return &cfg
 }
