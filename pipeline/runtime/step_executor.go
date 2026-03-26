@@ -364,8 +364,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 		tiConfig = state.GetTIConfig()
 	}
 	if (tiConfig == nil || tiConfig.GetURL() == "") && r.TIConfig.URL != "" {
-		g := getTiCfg(&r.TIConfig, &r.MtlsConfig, r.Envs)
-		tiConfig = &g
+		tiConfig = getTiCfg(&r.TIConfig, &r.MtlsConfig, r.Envs)
 	}
 	ctx := context.Background()
 	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig, false)
