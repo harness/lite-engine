@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/duallog"
 	"github.com/harness/lite-engine/engine"
 	errorcat "github.com/harness/lite-engine/engine/errors"
 	"github.com/harness/lite-engine/engine/logutil"
@@ -357,6 +359,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, nil, nil, nil, "", err
 	}
+
 	// First try to get TI Config from pipeline state, if empty then use the one from step request
 	var tiConfig *tiCfg.Cfg
 	state := pipeline.GetState()
@@ -496,6 +499,27 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 		pipelineState.GetLogConfig().TrimNewLineSuffix,
 		r.LogConfig.SkipOpeningStream,
 		r.LogConfig.SkipClosingStream)
+
+	if pipelineState.GetLogConfig().DualLoggingEnabled {
+		tiCfg := pipelineState.GetTIConfig()
+		taskID := r.StepStatus.TaskID
+		if taskID == "" {
+			taskID = os.Getenv("HARNESS_DELEGATE_TASK_ID")
+		}
+		meta := &duallog.Meta{
+			AccountID:       pipelineState.GetLogConfig().AccountID,
+			OrgID:           tiCfg.GetOrgID(),
+			ProjectID:       tiCfg.GetProjectID(),
+			PipelineID:      tiCfg.GetPipelineID(),
+			RunSequence:     tiCfg.GetBuildID(),
+			PlanExecutionID: os.Getenv("HARNESS_EXECUTION_ID"),
+			StageIdentifier: tiCfg.GetStageID(),
+			StepIdentifier:  r.Name,
+			TaskID:          taskID,
+		}
+		wc.SetDualLogConfig(meta, "EXECUTION_LOGS")
+	}
+
 	wr := logstream.NewReplacerWithEnvs(wc, secrets, r.Envs)
 	safego.SafeGo("log_stream_open", func() {
 		wr.Open() //nolint:errcheck

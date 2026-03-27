@@ -16,6 +16,7 @@ import (
 	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/osstats"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -72,6 +73,14 @@ func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cf
 	s.tiConfig = tiConfig
 	s.mtlsConfig = mtlsConfig
 	s.statsCollector = collector
+
+	logrus.WithFields(logrus.Fields{
+		"dualLoggingEnabled": logConfig.DualLoggingEnabled,
+		"logConfigURL":       logConfig.URL,
+		"logConfigAccountID": logConfig.AccountID,
+		"trimNewLineSuffix":  logConfig.TrimNewLineSuffix,
+		"secretsCount":       len(secrets),
+	}).Info("pipeline.State.Set: pipeline state initialized with log config")
 }
 
 func (s *State) GetSecrets() []string {
