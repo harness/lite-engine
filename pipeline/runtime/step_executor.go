@@ -502,6 +502,10 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 
 	if pipelineState.GetLogConfig().DualLoggingEnabled {
 		tiCfg := pipelineState.GetTIConfig()
+		taskID := r.StepStatus.TaskID
+		if taskID == "" {
+			taskID = os.Getenv("HARNESS_DELEGATE_TASK_ID")
+		}
 		meta := &duallog.Meta{
 			AccountID:       pipelineState.GetLogConfig().AccountID,
 			OrgID:           tiCfg.GetOrgID(),
@@ -511,7 +515,7 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 			PlanExecutionID: os.Getenv("HARNESS_EXECUTION_ID"),
 			StageIdentifier: tiCfg.GetStageID(),
 			StepIdentifier:  r.Name,
-			TaskID:          r.StepStatus.TaskID,
+			TaskID:          taskID,
 		}
 		wc.SetDualLogConfig(meta, "EXECUTION_LOGS")
 	}

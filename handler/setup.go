@@ -33,7 +33,10 @@ var (
 	harnessEnableDebugLogs = "HARNESS_ENABLE_DEBUG_LOGS"
 )
 
-const OSWindows = "windows"
+const (
+	OSWindows        = "windows"
+	dualLoggingEnvVar = "HARNESS_LOG_STREAMING_STDOUT_ENABLED"
+)
 
 func GetNetrc(os string) string {
 	switch os {
@@ -82,8 +85,9 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
 		collector := osstats.New(context.Background(), statsInterval, logProcess)
 
 		setProxyEnvs(s.Envs)
+		setHarnessEnvs(s.Envs)
 
-		if val, ok := s.Envs["HARNESS_CI_DUAL_LOGGING"]; ok && val == "true" {
+		if val, ok := s.Envs[dualLoggingEnvVar]; ok && val == "true" {
 			s.LogConfig.DualLoggingEnabled = true
 		}
 
@@ -298,6 +302,15 @@ func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.Stat
 	return nil
 }
 
+func setHarnessEnvs(environment map[string]string) {
+	harnessEnvs := []string{"HARNESS_EXECUTION_ID", "HARNESS_DELEGATE_TASK_ID"}
+	for _, v := range harnessEnvs {
+		if val, ok := environment[v]; ok && val != "" {
+			os.Setenv(v, val)
+		}
+	}
+}
+
 // initializeDualLogHook adds a logrus hook that emits each lite-engine internal log entry
 // as flat JSON to stdout for OTel collection, when dual logging is enabled.
 func initializeDualLogHook(setupReq *api.SetupRequest) {
@@ -307,12 +320,7 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 		taskID = setupReq.Envs["HARNESS_DELEGATE_TASK_ID"]
 	}
 
-	planExecID := ""
-	if setupReq.Envs != nil {
-		if v, ok := setupReq.Envs["HARNESS_EXECUTION_ID"]; ok {
-			planExecID = v
-		}
-	}
+	planExecID := os.Getenv("HARNESS_EXECUTION_ID")
 
 	meta := duallog.NewMetaConfig(
 		ti.AccountID, ti.OrgID, ti.ProjectID, ti.PipelineID,
