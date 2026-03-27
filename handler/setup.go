@@ -34,7 +34,7 @@ var (
 )
 
 const (
-	OSWindows        = "windows"
+	OSWindows         = "windows"
 	dualLoggingEnvVar = "HARNESS_LOG_STREAMING_STDOUT_ENABLED"
 )
 
