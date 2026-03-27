@@ -359,6 +359,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 		state, err := e.executeStepDrone(r)
 		return state, nil, nil, nil, nil, nil, "", err
 	}
+
 	// First try to get TI Config from pipeline state, if empty then use the one from step request
 	var tiConfig *tiCfg.Cfg
 	state := pipeline.GetState()
