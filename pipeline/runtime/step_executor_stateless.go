@@ -85,9 +85,6 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 }
 
 func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig, envs map[string]string) *tiCfg.Cfg {
-	if t == nil || t.URL == "" {
-		return nil
-	}
 	var clientCert, clientCertKey string
 	if mtlsConfig != nil {
 		clientCert = mtlsConfig.ClientCert
