@@ -268,7 +268,7 @@ func fetchArtifactDataFromArtifactFile(artifactFile string, out io.Writer) ([]by
 
 // setTiEnvVariables sets the environment variables required for TI
 func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
-	if config == nil {
+	if config == nil || config.GetURL() == "" {
 		return
 	}
 	if step.Envs == nil {
