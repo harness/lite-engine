@@ -1,7 +1,7 @@
 # ---------------------------------------------------------#
 #                   Build Lite Engine Binaries             #
 # ---------------------------------------------------------#
-FROM golang:1.25.7-alpine as builder
+FROM golang:1.25.8-alpine as builder
 
 RUN apk add --no-cache git ca-certificates
 
