@@ -19,11 +19,16 @@ import (
 
 const maxCPUPercent = 100.0
 
-// diskIOState tracks disk I/O counters between samples to calculate throughput.
+// diskIOState tracks disk I/O counters between samples to calculate throughput
+// and total bytes transferred over the streaming session.
 type diskIOState struct {
-	prevReadBytes  uint64
-	prevWriteBytes uint64
-	initialized    bool
+	firstReadBytes  uint64
+	firstWriteBytes uint64
+	prevReadBytes   uint64
+	prevWriteBytes  uint64
+	lastReadBytes   uint64
+	lastWriteBytes  uint64
+	initialized     bool
 }
 
 // Payload is the JSON structure for each OS stats record.
@@ -47,19 +52,27 @@ type Payload struct {
 // metrics (peak, avgUtilization, p90). osStatsSummary is always true so consumers
 // can reliably identify this line (e.g. grep "osStatsSummary").
 type SummaryPayload struct {
-	OSStatsSummary  bool    `json:"osStatsSummary"`  // true = this line is the summary (last line)
-	PeakCPUUsagePct float64 `json:"peakCPUUsagePct"` // max (peak) CPU utilization %
-	AvgCPUUsagePct  float64 `json:"avgCPUUsagePct"`  // average CPU utilization %
-	P90CPUUsagePct  float64 `json:"p90CPUUsagePct"`  // P90 CPU utilization %
-	Payload                 // Embedded: TotalCPU, TotalMemory, AvaMemory, AvalCPU, disk fields
+	OSStatsSummary      bool    `json:"osStatsSummary"`      // true = this line is the summary (last line)
+	PeakCPUUsagePct     float64 `json:"peakCPUUsagePct"`     // max (peak) CPU utilization %
+	AvgCPUUsagePct      float64 `json:"avgCPUUsagePct"`      // average CPU utilization %
+	P90CPUUsagePct      float64 `json:"p90CPUUsagePct"`      // P90 CPU utilization %
+	TotalDiskReadBytes  uint64  `json:"totalDiskReadBytes"`  // total bytes read during execution
+	TotalDiskWriteBytes uint64  `json:"totalDiskWriteBytes"` // total bytes written during execution
+	Payload                     // Embedded: TotalCPU, TotalMemory, AvaMemory, AvalCPU, disk fields
+}
+
+// DiskIOTotals contains the total bytes read/written during the streaming session.
+type DiskIOTotals struct {
+	ReadBytes  uint64
+	WriteBytes uint64
 }
 
 // StartOSStatsStreaming starts a goroutine that collects OS stats once per second
 // and writes JSON lines to the provided io.Writer. Returns (1) a cancel function to
-// stop the collection and (2) getSummaryData to read the collected CPU samples and
-// last payload after cancel. The caller must write the P90 summary to the stream
-// (via WriteP90SummaryToStream) before closing the writer.
-func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) (cancel func(), getSummaryData func() (cpuSamples []float64, lastPayload Payload)) {
+// stop the collection and (2) getSummaryData to read the collected CPU samples,
+// last payload, and disk I/O totals after cancel. The caller must write the summary
+// to the stream (via WriteP90SummaryToStream) before closing the writer.
+func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) (cancel func(), getSummaryData func() (cpuSamples []float64, lastPayload Payload, diskTotals DiskIOTotals)) {
 	if log == nil {
 		log = logrus.NewEntry(logrus.StandardLogger())
 	}
@@ -70,11 +83,12 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 
 	var cpuUsedPctSamples []float64
 	var lastPayload Payload
+	var ioState diskIOState
 
 	wg.Add(1)
 	safego.SafeGo("os_stats_streaming", func() {
 		defer wg.Done()
-		runOSStatsLoop(ctx, done, w, log, &cpuUsedPctSamples, &lastPayload)
+		runOSStatsLoop(ctx, done, w, log, &cpuUsedPctSamples, &lastPayload, &ioState)
 	})
 
 	cancel = func() {
@@ -89,19 +103,23 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 		wg.Wait()
 	}
 
-	getSummaryData = func() ([]float64, Payload) {
-		return cpuUsedPctSamples, lastPayload
+	getSummaryData = func() ([]float64, Payload, DiskIOTotals) {
+		var totals DiskIOTotals
+		if ioState.initialized && ioState.lastReadBytes >= ioState.firstReadBytes {
+			totals.ReadBytes = ioState.lastReadBytes - ioState.firstReadBytes
+		}
+		if ioState.initialized && ioState.lastWriteBytes >= ioState.firstWriteBytes {
+			totals.WriteBytes = ioState.lastWriteBytes - ioState.firstWriteBytes
+		}
+		return cpuUsedPctSamples, lastPayload, totals
 	}
 
 	return cancel, getSummaryData
 }
 
-func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *logrus.Entry, cpuSamples *[]float64, lastPayload *Payload) {
+func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *logrus.Entry, cpuSamples *[]float64, lastPayload *Payload, ioState *diskIOState) {
 	// Prime CPU percent calculation (gopsutil uses time delta between calls).
 	_, _ = cpu.Percent(0, false)
-
-	// Track disk I/O state for throughput calculation
-	var ioState diskIOState
 
 	for {
 		select {
@@ -112,7 +130,7 @@ func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *l
 		default:
 		}
 
-		rec, usedCPU, err := sampleOSStats(&ioState)
+		rec, usedCPU, err := sampleOSStats(ioState)
 		if err == nil {
 			writeOSStatsRecord(w, rec, log)
 			if cpuSamples != nil {
@@ -173,11 +191,17 @@ func sampleOSStats(ioState *diskIOState) (rec map[string]Payload, usedCPU float6
 			if totalWriteBytes >= ioState.prevWriteBytes {
 				payload.DiskWriteBytesSec = float64(totalWriteBytes - ioState.prevWriteBytes)
 			}
+		} else {
+			// First sample: record initial values for total calculation
+			ioState.firstReadBytes = totalReadBytes
+			ioState.firstWriteBytes = totalWriteBytes
 		}
 
-		// Update state for next sample
+		// Update state for next sample and track last values for totals
 		ioState.prevReadBytes = totalReadBytes
 		ioState.prevWriteBytes = totalWriteBytes
+		ioState.lastReadBytes = totalReadBytes
+		ioState.lastWriteBytes = totalWriteBytes
 		ioState.initialized = true
 	}
 
@@ -196,11 +220,11 @@ func writeOSStatsRecord(w io.Writer, rec map[string]Payload, log *logrus.Entry) 
 	_, _ = w.Write(append(b, '\n'))
 }
 
-// WriteP90SummaryToStream writes the final summary line to the stream with the three
-// CPU metrics: peak (max), avgUtilization (average), and p90. Call this after
-// stopping the collection (cancel returned from StartOSStatsStreaming) and before
-// closing the writer, so the memory_metrics file always ends with this line.
-func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload Payload, log *logrus.Entry) {
+// WriteP90SummaryToStream writes the final summary line to the stream with CPU metrics
+// (peak, avgUtilization, p90) and total disk I/O bytes. Call this after stopping the
+// collection (cancel returned from StartOSStatsStreaming) and before closing the writer,
+// so the memory_metrics file always ends with this line.
+func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload Payload, diskTotals DiskIOTotals, log *logrus.Entry) {
 	if w == nil {
 		return
 	}
@@ -210,11 +234,13 @@ func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload Payl
 	peak, avg := peakAndAvg(cpuSamples)
 	p90 := p90NearestRank(cpuSamples)
 	summary := SummaryPayload{
-		OSStatsSummary:  true,
-		PeakCPUUsagePct: peak,
-		AvgCPUUsagePct:  avg,
-		P90CPUUsagePct:  p90,
-		Payload:         lastPayload,
+		OSStatsSummary:      true,
+		PeakCPUUsagePct:     peak,
+		AvgCPUUsagePct:      avg,
+		P90CPUUsagePct:      p90,
+		TotalDiskReadBytes:  diskTotals.ReadBytes,
+		TotalDiskWriteBytes: diskTotals.WriteBytes,
+		Payload:             lastPayload,
 	}
 	rec := map[string]SummaryPayload{
 		time.Now().UTC().Format(time.RFC3339Nano): summary,

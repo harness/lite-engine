@@ -128,8 +128,8 @@ func closeOSStatsStream(state *pipeline.State, key string) error {
 
 	// 2. Write the P90 summary to the stream before closing, so it is included in memory_metrics
 	if entry.Writer != nil && entry.GetSummaryData != nil {
-		cpuSamples, lastPayload := entry.GetSummaryData()
-		osstats.WriteP90SummaryToStream(entry.Writer, cpuSamples, lastPayload, logger.L)
+		cpuSamples, lastPayload, diskTotals := entry.GetSummaryData()
+		osstats.WriteP90SummaryToStream(entry.Writer, cpuSamples, lastPayload, diskTotals, logger.L)
 		// Flush so the summary is sent to the stream before Close() runs (upload + stream close)
 		if lw, ok := entry.Writer.(*livelog.Writer); ok {
 			_ = lw.Flush()

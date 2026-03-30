@@ -57,12 +57,12 @@ type State struct {
 }
 
 // OSStatsEntry holds the writer, cancel function, and getSummaryData for a single OS stats stream.
-// GetSummaryData returns the collected CPU samples and last payload after Cancel() has been called;
-// the caller should then write the P90 summary to Writer and only after that call Writer.Close().
+// GetSummaryData returns the collected CPU samples, last payload, and disk I/O totals after Cancel()
+// has been called; the caller should then write the P90 summary to Writer and only after that call Writer.Close().
 type OSStatsEntry struct {
 	Writer         logstream.Writer
 	Cancel         func()
-	GetSummaryData func() ([]float64, osstats.Payload)
+	GetSummaryData func() ([]float64, osstats.Payload, osstats.DiskIOTotals)
 }
 
 func (s *State) Set(secrets []string, logConfig api.LogConfig, tiConfig tiCfg.Cfg, mtlsConfig spec.MtlsConfig, collector *osstats.StatsCollector) { //nolint:gocritic
