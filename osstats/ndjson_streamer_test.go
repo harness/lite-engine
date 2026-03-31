@@ -47,8 +47,8 @@ func TestStartOSStatsStreaming_WritesNDJSON(t *testing.T) {
 	cancel()
 
 	// Write P90 summary to stream before "closing" (same as handler does)
-	samples, lastPayload := getSummaryData()
-	WriteP90SummaryToStream(buf, samples, lastPayload, log)
+	samples, lastPayload, diskTotals := getSummaryData()
+	WriteP90SummaryToStream(buf, samples, lastPayload, diskTotals, log)
 
 	output := buf.String()
 	lines := strings.Split(strings.TrimSpace(output), "\n")
