@@ -150,10 +150,10 @@ func applyNetshRules(ctx context.Context, allowedIPs []string) error {
 		}
 	}
 
-	// Step 2: Set default outbound policy to block (deny-all equivalent).
+	// Step 2: Set default outbound policy to block, keep inbound as-is.
 	// This must come AFTER all allow rules are in place.
 	if err := runNetsh(ctx, "advfirewall", "set", "allprofiles",
-		"firewallpolicy", "blockinbound,blockoutbound"); err != nil {
+		"firewallpolicy", "allowinbound,blockoutbound"); err != nil {
 		return fmt.Errorf("failed to set default outbound policy to block: %w", err)
 	}
 
