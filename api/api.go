@@ -23,6 +23,11 @@ type (
 		OK      bool   `json:"ok"`
 	}
 
+	EgressPolicy struct {
+		Enabled    bool     `json:"enabled"`
+		AllowedIPs []string `json:"allowed_ips,omitempty"`
+	}
+
 	SetupRequest struct {
 		Envs                map[string]string  `json:"envs,omitempty"`
 		Network             spec.Network       `json:"network"`
@@ -38,6 +43,7 @@ type (
 		Timeout             int64              `json:"timeout,omitempty"`
 		LELogKey            string             `json:"le_log_key,omitempty"`
 		MemoryMetricsLogKey string             `json:"memory_metrics_log_key,omitempty"`
+		EgressPolicy        *EgressPolicy      `json:"egress_policy,omitempty"`
 	}
 
 	SetupResponse struct{}
