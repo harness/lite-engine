@@ -284,28 +284,39 @@ func (b *Writer) Flush() error {
 }
 
 // flush batch uploads all buffered logs to the server.
+// IMPORTANT: b.client.Write() and all logrus calls happen outside the mutex to
+// prevent a deadlock when the StreamHook (which calls livelog.Writer.Write) fires
+// on the same goroutine in response to a log-service error.
 func (b *Writer) flush() error {
 	if !b.opened {
 		return nil
 	}
+
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	lines := b.copy()
 	b.clear()
-	if len(lines) == 0 {
-		// print stats if no logs for 10 min
+	isEmpty := len(lines) == 0
+	shouldDumpStats := false
+	if isEmpty {
 		thresholdTime := time.Now().Add(-flushThresholdTime)
 		if b.lastFlushTime.Before(thresholdTime) {
+			shouldDumpStats = true
+			b.lastFlushTime = time.Now()
+		}
+	} else {
+		b.lastFlushTime = time.Now()
+	}
+	b.mu.Unlock()
+
+	if isEmpty {
+		if shouldDumpStats {
 			if err := osstats.DumpProcessInfo(); err != nil {
 				logrus.Errorf("failed to dump process info: %v", err)
 			}
-			// reset lastFlushTime if stats were dumped
-			b.lastFlushTime = time.Now()
 		}
 		return nil
 	}
-	// reset lastFlushTime if logs are found
-	b.lastFlushTime = time.Now()
+
 	err := b.client.Write(b.ctx, b.key, lines)
 	if err != nil {
 		logrus.WithError(err).WithField("key", b.key).WithField("num_lines", len(lines)).

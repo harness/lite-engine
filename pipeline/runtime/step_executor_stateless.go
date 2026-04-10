@@ -51,6 +51,10 @@ func (e *StepExecutorStateless) Run(
 	e.stepStatus = StepStatus{Status: Running}
 
 	state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(ctx, r, cfg, dockerClient, writer)
+	// Close log stream after step execution. Detach steps keep the stream open.
+	if writer != nil && (stepErr != nil || !r.Detach) {
+		writer.Close()
+	}
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
 
