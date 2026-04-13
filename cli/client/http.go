@@ -129,17 +129,30 @@ func (c *HTTPClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*
 	return out, err
 }
 
-func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
-	var err error
-	for i := 0; i <= 6; i++ {
-		var out *api.StartStepResponse
-		out, err = c.StartStep(ctx, in)
-		if err == nil {
-			return out, nil
+func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepRequest, timeout time.Duration) (*api.StartStepResponse, error) {
+	startTime := time.Now()
+	retryCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	var lastErr error
+	for i := 0; ; i++ {
+		select {
+		case <-retryCtx.Done():
+			return nil, retryCtx.Err()
+		default:
+		}
+		if ret, err := c.StartStep(retryCtx, in); err == nil {
+			logger.FromContext(ctx).
+				WithField("duration", time.Since(startTime)).
+				Trace("RetryStartStep: step started")
+			return ret, nil
+		} else if lastErr == nil || (lastErr.Error() != err.Error()) {
+			logger.FromContext(ctx).
+				WithField("retry_num", i).WithError(err).Traceln("start step failed. Retrying")
+			lastErr = err
 		}
 		time.Sleep(time.Millisecond * 1000) //nolint:mnd
 	}
-	return nil, err
 }
 
 func (c *HTTPClient) PollStep(ctx context.Context, in *api.PollStepRequest) (*api.PollStepResponse, error) {
