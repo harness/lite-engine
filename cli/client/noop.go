@@ -46,7 +46,7 @@ func (*NoopClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*ap
 	return &api.StartStepResponse{}, nil
 }
 
-func (*NoopClient) RetryStartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
+func (*NoopClient) RetryStartStep(ctx context.Context, in *api.StartStepRequest, timeout time.Duration) (*api.StartStepResponse, error) {
 	return &api.StartStepResponse{}, nil
 }
 
