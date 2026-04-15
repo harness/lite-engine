@@ -95,10 +95,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	safego.WithContext(ctx, "step_executor", func(ctx context.Context) {
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
-		// Close log stream after step execution. Detach steps keep the stream open.
-		if wr != nil && (stepErr != nil || !r.Detach) {
-			wr.Close()
-		}
+
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata}
 
@@ -115,6 +112,10 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 
 		for _, ch := range channels {
 			ch <- status
+		}
+
+		if wr != nil && (stepErr != nil || !r.Detach) {
+			wr.Close()
 		}
 	})
 	return nil
