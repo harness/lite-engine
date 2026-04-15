@@ -105,7 +105,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		ffEnabled := isAnnotationsEnabled(r.Envs)
 		if stepErr == nil && state != nil && state.ExitCode == 0 && ffEnabled {
 			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
-			go e.postAnnotationsToPipeline(context.Background(), r)
+			safego.SafeGo("annotations_post", func() { e.postAnnotationsToPipeline(context.Background(), r) })
 		}
 
 		e.mu.Lock()
@@ -167,7 +167,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			ffEnabled := isAnnotationsEnabled(r.Envs)
 			if stepErr == nil && state != nil && state.ExitCode == 0 && ffEnabled {
 				logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
-				go e.postAnnotationsToPipeline(context.Background(), r)
+				safego.SafeGo("annotations_post", func() { e.postAnnotationsToPipeline(context.Background(), r) })
 			}
 
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
@@ -199,19 +199,17 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		select {
 		case resp = <-done:
 			e.sendStepStatus(r, &resp)
-			// Close log stream after status is sent so log-service slowness
-			// does not block step status delivery to harness-manager.
 			if wr != nil {
 				wr.Close()
 			}
 			return
 		case <-time.After(timeout):
 			// close the log stream if timeout
+			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
+			e.sendStepStatus(r, &resp)
 			if wr != nil {
 				wr.Close()
 			}
-			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
-			e.sendStepStatus(r, &resp)
 			return
 		}
 	})
