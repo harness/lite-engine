@@ -35,6 +35,19 @@ const (
 	defaultDirPermissions  = 0755 // Directory permissions (rwxr-xr-x)
 	boldYellowColor        = "\u001b[33;1m"
 	trueValue              = "true"
+	// AWS SDK/CLI environment variable that points at a credential_process config file.
+	// We populate it only when the broker config materialized at provisioning time exists
+	// on disk and the step opted into broker-based AWS auth (BROKER_ENDPOINT present).
+	awsConfigFileEnv = "AWS_CONFIG_FILE"
+	// Filesystem locations for the broker credential_process config file. Linux paths come
+	// from cloud-init (drone-runner-aws) and SETUP_ADDON_ARGS (harness-core); Windows paths
+	// from the equivalent Windows wiring. Centralized here so detectAwsBrokerConfigPath and
+	// any future probe stay in lockstep with the writer side.
+	awsBrokerConfigPathLinux         = "/etc/harness/aws/config"
+	awsBrokerConfigPathLinuxAddon    = "/addon/aws/config"
+	awsBrokerConfigPathWindows       = `C:\ProgramData\harness\aws\config`
+	awsBrokerConfigPathWindowsAddon  = `C:\addon\aws\config`
+	osWindows                        = "windows"
 )
 
 type Engine struct {
@@ -279,6 +292,32 @@ func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {
 	}
 
 	step.Envs = envs
+
+	// Set AWS_CONFIG_FILE only when the credential broker is active for this step
+	// (BROKER_ENDPOINT present in env per the credentialBroker repo contract)
+	// and a credential_process config file exists on disk. The config file is created at
+	// provisioning time (cloud-init for VMs, SETUP_ADDON_ARGS for K8s) and only when the
+	// credential-broker binary is available on the host/container.
+	if _, exists := step.Envs[awsConfigFileEnv]; !exists {
+		if _, hasBroker := step.Envs[spec.AwsBrokerEndpointEnv]; hasBroker {
+			candidates := awsBrokerConfigCandidates()
+			if configPath := detectAwsBrokerConfigPath(); configPath != "" {
+				step.Envs[awsConfigFileEnv] = configPath
+				logrus.WithField("step", step.ID).WithField("path", configPath).WithField("candidates", candidates).Infof(
+					"AWS broker credential_process config detected, set %s", awsConfigFileEnv)
+			} else {
+				logrus.WithField("step", step.ID).WithField("candidates", candidates).Warnf(
+					"BROKER_ENDPOINT present but no AWS broker credential_process config on disk; %s NOT set — step will fall back to AWS SDK default chain",
+					awsConfigFileEnv)
+			}
+		} else {
+			logrus.WithField("step", step.ID).Debugf("No BROKER_ENDPOINT in step env; leaving %s unset", awsConfigFileEnv)
+		}
+	} else {
+		logrus.WithField("step", step.ID).Infof(
+			"%s already set to %s, skipping broker config detection", awsConfigFileEnv, step.Envs[awsConfigFileEnv])
+	}
+
 	step.WorkingDir = PathConverter(step.WorkingDir)
 
 	// create files or folders specific to the step
@@ -432,4 +471,30 @@ func matchDockerSockPath(s string) bool {
 		return true
 	}
 	return false
+}
+
+// detectAwsBrokerConfigPath returns the path to the AWS credential_process
+// config file if it exists on disk, or "" if no broker config is found.
+// The config file is created at provisioning time: cloud-init for VMs,
+// SETUP_ADDON_ARGS for K8s init containers.
+func detectAwsBrokerConfigPath() string {
+	for _, path := range awsBrokerConfigCandidates() {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+	return ""
+}
+
+func awsBrokerConfigCandidates() []string {
+	if osruntime.GOOS == osWindows {
+		return []string{
+			awsBrokerConfigPathWindows,
+			awsBrokerConfigPathWindowsAddon,
+		}
+	}
+	return []string{
+		awsBrokerConfigPathLinux,
+		awsBrokerConfigPathLinuxAddon,
+	}
 }

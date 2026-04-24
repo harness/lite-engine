@@ -25,10 +25,18 @@ import (
 )
 
 const (
-	buildCacheStepName = "harness-build-cache"
-	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
-	hcliPath           = "/usr/bin/hcli"               // Standard Linux location and container target path
-	hcliMacOSFallback  = "/tmp/harness/bin/hcli-linux" // macOS fallback path for hcli binary
+	buildCacheStepName        = "harness-build-cache"
+	annotationsFFEnv          = "CI_ENABLE_HARNESS_ANNOTATIONS"
+	hcliPath                  = "/usr/bin/hcli"               // Standard Linux location and container target path
+	hcliMacOSFallback         = "/tmp/harness/bin/hcli-linux" // macOS fallback path for hcli binary
+	// credential-broker binary path (credentialBroker repo, originally CDS-120447, moved out of harness-toolkit via CDS-122507).
+	// Installed by cloud-init for VM D1.0 and used by AWS SDK/CLI via credential_process.
+	awsBrokerHelperPath       = "/usr/local/bin/credential-broker"
+	awsBrokerConfigPath       = "/etc/harness/aws/config"
+	awsBrokerConfigDirPath    = "/etc/harness/aws"
+	awsBrokerHelperPathWin    = `C:\Program Files\lite-engine\credential-broker.exe`
+	awsBrokerConfigPathWin    = `C:\ProgramData\harness\aws\config`
+	awsBrokerConfigDirPathWin = `C:\ProgramData\harness\aws`
 )
 
 // getHcliSourcePath returns the host path for hcli binary based on OS
@@ -151,6 +159,91 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 			})
 		} else {
 			logrus.WithField("path", hcliSourcePath).Warnln("hcli binary not found for mounting - annotations may not work in containers")
+		}
+
+		// Mount the credential-broker binary and its config ONLY when this step opted
+		// into broker-based AWS auth (BROKER_ENDPOINT is emitted by the Manager exclusively
+		// for steps whose AWS connector is of type CREDENTIAL_BROKER). Without this gate
+		// every step container on a broker-provisioned host would see the binary and
+		// config on disk, which breaks the feature's gating contract and leaks broker
+		// artifacts into unrelated steps. See the credentialBroker repo.
+		if _, hasBroker := step.Envs[spec.AwsBrokerEndpointEnv]; hasBroker {
+			binaryExists := false
+			configExists := false
+			if _, err := os.Stat(awsBrokerHelperPath); err == nil {
+				binaryExists = true
+				logrus.WithField("step", step.ID).WithField("path", awsBrokerHelperPath).Infof(
+					"Mounting credential-broker binary into container")
+				config.Mounts = append(config.Mounts, mount.Mount{
+					Type:     mount.TypeBind,
+					Source:   awsBrokerHelperPath,
+					Target:   awsBrokerHelperPath,
+					ReadOnly: true,
+				})
+			} else {
+				logrus.WithField("step", step.ID).WithField("path", awsBrokerHelperPath).WithError(err).Warnf(
+					"credential-broker binary not present on host; credential_process will fail inside container")
+			}
+			if _, err := os.Stat(awsBrokerConfigPath); err == nil {
+				configExists = true
+				logrus.WithField("step", step.ID).WithField("path", awsBrokerConfigDirPath).Infof(
+					"Mounting AWS broker config dir into container")
+				config.Mounts = append(config.Mounts, mount.Mount{
+					Type:     mount.TypeBind,
+					Source:   awsBrokerConfigDirPath,
+					Target:   awsBrokerConfigDirPath,
+					ReadOnly: true,
+				})
+			} else {
+				logrus.WithField("step", step.ID).WithField("path", awsBrokerConfigPath).WithError(err).Warnf(
+					"AWS broker config not present on host; AWS_CONFIG_FILE will not be set inside container")
+			}
+			logrus.WithField("step", step.ID).Infof(
+				"AWS credential broker mount decision (linux): binaryExists=%v, configExists=%v", binaryExists, configExists)
+		} else {
+			logrus.WithField("step", step.ID).Debugf("No BROKER_ENDPOINT in step env; skipping credential-broker mounts (linux)")
+		}
+	}
+
+	// Windows: Mount broker helper and config from Windows-specific paths. Same gating
+	// contract as the Linux branch above — only steps that opted into broker-based AWS
+	// auth (BROKER_ENDPOINT set) receive the mounts.
+	if runtime.GOOS == windowsOS {
+		if _, hasBroker := step.Envs[spec.AwsBrokerEndpointEnv]; hasBroker {
+			binaryExists := false
+			configExists := false
+			if _, err := os.Stat(awsBrokerHelperPathWin); err == nil {
+				binaryExists = true
+				logrus.WithField("step", step.ID).WithField("path", awsBrokerHelperPathWin).Infof(
+					"Mounting credential-broker binary into container (windows)")
+				config.Mounts = append(config.Mounts, mount.Mount{
+					Type:     mount.TypeBind,
+					Source:   awsBrokerHelperPathWin,
+					Target:   awsBrokerHelperPathWin,
+					ReadOnly: true,
+				})
+			} else {
+				logrus.WithField("step", step.ID).WithField("path", awsBrokerHelperPathWin).WithError(err).Warnf(
+					"credential-broker binary not present on host (windows); credential_process will fail inside container")
+			}
+			if _, err := os.Stat(awsBrokerConfigPathWin); err == nil {
+				configExists = true
+				logrus.WithField("step", step.ID).WithField("path", awsBrokerConfigDirPathWin).Infof(
+					"Mounting AWS broker config dir into container (windows)")
+				config.Mounts = append(config.Mounts, mount.Mount{
+					Type:     mount.TypeBind,
+					Source:   awsBrokerConfigDirPathWin,
+					Target:   awsBrokerConfigDirPathWin,
+					ReadOnly: true,
+				})
+			} else {
+				logrus.WithField("step", step.ID).WithField("path", awsBrokerConfigPathWin).WithError(err).Warnf(
+					"AWS broker config not present on host (windows); AWS_CONFIG_FILE will not be set inside container")
+			}
+			logrus.WithField("step", step.ID).Infof(
+				"AWS credential broker mount decision (windows): binaryExists=%v, configExists=%v", binaryExists, configExists)
+		} else {
+			logrus.WithField("step", step.ID).Debugf("No BROKER_ENDPOINT in step env; skipping credential-broker mounts (windows)")
 		}
 	}
 

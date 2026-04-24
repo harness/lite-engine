@@ -29,6 +29,17 @@ const (
 	CloudDriver = "CLOUD_DRIVER"
 )
 
+// AWS Credential Broker env vars consumed by the credential-broker binary
+// (upstream: credentialBroker/cmd/internal/config/config.go in
+//  git0.harness.io/l7B_kbSEQD2wjrM7PShm5w/PROD/Harness_Commons/credentialBroker).
+// Their presence on a step is the contract used to gate broker-specific staging logic
+// (binary mount, AWS_CONFIG_FILE injection) across lite-engine's container/host wiring,
+// matching the env-var names emitted by the Harness Manager (see AwsConstants in
+// harness-core/954-connector-beans).
+const (
+	AwsBrokerEndpointEnv = "BROKER_ENDPOINT"
+)
+
 func (p PullPolicy) String() string {
 	return pullPolicyID[p]
 }

@@ -97,3 +97,65 @@ func TestRunHelper(t *testing.T) {
 		assert.Equal(t, "/mount/path", step.Volumes[0].Path)
 	}
 }
+
+func TestRunHelperAwsConfigFilePresetNotOverridden(t *testing.T) {
+	cfg := &spec.PipelineConfig{Envs: map[string]string{}}
+	step := &spec.Step{
+		Envs: map[string]string{
+			"AWS_CONFIG_FILE": "/some/custom/path",
+		},
+		Files: []*spec.File{},
+	}
+
+	err := runHelper(cfg, step)
+	assert.NoError(t, err)
+	assert.Equal(t, "/some/custom/path", step.Envs["AWS_CONFIG_FILE"],
+		"Pre-existing AWS_CONFIG_FILE should not be overridden by detection")
+}
+
+func TestRunHelperNoAwsConfigFileWhenAbsent(t *testing.T) {
+	cfg := &spec.PipelineConfig{Envs: map[string]string{}}
+	step := &spec.Step{
+		Envs:  map[string]string{},
+		Files: []*spec.File{},
+	}
+
+	err := runHelper(cfg, step)
+	assert.NoError(t, err)
+	_, exists := step.Envs["AWS_CONFIG_FILE"]
+	assert.False(t, exists,
+		"AWS_CONFIG_FILE should not be set when no broker config file exists on disk")
+}
+
+func TestRunHelperNoAwsConfigFileWithoutBrokerURL(t *testing.T) {
+	cfg := &spec.PipelineConfig{Envs: map[string]string{}}
+	step := &spec.Step{
+		Envs:  map[string]string{"SOME_VAR": "value"},
+		Files: []*spec.File{},
+	}
+
+	err := runHelper(cfg, step)
+	assert.NoError(t, err)
+	_, exists := step.Envs["AWS_CONFIG_FILE"]
+	assert.False(t, exists,
+		"AWS_CONFIG_FILE should not be set when BROKER_ENDPOINT is not in env")
+}
+
+func TestDetectAwsBrokerConfigPathNoneExist(t *testing.T) {
+	result := detectAwsBrokerConfigPath()
+	if runtime.GOOS != "windows" && runtime.GOOS != "linux" {
+		assert.Empty(t, result, "No broker config files should exist on a dev machine")
+	}
+}
+
+func TestAwsBrokerConfigCandidates(t *testing.T) {
+	candidates := awsBrokerConfigCandidates()
+	assert.NotEmpty(t, candidates)
+	if runtime.GOOS == "windows" {
+		assert.Contains(t, candidates, `C:\ProgramData\harness\aws\config`)
+		assert.Contains(t, candidates, `C:\addon\aws\config`)
+	} else {
+		assert.Contains(t, candidates, "/etc/harness/aws/config")
+		assert.Contains(t, candidates, "/addon/aws/config")
+	}
+}
