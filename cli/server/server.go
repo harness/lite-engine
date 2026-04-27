@@ -7,11 +7,8 @@ package server
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
-	"runtime/debug"
-	"time"
 
 	"github.com/harness/lite-engine/config"
 	"github.com/harness/lite-engine/engine"
@@ -28,38 +25,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	maxRestarts  = 5
-	restartDelay = 2 * time.Second
-)
-
 type serverCommand struct {
 	envfile string
 }
 
 func (c *serverCommand) run(*kingpin.ParseContext) error {
-	for attempt := 0; attempt <= maxRestarts; attempt++ {
-		err := c.runServer()
-		if err == nil {
-			return nil // graceful shutdown
-		}
-		logrus.WithError(err).WithField("attempt", attempt+1).
-			Errorf("lite-engine server stopped unexpectedly, restarting in %s", restartDelay)
-		time.Sleep(restartDelay)
-	}
-	return fmt.Errorf("lite-engine exceeded max restart attempts (%d)", maxRestarts)
-}
-
-func (c *serverCommand) runServer() (retErr error) {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.WithField("panic", r).
-				WithField("stack", string(debug.Stack())).
-				Errorln("lite-engine panic recovered in main goroutine")
-			retErr = fmt.Errorf("panic: %v", r)
-		}
-	}()
-
 	if c.envfile != "" {
 		loadEnvErr := godotenv.Overload(c.envfile)
 		if loadEnvErr != nil {

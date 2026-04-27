@@ -9,9 +9,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net/http"
-	"runtime/debug"
 	"time"
 
 	"github.com/docker/go-connections/tlsconfig"
@@ -62,29 +60,13 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	var g errgroup.Group
-	g.Go(func() (retErr error) {
-		defer func() {
-			if r := recover(); r != nil {
-				logrus.WithField("panic", r).
-					WithField("stack", string(debug.Stack())).
-					Errorln("panic in HTTP server goroutine")
-				retErr = fmt.Errorf("server panic: %v", r)
-			}
-		}()
+	g.Go(func() error {
 		if s.Insecure {
 			return srv.ListenAndServe()
 		}
 		return srv.ListenAndServeTLS(s.CertFile, s.KeyFile)
 	})
-	g.Go(func() (retErr error) {
-		defer func() {
-			if r := recover(); r != nil {
-				logrus.WithField("panic", r).
-					WithField("stack", string(debug.Stack())).
-					Errorln("panic in shutdown goroutine")
-				retErr = fmt.Errorf("shutdown panic: %v", r)
-			}
-		}()
+	g.Go(func() error {
 		<-ctx.Done()
 		srv.Shutdown(ctx) //nolint: errcheck
 		return nil
