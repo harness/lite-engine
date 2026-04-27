@@ -95,14 +95,13 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	safego.WithContext(ctx, "step_executor", func(ctx context.Context) {
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
-
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata}
 
 		ffEnabled := isAnnotationsEnabled(r.Envs)
 		if stepErr == nil && state != nil && state.ExitCode == 0 && ffEnabled {
 			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
-			safego.SafeGo("annotations_post", func() { e.postAnnotationsToPipeline(context.Background(), r) })
+			go e.postAnnotationsToPipeline(context.Background(), r)
 		}
 
 		e.mu.Lock()
@@ -112,10 +111,6 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 
 		for _, ch := range channels {
 			ch <- status
-		}
-
-		if wr != nil && (stepErr != nil || !r.Detach) {
-			wr.Close()
 		}
 	})
 	return nil
@@ -168,7 +163,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			ffEnabled := isAnnotationsEnabled(r.Envs)
 			if stepErr == nil && state != nil && state.ExitCode == 0 && ffEnabled {
 				logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
-				safego.SafeGo("annotations_post", func() { e.postAnnotationsToPipeline(context.Background(), r) })
+				go e.postAnnotationsToPipeline(context.Background(), r)
 			}
 
 			if r.StageRuntimeID != "" && len(pollResponse.Envs) > 0 {
@@ -200,17 +195,14 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		select {
 		case resp = <-done:
 			e.sendStepStatus(r, &resp)
-			if wr != nil {
-				wr.Close()
-			}
 			return
 		case <-time.After(timeout):
 			// close the log stream if timeout
-			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
-			e.sendStepStatus(r, &resp)
 			if wr != nil {
 				wr.Close()
 			}
+			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
+			e.sendStepStatus(r, &resp)
 			return
 		}
 	})
@@ -384,8 +376,6 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 // executeStepHelper is a helper function which is used both by this step executor as well as the
 // stateless step executor. This is done so as to not duplicate logic across multiple implementations.
 // Eventually, we should deprecate this step executor in favor of the stateless executor.
-// The caller is responsible for closing the log writer (wr.Close()) after this returns.
-// This ensures step status can be sent before log-service upload/close operations.
 func executeStepHelper( //nolint:gocritic,gocyclo
 	ctx context.Context,
 	r *api.StartStepRequest,
@@ -439,6 +429,15 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 
 	if err != nil {
 		result = multierror.Append(result, err)
+	}
+
+	// if err is not nill or it's not a detach step then always close the stream
+	if err != nil || !r.Detach {
+		// close the stream. If the session is a remote session, the
+		// full log buffer is uploaded to the remote server.
+		if err = wr.Close(); err != nil {
+			result = multierror.Append(result, err)
+		}
 	}
 
 	// if the context was canceled and returns a canceled or
