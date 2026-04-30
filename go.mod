@@ -2,7 +2,7 @@ module github.com/harness/lite-engine
 
 go 1.25.0
 
-toolchain go1.25.8
+toolchain go1.25.9
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
