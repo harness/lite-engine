@@ -93,11 +93,20 @@ func New(client client.APIClient, opts Opts) *Docker {
 func NewEnv(opts Opts) (*Docker, error) {
 	var cli client.APIClient
 
+	disableAPINegotiation := os.Getenv(DisableAPINegotiation)
+	if disableAPINegotiation == "" {
+		disableAPINegotiation = "false"
+	}
+
 	if opts.DockerClient != nil {
 		cli = opts.DockerClient
 	} else {
 		var err error
-		cli, err = client.New(client.FromEnv)
+		if disableAPINegotiation != "false" {
+			cli, err = client.New(client.FromEnv, client.WithAPIVersionFromEnv())
+		} else {
+			cli, err = client.New(client.FromEnv)
+		}
 		if err != nil {
 			return nil, err
 		}
