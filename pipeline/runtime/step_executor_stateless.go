@@ -8,7 +8,6 @@ import (
 	"context"
 	"io"
 
-	"github.com/docker/docker/client"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/docker"
@@ -17,6 +16,7 @@ import (
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
 	"github.com/harness/ti-client/types"
+	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
 
 	"github.com/drone/runner-go/pipeline/runtime"
