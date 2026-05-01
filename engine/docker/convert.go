@@ -10,6 +10,7 @@ package docker
 
 import (
 	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,10 +19,9 @@ import (
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/sirupsen/logrus"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/go-connections/nat"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/mount"
+	"github.com/moby/moby/api/types/network"
 )
 
 const (
@@ -78,9 +78,9 @@ func toConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step, image string
 		config.Volumes = toVolumeSet(pipelineConfig, step)
 	}
 	if len(step.PortBindings) != 0 {
-		exposedPorts := make(nat.PortSet)
+		exposedPorts := make(network.PortSet)
 		for _, ctrPort := range step.PortBindings {
-			exposedPorts[nat.Port(ctrPort)] = struct{}{}
+			exposedPorts[network.MustParsePort(ctrPort)] = struct{}{}
 		}
 		config.ExposedPorts = exposedPorts
 	}
@@ -105,7 +105,13 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.NetworkMode = container.NetworkMode(step.Network)
 	}
 	if len(step.DNS) > 0 {
-		config.DNS = step.DNS
+		addrs := make([]netip.Addr, 0, len(step.DNS))
+		for _, dns := range step.DNS {
+			if addr, err := netip.ParseAddr(dns); err == nil {
+				addrs = append(addrs, addr)
+			}
+		}
+		config.DNS = addrs
 	}
 	if len(step.DNSSearch) > 0 {
 		config.DNSSearch = step.DNSSearch
@@ -155,13 +161,13 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 	}
 
 	if len(step.PortBindings) != 0 {
-		portBinding := make(nat.PortMap)
+		portBinding := make(network.PortMap)
 		for hostPort, ctrPort := range step.PortBindings {
-			p := nat.Port(ctrPort)
+			p := network.MustParsePort(ctrPort)
 			if _, ok := portBinding[p]; ok {
-				portBinding[p] = append(portBinding[p], nat.PortBinding{HostPort: hostPort})
+				portBinding[p] = append(portBinding[p], network.PortBinding{HostPort: hostPort})
 			} else {
-				portBinding[p] = []nat.PortBinding{
+				portBinding[p] = []network.PortBinding{
 					{
 						HostPort: hostPort,
 					},
@@ -387,11 +393,3 @@ func lookupVolume(pipelineConfig *spec.PipelineConfig, name string) (*spec.Volum
 	}
 	return nil, false
 }
-
-// func toPlatform(pipelineConfig *spec.PipelineConfig) *imagespecs.Platform {
-// 	return &imagespecs.Platform{
-// 		Architecture: pipelineConfig.Platform.Arch,
-// 		OS:           pipelineConfig.Platform.OS,
-// 		Variant:      pipelineConfig.Platform.Variant,
-// 	}
-// }

@@ -26,17 +26,14 @@ import (
 	"github.com/harness/lite-engine/internal/safego"
 	"github.com/sirupsen/logrus"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/image"
-	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/api/types/volume"
-	"github.com/docker/docker/client"
-	"github.com/docker/docker/errdefs"
+	cerrdefs "github.com/containerd/errdefs"
 	"github.com/drone/runner-go/logger"
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/drone/runner-go/registry/auths"
 	"github.com/harness/lite-engine/logstream"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
+	"github.com/moby/moby/client"
 )
 
 const (
@@ -95,6 +92,7 @@ func New(client client.APIClient, opts Opts) *Docker {
 // NewEnv returns a new Engine from the environment.
 func NewEnv(opts Opts) (*Docker, error) {
 	var cli client.APIClient
+
 	disableAPINegotiation := os.Getenv(DisableAPINegotiation)
 	if disableAPINegotiation == "" {
 		disableAPINegotiation = "false"
@@ -104,12 +102,11 @@ func NewEnv(opts Opts) (*Docker, error) {
 		cli = opts.DockerClient
 	} else {
 		var err error
-		if disableAPINegotiation == "false" {
-			cli, err = client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+		if disableAPINegotiation != "false" {
+			cli, err = client.New(client.FromEnv, client.WithAPIVersionFromEnv())
 		} else {
-			cli, err = client.NewClientWithOpts(client.FromEnv)
+			cli, err = client.New(client.FromEnv)
 		}
-
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +116,7 @@ func NewEnv(opts Opts) (*Docker, error) {
 
 // Ping pings the Docker daemon.
 func (e *Docker) Ping(ctx context.Context) error {
-	_, err := e.client.Ping(ctx)
+	_, err := e.client.Ping(ctx, client.PingOptions{})
 	return err
 }
 
@@ -136,7 +133,7 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 		if vol.EmptyDir == nil {
 			continue
 		}
-		_, err := e.client.VolumeCreate(ctx, volume.CreateOptions{
+		_, err := e.client.VolumeCreate(ctx, client.VolumeCreateOptions{
 			Name:   vol.EmptyDir.ID,
 			Driver: "local",
 			Labels: vol.EmptyDir.Labels,
@@ -158,21 +155,21 @@ func (e *Docker) DestroyContainersByLabel(
 	labelKey string,
 	labelValue string,
 ) error {
-	args := filters.NewArgs()
+	f := client.Filters{}
 	if labelKey != "" {
-		args.Add("label", fmt.Sprintf("%s=%s", labelKey, labelValue))
+		f = f.Add("label", fmt.Sprintf("%s=%s", labelKey, labelValue))
 	}
-	ctrs, err := e.client.ContainerList(ctx, container.ListOptions{
-		Filters: args,
+	result, err := e.client.ContainerList(ctx, client.ContainerListOptions{
+		Filters: f,
 		All:     true,
 	})
 	if err != nil {
 		return err
 	}
 	var containers []Container
-	for i := range ctrs {
+	for i := range result.Items {
 		containers = append(containers, Container{
-			ID: ctrs[i].ID,
+			ID: result.Items[i].ID,
 		})
 	}
 	return e.destroyContainers(ctx, pipelineConfig, containers)
@@ -185,7 +182,7 @@ func (e *Docker) destroyContainers(
 	pipelineConfig *spec.PipelineConfig,
 	containers []Container,
 ) error {
-	removeOpts := container.RemoveOptions{
+	removeOpts := client.ContainerRemoveOptions{
 		Force:         true,
 		RemoveLinks:   false,
 		RemoveVolumes: true,
@@ -196,7 +193,7 @@ func (e *Docker) destroyContainers(
 		if ctr.SoftStop {
 			e.softStop(ctx, ctr.ID)
 		} else {
-			if err := e.client.ContainerKill(ctx, ctr.ID, "9"); err != nil {
+			if _, err := e.client.ContainerKill(ctx, ctr.ID, client.ContainerKillOptions{Signal: "9"}); err != nil {
 				logrus.WithContext(ctx).WithField("container", ctr.ID).WithField("error", err).Warnln("failed to kill container")
 			}
 		}
@@ -204,7 +201,7 @@ func (e *Docker) destroyContainers(
 
 	// cleanup all containers
 	for _, ctr := range containers {
-		if err := e.client.ContainerRemove(ctx, ctr.ID, removeOpts); err != nil {
+		if _, err := e.client.ContainerRemove(ctx, ctr.ID, removeOpts); err != nil {
 			logrus.WithContext(ctx).WithField("container", ctr.ID).WithField("error", err).Warnln("failed to remove container")
 		}
 	}
@@ -219,13 +216,13 @@ func (e *Docker) destroyContainers(
 		if vol.EmptyDir.Medium == "memory" {
 			continue
 		}
-		if err := e.client.VolumeRemove(ctx, vol.EmptyDir.ID, true); err != nil {
+		if _, err := e.client.VolumeRemove(ctx, vol.EmptyDir.ID, client.VolumeRemoveOptions{Force: true}); err != nil {
 			logrus.WithContext(ctx).WithField("volume", vol.EmptyDir.ID).WithField("error", err).Warnln("failed to remove volume")
 		}
 	}
 
 	// cleanup the network
-	if err := e.client.NetworkRemove(ctx, pipelineConfig.Network.ID); err != nil {
+	if _, err := e.client.NetworkRemove(ctx, pipelineConfig.Network.ID, client.NetworkRemoveOptions{}); err != nil {
 		logrus.WithContext(ctx).WithField("network", pipelineConfig.Network.ID).WithField("error", err).Warnln("failed to remove network")
 	}
 
@@ -319,24 +316,24 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, ou
 
 func (e *Docker) destroyStoppedContainers(ctx context.Context, labels map[string]string) error {
 	// Create filter to match containers with the given label
-	filterArgs := filters.NewArgs()
+	f := client.Filters{}
 	for key, value := range labels {
-		filterArgs.Add("label", fmt.Sprintf("%s=%s", key, value))
+		f = f.Add("label", fmt.Sprintf("%s=%s", key, value))
 	}
 	// Filter only stopped containers
-	filterArgs.Add("status", "exited")
+	f = f.Add("status", "exited")
 
-	stoppedPluginContainers, err := e.client.ContainerList(ctx, container.ListOptions{
-		Filters: filterArgs,
+	result, err := e.client.ContainerList(ctx, client.ContainerListOptions{
+		Filters: f,
 		All:     true, // Required to include stopped containers
 	})
 	if err != nil {
 		return fmt.Errorf("failed to list stopped plugin containers: %w", err)
 	}
 
-	for i := range stoppedPluginContainers {
-		pluginContainer := stoppedPluginContainers[i]
-		if err := e.client.ContainerRemove(ctx, pluginContainer.ID, container.RemoveOptions{}); err != nil {
+	for i := range result.Items {
+		pluginContainer := result.Items[i]
+		if _, err := e.client.ContainerRemove(ctx, pluginContainer.ID, client.ContainerRemoveOptions{}); err != nil {
 			logrus.WithContext(ctx).
 				WithField("container", pluginContainer.ID).
 				WithField("error", err).Warnln("failed to remove container")
@@ -353,7 +350,7 @@ func (e *Docker) destroyStoppedContainers(ctx context.Context, labels map[string
 
 func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig, step *spec.Step, output io.Writer, isHosted bool) error { //nolint:gocyclo
 	// create pull options with encoded authorization credentials.
-	pullopts := image.PullOptions{}
+	pullopts := client.ImagePullOptions{}
 	if step.Auth != nil {
 		pullopts.RegistryAuth = auths.Header(
 			step.Auth.Username,
@@ -390,20 +387,19 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 		}
 	}
 
-	containerCreateBody, err := e.client.ContainerCreate(ctx,
-		toConfig(pipelineConfig, step, selectedImage),
-		toHostConfig(pipelineConfig, step),
-		toNetConfig(pipelineConfig, step),
-		nil,
-		step.ID,
-	)
+	containerCreateBody, err := e.client.ContainerCreate(ctx, client.ContainerCreateOptions{
+		Config:           toConfig(pipelineConfig, step, selectedImage),
+		HostConfig:       toHostConfig(pipelineConfig, step),
+		NetworkingConfig: toNetConfig(pipelineConfig, step),
+		Name:             step.ID,
+	})
 	if err == nil {
 		logrus.WithContext(ctx).WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step")
 	}
 
 	// automatically pull and try to re-create the image if the
 	// failure is caused because the image does not exist.
-	if client.IsErrNotFound(err) && step.Pull != spec.PullNever {
+	if cerrdefs.IsNotFound(err) && step.Pull != spec.PullNever {
 		pullerr := e.pullImageWithRetries(ctx, overriddenImage, pullopts, output)
 		if pullerr != nil {
 			// if for some reason overridden image does not work then fallback
@@ -418,13 +414,12 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 
 		// once the image is successfully pulled we attempt to
 		// re-create the container.
-		containerCreateBody, err = e.client.ContainerCreate(ctx,
-			toConfig(pipelineConfig, step, selectedImage),
-			toHostConfig(pipelineConfig, step),
-			toNetConfig(pipelineConfig, step),
-			nil,
-			step.ID,
-		)
+		containerCreateBody, err = e.client.ContainerCreate(ctx, client.ContainerCreateOptions{
+			Config:           toConfig(pipelineConfig, step, selectedImage),
+			HostConfig:       toHostConfig(pipelineConfig, step),
+			NetworkingConfig: toNetConfig(pipelineConfig, step),
+			Name:             step.ID,
+		})
 		if err == nil {
 			logrus.WithContext(ctx).WithField("step", step.Name).WithField("body", containerCreateBody).Infoln("Created container for the step")
 		}
@@ -437,8 +432,11 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 	// primarily used to attach global user-defined networks.
 	if step.Network == "" {
 		for _, net := range step.Networks {
-			err = e.client.NetworkConnect(ctx, net, step.ID, &network.EndpointSettings{
-				Aliases: []string{net},
+			_, err = e.client.NetworkConnect(ctx, net, client.NetworkConnectOptions{
+				Container: step.ID,
+				EndpointConfig: &network.EndpointSettings{
+					Aliases: []string{net},
+				},
 			})
 			if err != nil {
 				return nil
@@ -458,7 +456,8 @@ func (e *Docker) create(ctx context.Context, pipelineConfig *spec.PipelineConfig
 
 // helper function emulates the `docker start` command.
 func (e *Docker) start(ctx context.Context, id string) error {
-	return e.client.ContainerStart(ctx, id, container.StartOptions{})
+	_, err := e.client.ContainerStart(ctx, id, client.ContainerStartOptions{})
+	return err
 }
 
 // helper function emulates the `docker wait` command, blocking
@@ -487,28 +486,30 @@ func (e *Docker) waitRetry(ctx context.Context, id string) (*runtime.State, erro
 // helper function emulates the `docker wait` command, blocking
 // until the container stops and returning the exit code.
 func (e *Docker) wait(ctx context.Context, id string) (*runtime.State, error) {
-	wait, errc := e.client.ContainerWait(ctx, id, container.WaitConditionNotRunning)
+	waitResult := e.client.ContainerWait(ctx, id, client.ContainerWaitOptions{
+		Condition: container.WaitConditionNotRunning,
+	})
 	select {
-	case <-wait:
-	case <-errc:
+	case <-waitResult.Result:
+	case <-waitResult.Error:
 	}
 
-	info, err := e.client.ContainerInspect(ctx, id)
+	inspectResult, err := e.client.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
 	if err != nil {
 		return nil, err
 	}
 
 	return &runtime.State{
-		Exited:    !info.State.Running,
-		ExitCode:  info.State.ExitCode,
-		OOMKilled: info.State.OOMKilled,
+		Exited:    !inspectResult.Container.State.Running,
+		ExitCode:  inspectResult.Container.State.ExitCode,
+		OOMKilled: inspectResult.Container.State.OOMKilled,
 	}, nil
 }
 
 // helper function which emulates the docker logs command and writes the log output to
 // the writer
 func (e *Docker) logs(ctx context.Context, id string, tty bool, output io.Writer, logHandles *logutil.LogFileHandles) error {
-	opts := container.LogsOptions{
+	opts := client.ContainerLogsOptions{
 		Follow:     true,
 		ShowStdout: true,
 		ShowStderr: true,
@@ -555,7 +556,7 @@ func (e *Docker) logs(ctx context.Context, id string, tty bool, output io.Writer
 	return nil
 }
 
-func (e *Docker) pullImage(ctx context.Context, img string, pullOpts image.PullOptions, output io.Writer) error {
+func (e *Docker) pullImage(ctx context.Context, img string, pullOpts client.ImagePullOptions, output io.Writer) error {
 	rc, pullerr := e.client.ImagePull(ctx, img, pullOpts)
 	if pullerr != nil {
 		return pullerr
@@ -577,7 +578,7 @@ func (e *Docker) pullImage(ctx context.Context, img string, pullOpts image.PullO
 }
 
 func (e *Docker) pullImageWithRetries(ctx context.Context, img string,
-	pullOpts image.PullOptions, output io.Writer) error {
+	pullOpts client.ImagePullOptions, output io.Writer) error {
 	var err error
 	for i := 1; i <= imageMaxRetries; i++ {
 		err = e.pullImage(ctx, img, pullOpts, output)
@@ -589,12 +590,12 @@ func (e *Docker) pullImageWithRetries(ctx context.Context, img string,
 			Warnln("failed to pull image")
 
 		switch {
-		case errdefs.IsNotFound(err),
-			errdefs.IsUnauthorized(err),
-			errdefs.IsInvalidParameter(err),
-			errdefs.IsForbidden(err),
-			errdefs.IsCancelled(err),
-			errdefs.IsDeadline(err):
+		case cerrdefs.IsNotFound(err),
+			cerrdefs.IsUnauthorized(err),
+			cerrdefs.IsInvalidArgument(err),
+			cerrdefs.IsPermissionDenied(err),
+			cerrdefs.IsCanceled(err),
+			cerrdefs.IsDeadlineExceeded(err):
 			return err
 		default:
 			if i < imageMaxRetries {
@@ -616,13 +617,13 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	}
 
 	// Check if the network already exists
-	_, _, err := e.client.NetworkInspectWithRaw(ctx, pipelineConfig.Network.ID, network.InspectOptions{})
+	_, err := e.client.NetworkInspect(ctx, pipelineConfig.Network.ID, client.NetworkInspectOptions{})
 	if err == nil {
 		return nil
 	}
 
 	for i := 1; i <= networkMaxRetries; i++ {
-		_, err = e.client.NetworkCreate(ctx, pipelineConfig.Network.ID, network.CreateOptions{
+		_, err = e.client.NetworkCreate(ctx, pipelineConfig.Network.ID, client.NetworkCreateOptions{
 			Driver:  driver,
 			Options: pipelineConfig.Network.Options,
 			Labels:  pipelineConfig.Network.Labels,
@@ -687,7 +688,7 @@ func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spe
 // After all the containers are stopped, they are removed only when the status is not "running" or "removing".
 func (e *Docker) softStop(ctx context.Context, name string) {
 	timeoutSeconds := 30
-	if err := e.client.ContainerStop(ctx, name, container.StopOptions{Timeout: &timeoutSeconds}); err != nil {
+	if _, err := e.client.ContainerStop(ctx, name, client.ContainerStopOptions{Timeout: &timeoutSeconds}); err != nil {
 		logrus.WithContext(ctx).WithField("container", name).WithField("error", err).Warnln("failed to stop the container")
 	}
 
@@ -699,12 +700,12 @@ func (e *Docker) softStop(ctx context.Context, name string) {
 			break
 		}
 		time.Sleep(1 * time.Second)
-		containerStatus, err := e.client.ContainerInspect(ctx, name)
+		inspectResult, err := e.client.ContainerInspect(ctx, name, client.ContainerInspectOptions{})
 		if err != nil {
 			logrus.WithContext(ctx).WithField("container", name).WithField("error", err).Warnln("failed to retrieve container stats")
 			continue
 		}
-		if containerStatus.State.Status == removing || containerStatus.State.Status == running {
+		if inspectResult.Container.State.Status == removing || inspectResult.Container.State.Status == running {
 			continue
 		}
 		// everything has stopped
