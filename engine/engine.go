@@ -72,8 +72,19 @@ func setupHelper(pipelineConfig *spec.PipelineConfig) error {
 			continue
 		}
 
+		// Fail fast with an actionable message when the host path is unsafe
+		// on the current OS (e.g. macOS sealed/SIP-protected roots, or a
+		// top-level dir under "/" that does not exist on a sealed system
+		// volume). See CI-22685.
+		if err := validateHostVolumePath(path); err != nil {
+			return err
+		}
+
 		if err := os.MkdirAll(path, permissions); err != nil {
-			return fmt.Errorf("failed to create directory for host volume path: %q: %w", path, err)
+			// Wrap with a helpful suggestion when the kernel reports the
+			// filesystem is read-only — covers paths that the static
+			// validator above did not anticipate.
+			return enrichHostVolumeMkdirError(path, err)
 		}
 		_ = os.Chmod(path, permissions)
 	}
