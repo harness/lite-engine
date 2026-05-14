@@ -154,14 +154,17 @@ type (
 	}
 
 	OSStats struct {
-		TotalMemMB     float64 `json:"total_mem_mb"`
-		CPUCores       int     `json:"cpu_cores"`
-		AvgMemUsagePct float64 `json:"avg_mem_usage_pct"`
-		AvgCPUUsagePct float64 `json:"avg_cpu_usage_pct"`
-		MaxMemUsagePct float64 `json:"max_mem_usage_pct"`
-		MaxCPUUsagePct float64 `json:"max_cpu_usage_pct"`
-		MemGraph       *Graph  `json:"mem_graph"` // downsampled memory statistics as a percentage
-		CPUGraph       *Graph  `json:"cpu_graph"` // downsampled cpu statistics as a percentage
+		TotalMemMB      float64 `json:"total_mem_mb"`
+		CPUCores        int     `json:"cpu_cores"`
+		AvgMemUsagePct  float64 `json:"avg_mem_usage_pct"`
+		AvgCPUUsagePct  float64 `json:"avg_cpu_usage_pct"`
+		MaxMemUsagePct  float64 `json:"max_mem_usage_pct"`
+		MaxCPUUsagePct  float64 `json:"max_cpu_usage_pct"`
+		P95MemUsagePct  float64 `json:"p95_mem_usage_pct"`
+		P95CPUUsagePct  float64 `json:"p95_cpu_usage_pct"`
+		PeakMemMB       float64 `json:"peak_mem_mb"`
+		MemGraph        *Graph  `json:"mem_graph"` // downsampled memory statistics as a percentage
+		CPUGraph        *Graph  `json:"cpu_graph"` // downsampled cpu statistics as a percentage
 	}
 
 	Graph struct {
