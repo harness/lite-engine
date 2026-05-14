@@ -3,7 +3,9 @@ package osstats
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"runtime"
+	"sort"
 	"time"
 
 	lttb "github.com/dgryski/go-lttb"
@@ -81,12 +83,23 @@ func (s *StatsCollector) Stats() *spec.OSStats {
 func (s *StatsCollector) Aggregate() {
 	if len(s.stats.MemGraph.Points) > 0 {
 		s.stats.AvgMemUsagePct = s.memPctSum / float64(len(s.stats.MemGraph.Points))
+		memSamples := make([]float64, len(s.stats.MemGraph.Points))
+		for i, p := range s.stats.MemGraph.Points {
+			memSamples[i] = p.Y
+		}
+		s.stats.P95MemUsagePct = percentileNearestRank(memSamples, 0.95)
 	}
 	if len(s.stats.CPUGraph.Points) > 0 {
 		s.stats.AvgCPUUsagePct = s.cpuPctSum / float64(len(s.stats.CPUGraph.Points))
+		cpuSamples := make([]float64, len(s.stats.CPUGraph.Points))
+		for i, p := range s.stats.CPUGraph.Points {
+			cpuSamples[i] = p.Y
+		}
+		s.stats.P95CPUUsagePct = percentileNearestRank(cpuSamples, 0.95)
 	}
 	s.stats.TotalMemMB = s.memTotalMB
 	s.stats.CPUCores = s.cpuTotal
+	s.stats.PeakMemMB = s.memTotalMB * s.stats.MaxMemUsagePct / 100 //nolint:mnd
 	s.stats.MemGraph.Points = downsample(s.stats.MemGraph.Points, downsampleCount)
 	s.stats.CPUGraph.Points = downsample(s.stats.CPUGraph.Points, downsampleCount)
 }
@@ -236,4 +249,22 @@ func downsample(points []spec.Point, n int) []spec.Point {
 		downsampledPoints[idx] = spec.Point{X: v.X, Y: v.Y}
 	}
 	return downsampledPoints
+}
+
+// percentileNearestRank computes the given percentile (0-1) using the nearest-rank method.
+func percentileNearestRank(values []float64, p float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	cp := make([]float64, len(values))
+	copy(cp, values)
+	sort.Float64s(cp)
+	idx := int(math.Ceil(p*float64(len(cp)))) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(cp) {
+		idx = len(cp) - 1
+	}
+	return cp[idx]
 }
