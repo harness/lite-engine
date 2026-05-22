@@ -95,7 +95,7 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 		if cacheIntelFile, found := envs["PLUGIN_CACHE_INTEL_METRICS_FILE"]; found {
 			err := parseCacheInfo(cacheIntelFile, telemetryData)
 			if err != nil {
-				log.Errorf("skipping cache metrics parsing: %v", err)
+				log.Debugf("skipping cache metrics parsing: %v", err)
 			}
 		}
 	}
