@@ -258,7 +258,6 @@ func initializeLELogStreaming(setupReq *api.SetupRequest, state *pipeline.State)
 	// If the freeze stops with this disabled, the StreamHook is confirmed as
 	// the reentrancy source. Re-enable after fix is verified.
 	// logrus.AddHook(logger.NewStreamHook(logWriter))
-	_ = logger.NewStreamHook // keep import live while hook is disabled
 
 	logger.L.
 		WithField("le_log_key", setupReq.LELogKey).
