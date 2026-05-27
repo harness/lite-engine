@@ -141,7 +141,12 @@ func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepReques
 			return nil, retryCtx.Err()
 		default:
 		}
-		if ret, err := c.StartStep(retryCtx, in); err == nil {
+
+		attemptCtx, attemptCancel := context.WithTimeout(retryCtx, 15*time.Second) //nolint:mnd
+		ret, err := c.StartStep(attemptCtx, in)
+		attemptCancel()
+
+		if err == nil {
 			logger.FromContext(ctx).
 				WithField("duration", time.Since(startTime)).
 				Trace("RetryStartStep: step started")
