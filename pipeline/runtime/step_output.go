@@ -40,11 +40,16 @@ func (l *StepLog) Write(data []byte) (int, error) {
 
 	l.fullOutput.Write(data)
 
-	// replace byte buffer from which the data came before we write it to the subscriber channels
-	data = l.fullOutput.Bytes()
-	data = data[len(data)-n:]
+	// fullOutput.Bytes() returns a slice that aliases the buffer's internal
+	// storage. A subsequent fullOutput.Write may grow that storage and
+	// realloc-copy it concurrently with subscribers reading the slice, which
+	// is a data race (confirmed by go test -race in TestStepLogStreaming).
+	// Send subscribers an independent copy of the just-written bytes so the
+	// fan-out is decoupled from the buffer's lifetime.
+	out := make([]byte, n)
+	copy(out, l.fullOutput.Bytes()[l.fullOutput.Len()-n:])
 	for ch := range l.subscribers {
-		ch <- data
+		ch <- out
 	}
 
 	l.mx.Unlock()
@@ -56,17 +61,20 @@ func (l *StepLog) Write(data []byte) (int, error) {
 // it registers the ch channel to receive further data output.
 func (l *StepLog) Subscribe(ch chan []byte, offset int) (data []byte, err error) {
 	l.mx.Lock()
-	data = l.fullOutput.Bytes()
+	// fullOutput.Bytes() aliases the buffer's internal storage. Returning that
+	// slice to the caller while subsequent Write() calls grow the buffer is a
+	// data race. Snapshot a copy under the lock so the caller owns its bytes.
+	src := l.fullOutput.Bytes()
+	snapshot := make([]byte, len(src))
+	copy(snapshot, src)
 	l.subscribers[ch] = struct{}{}
 	l.mx.Unlock()
 
-	if offset > len(data) {
-		data = nil
-		err = fmt.Errorf("error: index 'offset' is out of bounds Offset=%d Total=%d", offset, len(data))
-	} else {
-		data = data[offset:]
+	if offset > len(snapshot) {
+		err = fmt.Errorf("error: index 'offset' is out of bounds Offset=%d Total=%d", offset, len(snapshot))
+		return
 	}
-
+	data = snapshot[offset:]
 	return
 }
 

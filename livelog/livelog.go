@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/harness/lite-engine/duallog"
@@ -54,8 +55,11 @@ type Writer struct {
 	nudges []logstream.Nudge
 	errs   []error
 
-	interval      time.Duration
-	printToStdout bool // if logs should be written to both the log service and stdout
+	// interval is read by the Start goroutine (spawned in New) and written by SetInterval
+	// after construction. Stored as int64 nanoseconds and accessed via atomic operations
+	// to avoid the data race between the spawned reader and a post-construction writer.
+	interval      atomic.Int64 // time.Duration nanoseconds
+	printToStdout bool         // if logs should be written to both the log service and stdout
 	pending       []*logstream.Line
 	history       []*logstream.Line
 	prev          []byte
@@ -82,7 +86,6 @@ func New(ctx context.Context, client logstream.Client, key, name string, nudges 
 		now:               time.Now(),
 		printToStdout:     printToStdout,
 		limit:             defaultLimit,
-		interval:          defaultInterval,
 		nudges:            nudges,
 		close:             make(chan struct{}),
 		ready:             make(chan struct{}, 1),
@@ -90,6 +93,9 @@ func New(ctx context.Context, client logstream.Client, key, name string, nudges 
 		trimNewLineSuffix: trimNewLineSuffix,
 		ctx:               ctx,
 	}
+	// Initialize interval atomically before spawning Start so the Start goroutine
+	// observes a fully-initialized value (avoids the race between spawn and SetInterval).
+	b.interval.Store(int64(defaultInterval))
 	safego.SafeGo("livelog_buffer", b.Start)
 	return b
 }
@@ -99,9 +105,15 @@ func (b *Writer) SetLimit(limit int) {
 	b.limit = limit
 }
 
-// SetInterval sets the Writer flusher interval.
+// SetInterval sets the Writer flusher interval. Safe to call concurrently with
+// the Start goroutine: interval is stored atomically and read via getInterval.
 func (b *Writer) SetInterval(interval time.Duration) {
-	b.interval = interval
+	b.interval.Store(int64(interval))
+}
+
+// getInterval atomically reads the current flush interval.
+func (b *Writer) getInterval() time.Duration {
+	return time.Duration(b.interval.Load())
 }
 
 // SetDualLogConfig enables dual logging to stdout in flat JSON format.
@@ -353,13 +365,14 @@ func (b *Writer) stopped() bool {
 
 // Start starts a periodic loop to flush logs to the live stream
 func (b *Writer) Start() {
-	intervalTimer := time.NewTimer(b.interval)
+	// Read interval atomically; a concurrent SetInterval is safe.
+	intervalTimer := time.NewTimer(b.getInterval())
 	for {
 		select {
 		case <-b.close:
 			return
 		case <-b.ready:
-			intervalTimer.Reset(b.interval)
+			intervalTimer.Reset(b.getInterval())
 			select {
 			case <-b.close:
 				return

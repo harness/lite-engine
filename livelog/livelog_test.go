@@ -66,6 +66,24 @@ func TestLineWriterSingleWithTrimNewLineSuffixEnabled(t *testing.T) {
 	}
 }
 
+// TestSetIntervalRace exercises the New() -> SetInterval() pattern that
+// previously raced with the Start goroutine reading b.interval. The race
+// detector must report no warning here. SetInterval is now backed by an
+// atomic.Int64 so the spawned reader and post-construction writer are safe.
+func TestSetIntervalRace(t *testing.T) {
+	w := New(context.Background(), new(mockClient), "race", "race", nil, false, false, false, false)
+	// Concurrently write the interval while the Start goroutine reads it.
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 1000; i++ {
+			w.SetInterval(time.Duration(i+1) * time.Microsecond)
+		}
+		close(done)
+	}()
+	<-done
+	w.Close()
+}
+
 func compare(a, b []*logstream.Line) error {
 	if len(a) != len(b) {
 		return fmt.Errorf("expected size: %d, actual: %d", len(a), len(b))

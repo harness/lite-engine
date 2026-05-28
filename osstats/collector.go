@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"runtime"
+	"sync"
 	"time"
 
 	lttb "github.com/dgryski/go-lttb"
@@ -26,6 +27,7 @@ type StatsCollector struct {
 	log        *logrus.Entry
 	interval   time.Duration
 	doneCh     chan struct{}
+	stopOnce   sync.Once // guards doneCh so a double Stop() does not panic on close
 	stats      *spec.OSStats
 	memPctSum  float64
 	cpuPctSum  float64
@@ -70,7 +72,11 @@ func (s *StatsCollector) Start() {
 }
 
 func (s *StatsCollector) Stop() {
-	close(s.doneCh)
+	// Guard the close so callers may safely invoke Stop() more than once
+	// (e.g. from multiple shutdown paths) without panicking on close-of-closed.
+	s.stopOnce.Do(func() {
+		close(s.doneCh)
+	})
 }
 
 func (s *StatsCollector) Stats() *spec.OSStats {

@@ -228,11 +228,11 @@ func (e *StepExecutor) PollStep(ctx context.Context, r *api.PollStepRequest) (*a
 	}
 
 	ch := make(chan StepStatus, 1)
-	if _, ok := e.stepWaitCh[id]; !ok {
-		e.stepWaitCh[id] = append(e.stepWaitCh[id], ch)
-	} else {
-		e.stepWaitCh[id] = []chan StepStatus{ch}
-	}
+	// Always append the new waiter. The previous form replaced the slice with
+	// []chan{ch} when an entry already existed, which silently dropped earlier
+	// concurrent pollers and left their goroutines blocked forever on <-ch.
+	// Appending preserves every registered waiter so each receives the status.
+	e.stepWaitCh[id] = append(e.stepWaitCh[id], ch)
 	e.mu.Unlock()
 
 	status := <-ch
