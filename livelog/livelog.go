@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -297,7 +298,7 @@ func (b *Writer) flush() error {
 		thresholdTime := time.Now().Add(-flushThresholdTime)
 		if b.lastFlushTime.Before(thresholdTime) {
 			if err := osstats.DumpProcessInfo(); err != nil {
-				logrus.Errorf("failed to dump process info: %v", err)
+				fmt.Fprintf(os.Stderr, "failed to dump process info: %v\n", err)
 			}
 			// reset lastFlushTime if stats were dumped
 			b.lastFlushTime = time.Now()
@@ -308,8 +309,7 @@ func (b *Writer) flush() error {
 	b.lastFlushTime = time.Now()
 	err := b.client.Write(b.ctx, b.key, lines)
 	if err != nil {
-		logrus.WithError(err).WithField("key", b.key).WithField("num_lines", len(lines)).
-			Errorln("failed to flush lines")
+		fmt.Fprintf(os.Stderr, "failed to flush lines: key=%s num_lines=%d err=%v\n", b.key, len(lines), err)
 		return err
 	}
 	return nil
