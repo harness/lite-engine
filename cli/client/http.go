@@ -15,7 +15,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/httptrace"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -142,12 +141,7 @@ func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepReques
 			return nil, retryCtx.Err()
 		default:
 		}
-
-		attemptCtx, attemptCancel := context.WithTimeout(retryCtx, 15*time.Second) //nolint:mnd
-		ret, err := c.StartStep(attemptCtx, in)
-		attemptCancel()
-
-		if err == nil {
+		if ret, err := c.StartStep(retryCtx, in); err == nil {
 			logger.FromContext(ctx).
 				WithField("duration", time.Since(startTime)).
 				Trace("RetryStartStep: step started")
@@ -338,9 +332,6 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		return nil, err
 	}
 
-	tc := newTraceCollector()
-	req = req.WithContext(httptrace.WithClientTrace(req.Context(), tc.clientTrace()))
-
 	res, err := c.Client.Do(req)
 	if res != nil {
 		defer func() {
@@ -353,7 +344,6 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 		}()
 	}
 	if err != nil {
-		logHTTPFailure(ctx, wrapTracedError(err, tc.snapshot()), method, path)
 		return res, err
 	}
 
