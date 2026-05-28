@@ -252,9 +252,16 @@ func initializeLELogStreaming(setupReq *api.SetupRequest, state *pipeline.State)
 	// Store the writer in state for later cleanup
 	state.SetLELogWriter(logWriter, setupReq.LELogKey)
 
-	// Add a logrus hook to redirect logs to the stream writer
-	logrus.AddHook(logger.NewStreamHook(logWriter))
+	// DIAGNOSTIC: StreamHook disabled to confirm reentrant-mutex deadlock RCA.
+	// The hook routes every logrus entry into livelog.Writer.Write(), which
+	// re-enters b.mu while another method on the same Writer holds it.
+	// If the freeze stops with this disabled, the StreamHook is confirmed as
+	// the reentrancy source. Re-enable after fix is verified.
+	// logrus.AddHook(logger.NewStreamHook(logWriter))
 
+	logger.L.
+		WithField("le_log_key", setupReq.LELogKey).
+		Warnln("DIAGNOSTIC: lite-engine StreamHook disabled (deadlock RCA verification) — LE internal logs will not stream to log-service")
 	logger.L.
 		WithField("le_log_key", setupReq.LELogKey).
 		Infoln("api: successfully initialized lite-engine log streaming")
