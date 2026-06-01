@@ -305,6 +305,7 @@ func (b *Writer) flush() error {
 	b.mu.Lock()
 	lines := b.copy()
 	b.clear()
+
 	idleTooLong := len(lines) == 0 && b.lastFlushTime.Before(time.Now().Add(-flushThresholdTime))
 	if len(lines) > 0 || idleTooLong {
 		b.lastFlushTime = time.Now()
