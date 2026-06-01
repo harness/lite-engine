@@ -253,7 +253,7 @@ func initializeLELogStreaming(setupReq *api.SetupRequest, state *pipeline.State)
 	state.SetLELogWriter(logWriter, setupReq.LELogKey)
 
 	// Add a logrus hook to redirect logs to the stream writer
-	logrus.AddHook(logger.NewStreamHook(logWriter))
+	// logrus.AddHook(logger.NewStreamHook(logWriter))
 
 	logger.L.
 		WithField("le_log_key", setupReq.LELogKey).
