@@ -285,14 +285,22 @@ func (b *Writer) Flush() error {
 }
 
 // flush batch uploads all buffered logs to the server.
+//
+// The mutex protects the in-memory buffers (b.pending) and is held only long
+// enough to snapshot and clear them. The network call to b.client.Write runs
+// outside the lock so a slow or unresponsive log-service cannot block
+// concurrent producers calling Writer.Write — which previously caused step
+// output to freeze whenever the log-service stalled.
 func (b *Writer) flush() error {
 	if !b.opened {
 		return nil
 	}
+
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	lines := b.copy()
 	b.clear()
+	b.mu.Unlock()
+
 	if len(lines) == 0 {
 		// print stats if no logs for 10 min
 		thresholdTime := time.Now().Add(-flushThresholdTime)
