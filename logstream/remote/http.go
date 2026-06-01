@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	stdlog "log"
 	"net/http"
 	"strings"
 	"time"
@@ -236,7 +237,10 @@ func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out int
 
 		// do not retry on Canceled or DeadlineExceeded
 		if cerr := ctx.Err(); cerr != nil {
-			logrus.WithError(cerr).WithField("path", path).Errorln("http: context canceled")
+			// stdlib log: this code runs on behalf of livelog.flush().
+			// Logrus here would re-enter the StreamHook → Writer.Write
+			// and amplify a slow log-service into a tight recursion.
+			stdlog.Printf("http: context canceled: path=%s err=%v", path, cerr)
 			return res, cerr
 		}
 
@@ -249,7 +253,7 @@ func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out int
 			// relate to outages on the server side.
 
 			if res.StatusCode >= 500 { //nolint:mnd
-				logrus.WithError(err).WithField("path", path).Warnln("http: log-service server error: reconnect and retry")
+				stdlog.Printf("http: log-service server error: reconnect and retry: path=%s err=%v", path, err)
 				if duration == backoff.Stop {
 					return nil, err
 				}
@@ -257,7 +261,7 @@ func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out int
 				continue
 			}
 		} else if err != nil {
-			logrus.WithError(err).WithField("path", path).Warnln("http: request error. Retrying ...")
+			stdlog.Printf("http: request error. Retrying: path=%s err=%v", path, err)
 			if duration == backoff.Stop {
 				return nil, err
 			}

@@ -3,6 +3,7 @@ package osstats
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"runtime"
 	"time"
 
@@ -207,7 +208,11 @@ func DumpProcessInfo() error {
 	if err != nil {
 		return err
 	}
-	logrus.Infoln("Process info: ", string(output))
+	// Use stdlib log instead of logrus: this function is invoked from
+	// livelog.flush()'s idle-dump path. Logrus would dispatch to the
+	// StreamHook and recurse into Writer.Write, which previously caused a
+	// reentrant-mutex deadlock when called under b.mu.
+	log.Println("Process info:", string(output))
 	return nil
 }
 
