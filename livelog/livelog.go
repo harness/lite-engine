@@ -24,11 +24,12 @@ import (
 )
 
 const (
-	defaultInterval    = 1 * time.Second
-	maxLineLimit       = 71680 // 70KB
-	defaultLevel       = "info"
-	defaultLimit       = 5242880 // 5MB
-	flushThresholdTime = 10 * time.Minute
+	defaultInterval     = 1 * time.Second
+	maxLineLimit        = 71680 // 70KB
+	defaultLevel        = "info"
+	defaultLimit        = 5242880 // 5MB
+	flushThresholdTime  = 10 * time.Minute
+	flushNetworkTimeout = 15 * time.Second
 )
 
 // Writer is an io.Writer that sends logs to the server.
@@ -159,32 +160,34 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			logrus.WithField("name", b.name).Infoln(line.Message)
 		}
 
+		// All mutations of size/num/history/pending happen under a single
+		// critical section. Logrus calls (which can recurse via StreamHook)
+		// stay outside the lock — see flush() for the same discipline.
+		var marshalErr error
+		b.mu.Lock()
 		for b.size+len(jsonLine) > b.limit {
-			// Keep streaming even after the limit, but only upload last `b.limit` data to the store
 			if len(b.history) == 0 {
 				break
 			}
-
 			hline, err := getLineBytes(b.history[0])
-			if err != nil {
-				logrus.WithError(err).WithField("name", b.name).Errorln("could not marshal log")
+			if err != nil && marshalErr == nil {
+				marshalErr = err
 			}
 			b.size -= len(hline)
 			b.history = b.history[1:]
 		}
-
 		b.size += len(jsonLine)
 		b.num++
-
-		if !b.stopped() {
-			b.mu.Lock()
+		closed := b.closed
+		if !closed {
 			b.pending = append(b.pending, line)
-			b.mu.Unlock()
+			b.history = append(b.history, line)
 		}
-
-		b.mu.Lock()
-		b.history = append(b.history, line)
 		b.mu.Unlock()
+
+		if marshalErr != nil {
+			logrus.WithError(marshalErr).WithField("name", b.name).Errorln("could not marshal log")
+		}
 	}
 
 	select {
@@ -285,29 +288,44 @@ func (b *Writer) Flush() error {
 }
 
 // flush batch uploads all buffered logs to the server.
+//
+// Locking discipline: b.mu is only held while snapshotting buffered state.
+// All network I/O and any operations that may log (which can re-enter the
+// writer via the logrus StreamHook) happen AFTER the lock is released.
+// Holding the mutex across client.Write previously caused two deadlocks:
+//  1. self-reentrant: a logrus call under the lock fires the StreamHook,
+//     which calls Writer.Write → b.mu.Lock again (sync.Mutex is not reentrant).
+//  2. liveness: a slow log-service request pinned every producer (container
+//     log pump, StreamHook, Close) on b.mu for the duration of the call.
 func (b *Writer) flush() error {
 	if !b.opened {
 		return nil
 	}
+
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	lines := b.copy()
 	b.clear()
+
+	idleTooLong := len(lines) == 0 && b.lastFlushTime.Before(time.Now().Add(-flushThresholdTime))
+	if len(lines) > 0 || idleTooLong {
+		b.lastFlushTime = time.Now()
+	}
+	b.mu.Unlock()
+
 	if len(lines) == 0 {
-		// print stats if no logs for 10 min
-		thresholdTime := time.Now().Add(-flushThresholdTime)
-		if b.lastFlushTime.Before(thresholdTime) {
+		if idleTooLong {
+			// DumpProcessInfo logs via logrus; must run outside b.mu so the
+			// StreamHook (if registered) doesn't re-enter Writer.Write.
 			if err := osstats.DumpProcessInfo(); err != nil {
 				log.Printf("failed to dump process info: %v", err)
 			}
-			// reset lastFlushTime if stats were dumped
-			b.lastFlushTime = time.Now()
 		}
 		return nil
 	}
-	// reset lastFlushTime if logs are found
-	b.lastFlushTime = time.Now()
-	err := b.client.Write(b.ctx, b.key, lines)
+
+	ctx, cancel := context.WithTimeout(b.ctx, flushNetworkTimeout)
+	defer cancel()
+	err := b.client.Write(ctx, b.key, lines)
 	if err != nil {
 		log.Printf("failed to flush lines: key=%s num_lines=%d err=%v", b.key, len(lines), err)
 		return err
@@ -340,13 +358,6 @@ func (b *Writer) stop() bool {
 		closed = true
 		b.closed = true
 	}
-	b.mu.Unlock()
-	return closed
-}
-
-func (b *Writer) stopped() bool {
-	b.mu.Lock()
-	closed := b.closed
 	b.mu.Unlock()
 	return closed
 }
