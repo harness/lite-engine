@@ -29,7 +29,7 @@ const (
 	defaultLevel        = "info"
 	defaultLimit        = 5242880 // 5MB
 	flushThresholdTime  = 10 * time.Minute
-	flushNetworkTimeout = 30 * time.Second
+	flushNetworkTimeout = 15 * time.Second
 )
 
 // Writer is an io.Writer that sends logs to the server.
