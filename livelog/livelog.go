@@ -362,13 +362,6 @@ func (b *Writer) stop() bool {
 	return closed
 }
 
-func (b *Writer) stopped() bool {
-	b.mu.Lock()
-	closed := b.closed
-	b.mu.Unlock()
-	return closed
-}
-
 // Start starts a periodic loop to flush logs to the live stream
 func (b *Writer) Start() {
 	intervalTimer := time.NewTimer(b.interval)
