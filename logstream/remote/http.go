@@ -29,14 +29,32 @@ const (
 	streamWithSnapshotEndpoint = "/stream?accountID=%s&key=%s&snapshot=true"
 	blobEndpoint               = "/blob?accountID=%s&key=%s"
 	uploadLinkEndpoint         = "/blob/link/upload?accountID=%s&key=%s"
+
+	// Per-call timeouts for stream lifecycle. These bound a single hung
+	// request so a slow log-service can't pin the /setup or /destroy
+	// handler indefinitely. responseHeaderTimeout is reused from
+	// http_optimized.go.
+	openStreamTimeout  = 30 * time.Second
+	closeStreamTimeout = 15 * time.Second
 )
 
 var _ logstream.Client = (*HTTPClient)(nil)
 
 // defaultClient is the default http.Client.
+//
+// ResponseHeaderTimeout is a transport-level safety net: it bounds the
+// time spent waiting for the server's response headers on any single
+// request. Without it, a slow/unresponsive log-service could pin a TCP
+// connection (and its FD) until the OS or remote side gives up, which
+// is what produced the runner-visible "context deadline exceeded" cascade
+// during prod3 log-service slowness.
 var defaultClient = &http.Client{
 	CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
+	},
+	Transport: &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ResponseHeaderTimeout: responseHeaderTimeout,
 	},
 }
 
@@ -104,8 +122,9 @@ func clientWithTLSConfig(skipverify bool, mtlsEnabled bool, cert tls.Certificate
 			return http.ErrUseLastResponse
 		},
 		Transport: &http.Transport{
-			Proxy:           http.ProxyFromEnvironment,
-			TLSClientConfig: config,
+			Proxy:                 http.ProxyFromEnvironment,
+			TLSClientConfig:       config,
+			ResponseHeaderTimeout: responseHeaderTimeout,
 		},
 	}
 }
@@ -199,21 +218,36 @@ func (c *HTTPClient) uploadUsingLink(ctx context.Context, link string, r io.Read
 }
 
 // Open opens the data stream.
+//
+// A per-call deadline bounds the total wall-clock for this call (including
+// retries). Without it, a slow log-service can hang the /setup handler
+// indefinitely — initializeLELogStreaming and initializeOSStatsStreaming
+// both call Open() synchronously inside HandleSetup. The runner's RPC
+// context would eventually fire and surface as "context deadline exceeded".
 func (c *HTTPClient) Open(ctx context.Context, key string) error {
 	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
-	backoff := createBackoff(10 * time.Second)                                //nolint:mnd
-	_, err := c.retry(ctx, c.Endpoint+path, "POST", nil, nil, false, backoff) //nolint:bodyclose
+	callCtx, cancel := context.WithTimeout(ctx, openStreamTimeout)
+	defer cancel()
+	backoff := createBackoff(10 * time.Second)                                    //nolint:mnd
+	_, err := c.retry(callCtx, c.Endpoint+path, "POST", nil, nil, false, backoff) //nolint:bodyclose
 	return err
 }
 
 // Close closes the data stream.
+//
+// Bounded by closeStreamTimeout so the destroy handler can't hang
+// indefinitely on an unresponsive log-service. Close errors are
+// already non-fatal in the destroy path, so a timeout is preferable
+// to blocking stage cleanup.
 func (c *HTTPClient) Close(ctx context.Context, key string, snapshot bool) error {
 	endpoint := streamEndpoint
 	if snapshot {
 		endpoint = streamWithSnapshotEndpoint
 	}
 	path := fmt.Sprintf(endpoint, c.AccountID, key)
-	_, err := c.do(ctx, c.Endpoint+path, "DELETE", nil, nil) //nolint:bodyclose
+	callCtx, cancel := context.WithTimeout(ctx, closeStreamTimeout)
+	defer cancel()
+	_, err := c.do(callCtx, c.Endpoint+path, "DELETE", nil, nil) //nolint:bodyclose
 	return err
 }
 
