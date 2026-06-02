@@ -14,6 +14,7 @@ import (
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/docker"
 	"github.com/harness/lite-engine/handler"
+	"github.com/harness/lite-engine/internal/profiler"
 	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/pipeline/runtime"
@@ -48,6 +49,21 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 
 	// init the system logging.
 	initLogging(&loadedConfig)
+
+	// Start always-on profiler: pprof on localhost:6060 + rolling snapshots on disk.
+	// Override via env: LE_PPROF_DIR, LE_PPROF_ADDR, LE_PPROF_DISABLE.
+	if os.Getenv("LE_PPROF_DISABLE") != "true" {
+		pcfg := profiler.Default()
+		if v := os.Getenv("LE_PPROF_DIR"); v != "" {
+			pcfg.Dir = v
+		}
+		if v := os.Getenv("LE_PPROF_ADDR"); v != "" {
+			pcfg.HTTPAddr = v
+		}
+		if _, perr := profiler.Start(pcfg); perr != nil {
+			logrus.WithError(perr).Warn("profiler: failed to start (continuing without)")
+		}
+	}
 
 	engine, err := engine.NewEnv(docker.Opts{})
 	if err != nil {

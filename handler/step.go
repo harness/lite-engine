@@ -7,6 +7,7 @@ package handler
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"runtime"
 	"time"
@@ -24,12 +25,18 @@ func HandleStartStep(e *pruntime.StepExecutor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
+		log.Printf("api: received start step request time=%s remote=%s request-id=%s",
+			st.Format(time.RFC3339), r.RemoteAddr, r.Header.Get("X-Request-ID"))
+
 		var s api.StartStepRequest
 		err := json.NewDecoder(r.Body).Decode(&s)
 		if err != nil {
 			WriteBadRequest(w, err)
 			return
 		}
+
+		log.Printf("api: decoded start step request id=%s name=%s stage_runtime_id=%s decode_latency=%s",
+			s.ID, s.Name, s.StageRuntimeID, time.Since(st))
 
 		if s.MountDockerSocket == nil || *s.MountDockerSocket { // required to support m1 where docker isn't installed.
 			s.Volumes = append(s.Volumes, getDockerSockVolumeMount())
