@@ -3,7 +3,9 @@ package osstats
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"runtime"
+	"sort"
 	"time"
 
 	lttb "github.com/dgryski/go-lttb"
@@ -11,27 +13,37 @@ import (
 	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/logger"
 	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/shirou/gopsutil/v3/process"
 	"github.com/sirupsen/logrus"
 )
+
+// diskPath is the filesystem the collector samples for disk usage.
+// "/" covers Linux and macOS; on Windows gopsutil treats "/" as the system drive.
+const diskPath = "/"
 
 var (
 	downsampleCount = 10
 )
 
 type StatsCollector struct {
-	ctx        context.Context
-	st         time.Time
-	log        *logrus.Entry
-	interval   time.Duration
-	doneCh     chan struct{}
-	stats      *spec.OSStats
-	memPctSum  float64
-	cpuPctSum  float64
-	cpuTotal   int
-	memTotalMB float64
-	logProcess bool
+	ctx         context.Context
+	st          time.Time
+	log         *logrus.Entry
+	interval    time.Duration
+	doneCh      chan struct{}
+	stats       *spec.OSStats
+	memPctSum   float64
+	cpuPctSum   float64
+	diskPctSum  float64
+	cpuTotal    int
+	memTotalMB  float64
+	diskTotalMB float64
+	memSamples  []float64
+	cpuSamples  []float64
+	diskSamples []float64
+	logProcess  bool
 }
 
 type osStat struct {
@@ -42,6 +54,8 @@ type osStat struct {
 	MemUsedMB      float64
 	CPUTotal       int // total number of cores
 	SwapMemPct     float64
+	DiskPct        float64
+	DiskTotalMB    float64
 }
 
 func New(ctx context.Context, interval time.Duration, logProcess bool) *StatsCollector {
@@ -87,6 +101,26 @@ func (s *StatsCollector) Aggregate() {
 	}
 	s.stats.TotalMemMB = s.memTotalMB
 	s.stats.CPUCores = s.cpuTotal
+
+	// Memory percentiles
+	s.stats.P50MemUsagePct = percentileNearestRank(s.memSamples, 0.50)
+	s.stats.P90MemUsagePct = percentileNearestRank(s.memSamples, 0.90)
+	s.stats.P95MemUsagePct = percentileNearestRank(s.memSamples, 0.95)
+	s.stats.P99MemUsagePct = percentileNearestRank(s.memSamples, 0.99)
+
+	// CPU percentiles
+	s.stats.P50CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.50)
+	s.stats.P90CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.90)
+	s.stats.P95CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.95)
+	s.stats.P99CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.99)
+
+	// Disk: avg, peak, P95
+	s.stats.TotalDiskMB = s.diskTotalMB
+	if len(s.diskSamples) > 0 {
+		s.stats.AvgDiskUsagePct = s.diskPctSum / float64(len(s.diskSamples))
+	}
+	s.stats.P95DiskUsagePct = percentileNearestRank(s.diskSamples, 0.95)
+
 	s.stats.MemGraph.Points = downsample(s.stats.MemGraph.Points, downsampleCount)
 	s.stats.CPUGraph.Points = downsample(s.stats.CPUGraph.Points, downsampleCount)
 }
@@ -162,8 +196,21 @@ func (s *StatsCollector) get() (*osStat, error) {
 	// log cpu
 	s.log.Infof("cpu total: %d, cpu used percent: %f", s.cpuTotal, percent[0])
 
+	// disk usage: best-effort. A failure here must not block CPU/memory collection.
+	var diskPct, diskTotalMB float64
+	if du, derr := disk.Usage(diskPath); derr == nil {
+		diskPct = du.UsedPercent
+		diskTotalMB = formatMB(du.Total)
+		s.diskTotalMB = diskTotalMB
+		s.log.Infof("disk path: %s, total_gb: %f, used_gb: %f, used_pct: %f",
+			diskPath, formatGB(du.Total), formatGB(du.Used), du.UsedPercent)
+	} else {
+		s.log.WithError(derr).Warnln("could not read disk usage")
+	}
+
 	return &osStat{CPUPct: percent[0], MemPct: vm.UsedPercent, MemTotalMB: formatMB(vm.Total),
-		MemAvailableMB: formatMB(vm.Available), MemUsedMB: formatMB(vm.Used), SwapMemPct: swap.UsedPercent, CPUTotal: s.cpuTotal}, nil
+		MemAvailableMB: formatMB(vm.Available), MemUsedMB: formatMB(vm.Used), SwapMemPct: swap.UsedPercent,
+		CPUTotal: s.cpuTotal, DiskPct: diskPct, DiskTotalMB: diskTotalMB}, nil
 }
 
 func DumpProcessInfo() error {
@@ -218,10 +265,36 @@ func (s *StatsCollector) update(stat *osStat) {
 	if stat.CPUPct > s.stats.MaxCPUUsagePct {
 		s.stats.MaxCPUUsagePct = stat.CPUPct
 	}
+	if stat.DiskPct > s.stats.PeakDiskUsagePct {
+		s.stats.PeakDiskUsagePct = stat.DiskPct
+	}
 	s.memPctSum += stat.MemPct
 	s.cpuPctSum += stat.CPUPct
+	s.diskPctSum += stat.DiskPct
+	s.memSamples = append(s.memSamples, stat.MemPct)
+	s.cpuSamples = append(s.cpuSamples, stat.CPUPct)
+	s.diskSamples = append(s.diskSamples, stat.DiskPct)
 	s.stats.MemGraph.Points = append(s.stats.MemGraph.Points, spec.Point{X: time.Since(s.st).Seconds(), Y: stat.MemPct})
 	s.stats.CPUGraph.Points = append(s.stats.CPUGraph.Points, spec.Point{X: time.Since(s.st).Seconds(), Y: stat.CPUPct})
+}
+
+// percentileNearestRank computes the nearest-rank percentile of the given samples.
+// p must be in (0, 1], e.g., 0.95 for P95.
+func percentileNearestRank(values []float64, p float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	cp := make([]float64, len(values))
+	copy(cp, values)
+	sort.Float64s(cp)
+	idx := int(math.Ceil(p*float64(len(cp)))) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(cp) {
+		idx = len(cp) - 1
+	}
+	return cp[idx]
 }
 
 func downsample(points []spec.Point, n int) []spec.Point {

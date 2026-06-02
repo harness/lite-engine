@@ -160,8 +160,23 @@ type (
 		AvgCPUUsagePct float64 `json:"avg_cpu_usage_pct"`
 		MaxMemUsagePct float64 `json:"max_mem_usage_pct"`
 		MaxCPUUsagePct float64 `json:"max_cpu_usage_pct"`
-		MemGraph       *Graph  `json:"mem_graph"` // downsampled memory statistics as a percentage
-		CPUGraph       *Graph  `json:"cpu_graph"` // downsampled cpu statistics as a percentage
+		// Percentile fields for memory usage as percentage of total memory
+		P50MemUsagePct float64 `json:"p50_mem_usage_pct"`
+		P90MemUsagePct float64 `json:"p90_mem_usage_pct"`
+		P95MemUsagePct float64 `json:"p95_mem_usage_pct"`
+		P99MemUsagePct float64 `json:"p99_mem_usage_pct"`
+		// Percentile fields for CPU usage as percentage of total cores
+		P50CPUUsagePct float64 `json:"p50_cpu_usage_pct"`
+		P90CPUUsagePct float64 `json:"p90_cpu_usage_pct"`
+		P95CPUUsagePct float64 `json:"p95_cpu_usage_pct"`
+		P99CPUUsagePct float64 `json:"p99_cpu_usage_pct"`
+		// Disk usage fields. Captures the root filesystem on Linux/macOS and the system drive on Windows.
+		TotalDiskMB      float64 `json:"total_disk_mb"`
+		AvgDiskUsagePct  float64 `json:"avg_disk_usage_pct"`
+		PeakDiskUsagePct float64 `json:"peak_disk_usage_pct"`
+		P95DiskUsagePct  float64 `json:"p95_disk_usage_pct"`
+		MemGraph         *Graph  `json:"mem_graph"` // downsampled memory statistics as a percentage
+		CPUGraph         *Graph  `json:"cpu_graph"` // downsampled cpu statistics as a percentage
 	}
 
 	Graph struct {
