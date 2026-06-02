@@ -20,10 +20,30 @@ import (
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/logger"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/net/http2"
 )
 
 var (
 	healthCheckTimeout = 10 * time.Second
+)
+
+// HTTP/2 keepalive constants. Without these, Go's HTTP/2 client never
+// proactively probes idle connections, so a silently-dead conn (NAT/idle
+// timeout, server-side GOAWAY missed by client, etc.) only surfaces when the
+// next request stalls until the caller's context deadline. With these set,
+// the client sends a PING after ReadIdleTimeout of conn-level idleness; if
+// the peer doesn't ACK within PingTimeout, the conn is closed and the next
+// request dials a fresh one. See: https://pkg.go.dev/golang.org/x/net/http2
+const (
+	http2ReadIdleTimeout = 15 * time.Second
+	http2PingTimeout     = 5 * time.Second
+
+	// startStepAttemptTimeout bounds a single StartStep HTTP attempt. Combined
+	// with the parent timeout passed to RetryStartStep, this allows the retry
+	// loop to discover a broken HTTP/2 stream within a few seconds and dial a
+	// fresh connection on the next attempt instead of waiting for the parent
+	// deadline to fire.
+	startStepAttemptTimeout = 8 * time.Second
 )
 
 var _ Client = (*HTTPClient)(nil)
@@ -56,18 +76,26 @@ func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile str
 		Timeout:   30 * time.Second, //nolint:mnd
 		KeepAlive: 30 * time.Second, //nolint:mnd
 	}
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          10,               //nolint:mnd
+		IdleConnTimeout:       30 * time.Second, //nolint:mnd
+		TLSClientConfig:       tlsConfig,
+		TLSHandshakeTimeout:   10 * time.Second, //nolint:mnd
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	// Enable HTTP/2 keepalive pings so the client proactively detects dead
+	// connections instead of stalling on a stale stream until the caller's
+	// context deadline fires.
+	if h2t, h2err := http2.ConfigureTransports(transport); h2err == nil && h2t != nil {
+		h2t.ReadIdleTimeout = http2ReadIdleTimeout
+		h2t.PingTimeout = http2PingTimeout
+	}
 	return &HTTPClient{
 		Client: &http.Client{
-			Transport: &http.Transport{
-				Proxy:                 http.ProxyFromEnvironment,
-				DialContext:           dialer.DialContext,
-				ForceAttemptHTTP2:     true,
-				MaxIdleConns:          10,               //nolint:mnd
-				IdleConnTimeout:       30 * time.Second, //nolint:mnd
-				TLSClientConfig:       tlsConfig,
-				TLSHandshakeTimeout:   10 * time.Second, //nolint:mnd
-				ExpectContinueTimeout: 1 * time.Second,
-			},
+			Transport: transport,
 		},
 		Endpoint: endpoint,
 	}, nil
@@ -141,12 +169,23 @@ func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepReques
 			return nil, retryCtx.Err()
 		default:
 		}
-		if ret, err := c.StartStep(retryCtx, in); err == nil {
+		// Bound each attempt independently. If the underlying HTTP/2 stream
+		// is stuck on a stale conn, the per-attempt deadline cancels the
+		// request, which causes Go's transport to drop the dead conn so the
+		// next attempt dials a fresh one. context.WithTimeout clamps the
+		// effective deadline to the parent retryCtx, so we never exceed the
+		// caller's overall budget.
+		attemptCtx, attemptCancel := context.WithTimeout(retryCtx, startStepAttemptTimeout)
+		ret, err := c.StartStep(attemptCtx, in)
+		attemptCancel()
+		if err == nil {
 			logger.FromContext(ctx).
 				WithField("duration", time.Since(startTime)).
+				WithField("attempt", i).
 				Trace("RetryStartStep: step started")
 			return ret, nil
-		} else if lastErr == nil || (lastErr.Error() != err.Error()) {
+		}
+		if lastErr == nil || (lastErr.Error() != err.Error()) {
 			logger.FromContext(ctx).
 				WithField("retry_num", i).WithError(err).Traceln("start step failed. Retrying")
 			lastErr = err
