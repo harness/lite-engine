@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -144,6 +145,21 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 	if r.ID == "" {
 		return &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
+
+	// Idempotency: if a step with this ID is already running (or has already
+	// completed) we silently return success. The runner-side retry loop and
+	// HTTP/2 stream issues can cause the same start_step request to arrive
+	// more than once. Without this check, each duplicate spawns its own
+	// vm_task_executor goroutine, which would race on the same log stream,
+	// run the command twice, and double-report status to the manager.
+	e.mu.Lock()
+	if _, ok := e.stepStatus[r.ID]; ok {
+		e.mu.Unlock()
+		log.Printf("api: duplicate start step ignored, step already running id=%s", r.ID)
+		return nil
+	}
+	e.stepStatus[r.ID] = StepStatus{Status: Running}
+	e.mu.Unlock()
 
 	safego.SafeGo("vm_task_executor", func() {
 		done := make(chan api.VMTaskExecutionResponse, 1)
