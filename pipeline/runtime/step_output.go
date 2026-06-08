@@ -33,41 +33,50 @@ func (l *StepLog) Done() <-chan struct{} {
 	return l.done
 }
 
+// Write appends data to the full output buffer and fans it out to every
+// active subscriber channel.
+//
+// We MUST send subscribers a slice whose backing array is independent of
+// l.fullOutput. The previous implementation sent l.fullOutput.Bytes()[len-n:],
+// which aliases the buffer's internal storage; the next Write could grow
+// (and reallocate) that storage while a subscriber was still reading the
+// prior slice — a real data race confirmed by `go test -race`. We allocate
+// a fresh `buf`, write that into the buffer, and send that same independent
+// slice to subscribers.
 func (l *StepLog) Write(data []byte) (int, error) {
 	n := len(data)
 
+	buf := make([]byte, n)
+	copy(buf, data)
+
 	l.mx.Lock()
-
-	l.fullOutput.Write(data)
-
-	// replace byte buffer from which the data came before we write it to the subscriber channels
-	data = l.fullOutput.Bytes()
-	data = data[len(data)-n:]
+	l.fullOutput.Write(buf)
 	for ch := range l.subscribers {
-		ch <- data
+		ch <- buf
 	}
-
 	l.mx.Unlock()
 
 	return n, nil
 }
 
-// Subscribe returns the output log that has been created so far (from the offset position) and
-// it registers the ch channel to receive further data output.
-func (l *StepLog) Subscribe(ch chan []byte, offset int) (data []byte, err error) {
+// Subscribe registers ch to receive further data output and returns the
+// output log accumulated so far (from offset).
+//
+// The returned slice is a copy, not a reference to l.fullOutput's internal
+// storage. A live reference would race with concurrent Write() calls
+// growing the buffer.
+func (l *StepLog) Subscribe(ch chan []byte, offset int) ([]byte, error) {
 	l.mx.Lock()
-	data = l.fullOutput.Bytes()
-	l.subscribers[ch] = struct{}{}
-	l.mx.Unlock()
+	defer l.mx.Unlock()
 
-	if offset > len(data) {
-		data = nil
-		err = fmt.Errorf("error: index 'offset' is out of bounds Offset=%d Total=%d", offset, len(data))
-	} else {
-		data = data[offset:]
+	full := l.fullOutput.Bytes()
+	if offset > len(full) {
+		return nil, fmt.Errorf("error: index 'offset' is out of bounds Offset=%d Total=%d", offset, len(full))
 	}
-
-	return
+	out := make([]byte, len(full)-offset)
+	copy(out, full[offset:])
+	l.subscribers[ch] = struct{}{}
+	return out, nil
 }
 
 func (l *StepLog) Unsubscribe(ch chan []byte) {

@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/harness/lite-engine/duallog"
@@ -55,7 +56,11 @@ type Writer struct {
 	nudges []logstream.Nudge
 	errs   []error
 
-	interval      time.Duration
+	// interval is the flusher tick duration in nanoseconds. Stored atomically
+	// so SetInterval can be called concurrently with Start's read loop
+	// without a mutex (which would otherwise race or require lock ordering
+	// against b.mu).
+	interval      atomic.Int64
 	printToStdout bool // if logs should be written to both the log service and stdout
 	pending       []*logstream.Line
 	history       []*logstream.Line
@@ -83,7 +88,6 @@ func New(ctx context.Context, client logstream.Client, key, name string, nudges 
 		now:               time.Now(),
 		printToStdout:     printToStdout,
 		limit:             defaultLimit,
-		interval:          defaultInterval,
 		nudges:            nudges,
 		close:             make(chan struct{}),
 		ready:             make(chan struct{}, 1),
@@ -91,18 +95,21 @@ func New(ctx context.Context, client logstream.Client, key, name string, nudges 
 		trimNewLineSuffix: trimNewLineSuffix,
 		ctx:               ctx,
 	}
+	b.interval.Store(int64(defaultInterval))
 	safego.SafeGo("livelog_buffer", b.Start)
 	return b
 }
 
 // SetLimit sets the Writer limit.
 func (b *Writer) SetLimit(limit int) {
+	b.mu.Lock()
 	b.limit = limit
+	b.mu.Unlock()
 }
 
 // SetInterval sets the Writer flusher interval.
 func (b *Writer) SetInterval(interval time.Duration) {
-	b.interval = interval
+	b.interval.Store(int64(interval))
 }
 
 // SetDualLogConfig enables dual logging to stdout in flat JSON format.
@@ -112,13 +119,22 @@ func (b *Writer) SetDualLogConfig(meta *duallog.Meta, logType string) {
 }
 
 // Write uploads the live log stream to the server.
+//
+// Locking discipline (must be preserved — see flush() for the same rules):
+//  1. b.prev / b.num / b.size / b.pending / b.history / b.closed are only
+//     read or written under b.mu.
+//  2. logrus calls and duallog.EmitLine never run under b.mu — they can
+//     recurse into Writer.Write via the StreamHook (mutex is not reentrant)
+//     and would deadlock. We snapshot what we need under the lock, release,
+//     then log.
 func (b *Writer) Write(p []byte) (n int, err error) {
-	var res []byte
 	// Return if a new line character is not present in the input.
 	// Commands like `mvn` flush character by character so this prevents
 	// spamming of single-character logs.
 	if !bytes.Contains(p, []byte("\n")) {
+		b.mu.Lock()
 		b.prev = append(b.prev, p...)
+		b.mu.Unlock()
 		return len(p), nil
 	}
 
@@ -129,9 +145,10 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 	//     Write(BC\nDEF\nGH) ---> res becomes ABC\nDEF\n and prev becomes GH
 	first, second := splitLast(p)
 
-	res = b.prev
-	res = append(res, first...)
+	b.mu.Lock()
+	res := append(b.prev, first...) //nolint:gocritic // intentional: consume b.prev
 	b.prev = second
+	b.mu.Unlock()
 
 	for _, part := range split(res) {
 		if part == "" {
@@ -142,36 +159,29 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			part = strings.TrimSuffix(part, "\n")
 		}
 
-		line := &logstream.Line{
+		// Build the line and apply size/num/history/pending mutations under
+		// a single critical section so b.num is read coherently with its
+		// increment and with the slice mutations.
+		var (
+			line       *logstream.Line
+			marshalErr error
+		)
+		b.mu.Lock()
+		line = &logstream.Line{
 			Level:       defaultLevel,
 			Message:     truncate(part, maxLineLimit),
 			Number:      b.num,
 			Timestamp:   time.Now(),
 			ElaspedTime: int64(time.Since(b.now).Seconds()),
 		}
-
-		if b.dualLogMeta != nil {
-			duallog.EmitLine(b.dualLogMeta, line.Message, line.Timestamp, b.dualLogType)
-		}
-
 		jsonLine, _ := getLineBytes(line)
-
-		if b.printToStdout {
-			logrus.WithField("name", b.name).Infoln(line.Message)
-		}
-
-		// All mutations of size/num/history/pending happen under a single
-		// critical section. Logrus calls (which can recurse via StreamHook)
-		// stay outside the lock — see flush() for the same discipline.
-		var marshalErr error
-		b.mu.Lock()
 		for b.size+len(jsonLine) > b.limit {
 			if len(b.history) == 0 {
 				break
 			}
-			hline, err := getLineBytes(b.history[0])
-			if err != nil && marshalErr == nil {
-				marshalErr = err
+			hline, herr := getLineBytes(b.history[0])
+			if herr != nil && marshalErr == nil {
+				marshalErr = herr
 			}
 			b.size -= len(hline)
 			b.history = b.history[1:]
@@ -185,6 +195,14 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 		}
 		b.mu.Unlock()
 
+		// logrus / duallog work happens AFTER the mutex is released to
+		// preserve the "no logrus under b.mu" invariant.
+		if b.dualLogMeta != nil {
+			duallog.EmitLine(b.dualLogMeta, line.Message, line.Timestamp, b.dualLogType)
+		}
+		if b.printToStdout {
+			logrus.WithField("name", b.name).Infoln(line.Message)
+		}
 		if marshalErr != nil {
 			logrus.WithError(marshalErr).WithField("name", b.name).Errorln("could not marshal log")
 		}
@@ -223,8 +241,15 @@ func (b *Writer) Close() error {
 		return b.writeWithoutClose()
 	}
 	if b.stop() {
-		// Flush anything waiting on a new line
-		if len(b.prev) > 0 {
+		// Flush anything waiting on a new line. Read b.prev under b.mu —
+		// stop() already set b.closed=true so subsequent Writes won't
+		// append to pending/history, but b.prev may still be mutated by
+		// any in-flight Write that's between the closed-check and its
+		// b.prev append.
+		b.mu.Lock()
+		hasPrev := len(b.prev) > 0
+		b.mu.Unlock()
+		if hasPrev {
 			b.Write([]byte("\n")) //nolint:errcheck
 		}
 		b.flush()
@@ -263,8 +288,12 @@ func (b *Writer) Close() error {
 }
 
 func (b *Writer) writeWithoutClose() error {
-	// Flush anything waiting on a new line
-	if len(b.prev) > 0 {
+	// Flush anything waiting on a new line. Read b.prev under b.mu since
+	// concurrent Writes may still be mutating it.
+	b.mu.Lock()
+	hasPrev := len(b.prev) > 0
+	b.mu.Unlock()
+	if hasPrev {
 		b.Write([]byte("\n")) //nolint:errcheck
 	}
 	err := b.flush()
@@ -364,13 +393,13 @@ func (b *Writer) stop() bool {
 
 // Start starts a periodic loop to flush logs to the live stream
 func (b *Writer) Start() {
-	intervalTimer := time.NewTimer(b.interval)
+	intervalTimer := time.NewTimer(time.Duration(b.interval.Load()))
 	for {
 		select {
 		case <-b.close:
 			return
 		case <-b.ready:
-			intervalTimer.Reset(b.interval)
+			intervalTimer.Reset(time.Duration(b.interval.Load()))
 			select {
 			case <-b.close:
 				return

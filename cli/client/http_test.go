@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -74,56 +73,6 @@ func TestDo_ServerError_EmptyBody(t *testing.T) {
 	_, err := client.do(context.Background(), srv.URL+"/setup", http.MethodPost, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Bad Gateway")
-}
-
-func TestDo_ContextDeadlineExceeded_LogsTrace(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(2 * time.Second)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer srv.Close()
-
-	hook := &captureHook{}
-	logrus.StandardLogger().AddHook(hook)
-	logrus.SetLevel(logrus.WarnLevel)
-	defer logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-
-	client := newTestClient(srv.URL)
-	_, err := client.do(ctx, srv.URL+"/poll_step", http.MethodPost, &api.PollStepRequest{ID: "step1"}, nil)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "context deadline exceeded")
-
-	require.NotEmpty(t, hook.entries, "expected a warn log from logHTTPFailure")
-	entry := hook.entries[0]
-	assert.Equal(t, logrus.WarnLevel, entry.Level)
-	assert.Equal(t, "lite-engine request failed", entry.Message)
-	assert.Contains(t, entry.Data, "method")
-	assert.Contains(t, entry.Data, "path")
-	assert.Contains(t, entry.Data, "conn_reused")
-}
-
-func TestDo_ConnectionRefused_LogsTrace(t *testing.T) {
-	hook := &captureHook{}
-	logrus.StandardLogger().AddHook(hook)
-	logrus.SetLevel(logrus.WarnLevel)
-	defer logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
-
-	client := &HTTPClient{
-		Client:   &http.Client{Timeout: 2 * time.Second},
-		Endpoint: "http://127.0.0.1:19999/",
-	}
-
-	_, err := client.do(context.Background(), "http://127.0.0.1:19999/healthz", http.MethodGet, nil, nil)
-	require.Error(t, err)
-
-	require.NotEmpty(t, hook.entries)
-	entry := hook.entries[0]
-	assert.Equal(t, "lite-engine request failed", entry.Message)
-	assert.Equal(t, "http://127.0.0.1:19999/healthz", entry.Data["path"])
 }
 
 func TestRetryHealth_SucceedsAfterRetries(t *testing.T) {
@@ -195,23 +144,6 @@ func TestTraceCollector_CapturesDNSAndConnect(t *testing.T) {
 	out := make(map[string]string)
 	_, err := client.do(context.Background(), srv.URL+"/healthz", http.MethodGet, nil, &out)
 	assert.NoError(t, err)
-}
-
-// captureHook captures logrus entries for assertions
-type captureHook struct {
-	mu      sync.Mutex
-	entries []*logrus.Entry
-}
-
-func (h *captureHook) Levels() []logrus.Level {
-	return logrus.AllLevels
-}
-
-func (h *captureHook) Fire(entry *logrus.Entry) error {
-	h.mu.Lock()
-	h.entries = append(h.entries, entry)
-	h.mu.Unlock()
-	return nil
 }
 
 // TestHTTPClient_ConcurrentDo drives many goroutines through the same

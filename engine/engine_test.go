@@ -2,8 +2,10 @@ package engine
 
 import (
 	"bytes"
+	"context"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/harness/lite-engine/engine/spec"
@@ -96,4 +98,107 @@ func TestRunHelper(t *testing.T) {
 		assert.Equal(t, "/some/path", cfg.Volumes[0].HostPath.Path)
 		assert.Equal(t, "/mount/path", step.Volumes[0].Path)
 	}
+}
+
+// newRaceTestEngine builds an Engine directly without going through NewEnv()
+// (which would dial the docker socket). The engine.docker reference is left
+// nil because none of the methods exercised in the race tests below touch it
+// — Setup is gated behind EnableDockerSetup=false, and the other tests only
+// hit Engine.GetPipelineEnvs / the e.mu critical sections.
+func newRaceTestEngine() *Engine {
+	disabled := false
+	return &Engine{
+		pipelineConfig: &spec.PipelineConfig{
+			EnableDockerSetup: &disabled,
+			Envs:              map[string]string{},
+		},
+	}
+}
+
+// TestEngine_ConcurrentGetPipelineEnvs exercises the e.mu critical section
+// from many readers while a writer concurrently rebinds e.pipelineConfig.
+//
+// GetPipelineEnvs returns the live map under the lock — this test verifies
+// that pattern is safe when callers don't iterate the result. (Iteration
+// would be a separate, API-level concern; callers in this repo currently
+// don't iterate the returned map outside the e.mu boundary, but if that
+// ever changes we'd need to copy in GetPipelineEnvs the same way we did
+// for pipeline.EnvState.Get.)
+func TestEngine_ConcurrentGetPipelineEnvs(t *testing.T) {
+	e := newRaceTestEngine()
+
+	const ops = 1000
+	var wg sync.WaitGroup
+
+	// Writer: rebinds e.pipelineConfig under the lock.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		disabled := false
+		for i := 0; i < ops; i++ {
+			cfg := &spec.PipelineConfig{
+				EnableDockerSetup: &disabled,
+				Envs:              map[string]string{"K": "V"},
+			}
+			e.mu.Lock()
+			e.pipelineConfig = cfg
+			e.mu.Unlock()
+		}
+	}()
+
+	// Readers
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < ops; j++ {
+				_ = e.GetPipelineEnvs()
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+// TestEngine_ConcurrentSetupAndGet drives Setup() (with docker disabled) in
+// parallel with GetPipelineEnvs() readers. Each Setup call rebinds
+// e.pipelineConfig under e.mu; readers must observe a coherent value.
+func TestEngine_ConcurrentSetupAndGet(t *testing.T) {
+	e := newRaceTestEngine()
+
+	disabled := false
+	cfgs := []*spec.PipelineConfig{
+		{EnableDockerSetup: &disabled, Envs: map[string]string{"A": "1"}},
+		{EnableDockerSetup: &disabled, Envs: map[string]string{"B": "2"}},
+		{EnableDockerSetup: &disabled, Envs: map[string]string{"C": "3"}},
+	}
+
+	const ops = 200
+	var wg sync.WaitGroup
+
+	// Two writers using Setup — they share e.mu but compete to rebind the field.
+	for w := 0; w < 2; w++ {
+		wg.Add(1)
+		go func(w int) {
+			defer wg.Done()
+			for i := 0; i < ops; i++ {
+				cfg := cfgs[(w+i)%len(cfgs)]
+				if err := e.Setup(context.Background(), cfg); err != nil {
+					t.Errorf("Setup: %v", err)
+					return
+				}
+			}
+		}(w)
+	}
+
+	// Many readers
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < ops; j++ {
+				_ = e.GetPipelineEnvs()
+			}
+		}()
+	}
+	wg.Wait()
 }

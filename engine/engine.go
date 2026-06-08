@@ -194,7 +194,10 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	e.pipelineConfig = pipelineConfig
 	e.mu.Unlock()
 	// required to support m1 where docker isn't installed.
-	if e.pipelineConfig.EnableDockerSetup == nil || *e.pipelineConfig.EnableDockerSetup {
+	// Read EnableDockerSetup from the local parameter, not e.pipelineConfig:
+	// a concurrent Setup call could have rebound e.pipelineConfig between
+	// the unlock above and this read.
+	if pipelineConfig.EnableDockerSetup == nil || *pipelineConfig.EnableDockerSetup {
 		return e.docker.Setup(ctx, pipelineConfig)
 	}
 	return nil

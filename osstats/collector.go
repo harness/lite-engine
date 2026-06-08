@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"runtime"
+	"sync"
 	"time"
 
 	lttb "github.com/dgryski/go-lttb"
@@ -21,18 +22,30 @@ var (
 	downsampleCount = 10
 )
 
+// StatsCollector samples host CPU/mem on a timer in a background goroutine.
+//
+// Concurrency model:
+//   - mu guards every mutable field below (stats, accumulators, totals).
+//   - Stop() closes doneCh and then blocks on stoppedCh, so no collector
+//     goroutine is running by the time Stop() returns. The intended call
+//     order is Start → ... → Stop → Aggregate → Stats; Aggregate and Stats
+//     still take mu so they remain safe if a future caller invokes them
+//     while collection is live.
 type StatsCollector struct {
 	ctx        context.Context
 	st         time.Time
 	log        *logrus.Entry
 	interval   time.Duration
-	doneCh     chan struct{}
+	doneCh     chan struct{} // closed by Stop() to signal the collector loop
+	stoppedCh  chan struct{} // closed by the collector goroutine on exit
+	logProcess bool
+
+	mu         sync.Mutex
 	stats      *spec.OSStats
 	memPctSum  float64
 	cpuPctSum  float64
 	cpuTotal   int
 	memTotalMB float64
-	logProcess bool
 }
 
 type osStat struct {
@@ -47,10 +60,11 @@ type osStat struct {
 
 func New(ctx context.Context, interval time.Duration, logProcess bool) *StatsCollector {
 	return &StatsCollector{
-		ctx:      ctx,
-		log:      logger.FromContext(ctx),
-		interval: interval,
-		doneCh:   make(chan struct{}),
+		ctx:       ctx,
+		log:       logger.FromContext(ctx),
+		interval:  interval,
+		doneCh:    make(chan struct{}),
+		stoppedCh: make(chan struct{}),
 		stats: &spec.OSStats{
 			MemGraph: &spec.Graph{
 				Xmetric: "seconds",
@@ -70,16 +84,47 @@ func (s *StatsCollector) Start() {
 	safego.SafeGo("stats_collector", s.collectStats)
 }
 
+// Stop signals the collector goroutine to exit and waits for it to do so.
+// After Stop returns, no further mutation of stats/accumulators can come
+// from the background goroutine.
+//
+// Stop is safe to call exactly once. Calling it twice panics on the second
+// close — same contract as the original implementation.
 func (s *StatsCollector) Stop() {
 	close(s.doneCh)
+	<-s.stoppedCh
 }
 
+// Stats returns a snapshot copy of the underlying spec.OSStats. The copy is
+// independent of further collector activity, so the caller can read or
+// JSON-encode it without holding any lock. We return by pointer to keep
+// the existing API shape (handler/destroy.go assigns directly to a
+// *spec.OSStats field on the response).
 func (s *StatsCollector) Stats() *spec.OSStats {
-	return s.stats
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	out := *s.stats // shallow copy of scalar fields
+	if s.stats.MemGraph != nil {
+		mg := *s.stats.MemGraph
+		mg.Points = append([]spec.Point(nil), s.stats.MemGraph.Points...)
+		out.MemGraph = &mg
+	}
+	if s.stats.CPUGraph != nil {
+		cg := *s.stats.CPUGraph
+		cg.Points = append([]spec.Point(nil), s.stats.CPUGraph.Points...)
+		out.CPUGraph = &cg
+	}
+	return &out
 }
 
-// downsample cpu and memory to n points using LTTB
+// Aggregate finalizes the collected samples into average + downsampled
+// graphs. Intended to be called after Stop() so the collector goroutine
+// is no longer running. Takes s.mu so concurrent callers (and any reader
+// holding a reference returned by Stats()) cannot observe a torn state.
 func (s *StatsCollector) Aggregate() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if len(s.stats.MemGraph.Points) > 0 {
 		s.stats.AvgMemUsagePct = s.memPctSum / float64(len(s.stats.MemGraph.Points))
 	}
@@ -93,6 +138,8 @@ func (s *StatsCollector) Aggregate() {
 }
 
 func (s *StatsCollector) collectStats() {
+	defer close(s.stoppedCh)
+
 	stat, err := s.get()
 	if err == nil {
 		s.update(stat)
@@ -152,8 +199,7 @@ func (s *StatsCollector) get() (*osStat, error) {
 		return nil, err
 	}
 
-	s.cpuTotal = runtime.NumCPU()
-	s.memTotalMB = formatMB(vm.Total)
+	cpuTotal := runtime.NumCPU()
 
 	// log memory
 	s.log.Infof("total_gb: %f, used_gb: %f, free_gb: %f, used_pct: %f, swap_total_gb: %f, swap_used_gb: %f, swap_free_gb: %f",
@@ -161,10 +207,10 @@ func (s *StatsCollector) get() (*osStat, error) {
 		formatGB(swap.Used), formatGB(swap.Free))
 
 	// log cpu
-	s.log.Infof("cpu total: %d, cpu used percent: %f", s.cpuTotal, percent[0])
+	s.log.Infof("cpu total: %d, cpu used percent: %f", cpuTotal, percent[0])
 
 	return &osStat{CPUPct: percent[0], MemPct: vm.UsedPercent, MemTotalMB: formatMB(vm.Total),
-		MemAvailableMB: formatMB(vm.Available), MemUsedMB: formatMB(vm.Used), SwapMemPct: swap.UsedPercent, CPUTotal: s.cpuTotal}, nil
+		MemAvailableMB: formatMB(vm.Available), MemUsedMB: formatMB(vm.Used), SwapMemPct: swap.UsedPercent, CPUTotal: cpuTotal}, nil
 }
 
 func DumpProcessInfo() error {
@@ -217,6 +263,11 @@ func DumpProcessInfo() error {
 }
 
 func (s *StatsCollector) update(stat *osStat) {
+	elapsed := time.Since(s.st).Seconds()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if stat.MemPct > s.stats.MaxMemUsagePct {
 		s.stats.MaxMemUsagePct = stat.MemPct
 	}
@@ -225,8 +276,10 @@ func (s *StatsCollector) update(stat *osStat) {
 	}
 	s.memPctSum += stat.MemPct
 	s.cpuPctSum += stat.CPUPct
-	s.stats.MemGraph.Points = append(s.stats.MemGraph.Points, spec.Point{X: time.Since(s.st).Seconds(), Y: stat.MemPct})
-	s.stats.CPUGraph.Points = append(s.stats.CPUGraph.Points, spec.Point{X: time.Since(s.st).Seconds(), Y: stat.CPUPct})
+	s.cpuTotal = stat.CPUTotal
+	s.memTotalMB = stat.MemTotalMB
+	s.stats.MemGraph.Points = append(s.stats.MemGraph.Points, spec.Point{X: elapsed, Y: stat.MemPct})
+	s.stats.CPUGraph.Points = append(s.stats.CPUGraph.Points, spec.Point{X: elapsed, Y: stat.CPUPct})
 }
 
 func downsample(points []spec.Point, n int) []spec.Point {
