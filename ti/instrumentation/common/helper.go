@@ -147,46 +147,7 @@ func ExtractArchive(archivePath, destDir string) error {
 		return fmt.Errorf("failed to open archive: %w", err)
 	}
 
-	allPaths, err := collectArchivePaths(fsys)
-	if err != nil {
-		return err
-	}
-
-	destDir, err = adjustDestDirIfNeeded(destDir, archivePath, allPaths)
-	if err != nil {
-		return err
-	}
-
 	return extractArchiveFiles(fsys, destDir)
-}
-
-// collectArchivePaths collects all paths from the archive filesystem.
-func collectArchivePaths(fsys fs.FS) ([]string, error) {
-	var allPaths []string
-	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if path != "." {
-			allPaths = append(allPaths, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to read archive contents: %w", err)
-	}
-	return allPaths, nil
-}
-
-// adjustDestDirIfNeeded creates a subfolder if files don't share a common root.
-func adjustDestDirIfNeeded(destDir, archivePath string, allPaths []string) (string, error) {
-	if multipleTopLevels(allPaths) {
-		destDir = filepath.Join(destDir, folderNameFromFileName(archivePath))
-		if err := os.MkdirAll(destDir, defaultDirPerm); err != nil {
-			return "", fmt.Errorf("failed to create implicit top-level folder: %w", err)
-		}
-	}
-	return destDir, nil
 }
 
 // extractArchiveFiles walks through the archive and extracts each file.
@@ -252,29 +213,6 @@ func extractFile(fsys fs.FS, path, targetPath string, d fs.DirEntry) error {
 	}
 
 	return nil
-}
-
-// multipleTopLevels checks if files have multiple top-level directories
-func multipleTopLevels(files []string) bool {
-	if len(files) == 0 {
-		return false
-	}
-
-	var topLevel string
-	for _, f := range files {
-		parts := strings.Split(filepath.ToSlash(f), "/")
-		if len(parts) == 0 {
-			continue
-		}
-		currentTop := parts[0]
-
-		if topLevel == "" {
-			topLevel = currentTop
-		} else if topLevel != currentTop {
-			return true
-		}
-	}
-	return false
 }
 
 // folderNameFromFileName extracts a folder name from the archive filename
