@@ -75,15 +75,16 @@ func TestExtractArchive_NonexistentArchive(t *testing.T) {
 }
 
 func TestIsPathSafe(t *testing.T) {
+	const destDir = "/dest"
 	tests := []struct {
 		name     string
 		destDir  string
 		target   string
 		expected bool
 	}{
-		{"safe path", "/dest", "/dest/file.txt", true},
-		{"traversal", "/dest", "/dest/../etc/passwd", false},
-		{"exact dest", "/dest", "/dest", true},
+		{"safe path", destDir, destDir + "/file.txt", true},
+		{"traversal", destDir, destDir + "/../etc/passwd", false},
+		{"exact dest", destDir, destDir, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

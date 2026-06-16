@@ -138,7 +138,9 @@ func TestStepLogSubscribeOffsetOutOfBounds(t *testing.T) {
 	defer cancelFn()
 
 	stepLog := NewStepLog(ctx)
-	stepLog.Write([]byte("hello"))
+	if _, err := stepLog.Write([]byte("hello")); err != nil {
+		t.Fatalf("write failed: %s", err)
+	}
 
 	ch := make(chan []byte, 1)
 	_, err := stepLog.Subscribe(ch, 9999)
@@ -153,7 +155,9 @@ func TestStepLogSubscribeReturnsIndependentCopy(t *testing.T) {
 	defer cancelFn()
 
 	stepLog := NewStepLog(ctx)
-	stepLog.Write([]byte("initial"))
+	if _, err := stepLog.Write([]byte("initial")); err != nil {
+		t.Fatalf("write failed: %s", err)
+	}
 
 	ch := make(chan []byte, 1)
 	data, err := stepLog.Subscribe(ch, 0)
@@ -165,7 +169,9 @@ func TestStepLogSubscribeReturnsIndependentCopy(t *testing.T) {
 	// Write more data — the previously returned slice must not change
 	snapshot := make([]byte, len(data))
 	copy(snapshot, data)
-	stepLog.Write([]byte(" more"))
+	if _, err := stepLog.Write([]byte(" more")); err != nil {
+		t.Fatalf("write failed: %s", err)
+	}
 
 	if !bytes.Equal(data, snapshot) {
 		t.Errorf("Subscribe data was mutated: got %q, want %q", data, snapshot)

@@ -25,7 +25,7 @@ func TestGetGradleCmd(t *testing.T) { //nolint:funlen
 	log := logrus.New()
 	fs := filesystem.NewMockFileSystem(ctrl)
 
-	fs.EXPECT().Stat(filepath.Join("/path/to/workspace", "gradlew")).Return(nil, nil).AnyTimes()
+	fs.EXPECT().Stat(filepath.Join("/path/to/workspace", "gradlew")).Return(nil, nil).AnyTimes() //nolint:gocritic
 
 	runner := NewGradleRunner(log, fs)
 	installDir := "/install/dir/java/"

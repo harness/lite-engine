@@ -30,7 +30,7 @@ func TestSBT_GetCmd(t *testing.T) { //nolint:funlen
 
 	t1 := ti.RunnableTest{Pkg: "pkg1", Class: "cls1", Method: "m1"}
 	t2 := ti.RunnableTest{Pkg: "pkg2", Class: "cls2", Method: "m2"}
-	jarPath := filepath.Join("/install/dir/java/", JavaAgentJar)
+	jarPath := filepath.Join("/install/dir/java/", JavaAgentJar) //nolint:gocritic
 	javaOpts := fmt.Sprintf("set javaOptions ++= Seq(\"-javaagent:%s=/test/tmp/config.ini\")", jarPath)
 
 	tests := []struct {
