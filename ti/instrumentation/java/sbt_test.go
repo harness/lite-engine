@@ -7,6 +7,7 @@ package java
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,8 @@ func TestSBT_GetCmd(t *testing.T) { //nolint:funlen
 
 	t1 := ti.RunnableTest{Pkg: "pkg1", Class: "cls1", Method: "m1"}
 	t2 := ti.RunnableTest{Pkg: "pkg2", Class: "cls2", Method: "m2"}
-	javaOpts := "set javaOptions ++= Seq(\"-javaagent:/install/dir/java/java-agent.jar=/test/tmp/config.ini\")"
+	jarPath := filepath.Join("/install/dir/java/", JavaAgentJar)
+	javaOpts := fmt.Sprintf("set javaOptions ++= Seq(\"-javaagent:%s=/test/tmp/config.ini\")", jarPath)
 
 	tests := []struct {
 		name                 string // description of test
