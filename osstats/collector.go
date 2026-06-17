@@ -22,15 +22,6 @@ var (
 	downsampleCount = 10
 )
 
-// StatsCollector samples host CPU/mem on a timer in a background goroutine.
-//
-// Concurrency model:
-//   - mu guards every mutable field below (stats, accumulators, totals).
-//   - Stop() closes doneCh and then blocks on stoppedCh, so no collector
-//     goroutine is running by the time Stop() returns. The intended call
-//     order is Start → ... → Stop → Aggregate → Stats; Aggregate and Stats
-//     still take mu so they remain safe if a future caller invokes them
-//     while collection is live.
 type StatsCollector struct {
 	ctx        context.Context
 	st         time.Time
@@ -84,22 +75,11 @@ func (s *StatsCollector) Start() {
 	safego.SafeGo("stats_collector", s.collectStats)
 }
 
-// Stop signals the collector goroutine to exit and waits for it to do so.
-// After Stop returns, no further mutation of stats/accumulators can come
-// from the background goroutine.
-//
-// Stop is safe to call exactly once. Calling it twice panics on the second
-// close — same contract as the original implementation.
 func (s *StatsCollector) Stop() {
 	close(s.doneCh)
 	<-s.stoppedCh
 }
 
-// Stats returns a snapshot copy of the underlying spec.OSStats. The copy is
-// independent of further collector activity, so the caller can read or
-// JSON-encode it without holding any lock. We return by pointer to keep
-// the existing API shape (handler/destroy.go assigns directly to a
-// *spec.OSStats field on the response).
 func (s *StatsCollector) Stats() *spec.OSStats {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -118,10 +98,6 @@ func (s *StatsCollector) Stats() *spec.OSStats {
 	return &out
 }
 
-// Aggregate finalizes the collected samples into average + downsampled
-// graphs. Intended to be called after Stop() so the collector goroutine
-// is no longer running. Takes s.mu so concurrent callers (and any reader
-// holding a reference returned by Stats()) cannot observe a torn state.
 func (s *StatsCollector) Aggregate() {
 	s.mu.Lock()
 	defer s.mu.Unlock()

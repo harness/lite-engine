@@ -56,10 +56,6 @@ type Writer struct {
 	nudges []logstream.Nudge
 	errs   []error
 
-	// interval is the flusher tick duration in nanoseconds. Stored atomically
-	// so SetInterval can be called concurrently with Start's read loop
-	// without a mutex (which would otherwise race or require lock ordering
-	// against b.mu).
 	interval      atomic.Int64
 	printToStdout bool // if logs should be written to both the log service and stdout
 	pending       []*logstream.Line
@@ -119,14 +115,6 @@ func (b *Writer) SetDualLogConfig(meta *duallog.Meta, logType string) {
 }
 
 // Write uploads the live log stream to the server.
-//
-// Locking discipline (must be preserved — see flush() for the same rules):
-//  1. b.prev / b.num / b.size / b.pending / b.history / b.closed are only
-//     read or written under b.mu.
-//  2. logrus calls and duallog.EmitLine never run under b.mu — they can
-//     recurse into Writer.Write via the StreamHook (mutex is not reentrant)
-//     and would deadlock. We snapshot what we need under the lock, release,
-//     then log.
 func (b *Writer) Write(p []byte) (n int, err error) {
 	// Return if a new line character is not present in the input.
 	// Commands like `mvn` flush character by character so this prevents
@@ -159,9 +147,6 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 			part = strings.TrimSuffix(part, "\n")
 		}
 
-		// Build the line and apply size/num/history/pending mutations under
-		// a single critical section so b.num is read coherently with its
-		// increment and with the slice mutations.
 		var (
 			line       *logstream.Line
 			marshalErr error
@@ -241,11 +226,6 @@ func (b *Writer) Close() error {
 		return b.writeWithoutClose()
 	}
 	if b.stop() {
-		// Flush anything waiting on a new line. Read b.prev under b.mu —
-		// stop() already set b.closed=true so subsequent Writes won't
-		// append to pending/history, but b.prev may still be mutated by
-		// any in-flight Write that's between the closed-check and its
-		// b.prev append.
 		b.mu.Lock()
 		hasPrev := len(b.prev) > 0
 		b.mu.Unlock()
@@ -288,8 +268,6 @@ func (b *Writer) Close() error {
 }
 
 func (b *Writer) writeWithoutClose() error {
-	// Flush anything waiting on a new line. Read b.prev under b.mu since
-	// concurrent Writes may still be mutating it.
 	b.mu.Lock()
 	hasPrev := len(b.prev) > 0
 	b.mu.Unlock()

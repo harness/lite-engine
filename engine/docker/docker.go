@@ -716,9 +716,6 @@ func (e *Docker) softStop(ctx context.Context, name string) {
 func (e *Docker) removeContainerByID(id string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	// Allocate a new backing slice rather than reusing e.containers[:0]:
-	// callers of Destroy() snapshot e.containers under e.mu and may still
-	// be reading that backing array after the lock is released.
 	newContainers := make([]Container, 0, len(e.containers))
 	for _, c := range e.containers {
 		if c.ID != id {
