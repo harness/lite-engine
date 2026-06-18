@@ -98,18 +98,11 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	safego.WithContext(ctx, "step_executor", func(ctx context.Context) {
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
-		if artifactVars := nativeArtifactOutputVars(r.ID, r.Envs); len(artifactVars) > 0 {
-			if outputs == nil {
-				outputs = artifactVars
-			} else {
-				for k, v := range artifactVars {
-					outputs[k] = v
-				}
-			}
-		}
+		nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, r.Envs)
+		outputs = mergeArtifactVars(outputs, artifactVars)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata,
-			NativeArtifactOutput: readNativeArtifactOutput(r.ID)}
+			NativeArtifactOutput: nativeArtifactRaw}
 
 		ffEnabled := isAnnotationsEnabled(r.Envs)
 		if stepErr == nil && state.ExitCode == 0 && ffEnabled {
@@ -185,18 +178,11 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			}
 			wr = getLogStreamWriter(r)
 			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(r, wr)
-			if artifactVars := nativeArtifactOutputVars(r.ID, r.Envs); len(artifactVars) > 0 {
-				if outputs == nil {
-					outputs = artifactVars
-				} else {
-					for k, v := range artifactVars {
-						outputs[k] = v
-					}
-				}
-			}
+			nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, r.Envs)
+			outputs = mergeArtifactVars(outputs, artifactVars)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
-				NativeArtifactOutput: readNativeArtifactOutput(r.ID)}
+				NativeArtifactOutput: nativeArtifactRaw}
 			pollResponse := convertStatus(status)
 			ffEnabled := isAnnotationsEnabled(r.Envs)
 			if stepErr == nil && state.ExitCode == 0 && ffEnabled {
@@ -690,30 +676,18 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 	return convertPollResponseWithErrorDetails(r, envs, nil)
 }
 
-// readNativeArtifactOutput reads the raw hcli artifact JSON written to
-// HARNESS_ARTIFACT_FILE_PATH after a step completes. Returns empty string if
-// the file does not exist or cannot be read. The raw JSON is forwarded to CI
-// Manager for DB persistence (upsertFromArtifactOutput).
-func readNativeArtifactOutput(stepID string) string {
-	filePath := fmt.Sprintf("%s/%s-artifact.json", pipeline.GetSharedVolPath(), stepID)
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return ""
-	}
-	return string(content)
-}
-
-// nativeArtifactOutputVars parses the hcli artifact JSON and returns
-// ARTIFACT_COUNT, ARTIFACT_BYTES, ARTIFACT_BYTES_HUMAN, and ARTIFACT_URLS as
-// a map to be merged into the step's Outputs, mirroring what the K8s CI addon
-// does via OutputVariable protos. Returns nil if the file is absent (step did
-// not call hcli) or on any parse error.
-func nativeArtifactOutputVars(stepID string, envs map[string]string) map[string]string {
+// readNativeArtifact reads the hcli artifact JSON written to
+// HARNESS_ARTIFACT_FILE_PATH once and returns both the raw JSON string (for CI
+// Manager DB persistence via upsertFromArtifactOutput) and the derived output
+// variables (ARTIFACT_COUNT, ARTIFACT_BYTES, ARTIFACT_BYTES_HUMAN,
+// ARTIFACT_URLS). Both are empty/nil when the step did not call hcli.
+func readNativeArtifact(stepID string, envs map[string]string) (rawJSON string, vars map[string]string) {
 	filePath := fmt.Sprintf("%s/%s-artifact.json", pipeline.GetSharedVolPath(), stepID)
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil
+		return "", nil
 	}
+	rawJSON = string(data)
 
 	var out struct {
 		ArtifactName string `json:"artifactName"`
@@ -724,7 +698,7 @@ func nativeArtifactOutputVars(stepID string, envs map[string]string) map[string]
 	}
 	if err := json.Unmarshal(data, &out); err != nil {
 		logrus.Warnf("Failed to parse native artifact output file for step %s: %v", stepID, err)
-		return nil
+		return rawJSON, nil
 	}
 
 	harURL := envs["HARNESS_HAR_URL"]
@@ -736,12 +710,27 @@ func nativeArtifactOutputVars(stepID string, envs map[string]string) map[string]
 	}
 
 	logrus.Infof("Native artifact output variables collected for step %s: fileCount=%d", stepID, out.FileCount)
-	return map[string]string{
+	vars = map[string]string{
 		"ARTIFACT_COUNT":       fmt.Sprintf("%d", out.FileCount),
 		"ARTIFACT_BYTES":       fmt.Sprintf("%d", out.TotalBytes),
 		"ARTIFACT_BYTES_HUMAN": formatBytesHuman(out.TotalBytes),
 		"ARTIFACT_URLS":        artifactURL,
 	}
+	return rawJSON, vars
+}
+
+// mergeArtifactVars merges artifactVars into outputs and returns the result.
+func mergeArtifactVars(outputs map[string]string, artifactVars map[string]string) map[string]string {
+	if len(artifactVars) == 0 {
+		return outputs
+	}
+	if outputs == nil {
+		return artifactVars
+	}
+	for k, v := range artifactVars {
+		outputs[k] = v
+	}
+	return outputs
 }
 
 func formatBytesHuman(b int64) string {
@@ -786,5 +775,6 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 		ErrorMessage:           r.Error,
 		OptimizationState:      r.OptimizationState,
 		ErrorDetails:           errorDetails,
+		NativeArtifactOutput:   r.NativeArtifactOutput,
 	}
 }
