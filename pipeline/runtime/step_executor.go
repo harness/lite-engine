@@ -720,7 +720,7 @@ func readNativeArtifact(stepID string, envs map[string]string) (rawJSON string, 
 }
 
 // mergeArtifactVars merges artifactVars into outputs and returns the result.
-func mergeArtifactVars(outputs map[string]string, artifactVars map[string]string) map[string]string {
+func mergeArtifactVars(outputs, artifactVars map[string]string) map[string]string {
 	if len(artifactVars) == 0 {
 		return outputs
 	}
