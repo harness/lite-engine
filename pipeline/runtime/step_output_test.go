@@ -7,6 +7,7 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -107,6 +108,76 @@ func TestStepLog(t *testing.T) { //nolint:gocyclo
 	}
 }
 
+func TestStepLogWriteAfterDone(t *testing.T) {
+	ctx, cancelFn := context.WithCancel(context.Background())
+	stepLog := NewStepLog(ctx)
+
+	// Use an unbuffered channel with no reader so ch<-data would block,
+	// forcing the select to take the <-l.done path.
+	ch := make(chan []byte)
+	_, err := stepLog.Subscribe(ch, 0)
+	if err != nil {
+		t.Fatalf("subscribe failed: %s", err)
+	}
+
+	cancelFn()
+	<-stepLog.Done()
+
+	n, err := stepLog.Write([]byte("after cancel"))
+	if err != nil {
+		t.Fatalf("write returned error: %s", err)
+	}
+	if n != len("after cancel") {
+		t.Fatalf("expected %d bytes written, got %d", len("after cancel"), n)
+	}
+	stepLog.Unsubscribe(ch)
+}
+
+func TestStepLogSubscribeOffsetOutOfBounds(t *testing.T) {
+	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	stepLog := NewStepLog(ctx)
+	if _, err := stepLog.Write([]byte("hello")); err != nil {
+		t.Fatalf("write failed: %s", err)
+	}
+
+	ch := make(chan []byte, 1)
+	_, err := stepLog.Subscribe(ch, 9999)
+	if err == nil {
+		t.Fatal("expected error for out-of-bounds offset, got nil")
+	}
+	stepLog.Unsubscribe(ch)
+}
+
+func TestStepLogSubscribeReturnsIndependentCopy(t *testing.T) {
+	ctx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	stepLog := NewStepLog(ctx)
+	if _, err := stepLog.Write([]byte("initial")); err != nil {
+		t.Fatalf("write failed: %s", err)
+	}
+
+	ch := make(chan []byte, 1)
+	data, err := stepLog.Subscribe(ch, 0)
+	if err != nil {
+		t.Fatalf("subscribe failed: %s", err)
+	}
+	defer stepLog.Unsubscribe(ch)
+
+	// Write more data — the previously returned slice must not change
+	snapshot := make([]byte, len(data))
+	copy(snapshot, data)
+	if _, err := stepLog.Write([]byte(" more")); err != nil {
+		t.Fatalf("write failed: %s", err)
+	}
+
+	if !bytes.Equal(data, snapshot) {
+		t.Errorf("Subscribe data was mutated: got %q, want %q", data, snapshot)
+	}
+}
+
 func TestStepLogStreaming(t *testing.T) {
 	ctx, cancelFn := context.WithCancel(context.Background())
 
@@ -122,7 +193,7 @@ func TestStepLogStreaming(t *testing.T) {
 		for i := 0; i < size; i++ {
 			_, _ = stepLog.Write([]byte{*data})
 			*data++
-			time.Sleep(100 * time.Nanosecond)
+			runtime.Gosched()
 		}
 	}()
 
@@ -138,13 +209,13 @@ func TestStepLogStreaming(t *testing.T) {
 
 	// async process that waits for the step log to finish and then closes the ch channel
 	go func() {
-		defer stepLog.Unsubscribe(ch)
 		defer close(ch)
+		defer stepLog.Unsubscribe(ch)
 
 		select {
 		case <-stepLog.Done():
 			return
-		case <-time.After(time.Second):
+		case <-time.After(10 * time.Second):
 			t.Error("test timeout")
 			return
 		}

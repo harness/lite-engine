@@ -37,6 +37,7 @@ func (l *StepLog) Write(data []byte) (int, error) {
 	n := len(data)
 
 	l.mx.Lock()
+	defer l.mx.Unlock()
 
 	l.fullOutput.Write(data)
 
@@ -44,10 +45,12 @@ func (l *StepLog) Write(data []byte) (int, error) {
 	data = l.fullOutput.Bytes()
 	data = data[len(data)-n:]
 	for ch := range l.subscribers {
-		ch <- data
+		select {
+		case ch <- data:
+		case <-l.done:
+			return n, nil
+		}
 	}
-
-	l.mx.Unlock()
 
 	return n, nil
 }
@@ -56,7 +59,7 @@ func (l *StepLog) Write(data []byte) (int, error) {
 // it registers the ch channel to receive further data output.
 func (l *StepLog) Subscribe(ch chan []byte, offset int) (data []byte, err error) {
 	l.mx.Lock()
-	data = l.fullOutput.Bytes()
+	data = append([]byte(nil), l.fullOutput.Bytes()...)
 	l.subscribers[ch] = struct{}{}
 	l.mx.Unlock()
 

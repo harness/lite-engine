@@ -40,6 +40,19 @@ func TestLineWriterSingle(t *testing.T) {
 	}
 }
 
+func TestSetLimit(t *testing.T) {
+	client := new(mockClient)
+	w := New(context.Background(), client, "1", "1", nil, false, false, false, false)
+	w.SetLimit(5000)
+	w.mu.Lock()
+	got := w.limit
+	w.mu.Unlock()
+	if got != 5000 {
+		t.Fatalf("expected limit 5000, got %d", got)
+	}
+	w.Close()
+}
+
 func TestLineWriterSingleWithTrimNewLineSuffixEnabled(t *testing.T) {
 	client := new(mockClient)
 	w := New(context.Background(), client, "1", "1", nil, false, true, false, false)

@@ -101,6 +101,9 @@ func extractContent(data []byte) ([]byte, error) {
 		}
 	}
 
+	output = bytes.ReplaceAll(output, []byte("\r\n"), []byte("\n"))
+	output = bytes.ReplaceAll(output, []byte("\r"), []byte("\n"))
+
 	return output, nil
 }
 

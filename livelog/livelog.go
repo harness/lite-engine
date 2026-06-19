@@ -97,12 +97,16 @@ func New(ctx context.Context, client logstream.Client, key, name string, nudges 
 
 // SetLimit sets the Writer limit.
 func (b *Writer) SetLimit(limit int) {
+	b.mu.Lock()
 	b.limit = limit
+	b.mu.Unlock()
 }
 
 // SetInterval sets the Writer flusher interval.
 func (b *Writer) SetInterval(interval time.Duration) {
+	b.mu.Lock()
 	b.interval = interval
+	b.mu.Unlock()
 }
 
 // SetDualLogConfig enables dual logging to stdout in flat JSON format.
@@ -364,13 +368,19 @@ func (b *Writer) stop() bool {
 
 // Start starts a periodic loop to flush logs to the live stream
 func (b *Writer) Start() {
-	intervalTimer := time.NewTimer(b.interval)
+	b.mu.Lock()
+	iv := b.interval
+	b.mu.Unlock()
+	intervalTimer := time.NewTimer(iv)
 	for {
 		select {
 		case <-b.close:
 			return
 		case <-b.ready:
-			intervalTimer.Reset(b.interval)
+			b.mu.Lock()
+			iv = b.interval
+			b.mu.Unlock()
+			intervalTimer.Reset(iv)
 			select {
 			case <-b.close:
 				return
