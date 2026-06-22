@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,15 +41,16 @@ type ExecutionStatus int
 type RunFunc func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error)
 
 type StepStatus struct {
-	Status            ExecutionStatus
-	State             *runtime.State
-	StepErr           error
-	Outputs           map[string]string
-	Envs              map[string]string
-	Artifact          []byte
-	OutputV2          []*api.OutputV2
-	OptimizationState string
-	TelemetryData     *types.TelemetryData
+	Status               ExecutionStatus
+	State                *runtime.State
+	StepErr              error
+	Outputs              map[string]string
+	Envs                 map[string]string
+	Artifact             []byte
+	OutputV2             []*api.OutputV2
+	OptimizationState    string
+	TelemetryData        *types.TelemetryData
+	NativeArtifactOutput string
 }
 
 const (
@@ -96,8 +98,11 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	safego.WithContext(ctx, "step_executor", func(ctx context.Context) {
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
+		nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, r.Envs)
+		outputs = mergeArtifactVars(outputs, artifactVars)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
-			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata}
+			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata,
+			NativeArtifactOutput: nativeArtifactRaw}
 
 		ffEnabled := isAnnotationsEnabled(r.Envs)
 		if stepErr == nil && state.ExitCode == 0 && ffEnabled {
@@ -173,8 +178,11 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			}
 			wr = getLogStreamWriter(r)
 			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(r, wr)
+			nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, r.Envs)
+			outputs = mergeArtifactVars(outputs, artifactVars)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
-				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
+				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
+				NativeArtifactOutput: nativeArtifactRaw}
 			pollResponse := convertStatus(status)
 			ffEnabled := isAnnotationsEnabled(r.Envs)
 			if stepErr == nil && state.ExitCode == 0 && ffEnabled {
@@ -631,13 +639,14 @@ func getRunnerTaskResponse(r *api.StartStepRequest, response *api.VMTaskExecutio
 
 func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 	r := &api.PollStepResponse{
-		Exited:            true,
-		Outputs:           status.Outputs,
-		Envs:              status.Envs,
-		Artifact:          status.Artifact,
-		OutputV2:          status.OutputV2,
-		OptimizationState: status.OptimizationState,
-		TelemetryData:     status.TelemetryData,
+		Exited:               true,
+		Outputs:              status.Outputs,
+		Envs:                 status.Envs,
+		Artifact:             status.Artifact,
+		OutputV2:             status.OutputV2,
+		OptimizationState:    status.OptimizationState,
+		TelemetryData:        status.TelemetryData,
+		NativeArtifactOutput: status.NativeArtifactOutput,
 	}
 
 	stepErr := status.StepErr
@@ -667,6 +676,76 @@ func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VM
 	return convertPollResponseWithErrorDetails(r, envs, nil)
 }
 
+// readNativeArtifact reads the hcli artifact JSON written to
+// HARNESS_ARTIFACT_FILE_PATH once and returns both the raw JSON string (for CI
+// Manager DB persistence via upsertFromArtifactOutput) and the derived output
+// variables (ARTIFACT_COUNT, ARTIFACT_BYTES, ARTIFACT_BYTES_HUMAN,
+// ARTIFACT_URLS). Both are empty/nil when the step did not call hcli.
+func readNativeArtifact(stepID string, envs map[string]string) (rawJSON string, vars map[string]string) {
+	filePath := fmt.Sprintf("%s/%s-artifact.json", pipeline.GetSharedVolPath(), stepID)
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", nil
+	}
+	rawJSON = string(data)
+
+	var out struct {
+		ArtifactName string `json:"artifactName"`
+		Version      string `json:"version"`
+		Registry     string `json:"registry"`
+		FileCount    int    `json:"fileCount"`
+		TotalBytes   int64  `json:"totalBytes"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		logrus.Warnf("Failed to parse native artifact output file for step %s: %v", stepID, err)
+		return rawJSON, nil
+	}
+
+	harURL := envs["HARNESS_HAR_URL"]
+	accountID := envs["HARNESS_ACCOUNT_ID"]
+	artifactURL := ""
+	if harURL != "" && accountID != "" && out.Registry != "" && out.ArtifactName != "" && out.Version != "" {
+		artifactURL = fmt.Sprintf("%s/pkg/%s/%s/%s/%s",
+			strings.TrimSuffix(harURL, "/"), accountID, out.Registry, out.ArtifactName, out.Version)
+	}
+
+	logrus.Infof("Native artifact output variables collected for step %s: fileCount=%d", stepID, out.FileCount)
+	vars = map[string]string{
+		"ARTIFACT_COUNT":       fmt.Sprintf("%d", out.FileCount),
+		"ARTIFACT_BYTES":       fmt.Sprintf("%d", out.TotalBytes),
+		"ARTIFACT_BYTES_HUMAN": formatBytesHuman(out.TotalBytes),
+		"ARTIFACT_URLS":        artifactURL,
+	}
+	return rawJSON, vars
+}
+
+// mergeArtifactVars merges artifactVars into outputs and returns the result.
+func mergeArtifactVars(outputs, artifactVars map[string]string) map[string]string {
+	if len(artifactVars) == 0 {
+		return outputs
+	}
+	if outputs == nil {
+		return artifactVars
+	}
+	for k, v := range artifactVars {
+		outputs[k] = v
+	}
+	return outputs
+}
+
+func formatBytesHuman(b int64) string {
+	const unit = int64(1024)
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := unit, 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
+}
+
 func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[string]string, errorDetails *api.ErrorDetails) api.VMTaskExecutionResponse {
 	if r.Error == "" {
 		return api.VMTaskExecutionResponse{
@@ -676,6 +755,7 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 			Outputs:                r.OutputV2,
 			OptimizationState:      r.OptimizationState,
 			TelemetryData:          r.TelemetryData,
+			NativeArtifactOutput:   r.NativeArtifactOutput,
 		}
 	}
 	if report.TestSummaryAsOutputEnabled(envs) {
@@ -687,6 +767,7 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 			OptimizationState:      r.OptimizationState,
 			TelemetryData:          r.TelemetryData,
 			ErrorDetails:           errorDetails,
+			NativeArtifactOutput:   r.NativeArtifactOutput,
 		}
 	}
 	return api.VMTaskExecutionResponse{
@@ -694,5 +775,6 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 		ErrorMessage:           r.Error,
 		OptimizationState:      r.OptimizationState,
 		ErrorDetails:           errorDetails,
+		NativeArtifactOutput:   r.NativeArtifactOutput,
 	}
 }

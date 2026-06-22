@@ -92,6 +92,10 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	annotationsFileForEnv := engine.PathConverter(annotationsFile)
 	step.Envs["HARNESS_ANNOTATIONS_FILE"] = annotationsFileForEnv
 
+	// Set native artifact file path for hcli artifact uploads
+	nativeArtifactFile := fmt.Sprintf("%s/%s-artifact.json", pipeline.GetSharedVolPath(), step.ID)
+	step.Envs["HARNESS_ARTIFACT_FILE_PATH"] = engine.PathConverter(nativeArtifactFile)
+
 	// For Windows containers, add hcli directory to PATH
 	injectHcliPathForWindowsContainer(step)
 
