@@ -601,7 +601,7 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 
 	if runV2Config.IntelligenceMode {
 		if isManual {
-			log.Infoln("Manual Trigger Detected - Running all tests\nIF this is unexpected, ensure git connector is configured to have API access")
+			log.Infoln("Cannot find Git Information - Running all tests\nIf this is unexpected, ensure git connector is configured to have API access")
 			runOnlySelectedTests = false
 		} else {
 			selection, runOnlySelectedTests = getTestsSelectionWithTiModeEnabled(ctx, fs, stepID, workspace, log, isManual, tiConfig, envs, runV2Config, testGlobs)
