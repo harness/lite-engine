@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -153,8 +154,79 @@ func (c *HTTPClient) Destroy(ctx context.Context, in *api.DestroyRequest) (*api.
 func (c *HTTPClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*api.StartStepResponse, error) {
 	path := "start_step"
 	out := new(api.StartStepResponse)
+
+	// Attach a connection-lifecycle trace for this attempt. It only stamps
+	// local timestamps; nothing is logged unless the attempt fails with a
+	// deadline (see logStartStepTrace). This lets us tell, for a
+	// "context deadline exceeded", exactly how far the attempt got — e.g. SYN
+	// sent but no SYN-ACK (connect_started but connect_done never), vs reuse of
+	// a dead pooled connection, vs request sent but no response.
+	tr := &startStepTrace{start: time.Now()}
+	ctx = httptrace.WithClientTrace(ctx, tr.clientTrace())
+
 	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) //nolint:bodyclose
+	if err != nil && errors.Is(err, context.DeadlineExceeded) {
+		tr.log(ctx, err, in.ID)
+	}
 	return out, err
+}
+
+// startStepTrace records the HTTP connection lifecycle for a single StartStep
+// attempt so we can emit verbose diagnostics on a deadline failure.
+type startStepTrace struct {
+	start          time.Time
+	dnsDone        time.Duration
+	connectStarted bool
+	connectDone    time.Duration
+	connectErr     error
+	gotConn        time.Duration
+	reused         bool
+	wasIdle        bool
+	tlsDone        time.Duration
+	wroteRequest   time.Duration
+	firstByte      time.Duration
+}
+
+func (t *startStepTrace) clientTrace() *httptrace.ClientTrace {
+	return &httptrace.ClientTrace{
+		DNSDone:              func(httptrace.DNSDoneInfo) { t.dnsDone = time.Since(t.start) },
+		ConnectStart:         func(_, _ string) { t.connectStarted = true },
+		ConnectDone:          func(_, _ string, e error) { t.connectDone = time.Since(t.start); t.connectErr = e },
+		GotConn:              func(i httptrace.GotConnInfo) { t.gotConn = time.Since(t.start); t.reused = i.Reused; t.wasIdle = i.WasIdle },
+		TLSHandshakeDone:     func(tls.ConnectionState, error) { t.tlsDone = time.Since(t.start) },
+		WroteRequest:         func(httptrace.WroteRequestInfo) { t.wroteRequest = time.Since(t.start) },
+		GotFirstResponseByte: func() { t.firstByte = time.Since(t.start) },
+	}
+}
+
+// traceMS returns elapsed millis for a stage, or -1 if the stage never fired.
+func traceMS(d time.Duration) int64 {
+	if d == 0 {
+		return -1
+	}
+	return d.Milliseconds()
+}
+
+func (t *startStepTrace) log(ctx context.Context, err error, stepID string) {
+	connectErrStr := ""
+	if t.connectErr != nil {
+		connectErrStr = t.connectErr.Error()
+	}
+	logger.FromContext(ctx).
+		WithError(err).
+		WithField("step_id", stepID).
+		WithField("elapsed_ms", time.Since(t.start).Milliseconds()).
+		WithField("dns_done_ms", traceMS(t.dnsDone)).
+		WithField("connect_started", t.connectStarted). // false => never tried to dial (reused/pooled path)
+		WithField("connect_done_ms", traceMS(t.connectDone)). // -1 => SYN sent but TCP connect never completed (no SYN-ACK)
+		WithField("connect_err", connectErrStr).
+		WithField("got_conn_ms", traceMS(t.gotConn)). // -1 => never acquired a connection
+		WithField("conn_reused", t.reused). // true => reused a pooled connection (possibly dead)
+		WithField("conn_was_idle", t.wasIdle).
+		WithField("tls_done_ms", traceMS(t.tlsDone)).
+		WithField("wrote_request_ms", traceMS(t.wroteRequest)). // -1 => request never fully sent
+		WithField("first_byte_ms", traceMS(t.firstByte)). // -1 => no response byte ever received
+		Warnln("StartStep deadline exceeded: connection trace")
 }
 
 func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepRequest, timeout time.Duration) (*api.StartStepResponse, error) {
@@ -166,6 +238,15 @@ func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepReques
 	for i := 0; ; i++ {
 		select {
 		case <-retryCtx.Done():
+			// Terminal: the overall retry budget is exhausted. Log explicitly so
+			// the logs show that we retried and then gave up (otherwise the only
+			// trace is the first "Retrying" line, deduped by error string).
+			logger.FromContext(ctx).
+				WithField("attempts", i).
+				WithField("duration", time.Since(startTime)).
+				WithField("step_id", in.ID).
+				WithError(retryCtx.Err()).
+				Warnln("RetryStartStep: giving up, retry budget exhausted")
 			return nil, retryCtx.Err()
 		default:
 		}
