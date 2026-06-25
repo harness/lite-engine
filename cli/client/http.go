@@ -157,23 +157,23 @@ func (c *HTTPClient) StartStep(ctx context.Context, in *api.StartStepRequest) (*
 
 	// Attach a connection-lifecycle trace for this attempt. It only stamps
 	// local timestamps; nothing is logged unless the attempt fails with a
-	// deadline (see logStartStepTrace). This lets us tell, for a
-	// "context deadline exceeded", exactly how far the attempt got — e.g. SYN
-	// sent but no SYN-ACK (connect_started but connect_done never), vs reuse of
-	// a dead pooled connection, vs request sent but no response.
-	tr := &startStepTrace{start: time.Now()}
+	// deadline. This lets us tell, for a "context deadline exceeded", exactly
+	// how far the attempt got — e.g. SYN sent but no SYN-ACK (connect_started
+	// but connect_done never), vs reuse of a dead pooled connection, vs request
+	// sent but no response.
+	tr := &connTrace{start: time.Now()}
 	ctx = httptrace.WithClientTrace(ctx, tr.clientTrace())
 
 	_, err := c.do(ctx, c.Endpoint+path, http.MethodPost, in, out) //nolint:bodyclose
 	if err != nil && errors.Is(err, context.DeadlineExceeded) {
-		tr.log(ctx, err, in.ID)
+		tr.log(ctx, err, "StartStep", "step_id", in.ID)
 	}
 	return out, err
 }
 
-// startStepTrace records the HTTP connection lifecycle for a single StartStep
-// attempt so we can emit verbose diagnostics on a deadline failure.
-type startStepTrace struct {
+// connTrace records the HTTP connection lifecycle for a single request attempt
+// so we can emit verbose diagnostics on a deadline failure.
+type connTrace struct {
 	start          time.Time
 	dnsDone        time.Duration
 	connectStarted bool
@@ -187,12 +187,16 @@ type startStepTrace struct {
 	firstByte      time.Duration
 }
 
-func (t *startStepTrace) clientTrace() *httptrace.ClientTrace {
+func (t *connTrace) clientTrace() *httptrace.ClientTrace {
 	return &httptrace.ClientTrace{
-		DNSDone:              func(httptrace.DNSDoneInfo) { t.dnsDone = time.Since(t.start) },
-		ConnectStart:         func(_, _ string) { t.connectStarted = true },
-		ConnectDone:          func(_, _ string, e error) { t.connectDone = time.Since(t.start); t.connectErr = e },
-		GotConn:              func(i httptrace.GotConnInfo) { t.gotConn = time.Since(t.start); t.reused = i.Reused; t.wasIdle = i.WasIdle },
+		DNSDone:      func(httptrace.DNSDoneInfo) { t.dnsDone = time.Since(t.start) },
+		ConnectStart: func(_, _ string) { t.connectStarted = true },
+		ConnectDone:  func(_, _ string, e error) { t.connectDone = time.Since(t.start); t.connectErr = e },
+		GotConn: func(i httptrace.GotConnInfo) {
+			t.gotConn = time.Since(t.start)
+			t.reused = i.Reused
+			t.wasIdle = i.WasIdle
+		},
 		TLSHandshakeDone:     func(tls.ConnectionState, error) { t.tlsDone = time.Since(t.start) },
 		WroteRequest:         func(httptrace.WroteRequestInfo) { t.wroteRequest = time.Since(t.start) },
 		GotFirstResponseByte: func() { t.firstByte = time.Since(t.start) },
@@ -207,26 +211,28 @@ func traceMS(d time.Duration) int64 {
 	return d.Milliseconds()
 }
 
-func (t *startStepTrace) log(ctx context.Context, err error, stepID string) {
+// log emits the connection trace for a deadline failure. op names the operation
+// (e.g. "StartStep", "Health"); idField/idVal carry the operation's identifier.
+func (t *connTrace) log(ctx context.Context, err error, op, idField, idVal string) {
 	connectErrStr := ""
 	if t.connectErr != nil {
 		connectErrStr = t.connectErr.Error()
 	}
 	logger.FromContext(ctx).
 		WithError(err).
-		WithField("step_id", stepID).
+		WithField(idField, idVal).
 		WithField("elapsed_ms", time.Since(t.start).Milliseconds()).
 		WithField("dns_done_ms", traceMS(t.dnsDone)).
-		WithField("connect_started", t.connectStarted). // false => never tried to dial (reused/pooled path)
+		WithField("connect_started", t.connectStarted).       // false => never tried to dial (reused/pooled path)
 		WithField("connect_done_ms", traceMS(t.connectDone)). // -1 => SYN sent but TCP connect never completed (no SYN-ACK)
 		WithField("connect_err", connectErrStr).
 		WithField("got_conn_ms", traceMS(t.gotConn)). // -1 => never acquired a connection
-		WithField("conn_reused", t.reused). // true => reused a pooled connection (possibly dead)
+		WithField("conn_reused", t.reused).           // true => reused a pooled connection (possibly dead)
 		WithField("conn_was_idle", t.wasIdle).
 		WithField("tls_done_ms", traceMS(t.tlsDone)).
 		WithField("wrote_request_ms", traceMS(t.wroteRequest)). // -1 => request never fully sent
-		WithField("first_byte_ms", traceMS(t.firstByte)). // -1 => no response byte ever received
-		Warnln("StartStep deadline exceeded: connection trace")
+		WithField("first_byte_ms", traceMS(t.firstByte)).       // -1 => no response byte ever received
+		Warnln(op + " deadline exceeded: connection trace")
 }
 
 func (c *HTTPClient) RetryStartStep(ctx context.Context, in *api.StartStepRequest, timeout time.Duration) (*api.StartStepResponse, error) {
@@ -364,7 +370,16 @@ func (c *HTTPClient) Health(ctx context.Context, in *api.HealthRequest) (*api.He
 	}
 
 	out := new(api.HealthResponse)
+
+	// Trace the connection lifecycle so a "context deadline exceeded" on the
+	// health check logs how far the attempt got (see connTrace).
+	tr := &connTrace{start: time.Now()}
+	ctx = httptrace.WithClientTrace(ctx, tr.clientTrace())
+
 	_, err := c.do(ctx, c.Endpoint+path, http.MethodGet, nil, out) //nolint:bodyclose
+	if err != nil && errors.Is(err, context.DeadlineExceeded) {
+		tr.log(ctx, err, "Health", "endpoint", c.Endpoint+path)
+	}
 	return out, err
 }
 
@@ -377,6 +392,11 @@ func (c *HTTPClient) RetryHealth(ctx context.Context, in *api.HealthRequest) (*a
 	for i := 0; ; i++ {
 		select {
 		case <-retryCtx.Done():
+			logger.FromContext(ctx).
+				WithField("attempts", i).
+				WithField("duration", time.Since(startTime)).
+				WithError(retryCtx.Err()).
+				Warnln("RetryHealth: giving up, retry budget exhausted")
 			return &api.HealthResponse{}, retryCtx.Err()
 		default:
 		}
