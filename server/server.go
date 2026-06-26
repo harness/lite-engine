@@ -9,7 +9,9 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/docker/go-connections/tlsconfig"
@@ -26,6 +28,15 @@ type Server struct {
 	KeyFile        string // Server key PEM file
 	ClientCertFile string // Trusted client certificate PEM file for client authentication
 	Insecure       bool   // run without TLS
+}
+
+// logrusErrorWriter forwards net/http server errors to logrus.
+type logrusErrorWriter struct{}
+
+func (logrusErrorWriter) Write(p []byte) (int, error) {
+	// net/http appends a trailing newline; trim it so logrus doesn't double-space.
+	logrus.WithField("source", "http.Server").Error(strings.TrimRight(string(p), "\n"))
+	return len(p), nil
 }
 
 // Start initializes a server to respond to HTTPS/TLS network requests.
@@ -57,6 +68,7 @@ func (s *Server) Start(ctx context.Context) error {
 		Handler:           s.Handler,
 		TLSConfig:         tlsConfig,
 		ReadHeaderTimeout: 10 * time.Second, //nolint:mnd
+		ErrorLog:          log.New(logrusErrorWriter{}, "", 0),
 	}
 
 	var g errgroup.Group
@@ -68,7 +80,11 @@ func (s *Server) Start(ctx context.Context) error {
 	})
 	g.Go(func() error {
 		<-ctx.Done()
-		srv.Shutdown(ctx) //nolint: errcheck
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			logrus.Errorf("server shutdown error: %v", err)
+		}
 		return nil
 	})
 	return g.Wait()
