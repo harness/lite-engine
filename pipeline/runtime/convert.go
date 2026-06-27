@@ -12,17 +12,25 @@ import (
 // Converts api params to engine.Step
 func toStep(r *api.StartStepRequest) *spec.Step {
 	return &spec.Step{
-		ID:             r.ID,
-		Auth:           r.Auth,
-		CPUPeriod:      r.CPUPeriod,
-		CPUQuota:       r.CPUQuota,
-		CPUShares:      r.CPUShares,
-		CPUSet:         r.CPUSet,
-		Detach:         r.Detach,
-		Devices:        r.Devices,
-		DNS:            r.DNS,
-		DNSSearch:      r.DNSSearch,
-		Envs:           r.Envs,
+		ID:        r.ID,
+		Auth:      r.Auth,
+		CPUPeriod: r.CPUPeriod,
+		CPUQuota:  r.CPUQuota,
+		CPUShares: r.CPUShares,
+		CPUSet:    r.CPUSet,
+		Detach:    r.Detach,
+		Devices:   r.Devices,
+		DNS:       r.DNS,
+		DNSSearch: r.DNSSearch,
+		// Copy, don't alias, r.Envs. run()/executeRunStep mutates step.Envs
+		// (DRONE_ENV, HARNESS_OUTPUT_FILE, ...) to scaffold the child process
+		// environment. For a detached step that mutation happens in a separate
+		// goroutine, while the request goroutine still reads r.Envs (e.g.
+		// isAnnotationsEnabled, readNativeArtifact). Sharing the same map object
+		// is a concurrent map read+write -> uncatchable Go runtime fatal that
+		// kills lite-engine. Giving the step its own copy removes the shared
+		// state entirely; these scaffolding writes are not read back via r.Envs.
+		Envs:           copyEnvs(r.Envs),
 		ExtraHosts:     r.ExtraHosts,
 		IgnoreStdout:   r.IgnoreStdout,
 		IgnoreStderr:   r.IgnoreStderr,
@@ -46,6 +54,20 @@ func toStep(r *api.StartStepRequest) *spec.Step {
 		ProcessConfig:  r.ProcessConfig,
 		Secrets:        convertRequestSecretsToStepSecrets(r),
 	}
+}
+
+// copyEnvs returns a shallow copy of the envs map so the step can mutate its
+// own copy without racing readers of the original request map. Returns nil for
+// a nil input (preserving existing behavior for steps with no envs).
+func copyEnvs(envs map[string]string) map[string]string {
+	if envs == nil {
+		return nil
+	}
+	out := make(map[string]string, len(envs))
+	for k, v := range envs {
+		out[k] = v
+	}
+	return out
 }
 
 // convertRequestSecretsToStepSecrets converts runtime secrets from StartStepRequest to spec.Secret objects
