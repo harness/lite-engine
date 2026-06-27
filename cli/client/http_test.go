@@ -15,6 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// closeResp closes the response body if present. do() already drains and
+// closes the body internally, but the returned *http.Response still satisfies
+// the bodyclose linter only if the caller closes it; this is a safe idempotent
+// close that also tolerates a nil response (do() returns nil on some errors).
+func closeResp(resp *http.Response) {
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+}
+
 func newTestClient(url string) *HTTPClient {
 	return &HTTPClient{
 		Client:   &http.Client{},
@@ -25,13 +35,14 @@ func newTestClient(url string) *HTTPClient {
 func TestDo_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
 	defer srv.Close()
 
 	client := newTestClient(srv.URL)
 	out := &api.HealthResponse{}
-	_, err := client.do(context.Background(), srv.URL+"/healthz", http.MethodGet, nil, out)
+	resp, err := client.do(context.Background(), srv.URL+"/healthz", http.MethodGet, nil, out)
+	closeResp(resp)
 	assert.NoError(t, err)
 }
 
@@ -42,19 +53,21 @@ func TestDo_NoContent(t *testing.T) {
 	defer srv.Close()
 
 	client := newTestClient(srv.URL)
-	_, err := client.do(context.Background(), srv.URL+"/destroy", http.MethodPost, nil, nil)
+	resp, err := client.do(context.Background(), srv.URL+"/destroy", http.MethodPost, nil, nil)
+	closeResp(resp)
 	assert.NoError(t, err)
 }
 
 func TestDo_ServerError_WithBody(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error_msg": "something broke"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error_msg": "something broke"})
 	}))
 	defer srv.Close()
 
 	client := newTestClient(srv.URL)
-	_, err := client.do(context.Background(), srv.URL+"/setup", http.MethodPost, &api.SetupRequest{}, nil)
+	resp, err := client.do(context.Background(), srv.URL+"/setup", http.MethodPost, &api.SetupRequest{}, nil)
+	closeResp(resp)
 	require.Error(t, err)
 
 	var apiErr *Error
@@ -70,7 +83,8 @@ func TestDo_ServerError_EmptyBody(t *testing.T) {
 	defer srv.Close()
 
 	client := newTestClient(srv.URL)
-	_, err := client.do(context.Background(), srv.URL+"/setup", http.MethodPost, nil, nil)
+	resp, err := client.do(context.Background(), srv.URL+"/setup", http.MethodPost, nil, nil)
+	closeResp(resp)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Bad Gateway")
 }
@@ -84,7 +98,7 @@ func TestRetryHealth_SucceedsAfterRetries(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(api.HealthResponse{})
+		_ = json.NewEncoder(w).Encode(api.HealthResponse{})
 	}))
 	defer srv.Close()
 
@@ -119,7 +133,7 @@ func TestRetryPollStep_SucceedsAfterRetries(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(api.PollStepResponse{})
+		_ = json.NewEncoder(w).Encode(api.PollStepResponse{})
 	}))
 	defer srv.Close()
 
@@ -132,7 +146,7 @@ func TestRetryPollStep_SucceedsAfterRetries(t *testing.T) {
 func TestTraceCollector_CapturesDNSAndConnect(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{})
+		_ = json.NewEncoder(w).Encode(map[string]string{})
 	}))
 	defer srv.Close()
 
@@ -142,7 +156,8 @@ func TestTraceCollector_CapturesDNSAndConnect(t *testing.T) {
 		Endpoint: srv.URL + "/",
 	}
 	out := make(map[string]string)
-	_, err := client.do(context.Background(), srv.URL+"/healthz", http.MethodGet, nil, &out)
+	resp, err := client.do(context.Background(), srv.URL+"/healthz", http.MethodGet, nil, &out)
+	closeResp(resp)
 	assert.NoError(t, err)
 }
 
@@ -172,7 +187,8 @@ func TestHTTPClient_ConcurrentDo(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < requestsPerGor; j++ {
 				out := map[string]string{}
-				_, err := client.do(context.Background(), srv.URL+"/healthz", http.MethodGet, nil, &out)
+				resp, err := client.do(context.Background(), srv.URL+"/healthz", http.MethodGet, nil, &out)
+				closeResp(resp)
 				if err != nil {
 					t.Errorf("do: %v", err)
 					return
@@ -352,7 +368,8 @@ func TestHTTPClient_ConcurrentRequestCancellation(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 			out := map[string]string{}
-			_, _ = client.do(ctx, srv.URL+"/healthz", http.MethodGet, nil, &out)
+			resp, _ := client.do(ctx, srv.URL+"/healthz", http.MethodGet, nil, &out)
+			closeResp(resp)
 		}(i)
 	}
 	wg.Wait()

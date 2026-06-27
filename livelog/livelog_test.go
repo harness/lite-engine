@@ -186,7 +186,7 @@ func TestWriter_ConcurrentWriteAndFlush(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for j := 0; j < linesPerGo; j++ {
-				_, _ = w.Write([]byte(fmt.Sprintf("g%d-line%d\n", id, j)))
+				_, _ = fmt.Fprintf(w, "g%d-line%d\n", id, j)
 			}
 		}(i)
 	}
@@ -236,7 +236,7 @@ func TestWriter_ConcurrentCloseAndWrite(t *testing.T) {
 					return
 				default:
 				}
-				_, _ = w.Write([]byte(fmt.Sprintf("g%d-%d\n", id, j)))
+				_, _ = fmt.Fprintf(w, "g%d-%d\n", id, j)
 			}
 		}(i)
 	}
@@ -284,7 +284,7 @@ func TestWriter_ConcurrentSettersAndWrite(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			for j := 0; j < 500; j++ {
-				_, _ = w.Write([]byte(fmt.Sprintf("g%d-%d\n", id, j)))
+				_, _ = fmt.Fprintf(w, "g%d-%d\n", id, j)
 			}
 		}(i)
 	}

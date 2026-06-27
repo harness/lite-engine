@@ -124,7 +124,7 @@ func TestFileStore_CloseRacesWrite(t *testing.T) {
 
 	for i := 0; i < 8; i++ {
 		wg.Add(1)
-		go func(i int) {
+		go func() {
 			defer wg.Done()
 			for j := 0; ; j++ {
 				select {
@@ -134,7 +134,7 @@ func TestFileStore_CloseRacesWrite(t *testing.T) {
 				}
 				_ = fs.Write(ctx, key, []*logstream.Line{{Message: "x", Number: j}})
 			}
-		}(i)
+		}()
 	}
 
 	// Let writes get going, then close.
