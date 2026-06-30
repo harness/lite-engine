@@ -71,9 +71,11 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 	// trap the os signal to gracefully shutdown the http server.
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
+	stopGoroutineDumpSignals := startGoroutineDumpSignalHandler(ctx, "")
 	s := make(chan os.Signal, 1)
 	signal.Notify(s, os.Interrupt)
 	defer func() {
+		stopGoroutineDumpSignals()
 		signal.Stop(s)
 		cancel()
 	}()
