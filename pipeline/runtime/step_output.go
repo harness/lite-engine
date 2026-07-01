@@ -36,17 +36,20 @@ func (l *StepLog) Done() <-chan struct{} {
 func (l *StepLog) Write(data []byte) (int, error) {
 	n := len(data)
 
+	buf := make([]byte, n)
+	copy(buf, data)
+
 	l.mx.Lock()
 	defer l.mx.Unlock()
 
-	l.fullOutput.Write(data)
-
-	// replace byte buffer from which the data came before we write it to the subscriber channels
-	data = l.fullOutput.Bytes()
-	data = data[len(data)-n:]
+	l.fullOutput.Write(buf)
+	// Send the independent buf (not l.fullOutput.Bytes()) so a later Write that
+	// grows/reallocates the buffer can't race a subscriber still reading. Keep
+	// the <-l.done guard so a stuck/slow subscriber doesn't block the writer
+	// forever once the step is done.
 	for ch := range l.subscribers {
 		select {
-		case ch <- data:
+		case ch <- buf:
 		case <-l.done:
 			return n, nil
 		}
@@ -55,22 +58,18 @@ func (l *StepLog) Write(data []byte) (int, error) {
 	return n, nil
 }
 
-// Subscribe returns the output log that has been created so far (from the offset position) and
-// it registers the ch channel to receive further data output.
-func (l *StepLog) Subscribe(ch chan []byte, offset int) (data []byte, err error) {
+func (l *StepLog) Subscribe(ch chan []byte, offset int) ([]byte, error) {
 	l.mx.Lock()
-	data = append([]byte(nil), l.fullOutput.Bytes()...)
-	l.subscribers[ch] = struct{}{}
-	l.mx.Unlock()
+	defer l.mx.Unlock()
 
-	if offset > len(data) {
-		data = nil
-		err = fmt.Errorf("error: index 'offset' is out of bounds Offset=%d Total=%d", offset, len(data))
-	} else {
-		data = data[offset:]
+	full := l.fullOutput.Bytes()
+	if offset > len(full) {
+		return nil, fmt.Errorf("error: index 'offset' is out of bounds Offset=%d Total=%d", offset, len(full))
 	}
-
-	return
+	out := make([]byte, len(full)-offset)
+	copy(out, full[offset:])
+	l.subscribers[ch] = struct{}{}
+	return out, nil
 }
 
 func (l *StepLog) Unsubscribe(ch chan []byte) {

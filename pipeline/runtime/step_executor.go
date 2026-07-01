@@ -96,6 +96,13 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.mu.Unlock()
 
 	safego.WithContext(ctx, "step_executor", func(ctx context.Context) {
+		// Read r.Envs BEFORE executeStep: a detached step (Detach && Image=="")
+		// runs in its own goroutine that mutates the step env map, so reading
+		// r.Envs after executeStep would race that writer. See toStep's copyEnvs
+		// (which now also breaks the map sharing); this keeps the read ordered
+		// before any writer can start as defense in depth.
+		ffEnabled := isAnnotationsEnabled(r.Envs)
+
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
 		nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, r.Envs)
@@ -104,7 +111,6 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata,
 			NativeArtifactOutput: nativeArtifactRaw}
 
-		ffEnabled := isAnnotationsEnabled(r.Envs)
 		if stepErr == nil && state.ExitCode == 0 && ffEnabled {
 			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
 			go e.postAnnotationsToPipeline(context.Background(), r)
@@ -176,6 +182,11 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			if r.StageRuntimeID != "" && r.Image == "" {
 				setPrevStepExportEnvs(r)
 			}
+			// Read r.Envs BEFORE executeStep: a detached step runs in its own
+			// goroutine that mutates the step env map, so reading r.Envs after
+			// executeStep would race that writer. See toStep's copyEnvs.
+			ffEnabled := isAnnotationsEnabled(r.Envs)
+
 			wr = getLogStreamWriter(r)
 			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(r, wr)
 			nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, r.Envs)
@@ -184,7 +195,6 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
 				NativeArtifactOutput: nativeArtifactRaw}
 			pollResponse := convertStatus(status)
-			ffEnabled := isAnnotationsEnabled(r.Envs)
 			if stepErr == nil && state.ExitCode == 0 && ffEnabled {
 				logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
 				go e.postAnnotationsToPipeline(context.Background(), r)

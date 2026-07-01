@@ -714,7 +714,9 @@ func (e *Docker) softStop(ctx context.Context, name string) {
 }
 
 func (e *Docker) removeContainerByID(id string) {
-	newContainers := e.containers[:0]
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	newContainers := make([]Container, 0, len(e.containers))
 	for _, c := range e.containers {
 		if c.ID != id {
 			newContainers = append(newContainers, c)

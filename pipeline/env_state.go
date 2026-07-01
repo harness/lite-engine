@@ -20,10 +20,14 @@ func (s *EnvState) Get(stageRuntimeID string) map[string]string {
 	defer s.mu.Unlock()
 
 	val, ok := s.env[stageRuntimeID]
-	if ok {
-		return val
+	if !ok {
+		return nil
 	}
-	return nil
+	out := make(map[string]string, len(val))
+	for k, v := range val {
+		out[k] = v
+	}
+	return out
 }
 
 func (s *EnvState) Add(stageRuntimeID string, envs map[string]string) {
