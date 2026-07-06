@@ -39,6 +39,11 @@ func Run(ctx context.Context, step *spec.Step, output io.Writer) (*pruntime.Stat
 	cmd.Dir = step.WorkingDir
 	cmd.Env = spec.ToEnv(step.Envs)
 
+	// [CLONEDIR-DEBUG] Show exactly what the containerless step (plugin -> drone-git) receives.
+	logrus.WithContext(ctx).Infof(
+		"[CLONEDIR-DEBUG] exec.Run step.ID=%s step.Name=%s WorkingDir=%s DRONE_WORKSPACE=%q entrypoint=%v",
+		step.ID, step.Name, step.WorkingDir, step.Envs["DRONE_WORKSPACE"], step.Entrypoint)
+
 	// Custom Error Categorization: Create log files when CI_CUSTOM_ERROR_CATEGORIZATION is enabled
 	var logHandles *logutil.LogFileHandles
 	if step.Detach {
