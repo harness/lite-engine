@@ -162,11 +162,6 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
 			return
 		}
 
-		// Apply egress/outbound traffic restriction via iptables (Linux) or netsh (Windows).
-		// Applied after engine.Setup so that setup (volumes, files, mTLS, docker) completes
-		// with full internet access. Best-effort: never blocks execution.
-		applyEgressPolicy(r.Context(), s.EgressPolicy)
-
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
 		logger.FromRequest(r).
 			WithField("latency", time.Since(st)).
