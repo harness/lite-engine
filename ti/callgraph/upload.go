@@ -8,6 +8,7 @@ package callgraph
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -82,7 +83,18 @@ func Upload(
 		if err != nil {
 			return nil, fmt.Errorf("failed to create upload payload: %w", err)
 		}
-		err = cfg.GetClient().UploadCgV2(ctx, *uploadPayload, stepID, timeMs, cfg.GetSourceBranch(), cfg.GetTargetBranch())
+		dataDir := fmt.Sprintf(dir, stepDataDir)
+		jsonPayload, err := json.Marshal(uploadPayload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal callgraph upload payload: %w", err)
+		}
+		rawDirBytes := dirSizeBytes(dataDir)
+		log.WithFields(logrus.Fields{
+			"cg_payload_bytes": len(jsonPayload),
+			"cg_raw_dir_bytes": rawDirBytes,
+			"step_id":          stepID,
+		}).Infoln("Callgraph size before upload")
+		err = uploadCgV2JSON(ctx, cfg.GetClient(), uploadPayload, jsonPayload, stepID, timeMs, cfg.GetSourceBranch(), cfg.GetTargetBranch())
 		if err != nil {
 			return nil, fmt.Errorf("failed to upload callgraph: %w", err)
 		}
@@ -95,14 +107,26 @@ func Upload(
 		c := cfg.GetClient()
 
 		if !cgIsEmpty {
+			dataDir := fmt.Sprintf(dir, stepDataDir)
+			rawDirBytes := dirSizeBytes(dataDir)
+			log.WithFields(logrus.Fields{
+				"cg_payload_bytes": len(encCg),
+				"cg_raw_dir_bytes": rawDirBytes,
+				"step_id":          stepID,
+			}).Infoln("Callgraph size before upload")
 			if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched); cgErr != nil {
 				log.Warnln("Failed to upload callgraph with latest version, trying with older version", cgErr)
 				// try with version ""
-				encCg, cgIsEmpty, matched, avroErr := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "", rerunFailedTests)
+				encCg, cgIsEmpty, matched, avroErr := encodeCg(dataDir, log, tests, "", rerunFailedTests)
 				if avroErr != nil {
 					return nil, fmt.Errorf("failed to get avro encoded callgraph: %w", avroErr)
 				}
 				if !cgIsEmpty {
+					log.WithFields(logrus.Fields{
+						"cg_payload_bytes": len(encCg),
+						"cg_raw_dir_bytes": rawDirBytes,
+						"step_id":          stepID,
+					}).Infoln("Callgraph size before upload")
 					if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched); cgErr != nil {
 						return nil, cgErr
 					}
@@ -221,6 +245,35 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 		return nil, cgIsEmpty, false, fmt.Errorf("failed to encode callgraph: %w", err)
 	}
 	return encCg, cgIsEmpty, allMatched, nil
+}
+
+// uploadCgV2JSON uploads pre-marshaled JSON when the TI client supports UploadCgV2JSON.
+// Otherwise falls back to UploadCgV2 (which remarsals but preserves upload retry behavior).
+func uploadCgV2JSON(ctx context.Context, client tiClient.Client, payload *types.UploadCgRequest, jsonPayload []byte, stepID string, timeMs int64, source, target string) error {
+	type jsonUploader interface {
+		UploadCgV2JSON(ctx context.Context, jsonPayload []byte, stepID string, timeMs int64, sourceBranch, targetBranch string) error
+	}
+	if u, ok := client.(jsonUploader); ok {
+		return u.UploadCgV2JSON(ctx, jsonPayload, stepID, timeMs, source, target)
+	}
+	return client.UploadCgV2(ctx, *payload, stepID, timeMs, source, target)
+}
+
+// dirSizeBytes returns the total size in bytes of all files under dir.
+// Missing or unreadable paths return 0.
+func dirSizeBytes(dir string) int64 {
+	if strings.TrimSpace(dir) == "" {
+		return 0
+	}
+	var total int64
+	_ = filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		total += info.Size()
+		return nil
+	})
+	return total
 }
 
 func isCgEmpty(cg *Callgraph) bool {
