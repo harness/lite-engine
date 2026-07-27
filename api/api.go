@@ -24,8 +24,10 @@ type (
 	}
 
 	EgressPolicy struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		Username string `json:"username,omitempty"`
+		Password string `json:"password,omitempty"`
+		ProxyURL string `json:"proxy_url,omitempty"`
+		NoProxy  string `json:"no_proxy,omitempty"`
 	}
 
 	SetupRequest struct {
