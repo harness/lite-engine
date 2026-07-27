@@ -69,7 +69,7 @@ func GetNetrcFile(env map[string]string) (*spec.File, error) {
 }
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
-func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
+func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funlen
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
@@ -380,21 +380,27 @@ func buildCredentialedProxyURL(username, password, proxyURL string) string {
 	return "http://" + username + ":" + password + "@" + proxyURL
 }
 
+const (
+	dockerDropInDirPerm  = 0o755
+	dockerDropInFilePerm = 0o600
+	etcEnvironmentPerm   = 0o600
+)
+
 func applyDockerProxyLinux(proxyURL, noProxy string) error {
 	dropInDir := "/etc/systemd/system/docker.service.d"
-	if err := os.MkdirAll(dropInDir, 0755); err != nil {
+	if err := os.MkdirAll(dropInDir, dockerDropInDirPerm); err != nil {
 		return fmt.Errorf("failed to create docker drop-in dir: %w", err)
 	}
 
 	dropIn := fmt.Sprintf("[Service]\nEnvironment=\"HTTP_PROXY=%s\"\nEnvironment=\"HTTPS_PROXY=%s\"\nEnvironment=\"NO_PROXY=%s\"\n",
 		proxyURL, proxyURL, noProxy)
-	if err := os.WriteFile(filepath.Join(dropInDir, "http-proxy.conf"), []byte(dropIn), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(dropInDir, "http-proxy.conf"), []byte(dropIn), dockerDropInFilePerm); err != nil {
 		return fmt.Errorf("failed to write docker proxy drop-in: %w", err)
 	}
 
 	envLines := fmt.Sprintf("\nHTTPS_PROXY=%s\nHTTP_PROXY=%s\nhttps_proxy=%s\nhttp_proxy=%s\nNO_PROXY=%s\nno_proxy=%s\n",
 		proxyURL, proxyURL, proxyURL, proxyURL, noProxy, noProxy)
-	f, err := os.OpenFile("/etc/environment", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	f, err := os.OpenFile("/etc/environment", os.O_APPEND|os.O_WRONLY|os.O_CREATE, etcEnvironmentPerm)
 	if err != nil {
 		return fmt.Errorf("failed to open /etc/environment: %w", err)
 	}
