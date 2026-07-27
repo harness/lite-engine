@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -345,46 +346,55 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 	}).Infoln("api: initialized dual log hook for lite-engine internal logs")
 }
 
-// applyDockerProxy configures the docker daemon and host environment to route all outbound
-// HTTP/S through the egress proxy. If username+password are set the URL is formatted as
-// http://user:pass@host:port; otherwise the plain ProxyURL is used. docker is restarted so
-// the daemon picks up the new settings.
+const (
+	dockerDropInDirPerm  = 0o755
+	dockerDropInFilePerm = 0o600
+	dockerProxyTimeout   = 2 * time.Minute
+)
+
+// applyDockerProxy configures the docker daemon to route all outbound HTTP/S through the
+// egress proxy. Credentials are URL-encoded via net/url so special chars are handled safely.
+// docker is restarted so the daemon picks up the new settings.
 //
-// Linux: systemd drop-in for docker.service + /etc/environment append.
-// Windows: machine-level env vars via PowerShell (equivalent of the systemd drop-in).
+// Linux: writes a systemd drop-in for docker.service and runs daemon-reload + docker restart.
+// Windows: sets machine-level env vars via individual setx calls (no script interpolation).
 func applyDockerProxy(policy *api.EgressPolicy) error {
-	proxyURL := buildCredentialedProxyURL(policy.Username, policy.Password, policy.ProxyURL)
-	noProxy := policy.NoProxy
+	// Log the raw proxy URL only — never the credentialed form.
+	logrus.WithField("proxy_url", policy.ProxyURL).Infoln("setup: applying docker proxy for egress")
+
+	credURL, err := buildCredentialedProxyURL(policy.Username, policy.Password, policy.ProxyURL)
+	if err != nil {
+		return fmt.Errorf("failed to build proxy URL: %w", err)
+	}
 
 	switch runtime.GOOS {
 	case "linux":
-		return applyDockerProxyLinux(proxyURL, noProxy)
+		return applyDockerProxyLinux(credURL, policy.NoProxy)
 	case OSWindows:
-		return applyDockerProxyWindows(proxyURL, noProxy)
+		return applyDockerProxyWindows(credURL, policy.NoProxy)
 	default:
 		return nil
 	}
 }
 
-// buildCredentialedProxyURL embeds username:password into the proxy URL when both are present.
-// Handles scheme-prefixed (http://host:port) and bare (host:port) URLs; bare is treated as http://.
-func buildCredentialedProxyURL(username, password, proxyURL string) string {
+// buildCredentialedProxyURL embeds username:password into the proxy URL using net/url so that
+// special characters (@ : % $ etc.) in credentials are percent-encoded correctly.
+// Bare URLs without a scheme are treated as http://.
+func buildCredentialedProxyURL(username, password, proxyURL string) (string, error) {
 	if username == "" || password == "" {
-		return proxyURL
+		return proxyURL, nil
 	}
-	for _, scheme := range []string{"https://", "http://"} {
-		if strings.HasPrefix(proxyURL, scheme) {
-			return scheme + username + ":" + password + "@" + proxyURL[len(scheme):]
-		}
+	raw := proxyURL
+	if !strings.Contains(raw, "://") {
+		raw = "http://" + raw
 	}
-	return "http://" + username + ":" + password + "@" + proxyURL
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid proxy URL %q: %w", proxyURL, err)
+	}
+	u.User = url.UserPassword(username, password)
+	return u.String(), nil
 }
-
-const (
-	dockerDropInDirPerm  = 0o755
-	dockerDropInFilePerm = 0o600
-	etcEnvironmentPerm   = 0o600
-)
 
 func applyDockerProxyLinux(proxyURL, noProxy string) error {
 	dropInDir := "/etc/systemd/system/docker.service.d"
@@ -398,49 +408,46 @@ func applyDockerProxyLinux(proxyURL, noProxy string) error {
 		return fmt.Errorf("failed to write docker proxy drop-in: %w", err)
 	}
 
-	envLines := fmt.Sprintf("\nHTTPS_PROXY=%s\nHTTP_PROXY=%s\nhttps_proxy=%s\nhttp_proxy=%s\nNO_PROXY=%s\nno_proxy=%s\n",
-		proxyURL, proxyURL, proxyURL, proxyURL, noProxy, noProxy)
-	f, err := os.OpenFile("/etc/environment", os.O_APPEND|os.O_WRONLY|os.O_CREATE, etcEnvironmentPerm)
-	if err != nil {
-		return fmt.Errorf("failed to open /etc/environment: %w", err)
-	}
-	defer f.Close()
-	if _, err := f.WriteString(envLines); err != nil {
-		return fmt.Errorf("failed to append to /etc/environment: %w", err)
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), dockerProxyTimeout)
+	defer cancel()
 
-	if out, err := exec.CommandContext(context.Background(), "systemctl", "daemon-reload").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, "systemctl", "daemon-reload").CombinedOutput(); err != nil {
 		return fmt.Errorf("daemon-reload failed: %w — %s", err, string(out))
 	}
 
-	if out, err := exec.CommandContext(context.Background(), "systemctl", "restart", "docker").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, "systemctl", "restart", "docker").CombinedOutput(); err != nil {
 		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: docker restart after proxy config failed")
 	}
 
-	logrus.WithField("proxy_url", proxyURL).Infoln("setup: docker proxy configured for egress (linux)")
+	logrus.Infoln("setup: docker proxy configured for egress (linux)")
 	return nil
 }
 
 func applyDockerProxyWindows(proxyURL, noProxy string) error {
-	script := fmt.Sprintf(`
-[Environment]::SetEnvironmentVariable("HTTPS_PROXY", "%s", "Machine")
-[Environment]::SetEnvironmentVariable("HTTP_PROXY",  "%s", "Machine")
-[Environment]::SetEnvironmentVariable("NO_PROXY",    "%s", "Machine")
-try {
-    Restart-Service docker -Force -ErrorAction Stop
-    Write-Host "docker restarted"
-} catch {
-    Write-Host "docker service not running yet; will pick up env on next start"
-}
-`, proxyURL, proxyURL, noProxy)
-
-	out, err := exec.CommandContext(context.Background(),
-		"powershell", "-NonInteractive", "-Command", script).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to set Windows proxy env vars: %w — %s", err, string(out))
+	// Use individual argv-based calls — no string interpolation into a script, so
+	// special characters in proxyURL/noProxy cannot break out of the argument.
+	vars := [][2]string{
+		{"HTTPS_PROXY", proxyURL},
+		{"HTTP_PROXY", proxyURL},
+		{"NO_PROXY", noProxy},
+	}
+	for _, kv := range vars {
+		out, err := exec.Command("powershell", "-NonInteractive", "-Command",
+			"[Environment]::SetEnvironmentVariable", kv[0], kv[1], "Machine").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to set %s: %w — %s", kv[0], err, string(out))
+		}
 	}
 
-	logrus.WithField("proxy_url", proxyURL).Infoln("setup: docker proxy configured for egress (windows)")
+	wctx, wcancel := context.WithTimeout(context.Background(), dockerProxyTimeout)
+	defer wcancel()
+	out, err := exec.CommandContext(wctx, "powershell", "-NonInteractive", "-Command",
+		"try { Restart-Service docker -Force -ErrorAction Stop; Write-Host 'docker restarted' } catch { Write-Host 'docker not running yet' }").CombinedOutput()
+	if err != nil {
+		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: docker restart after proxy config failed (windows)")
+	}
+
+	logrus.Infoln("setup: docker proxy configured for egress (windows)")
 	return nil
 }
 
