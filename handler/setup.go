@@ -357,7 +357,7 @@ const (
 // docker is restarted so the daemon picks up the new settings.
 //
 // Linux: writes a systemd drop-in for docker.service and runs daemon-reload + docker restart.
-// Windows: sets machine-level env vars via individual setx calls (no script interpolation).
+// Windows: sets machine-level env vars via individual PowerShell calls (no script interpolation).
 func applyDockerProxy(policy *api.EgressPolicy) error {
 	// Log the raw proxy URL only — never the credentialed form.
 	logrus.WithField("proxy_url", policy.ProxyURL).Infoln("setup: applying docker proxy for egress")
@@ -408,14 +408,15 @@ func applyDockerProxyLinux(proxyURL, noProxy string) error {
 		return fmt.Errorf("failed to write docker proxy drop-in: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), dockerProxyTimeout)
-	defer cancel()
-
-	if out, err := exec.CommandContext(ctx, "systemctl", "daemon-reload").CombinedOutput(); err != nil {
+	reloadCtx, reloadCancel := context.WithTimeout(context.Background(), dockerProxyTimeout)
+	defer reloadCancel()
+	if out, err := exec.CommandContext(reloadCtx, "systemctl", "daemon-reload").CombinedOutput(); err != nil {
 		return fmt.Errorf("daemon-reload failed: %w — %s", err, string(out))
 	}
 
-	if out, err := exec.CommandContext(ctx, "systemctl", "restart", "docker").CombinedOutput(); err != nil {
+	restartCtx, restartCancel := context.WithTimeout(context.Background(), dockerProxyTimeout)
+	defer restartCancel()
+	if out, err := exec.CommandContext(restartCtx, "systemctl", "restart", "docker").CombinedOutput(); err != nil {
 		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: docker restart after proxy config failed")
 	}
 
@@ -435,8 +436,13 @@ func applyDockerProxyWindows(proxyURL, noProxy string) error {
 		{"NO_PROXY", noProxy},
 	}
 	for _, kv := range vars {
-		out, err := exec.CommandContext(wctx, "powershell", "-NonInteractive", "-Command", //nolint:gosec
-			"[Environment]::SetEnvironmentVariable", kv[0], kv[1], "Machine").CombinedOutput()
+		// Pass the full expression as a single -Command string. Each argument is
+		// quoted with single-quotes; single-quotes inside values are escaped as ''.
+		script := fmt.Sprintf("[Environment]::SetEnvironmentVariable('%s', '%s', 'Machine')",
+			strings.ReplaceAll(kv[0], "'", "''"),
+			strings.ReplaceAll(kv[1], "'", "''"),
+		)
+		out, err := exec.CommandContext(wctx, "powershell", "-NonInteractive", "-Command", script).CombinedOutput() //nolint:gosec
 		if err != nil {
 			return fmt.Errorf("failed to set %s: %w — %s", kv[0], err, string(out))
 		}
