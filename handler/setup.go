@@ -424,6 +424,9 @@ func applyDockerProxyLinux(proxyURL, noProxy string) error {
 }
 
 func applyDockerProxyWindows(proxyURL, noProxy string) error {
+	wctx, wcancel := context.WithTimeout(context.Background(), dockerProxyTimeout)
+	defer wcancel()
+
 	// Use individual argv-based calls — no string interpolation into a script, so
 	// special characters in proxyURL/noProxy cannot break out of the argument.
 	vars := [][2]string{
@@ -432,15 +435,13 @@ func applyDockerProxyWindows(proxyURL, noProxy string) error {
 		{"NO_PROXY", noProxy},
 	}
 	for _, kv := range vars {
-		out, err := exec.Command("powershell", "-NonInteractive", "-Command", //nolint:gosec
+		out, err := exec.CommandContext(wctx, "powershell", "-NonInteractive", "-Command", //nolint:gosec
 			"[Environment]::SetEnvironmentVariable", kv[0], kv[1], "Machine").CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("failed to set %s: %w — %s", kv[0], err, string(out))
 		}
 	}
 
-	wctx, wcancel := context.WithTimeout(context.Background(), dockerProxyTimeout)
-	defer wcancel()
 	out, err := exec.CommandContext(wctx, "powershell", "-NonInteractive", "-Command",
 		"try { Restart-Service docker -Force -ErrorAction Stop; Write-Host 'docker restarted' } catch { Write-Host 'docker not running yet' }").CombinedOutput()
 	if err != nil {
