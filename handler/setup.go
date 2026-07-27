@@ -432,7 +432,7 @@ func applyDockerProxyWindows(proxyURL, noProxy string) error {
 		{"NO_PROXY", noProxy},
 	}
 	for _, kv := range vars {
-		out, err := exec.Command("powershell", "-NonInteractive", "-Command",
+		out, err := exec.Command("powershell", "-NonInteractive", "-Command", //nolint:gosec
 			"[Environment]::SetEnvironmentVariable", kv[0], kv[1], "Machine").CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("failed to set %s: %w — %s", kv[0], err, string(out))
