@@ -704,12 +704,11 @@ Environment="NO_PROXY=%s"
 	}
 
 	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
-		logger.FromContext(ctx).WithError(err).Infoln("Error reloading systemd daemon")
-		return nil
+		return fmt.Errorf("error reloading systemd daemon: %w", err)
 	}
 
 	if err := exec.Command("systemctl", "restart", "docker").Run(); err != nil {
-		logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
+		return fmt.Errorf("error restarting Docker service: %w", err)
 	}
 	return nil
 }
