@@ -6,14 +6,29 @@ package runtime
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"sync"
 	"testing"
 
+	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type mockLogWriter struct {
+	closeErr error
+	errVal   error
+}
+
+func (m *mockLogWriter) Write(p []byte) (int, error) { return len(p), nil }
+func (m *mockLogWriter) Open() error                  { return nil }
+func (m *mockLogWriter) Start()                       {}
+func (m *mockLogWriter) Close() error                 { return m.closeErr }
+func (m *mockLogWriter) Error() error                 { return m.errVal }
 
 func newTestStepExecutor() *StepExecutor {
 	return &StepExecutor{
@@ -104,4 +119,74 @@ func TestStartStepWithStatusUpdate_DifferentIDsCoexist(t *testing.T) {
 	assert.Len(t, e.stepStatus, 2)
 	assert.Equal(t, Running, e.stepStatus["step-a"].Status)
 	assert.Equal(t, Running, e.stepStatus["step-b"].Status)
+}
+
+func TestExecuteStepHelper_CloseErrorIgnoredOnSuccess(t *testing.T) {
+	ctx := context.Background()
+	r := &api.StartStepRequest{
+		ID:     "step-close-pass",
+		Name:   "test-step",
+		LogKey: "log-key-1",
+		Kind:   api.Run,
+		Run:    api.RunConfig{Command: []string{"echo", "hello"}},
+	}
+
+	mockWr := &mockLogWriter{
+		closeErr: fmt.Errorf("log service unavailable"),
+	}
+
+	runFn := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+		return &runtime.State{Exited: true, ExitCode: 0}, nil
+	}
+
+	exited, _, _, _, _, _, _, err := executeStepHelper(ctx, r, runFn, mockWr, nil, false)
+	assert.NoError(t, err, "log close error should not fail a passing step")
+	assert.NotNil(t, exited)
+	assert.Equal(t, 0, exited.ExitCode)
+}
+
+func TestExecuteStepHelper_CloseErrorAppendedOnFailure(t *testing.T) {
+	ctx := context.Background()
+	r := &api.StartStepRequest{
+		ID:     "step-close-fail",
+		Name:   "test-step-fail",
+		LogKey: "log-key-2",
+		Kind:   api.Run,
+		Run:    api.RunConfig{Command: []string{"false"}},
+	}
+
+	mockWr := &mockLogWriter{
+		closeErr: fmt.Errorf("log service unavailable"),
+	}
+
+	runFn := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+		return &runtime.State{Exited: true, ExitCode: 1}, nil
+	}
+
+	_, _, _, _, _, _, _, err := executeStepHelper(ctx, r, runFn, mockWr, nil, false)
+	assert.Error(t, err, "log close error should be included when step already failed")
+	assert.Contains(t, err.Error(), "log service unavailable")
+}
+
+func TestExecuteStepHelper_WriterErrorAppendedCorrectly(t *testing.T) {
+	ctx := context.Background()
+	r := &api.StartStepRequest{
+		ID:     "step-wr-err",
+		Name:   "test-step-wr-err",
+		LogKey: "log-key-3",
+		Kind:   api.Run,
+		Run:    api.RunConfig{Command: []string{"false"}},
+	}
+
+	mockWr := &mockLogWriter{
+		errVal: fmt.Errorf("nudge: possible error on line 42"),
+	}
+
+	runFn := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+		return &runtime.State{Exited: true, ExitCode: 1}, nil
+	}
+
+	_, _, _, _, _, _, _, err := executeStepHelper(ctx, r, runFn, mockWr, nil, false)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "nudge: possible error on line 42")
 }

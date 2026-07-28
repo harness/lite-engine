@@ -465,12 +465,17 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 		result = multierror.Append(result, err)
 	}
 
-	// if err is not nill or it's not a detach step then always close the stream
+	// if err is not nil or it's not a detach step then always close the stream
 	if err != nil || !r.Detach {
 		// close the stream. If the session is a remote session, the
 		// full log buffer is uploaded to the remote server.
-		if err = wr.Close(); err != nil {
-			result = multierror.Append(result, err)
+		if closeErr := wr.Close(); closeErr != nil {
+			if result != nil || (exited != nil && exited.ExitCode != 0) {
+				result = multierror.Append(result, closeErr)
+			} else {
+				logrus.WithError(closeErr).WithField("key", r.LogKey).
+					Warnln("failed to upload/close log stream, ignoring since step execution passed")
+			}
 		}
 	}
 
@@ -489,8 +494,8 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 
 	if exited != nil {
 		if exited.ExitCode != 0 {
-			if wr.Error() != nil {
-				result = multierror.Append(result, err)
+			if wrErr := wr.Error(); wrErr != nil {
+				result = multierror.Append(result, wrErr)
 			}
 		}
 
