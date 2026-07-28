@@ -343,7 +343,6 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 	}).Infoln("api: initialized dual log hook for lite-engine internal logs")
 }
 
-
 // syncSystemClock forces chrony to step the system clock if there is significant drift.
 // This fixes clock skew on ARM64 VMs after GCP hibernate resume, where the arch_sys_counter
 // clock source doesn't auto-adjust (unlike x86's kvm-clock). Without this, chrony may

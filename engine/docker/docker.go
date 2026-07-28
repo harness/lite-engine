@@ -674,7 +674,7 @@ func buildCredentialedProxyURL(username, password, proxyURL string) (string, err
 
 // applyProxyToDockerDaemon writes the proxy configuration and restarts docker so the daemon
 // picks up the new settings. Used by both the secure-tunnel (HARNESS_HTTPS_PROXY) and the
-// egress-proxy paths so both follow identical restart behaviour.
+// egress-proxy paths so both follow identical restart behavior.
 func applyProxyToDockerDaemon(ctx context.Context, proxyURL, noProxy, goos string) error {
 	if goos == windowsOS {
 		os.Setenv("HTTP_PROXY", proxyURL)
