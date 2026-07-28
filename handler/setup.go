@@ -68,7 +68,7 @@ func GetNetrcFile(env map[string]string) (*spec.File, error) {
 }
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
-func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
+func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funlen
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
@@ -141,6 +141,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
 			TTY:               s.TTY,
 			MtlsConfig:        s.MtlsConfig,
 			SanitizeConfig:    s.LogConfig.SanitizeConfig,
+		}
+		if s.EgressPolicy != nil && s.EgressPolicy.ProxyURL != "" {
+			cfg.EgressProxy = &spec.EgressProxyConfig{
+				ProxyURL: s.EgressPolicy.ProxyURL,
+				NoProxy:  s.EgressPolicy.NoProxy,
+				Username: s.EgressPolicy.Username,
+				Password: s.EgressPolicy.Password,
+			}
 		}
 		collector.Start()
 

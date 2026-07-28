@@ -10,18 +10,28 @@ package spec
 
 type (
 
+	// EgressProxyConfig carries the per-account egress proxy credentials used
+	// to configure the docker daemon at pipeline setup time.
+	EgressProxyConfig struct {
+		ProxyURL string `json:"proxy_url,omitempty"`
+		NoProxy  string `json:"no_proxy,omitempty"`
+		Username string `json:"username,omitempty"`
+		Password string `json:"password,omitempty"`
+	}
+
 	// PipelineConfig provides the pipeline level configuration valid for all
 	// the steps in the pipeline.
 	PipelineConfig struct {
-		Platform          Platform          `json:"platform,omitempty"`
-		Volumes           []*Volume         `json:"volumes,omitempty"`
-		Network           Network           `json:"network"`
-		Envs              map[string]string `json:"envs,omitempty"`
-		Files             []*File           `json:"files,omitempty"`
-		EnableDockerSetup *bool             `json:"mount_docker_socket"`
-		TTY               bool              `json:"tty,omitempty" default:"false"`
-		MtlsConfig        MtlsConfig        `json:"mtls_config,omitempty"`
-		SanitizeConfig    SanitizeConfig    `json:"sanitize_config,omitempty"`
+		Platform          Platform           `json:"platform,omitempty"`
+		Volumes           []*Volume          `json:"volumes,omitempty"`
+		Network           Network            `json:"network"`
+		Envs              map[string]string  `json:"envs,omitempty"`
+		Files             []*File            `json:"files,omitempty"`
+		EnableDockerSetup *bool              `json:"mount_docker_socket"`
+		TTY               bool               `json:"tty,omitempty" default:"false"`
+		MtlsConfig        MtlsConfig         `json:"mtls_config,omitempty"`
+		SanitizeConfig    SanitizeConfig     `json:"sanitize_config,omitempty"`
+		EgressProxy       *EgressProxyConfig `json:"egress_proxy,omitempty"`
 	}
 
 	// Step defines a pipeline step.
