@@ -9,12 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -144,6 +142,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			MtlsConfig:        s.MtlsConfig,
 			SanitizeConfig:    s.LogConfig.SanitizeConfig,
 		}
+		if s.EgressPolicy != nil && s.EgressPolicy.ProxyURL != "" {
+			cfg.EgressProxy = &spec.EgressProxyConfig{
+				ProxyURL: s.EgressPolicy.ProxyURL,
+				NoProxy:  s.EgressPolicy.NoProxy,
+				Username: s.EgressPolicy.Username,
+				Password: s.EgressPolicy.Password,
+			}
+		}
 		collector.Start()
 
 		// Fix clock skew on Linux ARM64 VMs after hibernate resume.
@@ -162,15 +168,6 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 				Infoln("api: failed stage setup")
 			WriteError(w, err)
 			return
-		}
-
-		if s.EgressPolicy != nil && s.EgressPolicy.ProxyURL != "" {
-			logger.FromRequest(r).WithField("proxy_url", s.EgressPolicy.ProxyURL).Infoln("api: applying egress proxy config")
-			if err := applyDockerProxy(s.EgressPolicy); err != nil {
-				logger.FromRequest(r).WithError(err).Warnln("api: failed to configure docker proxy for egress")
-			}
-		} else {
-			logger.FromRequest(r).Infoln("api: no egress proxy policy, skipping docker proxy config")
 		}
 
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
@@ -346,117 +343,6 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 	}).Infoln("api: initialized dual log hook for lite-engine internal logs")
 }
 
-const (
-	dockerDropInDirPerm  = 0o755
-	dockerDropInFilePerm = 0o600
-	dockerProxyTimeout   = 2 * time.Minute
-)
-
-// applyDockerProxy configures the docker daemon to route all outbound HTTP/S through the
-// egress proxy. Credentials are URL-encoded via net/url so special chars are handled safely.
-// docker is restarted so the daemon picks up the new settings.
-//
-// Linux: writes a systemd drop-in for docker.service and runs daemon-reload + docker restart.
-// Windows: sets machine-level env vars via individual PowerShell calls (no script interpolation).
-func applyDockerProxy(policy *api.EgressPolicy) error {
-	// Log the raw proxy URL only — never the credentialed form.
-	logrus.WithField("proxy_url", policy.ProxyURL).Infoln("setup: applying docker proxy for egress")
-
-	credURL, err := buildCredentialedProxyURL(policy.Username, policy.Password, policy.ProxyURL)
-	if err != nil {
-		return fmt.Errorf("failed to build proxy URL: %w", err)
-	}
-
-	switch runtime.GOOS {
-	case "linux":
-		return applyDockerProxyLinux(credURL, policy.NoProxy)
-	case OSWindows:
-		return applyDockerProxyWindows(credURL, policy.NoProxy)
-	default:
-		return nil
-	}
-}
-
-// buildCredentialedProxyURL embeds username:password into the proxy URL using net/url so that
-// special characters (@ : % $ etc.) in credentials are percent-encoded correctly.
-// Bare URLs without a scheme are treated as http://.
-func buildCredentialedProxyURL(username, password, proxyURL string) (string, error) {
-	if username == "" || password == "" {
-		return proxyURL, nil
-	}
-	raw := proxyURL
-	if !strings.Contains(raw, "://") {
-		raw = "http://" + raw
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return "", fmt.Errorf("invalid proxy URL %q: %w", proxyURL, err)
-	}
-	u.User = url.UserPassword(username, password)
-	return u.String(), nil
-}
-
-func applyDockerProxyLinux(proxyURL, noProxy string) error {
-	dropInDir := "/etc/systemd/system/docker.service.d"
-	if err := os.MkdirAll(dropInDir, dockerDropInDirPerm); err != nil {
-		return fmt.Errorf("failed to create docker drop-in dir: %w", err)
-	}
-
-	dropIn := fmt.Sprintf("[Service]\nEnvironment=\"HTTP_PROXY=%s\"\nEnvironment=\"HTTPS_PROXY=%s\"\nEnvironment=\"NO_PROXY=%s\"\n",
-		proxyURL, proxyURL, noProxy)
-	if err := os.WriteFile(filepath.Join(dropInDir, "http-proxy.conf"), []byte(dropIn), dockerDropInFilePerm); err != nil {
-		return fmt.Errorf("failed to write docker proxy drop-in: %w", err)
-	}
-
-	reloadCtx, reloadCancel := context.WithTimeout(context.Background(), dockerProxyTimeout)
-	defer reloadCancel()
-	if out, err := exec.CommandContext(reloadCtx, "systemctl", "daemon-reload").CombinedOutput(); err != nil {
-		return fmt.Errorf("daemon-reload failed: %w — %s", err, string(out))
-	}
-
-	restartCtx, restartCancel := context.WithTimeout(context.Background(), dockerProxyTimeout)
-	defer restartCancel()
-	if out, err := exec.CommandContext(restartCtx, "systemctl", "restart", "docker").CombinedOutput(); err != nil {
-		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: docker restart after proxy config failed")
-	}
-
-	logrus.Infoln("setup: docker proxy configured for egress (linux)")
-	return nil
-}
-
-func applyDockerProxyWindows(proxyURL, noProxy string) error {
-	wctx, wcancel := context.WithTimeout(context.Background(), dockerProxyTimeout)
-	defer wcancel()
-
-	// Use individual argv-based calls — no string interpolation into a script, so
-	// special characters in proxyURL/noProxy cannot break out of the argument.
-	vars := [][2]string{
-		{"HTTPS_PROXY", proxyURL},
-		{"HTTP_PROXY", proxyURL},
-		{"NO_PROXY", noProxy},
-	}
-	for _, kv := range vars {
-		// Pass the full expression as a single -Command string. Each argument is
-		// quoted with single-quotes; single-quotes inside values are escaped as ''.
-		script := fmt.Sprintf("[Environment]::SetEnvironmentVariable('%s', '%s', 'Machine')",
-			strings.ReplaceAll(kv[0], "'", "''"),
-			strings.ReplaceAll(kv[1], "'", "''"),
-		)
-		out, err := exec.CommandContext(wctx, "powershell", "-NonInteractive", "-Command", script).CombinedOutput() //nolint:gosec
-		if err != nil {
-			return fmt.Errorf("failed to set %s: %w — %s", kv[0], err, string(out))
-		}
-	}
-
-	out, err := exec.CommandContext(wctx, "powershell", "-NonInteractive", "-Command",
-		"try { Restart-Service docker -Force -ErrorAction Stop; Write-Host 'docker restarted' } catch { Write-Host 'docker not running yet' }").CombinedOutput()
-	if err != nil {
-		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: docker restart after proxy config failed (windows)")
-	}
-
-	logrus.Infoln("setup: docker proxy configured for egress (windows)")
-	return nil
-}
 
 // syncSystemClock forces chrony to step the system clock if there is significant drift.
 // This fixes clock skew on ARM64 VMs after GCP hibernate resume, where the arch_sys_counter
