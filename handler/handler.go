@@ -70,5 +70,14 @@ func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime
 		return sr
 	}())
 
+	// Workload Identity mint endpoint (OIDC-without-connector broker). hcli inside the step POSTs its
+	// handle + identity name here to obtain a short-lived OIDC token; the workload token stays in
+	// lite-engine.
+	r.Mount("/mint_workload_token", func() http.Handler {
+		sr := chi.NewRouter()
+		sr.Post("/", HandleMintWorkloadToken())
+		return sr
+	}())
+
 	return r
 }
