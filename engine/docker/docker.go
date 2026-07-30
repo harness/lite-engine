@@ -644,6 +644,23 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	return err
 }
 
+// GetNetworkGateway returns the gateway IP of the given docker network. A step container attached to
+// this network can always reach its gateway (the host side of the bridge), so it is a robust address
+// for the in-step hcli to reach lite-engine's mint endpoint - unlike host.docker.internal, which
+// depends on host-gateway support in the VM's Docker daemon.
+func (e *Docker) GetNetworkGateway(ctx context.Context, networkID string) (string, error) {
+	resp, err := e.client.NetworkInspect(ctx, networkID, client.NetworkInspectOptions{})
+	if err != nil {
+		return "", err
+	}
+	for _, cfg := range resp.Network.IPAM.Config {
+		if cfg.Gateway.IsValid() {
+			return cfg.Gateway.String(), nil
+		}
+	}
+	return "", nil
+}
+
 // setupEgressProxy builds the credentialed proxy URL and delegates to applyProxyToDockerDaemon.
 func setupEgressProxy(ctx context.Context, policy *spec.EgressProxyConfig, goos string) error {
 	credURL, err := buildCredentialedProxyURL(policy.Username, policy.Password, policy.ProxyURL)

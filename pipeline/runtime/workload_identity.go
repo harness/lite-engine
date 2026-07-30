@@ -32,13 +32,15 @@ const (
 	wiMintURLOverrideEnv = "HARNESS_WI_MINT_URL_OVERRIDE"
 	// workloadTokenHeader carries the opaque workload token when calling HarnessID generate.
 	workloadTokenHeader = "Workload-Token"
-	// hostGatewayExtraHost lets the step container resolve the VM host (where lite-engine listens).
+	// hostGatewayExtraHost lets the step container resolve the VM host as a fallback when the docker
+	// network gateway IP is not available.
 	hostGatewayExtraHost = "host.docker.internal:host-gateway"
-	// defaultMintURL is the address a step container uses to reach lite-engine's mint endpoint. The
-	// container reaches the VM host via host.docker.internal (host-gateway). This targets the dedicated
-	// PLAIN-HTTP mint listener (port 9080), not the main mTLS server (9079) - the step container cannot
-	// present the mTLS client cert, and the opaque handle is the capability that authorizes the mint.
-	// Override via HARNESS_WI_MINT_URL_OVERRIDE if the port/host differs.
+	// mintPort is the port of lite-engine's dedicated PLAIN-HTTP mint listener (separate from the main
+	// mTLS server on 9079, which the in-step hcli cannot present a client cert for).
+	mintPort = "9080"
+	// defaultMintURL is the fallback mint address when the docker network gateway IP is unavailable. It
+	// relies on host.docker.internal (host-gateway), which is not supported on every VM/Docker; prefer
+	// the gateway IP. Override with HARNESS_WI_MINT_URL_OVERRIDE if needed.
 	defaultMintURL = "http://host.docker.internal:9080/mint_workload_token"
 )
 
@@ -98,11 +100,11 @@ func newWorkloadIdentityHandle() (string, error) {
 }
 
 // registerWorkloadIdentities stores the step's identities under a fresh handle and injects
-// HARNESS_WI_HANDLE + HARNESS_WI_MINT_URL into the step environment (plus a host-gateway extra host so
-// the container can reach lite-engine). The workload tokens themselves are never written to the step
-// env. Returns the handle (empty when the step declares no identities) so the caller can evict it once
-// the step completes.
-func registerWorkloadIdentities(r *api.StartStepRequest) string {
+// HARNESS_WI_HANDLE + HARNESS_WI_MINT_URL into the step environment. mintHost is the docker network
+// gateway IP (the host side of the bridge) the step container uses to reach lite-engine's mint
+// endpoint; it falls back to host.docker.internal when empty. The workload tokens themselves are never
+// written to the step env. Returns the handle (empty when the step declares no identities).
+func registerWorkloadIdentities(r *api.StartStepRequest, mintHost string) string {
 	if r == nil || len(r.WorkloadIdentities) == 0 {
 		return ""
 	}
@@ -117,19 +119,29 @@ func registerWorkloadIdentities(r *api.StartStepRequest) string {
 	if r.Envs == nil {
 		r.Envs = map[string]string{}
 	}
+	mint := mintURL(mintHost)
 	r.Envs[wiHandleEnv] = handle
-	r.Envs[wiMintURLEnv] = mintURL()
-	r.ExtraHosts = appendIfMissing(r.ExtraHosts, hostGatewayExtraHost)
+	r.Envs[wiMintURLEnv] = mint
+	// Keep the host-gateway extra host only as a fallback for the host.docker.internal default.
+	if mintHost == "" {
+		r.ExtraHosts = appendIfMissing(r.ExtraHosts, hostGatewayExtraHost)
+	}
 
 	// Strip the sensitive workload tokens before the request is used to build the container step.
 	r.WorkloadIdentities = nil
-	logrus.WithField("id", r.ID).Infoln("workload-identity: registered identities for step")
+	logrus.WithField("id", r.ID).WithField("mint_url", mint).Infoln("workload-identity: registered identities for step")
 	return handle
 }
 
-func mintURL() string {
+// mintURL builds the mint endpoint the step container should call. Priority: explicit override env ->
+// the docker network gateway IP (robust; container can always reach its gateway) -> host.docker.internal
+// fallback.
+func mintURL(mintHost string) string {
 	if o := os.Getenv(wiMintURLOverrideEnv); o != "" {
 		return o
+	}
+	if mintHost != "" {
+		return fmt.Sprintf("http://%s:%s/mint_workload_token", mintHost, mintPort)
 	}
 	return defaultMintURL
 }
