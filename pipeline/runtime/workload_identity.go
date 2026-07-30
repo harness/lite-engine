@@ -14,10 +14,13 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
+	goruntime "runtime"
 	"sync"
 	"time"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine/spec"
 	"github.com/sirupsen/logrus"
 )
 
@@ -100,11 +103,11 @@ func newWorkloadIdentityHandle() (string, error) {
 }
 
 // registerWorkloadIdentities stores the step's identities under a fresh handle and injects
-// HARNESS_WI_HANDLE + HARNESS_WI_MINT_URL into the step environment. mintHost is the docker network
-// gateway IP (the host side of the bridge) the step container uses to reach lite-engine's mint
-// endpoint; it falls back to host.docker.internal when empty. The workload tokens themselves are never
-// written to the step env. Returns the handle (empty when the step declares no identities).
-func registerWorkloadIdentities(r *api.StartStepRequest, mintHost string) string {
+// HARNESS_WI_HANDLE + HARNESS_WI_MINT_URL into the step environment. The mint URL points at the
+// bind-mounted Unix socket on Linux/Mac (no network port), or the host.docker.internal TCP fallback on
+// Windows. The workload tokens themselves are never written to the step env. Returns the handle (empty
+// when the step declares no identities).
+func registerWorkloadIdentities(r *api.StartStepRequest) string {
 	if r == nil || len(r.WorkloadIdentities) == 0 {
 		return ""
 	}
@@ -119,11 +122,11 @@ func registerWorkloadIdentities(r *api.StartStepRequest, mintHost string) string
 	if r.Envs == nil {
 		r.Envs = map[string]string{}
 	}
-	mint := mintURL(mintHost)
+	mint := mintURL()
 	r.Envs[wiHandleEnv] = handle
 	r.Envs[wiMintURLEnv] = mint
-	// Keep the host-gateway extra host only as a fallback for the host.docker.internal default.
-	if mintHost == "" {
+	// Only the Windows TCP fallback needs host.docker.internal; the Linux/Mac Unix socket does not.
+	if goruntime.GOOS == "windows" {
 		r.ExtraHosts = appendIfMissing(r.ExtraHosts, hostGatewayExtraHost)
 	}
 
@@ -133,15 +136,15 @@ func registerWorkloadIdentities(r *api.StartStepRequest, mintHost string) string
 	return handle
 }
 
-// mintURL builds the mint endpoint the step container should call. Priority: explicit override env ->
-// the docker network gateway IP (robust; container can always reach its gateway) -> host.docker.internal
-// fallback.
-func mintURL(mintHost string) string {
+// mintURL builds the mint endpoint the in-step hcli should call. Priority: explicit override env ->
+// the bind-mounted Unix socket (Linux/Mac; no port/firewall/mTLS/DNS) -> host.docker.internal TCP
+// fallback (Windows, best-effort).
+func mintURL() string {
 	if o := os.Getenv(wiMintURLOverrideEnv); o != "" {
 		return o
 	}
-	if mintHost != "" {
-		return fmt.Sprintf("http://%s:%s/mint_workload_token", mintHost, mintPort)
+	if goruntime.GOOS != "windows" {
+		return "unix://" + filepath.Join(spec.WISocketContainerDir, spec.WISocketName)
 	}
 	return defaultMintURL
 }
