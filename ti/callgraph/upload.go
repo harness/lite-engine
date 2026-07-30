@@ -93,27 +93,22 @@ func Upload(
 			"cg_payload_bytes": len(jsonPayload),
 			"cg_raw_dir_bytes": rawDirBytes,
 			"step_id":          stepID,
-		}).Infoln("Callgraph size before upload")
+		}).Infof("Callgraph size before upload: cg_payload_bytes=%d cg_raw_dir_bytes=%d", len(jsonPayload), rawDirBytes)
 		err = uploadCgV2JSON(ctx, cfg.GetClient(), uploadPayload, jsonPayload, stepID, timeMs, cfg.GetSourceBranch(), cfg.GetTargetBranch())
 		if err != nil {
 			return nil, fmt.Errorf("failed to upload callgraph: %w", err)
 		}
 	} else {
-		encCg, cgIsEmpty, matched, err := encodeCg(fmt.Sprintf(dir, stepDataDir), log, tests, "1_1", rerunFailedTests)
+		dataDir := fmt.Sprintf(dir, stepDataDir)
+		encCg, cgIsEmpty, matched, err := encodeCg(dataDir, log, tests, "1_1", rerunFailedTests)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get avro encoded callgraph: %w", err)
 		}
 
 		c := cfg.GetClient()
 
+		// Size already logged in encodeCg (including empty CG). Skip upload only.
 		if !cgIsEmpty {
-			dataDir := fmt.Sprintf(dir, stepDataDir)
-			rawDirBytes := dirSizeBytes(dataDir)
-			log.WithFields(logrus.Fields{
-				"cg_payload_bytes": len(encCg),
-				"cg_raw_dir_bytes": rawDirBytes,
-				"step_id":          stepID,
-			}).Infoln("Callgraph size before upload")
 			if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched); cgErr != nil {
 				log.Warnln("Failed to upload callgraph with latest version, trying with older version", cgErr)
 				// try with version ""
@@ -122,11 +117,6 @@ func Upload(
 					return nil, fmt.Errorf("failed to get avro encoded callgraph: %w", avroErr)
 				}
 				if !cgIsEmpty {
-					log.WithFields(logrus.Fields{
-						"cg_payload_bytes": len(encCg),
-						"cg_raw_dir_bytes": rawDirBytes,
-						"step_id":          stepID,
-					}).Infoln("Callgraph size before upload")
 					if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched); cgErr != nil {
 						return nil, cgErr
 					}
@@ -244,6 +234,14 @@ func encodeCg(dataDir string, log *logrus.Logger, tests []*tiClientTypes.TestCas
 	if err != nil {
 		return nil, cgIsEmpty, false, fmt.Errorf("failed to encode callgraph: %w", err)
 	}
+	// Log size for empty and non-empty CG; Upload() skips upload when empty but still
+	// surfaces sizes here so callers do not gate the size log on !cgIsEmpty.
+	rawDirBytes := dirSizeBytes(dataDir)
+	log.WithFields(logrus.Fields{
+		"cg_payload_bytes": len(encCg),
+		"cg_raw_dir_bytes": rawDirBytes,
+		"cg_is_empty":      cgIsEmpty,
+	}).Infof("Callgraph size before upload: cg_payload_bytes=%d cg_raw_dir_bytes=%d", len(encCg), rawDirBytes)
 	return encCg, cgIsEmpty, allMatched, nil
 }
 
