@@ -23,30 +23,27 @@ func TestRegisterWorkloadIdentities_InjectsHandleAndStripsTokens(t *testing.T) {
 		WITokenGenerateURL: "https://harnessid/token/generate",
 	}
 
-	handle := registerWorkloadIdentities(r)
+	handle := registerWorkloadIdentities(r, "172.18.0.1")
 	if handle == "" {
 		t.Fatal("expected a non-empty handle")
 	}
-	// handle + mint URL injected into the step env
+	// handle injected into the step env
 	if r.Envs[wiHandleEnv] != handle {
 		t.Errorf("HARNESS_WI_HANDLE not injected: got %q", r.Envs[wiHandleEnv])
 	}
-	if r.Envs[wiMintURLEnv] == "" {
-		t.Error("HARNESS_WI_MINT_URL not injected")
+	// mint URL uses the provided docker network gateway IP
+	if got, want := r.Envs[wiMintURLEnv], "http://172.18.0.1:9080/mint_workload_token"; got != want {
+		t.Errorf("HARNESS_WI_MINT_URL = %q, want %q", got, want)
 	}
 	// workload tokens are stripped from the request (never reach the container)
 	if r.WorkloadIdentities != nil {
 		t.Error("expected WorkloadIdentities to be stripped after registration")
 	}
-	// host-gateway extra host added so the container can reach lite-engine
-	found := false
+	// gateway IP provided, so the host.docker.internal fallback extra host should NOT be added
 	for _, h := range r.ExtraHosts {
 		if h == hostGatewayExtraHost {
-			found = true
+			t.Errorf("did not expect host-gateway extra host when gateway IP is provided: %v", r.ExtraHosts)
 		}
-	}
-	if !found {
-		t.Errorf("expected host-gateway extra host to be added: %v", r.ExtraHosts)
 	}
 	// the identity is retrievable from the store under the handle
 	if wi, tokenURL, ok := wiStore.get(handle, "AWS_ID_TOKEN"); !ok {
@@ -58,7 +55,7 @@ func TestRegisterWorkloadIdentities_InjectsHandleAndStripsTokens(t *testing.T) {
 
 func TestRegisterWorkloadIdentities_NoIdentities_NoOp(t *testing.T) {
 	r := &api.StartStepRequest{ID: "step2", Envs: map[string]string{"FOO": "bar"}}
-	if handle := registerWorkloadIdentities(r); handle != "" {
+	if handle := registerWorkloadIdentities(r, "172.18.0.1"); handle != "" {
 		t.Errorf("expected empty handle for no identities, got %q", handle)
 	}
 	if _, ok := r.Envs[wiHandleEnv]; ok {

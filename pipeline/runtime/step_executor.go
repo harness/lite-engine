@@ -99,7 +99,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		// Workload Identity: register any declared identities and inject the handle + mint URL into the
 		// step env. The workload tokens are held in lite-engine and never exposed to the step. No-op when
 		// the step declares no identities.
-		registerWorkloadIdentities(r)
+		registerWorkloadIdentities(r, e.engine.GetNetworkGateway(ctx))
 
 		// Read r.Envs BEFORE executeStep: a detached step (Detach && Image=="")
 		// runs in its own goroutine that mutates the step env map, so reading
@@ -190,7 +190,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			// Workload Identity: register any declared identities and inject the handle + mint URL into
 			// the step env. Workload tokens are held in lite-engine, never exposed to the step. No-op when
 			// none are declared.
-			registerWorkloadIdentities(r)
+			registerWorkloadIdentities(r, e.engine.GetNetworkGateway(ctx))
 			// Read r.Envs BEFORE executeStep: a detached step runs in its own
 			// goroutine that mutates the step env map, so reading r.Envs after
 			// executeStep would race that writer. See toStep's copyEnvs.

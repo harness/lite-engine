@@ -243,6 +243,27 @@ func (e *Engine) GetPipelineEnvs() map[string]string {
 	return e.pipelineConfig.Envs
 }
 
+// GetNetworkGateway returns the gateway IP of the stage's docker network (the host side of the bridge),
+// or "" if unavailable. Used to give the in-step hcli a robust address to reach lite-engine's mint
+// endpoint without depending on host.docker.internal / host-gateway support.
+func (e *Engine) GetNetworkGateway(ctx context.Context) string {
+	e.mu.Lock()
+	networkID := ""
+	if e.pipelineConfig != nil {
+		networkID = e.pipelineConfig.Network.ID
+	}
+	e.mu.Unlock()
+	if networkID == "" {
+		return ""
+	}
+	gateway, err := e.docker.GetNetworkGateway(ctx, networkID)
+	if err != nil {
+		logrus.WithError(err).Warnln("workload-identity: failed to inspect docker network gateway")
+		return ""
+	}
+	return gateway
+}
+
 func destroyHelper(cfg *spec.PipelineConfig) {
 	for _, vol := range cfg.Volumes {
 		if vol == nil || vol.HostPath == nil {
