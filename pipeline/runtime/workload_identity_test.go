@@ -9,9 +9,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine/spec"
 )
 
 func TestRegisterWorkloadIdentities_InjectsHandleAndStripsTokens(t *testing.T) {
@@ -23,7 +25,7 @@ func TestRegisterWorkloadIdentities_InjectsHandleAndStripsTokens(t *testing.T) {
 		WITokenGenerateURL: "https://harnessid/token/generate",
 	}
 
-	handle := registerWorkloadIdentities(r, "172.18.0.1")
+	handle := registerWorkloadIdentities(r)
 	if handle == "" {
 		t.Fatal("expected a non-empty handle")
 	}
@@ -31,18 +33,18 @@ func TestRegisterWorkloadIdentities_InjectsHandleAndStripsTokens(t *testing.T) {
 	if r.Envs[wiHandleEnv] != handle {
 		t.Errorf("HARNESS_WI_HANDLE not injected: got %q", r.Envs[wiHandleEnv])
 	}
-	// mint URL uses the provided docker network gateway IP
-	if got, want := r.Envs[wiMintURLEnv], "http://172.18.0.1:9080/mint_workload_token"; got != want {
+	// on Linux/Mac the mint URL is the bind-mounted Unix socket (no network port)
+	if got, want := r.Envs[wiMintURLEnv], "unix://"+filepath.Join(spec.WISocketContainerDir, spec.WISocketName); got != want {
 		t.Errorf("HARNESS_WI_MINT_URL = %q, want %q", got, want)
 	}
 	// workload tokens are stripped from the request (never reach the container)
 	if r.WorkloadIdentities != nil {
 		t.Error("expected WorkloadIdentities to be stripped after registration")
 	}
-	// gateway IP provided, so the host.docker.internal fallback extra host should NOT be added
+	// the Unix socket needs no host-gateway extra host
 	for _, h := range r.ExtraHosts {
 		if h == hostGatewayExtraHost {
-			t.Errorf("did not expect host-gateway extra host when gateway IP is provided: %v", r.ExtraHosts)
+			t.Errorf("did not expect host-gateway extra host on the unix-socket path: %v", r.ExtraHosts)
 		}
 	}
 	// the identity is retrievable from the store under the handle
@@ -55,7 +57,7 @@ func TestRegisterWorkloadIdentities_InjectsHandleAndStripsTokens(t *testing.T) {
 
 func TestRegisterWorkloadIdentities_NoIdentities_NoOp(t *testing.T) {
 	r := &api.StartStepRequest{ID: "step2", Envs: map[string]string{"FOO": "bar"}}
-	if handle := registerWorkloadIdentities(r, "172.18.0.1"); handle != "" {
+	if handle := registerWorkloadIdentities(r); handle != "" {
 		t.Errorf("expected empty handle for no identities, got %q", handle)
 	}
 	if _, ok := r.Envs[wiHandleEnv]; ok {
