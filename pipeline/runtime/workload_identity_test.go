@@ -33,8 +33,8 @@ func TestRegisterWorkloadIdentities_InjectsHandleAndStripsTokens(t *testing.T) {
 	if r.Envs[wiHandleEnv] != handle {
 		t.Errorf("HARNESS_WI_HANDLE not injected: got %q", r.Envs[wiHandleEnv])
 	}
-	// on Linux/Mac the mint URL is the bind-mounted Unix socket (no network port)
-	if got, want := r.Envs[wiMintURLEnv], "unix://"+filepath.Join(spec.WISocketContainerDir, spec.WISocketName); got != want {
+	// on Linux/Mac the mint URL is the Unix socket (no network port); same path host + container
+	if got, want := r.Envs[wiMintURLEnv], "unix://"+filepath.Join(spec.WISocketDir, spec.WISocketName); got != want {
 		t.Errorf("HARNESS_WI_MINT_URL = %q, want %q", got, want)
 	}
 	// workload tokens are stripped from the request (never reach the container)

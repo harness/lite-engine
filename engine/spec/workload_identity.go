@@ -4,13 +4,12 @@
 
 package spec
 
-// Workload Identity mint socket paths (VM / HOSTED_VM broker). lite-engine listens on a Unix socket at
-// WISocketHostDir/WISocketName on the host and bind-mounts WISocketHostDir into each step container at
-// WISocketContainerDir. The in-step hcli then reaches the mint endpoint over that socket - no network
-// port (the VM firewall only opens 9079), no mTLS, no host.docker.internal. Linux/Mac only; Windows
-// containers would need a named pipe (follow-up).
+// Workload Identity mint socket (VM / HOSTED_VM broker). lite-engine listens on a Unix socket at
+// WISocketDir/WISocketName on the host. For container steps lite-engine bind-mounts WISocketDir to the
+// SAME path inside the container, so the in-step hcli reaches the socket at one identical path whether
+// the step runs on the host (no image) or in a container (image provided) - no port (the VM firewall
+// only opens 9079), no mTLS, no DNS. Linux/Mac only; Windows would need a named pipe (follow-up).
 const (
-	WISocketHostDir      = "/tmp/harness-wi"
-	WISocketName         = "wi.sock"
-	WISocketContainerDir = "/run/harness-wi"
+	WISocketDir  = "/tmp/harness-wi"
+	WISocketName = "wi.sock"
 )
