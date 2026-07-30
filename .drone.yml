@@ -4,7 +4,7 @@ name: unit tests
 
 steps:
   - name: go vet and unit tests
-    image: golang:1.19
+    image: golang:1.25.9
     commands:
       - go vet ./...
       - go test -cover ./...
@@ -15,7 +15,7 @@ steps:
     depends_on:
       - clone
   - name: golangci-lint
-    image: golangci/golangci-lint:v1.51.2
+    image: golangci/golangci-lint:v2.7.2
     commands:
       - golangci-lint run --timeout 360s
     volumes:
@@ -38,7 +38,7 @@ pool:
 
 steps:
   - name: build
-    image: golang:1.19
+    image: golang:1.25.9
     commands:
       - go build -o lite-engine
   - name: server
@@ -108,7 +108,7 @@ pool:
 
 steps:
   - name: build
-    image: golang:1.19
+    image: golang:1.25.9
     commands:
       - go build -o lite-engine
   - name: server
@@ -143,7 +143,7 @@ pool:
 
 steps:
   - name: build
-    image: golang:1.19
+    image: golang:1.25.9
     commands:
       - go build -o lite-engine.exe
   - name: server
@@ -174,13 +174,14 @@ name: release artifacts
 
 steps:
   - name: build
-    image: golang:1.19
+    image: golang:1.25.9
     commands:
-      - GOOS=linux   GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-amd64
-      - GOOS=linux   GOARCH=arm64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-arm64
-      - GOOS=darwin  GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-darwin-amd64
-      - GOOS=darwin  GOARCH=arm64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-darwin-arm64
-      - GOOS=windows GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-windows-amd64.exe
+      - GOOS=linux   GOARCH=amd64   go build -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${DRONE_TAG##v}" -o release/lite-engine-linux-amd64
+      - GOOS=linux   GOARCH=arm64   go build -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${DRONE_TAG##v}" -o release/lite-engine-linux-arm64
+      - GOOS=darwin  GOARCH=amd64   go build -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${DRONE_TAG##v}" -o release/lite-engine-darwin-amd64
+      - GOOS=darwin  GOARCH=arm64   go build -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${DRONE_TAG##v}" -o release/lite-engine-darwin-arm64
+      - GOOS=windows GOARCH=amd64   go build -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${DRONE_TAG##v}" -o release/lite-engine-windows-amd64.exe
+      - test "$(./release/lite-engine-linux-amd64 --version)" = "${DRONE_TAG##v}"
 
   - name: release
     image: plugins/github-release

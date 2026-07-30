@@ -6,6 +6,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"io"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -24,6 +25,9 @@ func SetupPipeline(
 	opts Opts,
 	pipelineConfig *spec.PipelineConfig,
 ) error {
+	if !dockerSetupEnabled(pipelineConfig) {
+		return setupHelper(pipelineConfig)
+	}
 	d, err := docker.NewEnv(opts.Opts)
 	if err != nil {
 		return err
@@ -32,11 +36,7 @@ func SetupPipeline(
 		return err
 	}
 
-	// required to support m1 where docker isn't installed.
-	if pipelineConfig.EnableDockerSetup == nil || *pipelineConfig.EnableDockerSetup {
-		return d.Setup(ctx, pipelineConfig)
-	}
-	return nil
+	return d.Setup(ctx, pipelineConfig)
 }
 
 // DestroyPipeline is a helper function to destroy a pipeline given a pipeline configuration.
@@ -48,12 +48,24 @@ func DestroyPipeline(
 	labelKey string, // label to use if containers need to be destroyed
 	labelValue string,
 ) error {
+	if !dockerSetupEnabled(cfg) {
+		if cfg == nil || !cfg.PrivateConnectivity {
+			_ = destroyHelper(cfg)
+			return nil
+		}
+		return destroyHelper(cfg)
+	}
 	d, err := docker.NewEnv(opts.Opts)
 	if err != nil {
 		return err
 	}
-	destroyHelper(cfg)
-	return d.DestroyContainersByLabel(ctx, cfg, labelKey, labelValue)
+	if cfg == nil || !cfg.PrivateConnectivity {
+		_ = destroyHelper(cfg)
+		return d.DestroyContainersByLabel(ctx, cfg, labelKey, labelValue)
+	}
+	destroyErr := d.DestroyContainersByLabel(ctx, cfg, labelKey, labelValue)
+	volumeErr := destroyHelper(cfg)
+	return errors.Join(destroyErr, volumeErr)
 }
 
 // RunStep executes a step in a pipeline. It takes a pipeline configuration and a step configuration
@@ -81,8 +93,30 @@ func RunStep(
 		printCommand(step, output)
 	}
 	if step.Image != "" {
+		applyPrivateConnectivityDNS(cfg, step)
 		return d.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
 	return exec.Run(ctx, step, output)
+}
+
+func dockerSetupEnabled(cfg *spec.PipelineConfig) bool {
+	return cfg != nil && (cfg.EnableDockerSetup == nil || *cfg.EnableDockerSetup)
+}
+
+func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step) {
+	const quad100 = "100.100.100.100"
+
+	if cfg == nil || step == nil || !cfg.PrivateConnectivity || cfg.Platform.OS != "linux" {
+		return
+	}
+
+	dns := make([]string, 1, len(step.DNS)+1)
+	dns[0] = quad100
+	for _, server := range step.DNS {
+		if server != quad100 {
+			dns = append(dns, server)
+		}
+	}
+	step.DNS = dns
 }

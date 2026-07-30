@@ -7,6 +7,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -23,6 +24,7 @@ import (
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/osstats"
+	"github.com/harness/lite-engine/pc"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/sirupsen/logrus"
@@ -36,6 +38,7 @@ var (
 const (
 	OSWindows         = "windows"
 	dualLoggingEnvVar = "HARNESS_LOG_STREAMING_STDOUT_ENABLED"
+	clockSyncTimeout  = 15 * time.Second
 )
 
 func GetNetrc(os string) string {
@@ -68,7 +71,7 @@ func GetNetrcFile(env map[string]string) (*spec.File, error) {
 }
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
-func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
+func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funlen // Linear setup ordering is security-sensitive.
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
@@ -77,6 +80,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
 		if err != nil {
 			WriteBadRequest(w, err)
 			return
+		}
+
+		// Extract and strip all HARNESS_PC_* from s.Envs immediately,
+		// before setProxyEnvs, setHarnessEnvs, state.Set, PipelineConfig, or any log of envs.
+		// The enrollment ticket is secret and must never be set in os.Setenv or step envs.
+		pcCfg := pc.ExtractAndStrip(s.Envs)
+		if pcCfg.EnrollmentTicket != "" {
+			s.Secrets = append(s.Secrets, pcCfg.EnrollmentTicket)
 		}
 		logProcess := false
 		if val, ok := s.Envs[harnessEnableDebugLogs]; ok && val == "true" {
@@ -91,8 +102,60 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
 			s.LogConfig.DualLoggingEnabled = true
 		}
 
+		if validateErr := pc.ValidateEnrollmentRequest(&pcCfg); validateErr != nil {
+			WriteBadRequest(w, validateErr)
+			return
+		}
+
+		// Capability gate: fail closed if PC enabled but runtime unsupported.
+		if pcCfg.Enabled && !pc.Supported() {
+			WriteBadRequest(w, pc.ErrUnsupported)
+			return
+		}
+
+		// Mutual exclusion: PC and egress may not run in the same build.
+		if pcCfg.Enabled && s.EgressPolicy != nil && s.EgressPolicy.Enabled {
+			WriteBadRequest(w, fmt.Errorf("pc: HARNESS_PC_ENABLED and EgressPolicy.Enabled are mutually exclusive"))
+			return
+		}
+
+		// Repair post-hibernate ARM64 clock drift before exchanging the one-time ticket.
+		// PC cannot safely continue when TLS and JWT time validation may use a stale clock.
+		if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
+			if syncErr := syncSystemClock(r.Context()); syncErr != nil {
+				if pcCfg.Enabled {
+					logger.FromRequest(r).WithError(syncErr).
+						Errorln("api: system clock synchronization failed before private connectivity enrollment")
+					WriteError(w, fmt.Errorf("private connectivity requires synchronized system time: %w", syncErr))
+					return
+				}
+				logger.FromRequest(r).WithError(syncErr).
+					Warnln("api: system clock synchronization failed; continuing non-PC setup")
+			}
+		}
+
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs), s.MtlsConfig, collector)
+
+		// PC join before LE/OS streams so a failed single-attempt join cannot leak stream resources.
+		if pcCfg.Enabled {
+			exchangedCfg, exchangeErr := pc.ExchangeEnrollment(
+				r.Context(), s.PrivateConnectivityExchangeURL, pcCfg.EnrollmentTicket)
+			if exchangeErr != nil {
+				logger.FromRequest(r).WithError(exchangeErr).
+					Errorln("api: private connectivity enrollment failed; failing closed")
+				WriteError(w, fmt.Errorf("private connectivity enrollment failed: %w", exchangeErr))
+				return
+			}
+			if joinErr := pc.JoinAndConfigure(r.Context(), &exchangedCfg); joinErr != nil {
+				logger.FromRequest(r).
+					WithField("time", time.Now().Format(time.RFC3339)).
+					WithError(joinErr).
+					Errorln("api: private connectivity setup failed; failing closed")
+				WriteError(w, fmt.Errorf("private connectivity setup failed: %w", joinErr))
+				return
+			}
+		}
 
 		// Initialize lite-engine log streaming if LELogKey is provided
 		if err := initializeLELogStreaming(&s, state); err != nil {
@@ -128,9 +191,16 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
 			}
 		}
 
+		if pcCfg.Enabled && runtime.GOOS == "linux" {
+			if s.Network.Options == nil {
+				s.Network.Options = make(map[string]string)
+			}
+			s.Network.Options["com.docker.network.driver.mtu"] = "1280"
+		}
 		cfg := &spec.PipelineConfig{
-			Envs:    s.Envs,
-			Network: s.Network,
+			Envs:                s.Envs,
+			Network:             s.Network,
+			PrivateConnectivity: pcCfg.Enabled,
 			Platform: spec.Platform{
 				OS:   runtime.GOOS,
 				Arch: runtime.GOARCH,
@@ -144,13 +214,6 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
 		}
 		collector.Start()
 
-		// Fix clock skew on Linux ARM64 VMs after hibernate resume.
-		// ARM64 uses arch_sys_counter which doesn't auto-adjust after GCP suspend/resume.
-		// Restarting chrony resets its source state and with makestep 1 -1 config, it steps immediately.
-		if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-			syncSystemClock()
-		}
-
 		if err := engine.Setup(r.Context(), cfg); err != nil {
 			logger.FromRequest(r).
 				WithField("latency", time.Since(st)).
@@ -158,13 +221,20 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo
 				WithField("error", err).
 				WithField("cfg", cfg).
 				Infoln("api: failed stage setup")
+			if pc.NeedsNetworkCleanup() {
+				if logoutErr := pc.Logout(r.Context()); logoutErr != nil {
+					logger.FromRequest(r).WithError(logoutErr).
+						Errorln("api: pc logout after failed stage setup did not complete cleanly")
+					WriteError(w, errors.Join(err,
+						fmt.Errorf("private connectivity rollback failed: %w", logoutErr)))
+					return
+				}
+			}
 			WriteError(w, err)
 			return
 		}
 
-		// Apply egress/outbound traffic restriction via iptables (Linux) or netsh (Windows).
-		// Applied after engine.Setup so that setup (volumes, files, mTLS, docker) completes
-		// with full internet access. Best-effort: never blocks execution.
+		// Preserve the existing non-PC egress behavior. PC and egress were rejected above.
 		applyEgressPolicy(r.Context(), s.EgressPolicy)
 
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
@@ -344,22 +414,24 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 // This fixes clock skew on ARM64 VMs after GCP hibernate resume, where the arch_sys_counter
 // clock source doesn't auto-adjust (unlike x86's kvm-clock). Without this, chrony may
 // mark the NTP source as too variable and refuse to step, leaving the clock minutes behind.
-func syncSystemClock() {
+func syncSystemClock(ctx context.Context) error {
 	if _, err := exec.LookPath("chronyc"); err != nil {
-		return
+		return fmt.Errorf("chronyc is unavailable: %w", err)
 	}
 
+	syncCtx, cancel := context.WithTimeout(ctx, clockSyncTimeout)
+	defer cancel()
+
 	// Restart chrony to reset source state (clears the "too variable" flag from post-resume measurements)
-	if out, err := exec.CommandContext(context.Background(), "systemctl", "restart", "chrony").CombinedOutput(); err != nil {
-		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to restart chrony")
-		return
+	if _, err := exec.CommandContext(syncCtx, "systemctl", "restart", "chrony").CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to restart chrony: %w", err)
 	}
 
 	// Force an immediate clock step
-	if out, err := exec.CommandContext(context.Background(), "chronyc", "-a", "makestep").CombinedOutput(); err != nil {
-		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to force chrony clock step")
-		return
+	if _, err := exec.CommandContext(syncCtx, "chronyc", "-a", "makestep").CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to force chrony clock step: %w", err)
 	}
 
 	logrus.Infoln("setup: forced chrony clock sync on ARM64")
+	return nil
 }

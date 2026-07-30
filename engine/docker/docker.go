@@ -10,6 +10,7 @@ package docker
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"os"
@@ -177,11 +178,15 @@ func (e *Docker) DestroyContainersByLabel(
 
 // destroyContainers is a method which takes in a list of containers and a pipeline environment
 // to destroy.
+//
+//nolint:gocyclo // Linear cleanup keeps legacy and strict PC handling visibly aligned.
 func (e *Docker) destroyContainers(
 	ctx context.Context,
 	pipelineConfig *spec.PipelineConfig,
 	containers []Container,
 ) error {
+	strictCleanup := pipelineConfig.PrivateConnectivity
+	var cleanupErr error
 	removeOpts := client.ContainerRemoveOptions{
 		Force:         true,
 		RemoveLinks:   false,
@@ -203,6 +208,9 @@ func (e *Docker) destroyContainers(
 	for _, ctr := range containers {
 		if _, err := e.client.ContainerRemove(ctx, ctr.ID, removeOpts); err != nil {
 			logrus.WithContext(ctx).WithField("container", ctr.ID).WithField("error", err).Warnln("failed to remove container")
+			if strictCleanup && !cerrdefs.IsNotFound(err) {
+				cleanupErr = stderrors.Join(cleanupErr, fmt.Errorf("remove container %s: %w", ctr.ID, err))
+			}
 		}
 	}
 
@@ -218,19 +226,24 @@ func (e *Docker) destroyContainers(
 		}
 		if _, err := e.client.VolumeRemove(ctx, vol.EmptyDir.ID, client.VolumeRemoveOptions{Force: true}); err != nil {
 			logrus.WithContext(ctx).WithField("volume", vol.EmptyDir.ID).WithField("error", err).Warnln("failed to remove volume")
+			if strictCleanup && !cerrdefs.IsNotFound(err) {
+				cleanupErr = stderrors.Join(cleanupErr, fmt.Errorf("remove volume %s: %w", vol.EmptyDir.ID, err))
+			}
 		}
 	}
 
 	// cleanup the network
 	if _, err := e.client.NetworkRemove(ctx, pipelineConfig.Network.ID, client.NetworkRemoveOptions{}); err != nil {
 		logrus.WithContext(ctx).WithField("network", pipelineConfig.Network.ID).WithField("error", err).Warnln("failed to remove network")
+		if strictCleanup && !cerrdefs.IsNotFound(err) {
+			cleanupErr =
+				stderrors.Join(cleanupErr, fmt.Errorf("remove network %s: %w", pipelineConfig.Network.ID, err))
+		}
 	}
 
-	// notice that we never collect or return any errors.
-	// this is because we silently ignore cleanup failures
-	// and instead ask the system admin to periodically run
-	// `docker prune` commands.
-	return nil
+	// Legacy cleanup remains best-effort. A PC VM cannot be reused safely when its final
+	// container, volume, or network removal is uncertain, so surface those failures.
+	return cleanupErr
 }
 
 // Destroy the pipeline environment.
@@ -281,8 +294,8 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	return state, err
 }
 
-func (e *Docker) Suspend(ctx context.Context, labels map[string]string) error {
-	return e.destroyStoppedContainers(ctx, labels)
+func (e *Docker) Suspend(ctx context.Context, labels map[string]string, strictCleanup bool) error {
+	return e.destroyStoppedContainers(ctx, labels, strictCleanup)
 }
 
 func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, output io.Writer, logHandles *logutil.LogFileHandles) (*runtime.State, error) {
@@ -314,7 +327,11 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, ou
 	return state, err
 }
 
-func (e *Docker) destroyStoppedContainers(ctx context.Context, labels map[string]string) error {
+func (e *Docker) destroyStoppedContainers(
+	ctx context.Context,
+	labels map[string]string,
+	strictCleanup bool,
+) error {
 	// Create filter to match containers with the given label
 	f := client.Filters{}
 	for key, value := range labels {
@@ -331,17 +348,30 @@ func (e *Docker) destroyStoppedContainers(ctx context.Context, labels map[string
 		return fmt.Errorf("failed to list stopped plugin containers: %w", err)
 	}
 
+	var cleanupErr error
 	for i := range result.Items {
 		pluginContainer := result.Items[i]
-		if _, err := e.client.ContainerRemove(ctx, pluginContainer.ID, client.ContainerRemoveOptions{}); err != nil {
+		_, err := e.client.ContainerRemove(
+			ctx,
+			pluginContainer.ID,
+			client.ContainerRemoveOptions{Force: strictCleanup},
+		)
+		if err != nil {
 			logrus.WithContext(ctx).
 				WithField("container", pluginContainer.ID).
 				WithField("error", err).Warnln("failed to remove container")
+			if strictCleanup && !cerrdefs.IsNotFound(err) {
+				cleanupErr = stderrors.Join(
+					cleanupErr,
+					fmt.Errorf("remove stopped container %s: %w", pluginContainer.ID, err),
+				)
+				continue
+			}
 		}
 		// remove container from e.containers matching container.ID
 		e.removeContainerByID(pluginContainer.ID)
 	}
-	return nil
+	return cleanupErr
 }
 
 //

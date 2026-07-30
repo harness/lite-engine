@@ -7,6 +7,7 @@ package engine
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -194,7 +195,7 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	e.pipelineConfig = pipelineConfig
 	e.mu.Unlock()
 	// required to support m1 where docker isn't installed.
-	if pipelineConfig.EnableDockerSetup == nil || *pipelineConfig.EnableDockerSetup {
+	if dockerSetupEnabled(pipelineConfig) {
 		return e.docker.Setup(ctx, pipelineConfig)
 	}
 	return nil
@@ -204,9 +205,19 @@ func (e *Engine) Destroy(ctx context.Context) error {
 	e.mu.Lock()
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
-	destroyHelper(cfg)
-
-	return e.docker.Destroy(ctx, cfg)
+	if cfg == nil || !cfg.PrivateConnectivity {
+		_ = destroyHelper(cfg)
+		if !dockerSetupEnabled(cfg) {
+			return nil
+		}
+		return e.docker.Destroy(ctx, cfg)
+	}
+	var destroyErr error
+	if dockerSetupEnabled(cfg) {
+		destroyErr = e.docker.Destroy(ctx, cfg)
+	}
+	volumeErr := destroyHelper(cfg)
+	return errors.Join(destroyErr, volumeErr)
 }
 
 func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isDrone, isHosted bool) (*runtime.State, error) {
@@ -223,6 +234,7 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 	}
 
 	if step.Image != "" {
+		applyPrivateConnectivityDNS(cfg, step)
 		return e.docker.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
@@ -230,7 +242,13 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 }
 
 func (e *Engine) Suspend(ctx context.Context, labels map[string]string) error {
-	return e.docker.Suspend(ctx, labels)
+	e.mu.Lock()
+	cfg := e.pipelineConfig
+	e.mu.Unlock()
+	if !dockerSetupEnabled(cfg) {
+		return nil
+	}
+	return e.docker.Suspend(ctx, labels, cfg != nil && cfg.PrivateConnectivity)
 }
 
 // GetPipelineEnvs returns the pipeline/stage level environment variables
@@ -243,7 +261,11 @@ func (e *Engine) GetPipelineEnvs() map[string]string {
 	return e.pipelineConfig.Envs
 }
 
-func destroyHelper(cfg *spec.PipelineConfig) {
+func destroyHelper(cfg *spec.PipelineConfig) error {
+	if cfg == nil {
+		return nil
+	}
+	var cleanupErr error
 	for _, vol := range cfg.Volumes {
 		if vol == nil || vol.HostPath == nil {
 			continue
@@ -252,10 +274,12 @@ func destroyHelper(cfg *spec.PipelineConfig) {
 			continue
 		}
 
-		// TODO: Add logging
 		path := vol.HostPath.Path
-		os.RemoveAll(path)
+		if err := os.RemoveAll(path); err != nil {
+			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("failed to remove host volume %s: %w", path, err))
+		}
 	}
+	return cleanupErr
 }
 
 func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {

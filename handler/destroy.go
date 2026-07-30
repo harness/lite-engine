@@ -7,6 +7,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/osstats"
+	"github.com/harness/lite-engine/pc"
 	"github.com/harness/lite-engine/pipeline"
 )
 
@@ -38,6 +40,16 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 
 		ctx := r.Context()
 		destroyErr := engine.Destroy(ctx)
+
+		// Keep connectivity until containers stop, then prove logout before this VM can be reused.
+		if pc.NeedsNetworkCleanup() {
+			if logoutErr := pc.Logout(ctx); logoutErr != nil {
+				log.WithField("time", time.Now().Format(time.RFC3339)).
+					WithError(logoutErr).
+					Errorln("api: private connectivity logout failed")
+				destroyErr = errors.Join(destroyErr, fmt.Errorf("pc logout failed: %w", logoutErr))
+			}
+		}
 
 		// Close lite-engine log stream to flush logs (always attempt so logs are uploaded)
 		log.Infoln("api: closing lite-engine log stream")
