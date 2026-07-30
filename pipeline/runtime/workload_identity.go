@@ -35,10 +35,11 @@ const (
 	// hostGatewayExtraHost lets the step container resolve the VM host (where lite-engine listens).
 	hostGatewayExtraHost = "host.docker.internal:host-gateway"
 	// defaultMintURL is the address a step container uses to reach lite-engine's mint endpoint. The
-	// container reaches the VM host via host.docker.internal (host-gateway); 9079 is lite-engine's port.
-	// NOTE: container->host reachability is environment-specific - validate on a real VM and override via
-	// HARNESS_WI_MINT_URL_OVERRIDE if needed.
-	defaultMintURL = "https://host.docker.internal:9079/mint_workload_token"
+	// container reaches the VM host via host.docker.internal (host-gateway). This targets the dedicated
+	// PLAIN-HTTP mint listener (port 9080), not the main mTLS server (9079) - the step container cannot
+	// present the mTLS client cert, and the opaque handle is the capability that authorizes the mint.
+	// Override via HARNESS_WI_MINT_URL_OVERRIDE if the port/host differs.
+	defaultMintURL = "http://host.docker.internal:9080/mint_workload_token"
 )
 
 // wiEntry is the per-handle registration: the identities the step may mint, plus the HarnessID
