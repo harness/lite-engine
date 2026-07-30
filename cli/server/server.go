@@ -141,8 +141,8 @@ func startWorkloadIdentityMintServer() {
 		return
 	}
 
-	socketPath := filepath.Join(spec.WISocketHostDir, spec.WISocketName)
-	if err := os.MkdirAll(spec.WISocketHostDir, 0o755); err != nil {
+	socketPath := filepath.Join(spec.WISocketDir, spec.WISocketName)
+	if err := os.MkdirAll(spec.WISocketDir, 0o755); err != nil {
 		logrus.WithError(err).Errorln("workload-identity: failed to create mint socket dir")
 		return
 	}

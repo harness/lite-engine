@@ -160,15 +160,18 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		}
 	}
 
-	// Workload Identity: bind-mount the mint socket dir so the in-step hcli can reach lite-engine's mint
-	// endpoint over a Unix socket (no network port / firewall / mTLS / DNS). Linux/Mac only. Harmless for
-	// steps without workload identities (the socket is simply unused).
+	// Workload Identity: bind-mount the mint socket dir to the SAME path inside the container so the
+	// in-step hcli reaches lite-engine's mint endpoint over a Unix socket (no network port / firewall /
+	// mTLS / DNS). Source == target so the injected HARNESS_WI_MINT_URL is identical whether the step
+	// runs in a container (this mount) or directly on the host (containerless, no mount - hcli reads the
+	// same host path directly). Linux/Mac only. Harmless for steps without workload identities (the
+	// socket is simply unused).
 	if runtime.GOOS != windowsOS {
-		if _, err := os.Stat(spec.WISocketHostDir); err == nil {
+		if _, err := os.Stat(spec.WISocketDir); err == nil {
 			config.Mounts = append(config.Mounts, mount.Mount{
 				Type:   mount.TypeBind,
-				Source: spec.WISocketHostDir,
-				Target: spec.WISocketContainerDir,
+				Source: spec.WISocketDir,
+				Target: spec.WISocketDir,
 			})
 		}
 	}

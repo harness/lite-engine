@@ -103,10 +103,11 @@ func newWorkloadIdentityHandle() (string, error) {
 }
 
 // registerWorkloadIdentities stores the step's identities under a fresh handle and injects
-// HARNESS_WI_HANDLE + HARNESS_WI_MINT_URL into the step environment. The mint URL points at the
-// bind-mounted Unix socket on Linux/Mac (no network port), or the host.docker.internal TCP fallback on
-// Windows. The workload tokens themselves are never written to the step env. Returns the handle (empty
-// when the step declares no identities).
+// HARNESS_WI_HANDLE + HARNESS_WI_MINT_URL into the step environment. On Linux/Mac the mint URL points
+// at the Unix socket at spec.WISocketDir, which lite-engine bind-mounts into container steps at the
+// SAME path - so the same URL works whether the step runs in a container or directly on the host
+// (containerless). Windows uses the host.docker.internal TCP fallback. The workload tokens themselves
+// are never written to the step env. Returns the handle (empty when the step declares no identities).
 func registerWorkloadIdentities(r *api.StartStepRequest) string {
 	if r == nil || len(r.WorkloadIdentities) == 0 {
 		return ""
@@ -137,14 +138,16 @@ func registerWorkloadIdentities(r *api.StartStepRequest) string {
 }
 
 // mintURL builds the mint endpoint the in-step hcli should call. Priority: explicit override env ->
-// the bind-mounted Unix socket (Linux/Mac; no port/firewall/mTLS/DNS) -> host.docker.internal TCP
-// fallback (Windows, best-effort).
+// the Unix socket at spec.WISocketDir (Linux/Mac; no port/firewall/mTLS/DNS). The socket lives on the
+// VM host and is bind-mounted into container steps at the SAME path, so this single URL is valid both
+// for container steps and for containerless (host-executed) steps. Windows falls back to
+// host.docker.internal TCP (best-effort).
 func mintURL() string {
 	if o := os.Getenv(wiMintURLOverrideEnv); o != "" {
 		return o
 	}
 	if goruntime.GOOS != "windows" {
-		return "unix://" + filepath.Join(spec.WISocketContainerDir, spec.WISocketName)
+		return "unix://" + filepath.Join(spec.WISocketDir, spec.WISocketName)
 	}
 	return defaultMintURL
 }
