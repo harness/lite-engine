@@ -7,6 +7,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"net/http"
 	"os"
 	"os/signal"
 
@@ -57,6 +58,21 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 	}
 
 	stepExecutor := runtime.NewStepExecutor(engine)
+
+	// Workload Identity: start a plain-HTTP listener that serves ONLY the mint endpoint. The main
+	// server below enforces mTLS (client cert), which the in-step hcli cannot present; the mint
+	// endpoint is authorized by the opaque per-step handle instead and returns only short-lived OIDC
+	// tokens. The step container reaches it via host.docker.internal (host-gateway).
+	mintBind := os.Getenv("HARNESS_WI_MINT_BIND")
+	if mintBind == "" {
+		mintBind = ":9080"
+	}
+	safego.SafeGo("wi_mint_server", func() {
+		logrus.Infof("workload-identity mint server listening at %s", mintBind)
+		if mintErr := http.ListenAndServe(mintBind, handler.MintHandler()); mintErr != nil {
+			logrus.WithError(mintErr).Errorln("workload-identity mint server stopped")
+		}
+	})
 
 	// create the http serverInstance.
 	serverInstance := server.Server{

@@ -81,3 +81,15 @@ func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime
 
 	return r
 }
+
+// MintHandler exposes ONLY the workload-identity mint endpoint. It is served on a separate plain-HTTP
+// listener because the main server enforces mTLS (client cert), which the in-step hcli cannot present.
+// The opaque per-step handle is the capability that authorizes the mint, and only short-lived OIDC
+// tokens are returned, so mTLS is not required here.
+func MintHandler() http.Handler {
+	r := chi.NewRouter()
+	r.Use(logger.Middleware)
+	r.Use(middleware.Recoverer)
+	r.Post("/mint_workload_token", HandleMintWorkloadToken())
+	return r
+}
