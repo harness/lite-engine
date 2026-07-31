@@ -644,7 +644,6 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	return err
 }
 
-
 // setupEgressProxy builds the credentialed proxy URL and delegates to applyProxyToDockerDaemon.
 func setupEgressProxy(ctx context.Context, policy *spec.EgressProxyConfig, goos string) error {
 	credURL, err := buildCredentialedProxyURL(policy.Username, policy.Password, policy.ProxyURL)
