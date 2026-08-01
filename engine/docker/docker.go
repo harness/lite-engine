@@ -13,8 +13,10 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -126,7 +128,12 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
 
-	if _, ok := pipelineConfig.Envs[harnessHTTPSProxy]; ok {
+	if pipelineConfig.EgressProxy != nil && pipelineConfig.EgressProxy.ProxyURL != "" {
+		logrus.WithField("proxy_url", pipelineConfig.EgressProxy.ProxyURL).Infoln("setup: applying egress proxy config")
+		if err := setupEgressProxy(ctx, pipelineConfig.EgressProxy, pipelineConfig.Platform.OS); err != nil {
+			return fmt.Errorf("failed to configure docker proxy for egress: %w", err)
+		}
+	} else if _, ok := pipelineConfig.Envs[harnessHTTPSProxy]; ok {
 		e.setProxyInDockerDaemon(ctx, pipelineConfig)
 	}
 
@@ -667,49 +674,80 @@ func (e *Docker) createNetworkWithRetries(ctx context.Context,
 	return err
 }
 
+// setupEgressProxy builds the credentialed proxy URL and delegates to applyProxyToDockerDaemon.
+func setupEgressProxy(ctx context.Context, policy *spec.EgressProxyConfig, goos string) error {
+	credURL, err := buildCredentialedProxyURL(policy.Username, policy.Password, policy.ProxyURL)
+	if err != nil {
+		return fmt.Errorf("failed to build proxy URL: %w", err)
+	}
+	return applyProxyToDockerDaemon(ctx, credURL, policy.NoProxy, goos)
+}
+
+// buildCredentialedProxyURL embeds username:password into the proxy URL using net/url so that
+// special characters (@ : % $ etc.) in credentials are percent-encoded correctly.
+// Bare URLs without a scheme are treated as http://.
+func buildCredentialedProxyURL(username, password, proxyURL string) (string, error) {
+	if username == "" || password == "" {
+		return proxyURL, nil
+	}
+	raw := proxyURL
+	if !strings.Contains(raw, "://") {
+		raw = "http://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("invalid proxy URL %q: %w", proxyURL, err)
+	}
+	u.User = url.UserPassword(username, password)
+	return u.String(), nil
+}
+
+// applyProxyToDockerDaemon writes the proxy configuration and restarts docker so the daemon
+// picks up the new settings. Used by both the secure-tunnel (HARNESS_HTTPS_PROXY) and the
+// egress-proxy paths so both follow identical restart behavior.
+func applyProxyToDockerDaemon(ctx context.Context, proxyURL, noProxy, goos string) error {
+	if goos == windowsOS {
+		os.Setenv("HTTP_PROXY", proxyURL)
+		os.Setenv("HTTPS_PROXY", proxyURL)
+		os.Setenv("NO_PROXY", noProxy)
+
+		if err := exec.Command("Restart-Service", "docker").Run(); err != nil {
+			logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
+		}
+		return nil
+	}
+
+	if _, err := os.Stat(dockerServiceDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dockerServiceDir, directoryPermission); err != nil {
+			return fmt.Errorf("unable to create directory for setting proxy in docker daemon: %w", err)
+		}
+	}
+
+	proxyConf := fmt.Sprintf(`[Service]
+Environment="HTTP_PROXY=%s"
+Environment="HTTPS_PROXY=%s"
+Environment="NO_PROXY=%s"
+`, proxyURL, proxyURL, noProxy)
+
+	if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), filePermission); err != nil {
+		return fmt.Errorf("error writing proxy configuration: %w", err)
+	}
+
+	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
+		return fmt.Errorf("error reloading systemd daemon: %w", err)
+	}
+
+	if err := exec.Command("systemctl", "restart", "docker").Run(); err != nil {
+		return fmt.Errorf("error restarting Docker service: %w", err)
+	}
+	return nil
+}
+
 func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spec.PipelineConfig) {
 	httpsProxy := pipelineConfig.Envs[harnessHTTPSProxy]
 	noProxy := pipelineConfig.Envs[harnessNoProxy]
-	if pipelineConfig.Platform.OS == windowsOS {
-		os.Setenv("HTTP_PROXY", httpsProxy)
-		os.Setenv("HTTPS_PROXY", httpsProxy)
-		os.Setenv("NO_PROXY", noProxy)
-
-		// Restart Docker service
-		if err := exec.Command("Restart-Service", "docker").Run(); err != nil {
-			logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
-			return
-		}
-	} else {
-		if _, err := os.Stat(dockerServiceDir); os.IsNotExist(err) {
-			if err := os.MkdirAll(dockerServiceDir, directoryPermission); err != nil {
-				logger.FromContext(ctx).WithError(err).Infoln("Unable to create directory for setting proxy in docker daemon")
-				return
-			}
-		}
-
-		proxyConf := fmt.Sprintf(`[Service]
-	Environment="HTTP_PROXY=%s"
-	Environment="HTTPS_PROXY=%s"
-	Environment="NO_PROXY=%s"
-	`, httpsProxy, httpsProxy, noProxy)
-
-		if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), filePermission); err != nil {
-			logger.FromContext(ctx).WithError(err).Infoln("Error writing proxy configuration")
-			return
-		}
-
-		// Reload systemd daemon
-		if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
-			logger.FromContext(ctx).WithError(err).Infoln("Error reloading systemd daemon")
-			return
-		}
-
-		// Restart Docker service
-		if err := exec.Command("systemctl", "restart", "docker").Run(); err != nil {
-			logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
-			return
-		}
+	if err := applyProxyToDockerDaemon(ctx, httpsProxy, noProxy, pipelineConfig.Platform.OS); err != nil {
+		logger.FromContext(ctx).WithError(err).Infoln("failed to set proxy in docker daemon")
 	}
 }
 

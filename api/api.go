@@ -31,8 +31,10 @@ type (
 	}
 
 	EgressPolicy struct {
-		Enabled    bool     `json:"enabled"`
-		AllowedIPs []string `json:"allowed_ips,omitempty"`
+		Username string `json:"username,omitempty"`
+		Password string `json:"password,omitempty"`
+		ProxyURL string `json:"proxy_url,omitempty"`
+		NoProxy  string `json:"no_proxy,omitempty"`
 	}
 
 	SetupRequest struct {
@@ -86,6 +88,7 @@ type (
 		LogKey         string            `json:"log_key,omitempty"`
 		LogDrone       bool              `json:"log_drone"`
 		Secrets        []string          `json:"secrets,omitempty"`
+		EgressPolicy   *EgressPolicy     `json:"egress_policy,omitempty"`
 		WorkingDir     string            `json:"working_dir,omitempty"`
 		Kind           StepType          `json:"kind,omitempty"`
 		Run            RunConfig         `json:"run,omitempty"`

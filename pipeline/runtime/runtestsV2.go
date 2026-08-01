@@ -147,7 +147,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		exited.ExitCode, err = quarantine.CheckAndUpdateExitCodeForQuarantinedTests(ctx, tests, tiConfig, log, exited.ExitCode, err)
 	}
 
-	optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, r.Envs, telemetryData, common.StepTypeRunTestsV2)
+	optimizationState = savings.ParseAndUploadSavings(ctx, r.WorkingDir, log, step.Name, checkStepSuccess(exited, err), timeTakenMs, tiConfig, step.Envs, telemetryData, common.StepTypeRunTestsV2)
 
 	exportEnvs, _ := fetchExportedVarsFromEnvFile(exportEnvFile, out, useCINewGodotEnvVersion)
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)

@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -114,8 +115,8 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		}
 
 		// Mutual exclusion: PC and egress may not run in the same build.
-		if pcCfg.Enabled && s.EgressPolicy != nil && s.EgressPolicy.Enabled {
-			WriteBadRequest(w, fmt.Errorf("pc: HARNESS_PC_ENABLED and EgressPolicy.Enabled are mutually exclusive"))
+		if pcCfg.Enabled && s.EgressPolicy != nil && strings.TrimSpace(s.EgressPolicy.ProxyURL) != "" {
+			WriteBadRequest(w, fmt.Errorf("pc: private connectivity and an egress proxy are mutually exclusive"))
 			return
 		}
 
@@ -212,6 +213,14 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			MtlsConfig:        s.MtlsConfig,
 			SanitizeConfig:    s.LogConfig.SanitizeConfig,
 		}
+		if s.EgressPolicy != nil && s.EgressPolicy.ProxyURL != "" {
+			cfg.EgressProxy = &spec.EgressProxyConfig{
+				ProxyURL: s.EgressPolicy.ProxyURL,
+				NoProxy:  s.EgressPolicy.NoProxy,
+				Username: s.EgressPolicy.Username,
+				Password: s.EgressPolicy.Password,
+			}
+		}
 		collector.Start()
 
 		if err := engine.Setup(r.Context(), cfg); err != nil {
@@ -233,9 +242,6 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			WriteError(w, err)
 			return
 		}
-
-		// Preserve the existing non-PC egress behavior. PC and egress were rejected above.
-		applyEgressPolicy(r.Context(), s.EgressPolicy)
 
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
 		logger.FromRequest(r).
