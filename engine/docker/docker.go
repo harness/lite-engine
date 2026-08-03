@@ -129,7 +129,7 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	// that are mounted into each container step.
 
 	if pipelineConfig.EgressProxy != nil && pipelineConfig.EgressProxy.ProxyURL != "" {
-		logrus.WithField("proxy_url", pipelineConfig.EgressProxy.ProxyURL).Infoln("setup: applying egress proxy config")
+		logrus.WithField("platform", pipelineConfig.Platform.OS).Infoln("setup: applying egress proxy config")
 		if err := setupEgressProxy(ctx, pipelineConfig.EgressProxy, pipelineConfig.Platform.OS); err != nil {
 			return fmt.Errorf("failed to configure docker proxy for egress: %w", err)
 		}
@@ -153,6 +153,13 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 
 	err := e.createNetworkWithRetries(ctx, pipelineConfig)
 	return errors.TrimExtraInfo(err)
+}
+
+// RollbackSetup removes only resources that Setup can create before any stage step runs.
+// It deliberately does not use the engine's stateful container inventory, which may describe a
+// previous stage when setup fails before the new configuration is installed.
+func (e *Docker) RollbackSetup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+	return e.destroyContainers(ctx, pipelineConfig, nil)
 }
 
 // DestroyContainersByLabel destroys a pipeline config and cleans up all containers with
@@ -696,7 +703,7 @@ func buildCredentialedProxyURL(username, password, proxyURL string) (string, err
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		return "", fmt.Errorf("invalid proxy URL %q: %w", proxyURL, err)
+		return "", fmt.Errorf("invalid proxy URL: %w", err)
 	}
 	u.User = url.UserPassword(username, password)
 	return u.String(), nil

@@ -39,16 +39,35 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		ctx := r.Context()
-		destroyErr := engine.Destroy(ctx)
+		pcUsed := pc.WasUsed()
+		var destroyErr error
+		pcStateUnavailable := pcUsed && !engine.PrivateConnectivityConfigured()
+		if pcStateUnavailable {
+			// PipelineConfig is intentionally process-local. If LE restarted after a PC setup, it no
+			// longer has the Docker/network identifiers required to prove resource cleanup. Tailscale
+			// logout is still attempted below, but the durable fence is retained and DRA must discard
+			// the VM.
+			destroyErr = fmt.Errorf(
+				"private connectivity cleanup state is unavailable after lite-engine restart; discard this VM")
+		} else {
+			destroyErr = engine.Destroy(ctx)
+		}
 
-		// Keep connectivity until containers stop, then prove logout before this VM can be reused.
-		if pc.NeedsNetworkCleanup() {
+		// Keep connectivity until resources stop, then prove logout before this VM can be reused.
+		// pcUsed also covers a restarted LE whose daemon is already logged out but whose reuse fence
+		// must intentionally remain because resource cleanup can no longer be proven.
+		if pcUsed || pc.NeedsNetworkCleanup() {
+			log.WithField("pc_state_available", !pcStateUnavailable).
+				Infoln("api: starting private connectivity logout during destroy")
 			if logoutErr := pc.Logout(ctx); logoutErr != nil {
 				log.WithField("time", time.Now().Format(time.RFC3339)).
 					WithError(logoutErr).
 					Errorln("api: private connectivity logout failed")
 				destroyErr = errors.Join(destroyErr, fmt.Errorf("pc logout failed: %w", logoutErr))
 			}
+		}
+		if pcUsed && destroyErr == nil {
+			destroyErr = pc.MarkCleanupComplete()
 		}
 
 		// Close lite-engine log stream to flush logs (always attempt so logs are uploaded)

@@ -28,6 +28,7 @@ const (
 	statusTimeout            = 10 * time.Second
 	versionTimeout           = 5 * time.Second
 	legacyInspectionTimeout  = 5 * time.Second
+	runtimeStatusTimeout     = 8 * time.Second
 	privateFileMode          = os.FileMode(0600)
 	privateDirectoryMode     = os.FileMode(0700)
 )
@@ -61,18 +62,16 @@ func usedMarkerPath() string {
 	return filepath.Join(TokenDir, "pc-used")
 }
 
-// Supported reports whether a qualified stable major-version-1 runtime is
-// present and responsive.
-func Supported() bool {
-	if !supportedPlatform() {
-		return false
-	}
-	path, err := tailscalePath()
-	if err != nil || !platformReady(path) {
-		return false
-	}
-	version, ok := tailscaleVersion(path)
-	return ok && supportedTailscaleVersion(version)
+// WasUsed reports whether this VM has entered the PC lifecycle and still requires a complete
+// stage-resource cleanup proof before reuse.
+func WasUsed() bool {
+	return fileExists(usedMarkerPath())
+}
+
+// MarkCleanupComplete clears the durable reuse fence only after the handler has completed both
+// strict stage-resource cleanup and Tailscale logout.
+func MarkCleanupComplete() error {
+	return removeFile(usedMarkerPath())
 }
 
 func supportedPlatform() bool {
@@ -89,31 +88,34 @@ func supportedPlatform() bool {
 }
 
 // RuntimeStatus is called only when DRA explicitly requests the PC health contract.
-func RuntimeStatus() (string, bool) {
+func RuntimeStatus(ctx context.Context) (string, bool) {
 	if !supportedPlatform() {
 		return "", false
 	}
+	statusCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
+	defer cancel()
 	path, err := tailscalePath()
-	if err != nil || !platformReady(path) {
+	if err != nil {
 		return "", false
 	}
-	version, versionKnown := tailscaleVersion(path)
+	version, versionKnown := tailscaleVersion(statusCtx, path)
 	if !versionKnown {
 		return "", false
 	}
-	return version, runtimeClean(path)
+	return version, runtimeClean(statusCtx, path)
 }
 
-func runtimeClean(path string) bool {
-	if markerExists() || tokenFileExists() || fileExists(cleanupMarkerPath()) || legacyEgressResidue() {
+func runtimeClean(ctx context.Context, path string) bool {
+	if markerExists() || tokenFileExists() || fileExists(cleanupMarkerPath()) || WasUsed() ||
+		legacyEgressResidue(ctx) {
 		return false
 	}
-	loggedIn, known := tailscaleLoginState(path)
+	loggedIn, known := tailscaleLoginState(ctx, path)
 	return known && !loggedIn
 }
 
-func tailscaleVersion(path string) (string, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), versionTimeout)
+func tailscaleVersion(ctx context.Context, path string) (string, bool) {
+	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
 	defer cancel()
 	out, err := tailscaleCommandContext(ctx, path, "version").CombinedOutput()
 	if err != nil {
@@ -133,20 +135,25 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
 
-	if err := ValidateExchange(cfg, time.Now()); err != nil {
+	if err := Validate(cfg, time.Now()); err != nil {
 		return err
 	}
 	path, err := tailscalePath()
-	if err != nil || !platformReady(path) {
+	if err != nil {
 		return ErrUnsupported
 	}
-	version, ok := tailscaleVersion(path)
+	version, ok := tailscaleVersion(ctx, path)
 	if !ok || !supportedTailscaleVersion(version) {
 		return ErrUnsupported
 	}
-	if !runtimeClean(path) {
+	if !runtimeClean(ctx, path) {
 		return fmt.Errorf("pc: runtime is dirty; VM reuse is forbidden")
 	}
+	logrus.WithFields(logrus.Fields{
+		"tailscale_version":  version,
+		"binding_generation": cfg.BindingGeneration,
+		"hostname":           cfg.Hostname,
+	}).Infoln("pc: runtime preflight completed")
 	if err := secureTokenDir(); err != nil {
 		return err
 	}
@@ -229,17 +236,19 @@ func logoutUnlocked(ctx context.Context) error {
 		return err
 	}
 
+	cleanupCtx := context.WithoutCancel(ctx)
 	path, err := tailscalePath()
-	if err != nil || !platformReady(path) {
+	if err != nil {
 		return ErrUnsupported
 	}
+	logrus.Infoln("pc: starting tailscale logout")
 	logoutCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), logoutTimeout)
 	defer cancel()
 	_, err = tailscaleCommandContext(logoutCtx, path, "logout").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("pc: tailscale logout failed: %w", err)
 	}
-	loggedIn, stateKnown := tailscaleLoginState(path)
+	loggedIn, stateKnown := tailscaleLoginState(cleanupCtx, path)
 	if !stateKnown || loggedIn {
 		return fmt.Errorf("pc: tailscale logout completed but clean logged-out state could not be confirmed")
 	}
@@ -252,6 +261,7 @@ func logoutUnlocked(ctx context.Context) error {
 	if err := removeFile(cleanupMarkerPath()); err != nil {
 		return err
 	}
+	logrus.Infoln("pc: tailscale logout and clean-state verification completed")
 	return nil
 }
 
@@ -264,10 +274,10 @@ func NeedsNetworkCleanup() bool {
 		return false
 	}
 	path, err := tailscalePath()
-	if err != nil || !platformReady(path) {
+	if err != nil {
 		return true
 	}
-	loggedIn, known := tailscaleLoginState(path)
+	loggedIn, known := tailscaleLoginState(context.Background(), path)
 	return !known || loggedIn
 }
 
@@ -300,8 +310,8 @@ func confirmJoined(ctx context.Context, path string) error {
 	return fmt.Errorf("pc: tailscale joined without a tailnet IPv4 address")
 }
 
-func tailscaleLoginState(path string) (loggedIn, known bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
+func tailscaleLoginState(ctx context.Context, path string) (loggedIn, known bool) {
+	ctx, cancel := context.WithTimeout(ctx, statusTimeout)
 	defer cancel()
 	out, err := tailscaleCommandContext(ctx, path, "status", "--json").CombinedOutput()
 	if err != nil {
@@ -325,10 +335,35 @@ func tailscaleLoginState(path string) (loggedIn, known bool) {
 
 func tailscaleCommandContext(ctx context.Context, path string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, path, args...)
+	cmd.Env = tailscaleEnvironment()
 	if runtime.GOOS == "darwin" {
-		cmd.Env = append(os.Environ(), "TAILSCALE_BE_CLI=1")
+		cmd.Env = append(cmd.Env, "TAILSCALE_BE_CLI=1")
 	}
 	return cmd
+}
+
+// tailscaleEnvironment isolates enrollment and lifecycle commands from customer-controlled
+// proxy variables while leaving ordinary stage and container proxy behavior unchanged.
+func tailscaleEnvironment() []string {
+	env := os.Environ()
+	filtered := make([]string, 0, len(env))
+	for _, entry := range env {
+		key, _, found := strings.Cut(entry, "=")
+		if found && isProxyEnvironmentKey(key) {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	return filtered
+}
+
+func isProxyEnvironmentKey(key string) bool {
+	switch strings.ToUpper(strings.TrimSpace(key)) {
+	case "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY":
+		return true
+	default:
+		return false
+	}
 }
 
 func wifClientID(clientID string) string {

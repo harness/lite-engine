@@ -37,13 +37,6 @@ func tailscalePath() (string, error) {
 	return exec.LookPath("tailscale.exe")
 }
 
-func platformReady(path string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
-	defer cancel()
-	_, err := tailscaleCommandContext(ctx, path, "status", "--json").CombinedOutput()
-	return err == nil
-}
-
 func securePlatformTokenDir() error {
 	currentUser, err := user.Current()
 	if err != nil || currentUser.Username == "" {
@@ -63,8 +56,8 @@ func securePlatformTokenDir() error {
 	return nil
 }
 
-func legacyEgressResidue() bool {
-	ctx, cancel := context.WithTimeout(context.Background(), legacyInspectionTimeout)
+func legacyEgressResidue(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, legacyInspectionTimeout)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "netsh", "advfirewall", "firewall", "show", "rule", "name=all").CombinedOutput()
 	if err != nil || strings.Contains(string(out), "Egress-Allow-") {

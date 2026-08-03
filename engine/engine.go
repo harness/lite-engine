@@ -201,6 +201,17 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	return nil
 }
 
+// RollbackSetup removes resources created by an unsuccessful setup using the attempted
+// configuration rather than the engine's prior state. The caller remains responsible for the
+// private-connectivity logout that must follow resource cleanup.
+func (e *Engine) RollbackSetup(ctx context.Context, cfg *spec.PipelineConfig) error {
+	var dockerErr error
+	if dockerSetupEnabled(cfg) {
+		dockerErr = e.docker.RollbackSetup(ctx, cfg)
+	}
+	return errors.Join(dockerErr, destroyHelper(cfg))
+}
+
 func (e *Engine) Destroy(ctx context.Context) error {
 	e.mu.Lock()
 	cfg := e.pipelineConfig
@@ -245,10 +256,28 @@ func (e *Engine) Suspend(ctx context.Context, labels map[string]string) error {
 	e.mu.Lock()
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
+	if cfg != nil && cfg.PrivateConnectivity {
+		var dockerErr error
+		if dockerSetupEnabled(cfg) {
+			// PC suspension is a terminal reuse boundary. Remove every stage resource,
+			// not only stopped plugin containers, before Tailscale logout is allowed.
+			dockerErr = e.docker.Destroy(ctx, cfg)
+		}
+		return errors.Join(dockerErr, destroyHelper(cfg))
+	}
 	if !dockerSetupEnabled(cfg) {
 		return nil
 	}
-	return e.docker.Suspend(ctx, labels, cfg != nil && cfg.PrivateConnectivity)
+	return e.docker.Suspend(ctx, labels, false)
+}
+
+// PrivateConnectivityConfigured proves that this process still has the pipeline configuration
+// required for strict Docker/resource cleanup. A durable pc-used marker without this in-memory
+// state means LE restarted mid-lifecycle and the VM must be discarded rather than reused.
+func (e *Engine) PrivateConnectivityConfigured() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.pipelineConfig != nil && e.pipelineConfig.PrivateConnectivity
 }
 
 // GetPipelineEnvs returns the pipeline/stage level environment variables

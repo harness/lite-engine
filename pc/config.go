@@ -6,12 +6,12 @@
 //
 // Canonical /setup order:
 //  1. Decode SetupRequest.
-//  2. ExtractAndStrip — extract the one-time enrollment ticket, mask it, and strip all fields.
-//  3. Validate capability; fail closed if PC enabled but tailscale not present.
-//  4. Mutual exclusion: PC + egress → fail.
-//  5. Repair Linux arm64 clock drift before consuming the one-time ticket.
-//  6. Exchange the ticket immediately before joining with WIF (file-backed JWT,
-//     never argv or os.Setenv).
+//  2. ExtractAndStrip — extract the CI-issued workload identity, mask the JWT, and strip all fields.
+//  3. Reject PC combined with an egress proxy.
+//  4. Repair Linux arm64 clock drift before validating the time-bound JWT.
+//  5. Validate the complete contract.
+//  6. JoinAndConfigure revalidates the contract and the prebaked runtime immediately before
+//     joining with WIF (file-backed JWT, never argv or os.Setenv).
 //  7. engine.Setup applies container-scoped DNS/MTU configuration.
 //
 // /destroy order:
@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -31,13 +32,19 @@ import (
 // On-VM env var names — FROZEN. Do NOT change without a coordinated update
 // to ci-manager VmInitializeTaskParamsBuilder and the InternalApi contract.
 const (
-	EnvEnabled          = "HARNESS_PC_ENABLED"
-	EnvEnrollmentTicket = "HARNESS_PC_ENROLLMENT_TICKET"
+	EnvEnabled           = "HARNESS_PC_ENABLED"
+	EnvClientID          = "HARNESS_PC_CLIENT_ID"
+	EnvOIDCToken         = "HARNESS_PC_OIDC_TOKEN"
+	EnvHostname          = "HARNESS_PC_HOSTNAME"
+	EnvTag               = "HARNESS_PC_TAG"
+	EnvBindingGeneration = "HARNESS_PC_BINDING_GENERATION"
 
-	DefaultTag  = "tag:ci-runner"
-	JoinTimeout = 90 * time.Second
+	DefaultTag = "tag:ci-runner"
+	// ContractVersion identifies the cross-repository DRA/LE lifecycle contract.
+	ContractVersion = "v2"
+	JoinTimeout     = 90 * time.Second
 
-	maxOIDCTokenLifetime = 15 * time.Minute
+	maxOIDCTokenLifetime = 60 * time.Minute
 	oidcClockSkew        = 30 * time.Second
 	jwtSegmentCount      = 3
 )
@@ -47,19 +54,14 @@ const (
 type Config struct {
 	Enabled bool
 
-	// EnrollmentTicket is the only secret accepted from the initial setup
-	// request. It is exchanged once, immediately before Tailscale join.
-	EnrollmentTicket string
-	contractPresent  bool
-	unexpectedField  bool
-
-	// The remaining fields are server-authoritative exchange results.
 	ClientID          string
 	OIDCToken         string
 	Hostname          string
 	Tag               string
 	BindingGeneration uint64
-	ExpiresAt         time.Time
+	contractPresent   bool
+	unexpectedField   bool
+	invalidGeneration bool
 }
 
 // ExtractAndStrip reads all HARNESS_PC_* values from envs and removes every key.
@@ -67,18 +69,26 @@ type Config struct {
 // MUST be called immediately after decoding SetupRequest, before setProxyEnvs, setHarnessEnvs,
 // state.Set, cfg construction, or any logging of envs.
 //
-// The returned Config.EnrollmentTicket is secret and must be added to the secrets masking list
+// The returned Config.OIDCToken is secret and must be added to the secrets masking list
 // before calling state.Set(s.Secrets, ...).
 func ExtractAndStrip(envs map[string]string) Config {
 	cfg := Config{
-		Enabled:          strings.EqualFold(envs[EnvEnabled], "true"),
-		EnrollmentTicket: envs[EnvEnrollmentTicket],
+		Enabled:   strings.EqualFold(envs[EnvEnabled], "true"),
+		ClientID:  envs[EnvClientID],
+		OIDCToken: envs[EnvOIDCToken],
+		Hostname:  envs[EnvHostname],
+		Tag:       envs[EnvTag],
 	}
-	// Strip every HARNESS_PC_* value, including the retired raw-token contract.
+	if rawGeneration := strings.TrimSpace(envs[EnvBindingGeneration]); rawGeneration != "" {
+		generation, err := strconv.ParseUint(rawGeneration, 10, 64)
+		cfg.BindingGeneration = generation
+		cfg.invalidGeneration = err != nil
+	}
 	for key := range envs {
 		if strings.HasPrefix(key, "HARNESS_PC_") {
 			cfg.contractPresent = true
-			if key != EnvEnabled && key != EnvEnrollmentTicket {
+			if key != EnvEnabled && key != EnvClientID && key != EnvOIDCToken && key != EnvHostname &&
+				key != EnvTag && key != EnvBindingGeneration {
 				cfg.unexpectedField = true
 			}
 			delete(envs, key)
@@ -87,47 +97,32 @@ func ExtractAndStrip(envs map[string]string) Config {
 	return cfg
 }
 
-// ValidateEnrollmentRequest rejects incomplete initial requests before network
-// or filesystem mutation.
-func ValidateEnrollmentRequest(cfg *Config) error {
+// Validate rejects incomplete or expired CI-issued identity before network or filesystem mutation.
+// JWT signature verification remains Tailscale WIF's responsibility.
+func Validate(cfg *Config, now time.Time) error { //nolint:gocyclo // Fail-closed validation intentionally checks every field.
 	if cfg == nil {
-		return fmt.Errorf("pc: enrollment configuration is required")
+		return fmt.Errorf("pc: private connectivity configuration is required")
 	}
 	if !cfg.Enabled {
 		if cfg.contractPresent {
-			return fmt.Errorf("pc: enrollment fields require HARNESS_PC_ENABLED=true")
+			return fmt.Errorf("pc: private connectivity fields require HARNESS_PC_ENABLED=true")
 		}
 		return nil
 	}
 	if cfg.unexpectedField {
-		return fmt.Errorf("pc: unsupported HARNESS_PC_* enrollment field")
-	}
-	if strings.TrimSpace(cfg.EnrollmentTicket) == "" {
-		return fmt.Errorf("pc: enrollment ticket is required when enabled")
-	}
-	return nil
-}
-
-// ValidateExchange validates only the server-authoritative exchange response.
-// JWT signature verification remains Tailscale WIF's responsibility.
-func ValidateExchange(cfg *Config, now time.Time) error { //nolint:gocyclo // Fail-closed validation intentionally checks every field.
-	if cfg == nil {
-		return fmt.Errorf("pc: enrollment exchange response is incomplete")
+		return fmt.Errorf("pc: unsupported HARNESS_PC_* field")
 	}
 	if cfg.ClientID == "" || cfg.OIDCToken == "" || cfg.Hostname == "" {
-		return fmt.Errorf("pc: enrollment exchange response is incomplete")
+		return fmt.Errorf("pc: private connectivity identity is incomplete")
 	}
 	if cfg.Tag != DefaultTag {
-		return fmt.Errorf("pc: enrollment exchange returned an unsupported tag")
+		return fmt.Errorf("pc: unsupported private connectivity tag")
 	}
 	if !validHostname(cfg.Hostname) {
-		return fmt.Errorf("pc: enrollment exchange returned an invalid hostname")
+		return fmt.Errorf("pc: invalid private connectivity hostname")
 	}
-	if cfg.BindingGeneration == 0 {
+	if cfg.invalidGeneration || cfg.BindingGeneration == 0 {
 		return fmt.Errorf("pc: invalid binding generation")
-	}
-	if !cfg.ExpiresAt.After(now) || cfg.ExpiresAt.After(now.Add(maxOIDCTokenLifetime+oidcClockSkew)) {
-		return fmt.Errorf("pc: enrollment exchange returned an invalid expiry")
 	}
 	segments := strings.Split(cfg.OIDCToken, ".")
 	if len(segments) != jwtSegmentCount {
@@ -153,15 +148,13 @@ func ValidateExchange(cfg *Config, now time.Time) error { //nolint:gocyclo // Fa
 	if len(claims.Audience) == 0 || string(claims.Audience) == "null" {
 		return fmt.Errorf("pc: OIDC token must contain an audience claim")
 	}
-	if time.Duration(expiresAt-issuedAt)*time.Second > maxOIDCTokenLifetime {
-		return fmt.Errorf("pc: OIDC token lifetime exceeds five minutes")
+	if expiresAt-issuedAt > int64(maxOIDCTokenLifetime/time.Second) {
+		return fmt.Errorf("pc: OIDC token lifetime exceeds configured max (%s)",
+			maxOIDCTokenLifetime)
 	}
 	nowUnix := now.Unix()
 	if expiresAt <= nowUnix || issuedAt > nowUnix+int64(oidcClockSkew.Seconds()) {
 		return fmt.Errorf("pc: OIDC token is expired or not yet valid")
-	}
-	if delta := cfg.ExpiresAt.Unix() - expiresAt; delta < -1 || delta > 1 {
-		return fmt.Errorf("pc: enrollment expiry does not match the OIDC token")
 	}
 	return nil
 }

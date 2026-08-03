@@ -181,7 +181,8 @@ steps:
       - GOOS=darwin  GOARCH=amd64   go build -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${DRONE_TAG##v}" -o release/lite-engine-darwin-amd64
       - GOOS=darwin  GOARCH=arm64   go build -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${DRONE_TAG##v}" -o release/lite-engine-darwin-arm64
       - GOOS=windows GOARCH=amd64   go build -ldflags "-s -w -X github.com/harness/lite-engine/version.Version=${DRONE_TAG##v}" -o release/lite-engine-windows-amd64.exe
-      - test "$(./release/lite-engine-linux-amd64 --version)" = "${DRONE_TAG##v}"
+      # Kingpin writes --version to stderr, so capture both streams for the tag check.
+      - test "$(./release/lite-engine-linux-amd64 --version 2>&1)" = "${DRONE_TAG##v}"
 
   - name: release
     image: plugins/github-release

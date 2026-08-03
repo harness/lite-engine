@@ -37,9 +37,10 @@ var (
 )
 
 const (
-	OSWindows         = "windows"
-	dualLoggingEnvVar = "HARNESS_LOG_STREAMING_STDOUT_ENABLED"
-	clockSyncTimeout  = 15 * time.Second
+	OSWindows                    = "windows"
+	dualLoggingEnvVar            = "HARNESS_LOG_STREAMING_STDOUT_ENABLED"
+	clockSyncTimeout             = 15 * time.Second
+	setupResourceRollbackTimeout = 30 * time.Second
 )
 
 func GetNetrc(os string) string {
@@ -85,10 +86,10 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 
 		// Extract and strip all HARNESS_PC_* from s.Envs immediately,
 		// before setProxyEnvs, setHarnessEnvs, state.Set, PipelineConfig, or any log of envs.
-		// The enrollment ticket is secret and must never be set in os.Setenv or step envs.
+		// The OIDC token is secret and must never be set in os.Setenv or step envs.
 		pcCfg := pc.ExtractAndStrip(s.Envs)
-		if pcCfg.EnrollmentTicket != "" {
-			s.Secrets = append(s.Secrets, pcCfg.EnrollmentTicket)
+		if pcCfg.OIDCToken != "" {
+			s.Secrets = append(s.Secrets, pcCfg.OIDCToken)
 		}
 		logProcess := false
 		if val, ok := s.Envs[harnessEnableDebugLogs]; ok && val == "true" {
@@ -103,24 +104,13 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			s.LogConfig.DualLoggingEnabled = true
 		}
 
-		if validateErr := pc.ValidateEnrollmentRequest(&pcCfg); validateErr != nil {
-			WriteBadRequest(w, validateErr)
-			return
-		}
-
-		// Capability gate: fail closed if PC enabled but runtime unsupported.
-		if pcCfg.Enabled && !pc.Supported() {
-			WriteBadRequest(w, pc.ErrUnsupported)
-			return
-		}
-
 		// Mutual exclusion: PC and egress may not run in the same build.
 		if pcCfg.Enabled && s.EgressPolicy != nil && strings.TrimSpace(s.EgressPolicy.ProxyURL) != "" {
 			WriteBadRequest(w, fmt.Errorf("pc: private connectivity and an egress proxy are mutually exclusive"))
 			return
 		}
 
-		// Repair post-hibernate ARM64 clock drift before exchanging the one-time ticket.
+		// Repair post-hibernate ARM64 clock drift before validating and using the short-lived JWT.
 		// PC cannot safely continue when TLS and JWT time validation may use a stale clock.
 		if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
 			if syncErr := syncSystemClock(r.Context()); syncErr != nil {
@@ -135,20 +125,27 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			}
 		}
 
+		if validateErr := pc.Validate(&pcCfg, time.Now()); validateErr != nil {
+			WriteBadRequest(w, validateErr)
+			return
+		}
+		if pcCfg.Enabled {
+			logger.FromRequest(r).
+				WithField("platform", runtime.GOOS).
+				WithField("architecture", runtime.GOARCH).
+				WithField("binding_generation", pcCfg.BindingGeneration).
+				WithField("hostname", pcCfg.Hostname).
+				WithField("docker_setup_enabled", s.MountDockerSocket == nil || *s.MountDockerSocket).
+				Infoln("api: validated private connectivity setup contract")
+		}
+
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs), s.MtlsConfig, collector)
 
 		// PC join before LE/OS streams so a failed single-attempt join cannot leak stream resources.
 		if pcCfg.Enabled {
-			exchangedCfg, exchangeErr := pc.ExchangeEnrollment(
-				r.Context(), s.PrivateConnectivityExchangeURL, pcCfg.EnrollmentTicket)
-			if exchangeErr != nil {
-				logger.FromRequest(r).WithError(exchangeErr).
-					Errorln("api: private connectivity enrollment failed; failing closed")
-				WriteError(w, fmt.Errorf("private connectivity enrollment failed: %w", exchangeErr))
-				return
-			}
-			if joinErr := pc.JoinAndConfigure(r.Context(), &exchangedCfg); joinErr != nil {
+			logger.FromRequest(r).Infoln("api: starting private connectivity runtime join")
+			if joinErr := pc.JoinAndConfigure(r.Context(), &pcCfg); joinErr != nil {
 				logger.FromRequest(r).
 					WithField("time", time.Now().Format(time.RFC3339)).
 					WithError(joinErr).
@@ -156,6 +153,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 				WriteError(w, fmt.Errorf("private connectivity setup failed: %w", joinErr))
 				return
 			}
+			logger.FromRequest(r).Infoln("api: private connectivity runtime join completed")
 		}
 
 		// Initialize lite-engine log streaming if LELogKey is provided
@@ -228,18 +226,26 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 				WithField("latency", time.Since(st)).
 				WithField("time", time.Now().Format(time.RFC3339)).
 				WithField("error", err).
-				WithField("cfg", cfg).
 				Infoln("api: failed stage setup")
-			if pc.NeedsNetworkCleanup() {
-				if logoutErr := pc.Logout(r.Context()); logoutErr != nil {
-					logger.FromRequest(r).WithError(logoutErr).
-						Errorln("api: pc logout after failed stage setup did not complete cleanly")
-					WriteError(w, errors.Join(err,
-						fmt.Errorf("private connectivity rollback failed: %w", logoutErr)))
-					return
-				}
+			if !pcCfg.Enabled {
+				WriteError(w, err)
+				return
 			}
-			WriteError(w, err)
+			cleanupCtx := context.WithoutCancel(r.Context())
+			resourceRollbackCtx, resourceRollbackCancel :=
+				context.WithTimeout(cleanupCtx, setupResourceRollbackTimeout)
+			resourceRollbackErr := engine.RollbackSetup(resourceRollbackCtx, cfg)
+			resourceRollbackCancel()
+			var logoutErr error
+			if pc.NeedsNetworkCleanup() {
+				logoutErr = pc.Logout(cleanupCtx)
+			}
+			rollbackErr := errors.Join(resourceRollbackErr, logoutErr)
+			if rollbackErr != nil {
+				logger.FromRequest(r).WithError(rollbackErr).
+					Errorln("api: private connectivity resource rollback did not complete cleanly")
+			}
+			WriteError(w, errors.Join(err, rollbackErr))
 			return
 		}
 

@@ -23,10 +23,10 @@ type (
 		Version string `json:"version"`
 		OK      bool   `json:"ok"`
 		// PrivateConnectivity is true when this lite-engine binary includes the PC
-		// ticket stripping, exchange, join, and cleanup lifecycle.
+		// identity stripping, join, and cleanup lifecycle.
 		PrivateConnectivity        bool   `json:"private_connectivity,omitempty"`
 		PrivateConnectivityVersion string `json:"private_connectivity_version,omitempty"`
-		PrivateConnectivityClean   bool   `json:"private_connectivity_clean"`
+		PrivateConnectivityClean   bool   `json:"private_connectivity_clean,omitempty"`
 		TailscaleVersion           string `json:"tailscale_version,omitempty"`
 	}
 
@@ -53,9 +53,6 @@ type (
 		LELogKey            string             `json:"le_log_key,omitempty"`
 		MemoryMetricsLogKey string             `json:"memory_metrics_log_key,omitempty"`
 		EgressPolicy        *EgressPolicy      `json:"egress_policy,omitempty"`
-		// PrivateConnectivityExchangeURL is supplied by the trusted Runner control
-		// plane. It is not sourced from stage environment variables.
-		PrivateConnectivityExchangeURL string `json:"private_connectivity_exchange_url,omitempty"`
 	}
 
 	SetupResponse struct{}

@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -12,8 +14,8 @@ import (
 )
 
 // HandleSuspend returns a http.HandlerFunc that suspends a VM.
-// Private Connectivity must logout before hibernate so warm reuse cannot keep a sticky
-// authenticated tailnet session after /run markers vanish.
+// Private Connectivity must fully remove stage resources and then logout before hibernate so
+// warm reuse cannot retain Docker or tailnet state after /run markers vanish.
 func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
 		startTime := time.Now()
@@ -24,20 +26,33 @@ func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 			WriteBadRequest(response, err)
 			return
 		}
+		pcUsed := pc.WasUsed()
+		pcStateUnavailable := pcUsed && !engine.PrivateConnectivityConfigured()
+		var suspendErr error
+		if pcStateUnavailable {
+			suspendErr = fmt.Errorf(
+				"private connectivity cleanup state is unavailable after lite-engine restart; discard this VM")
+		} else {
+			suspendErr = engine.Suspend(request.Context(), suspendRequest.Labels)
+		}
 
-		if pc.NeedsNetworkCleanup() {
+		// For PC, Engine.Suspend performs full stage-resource cleanup first. Logout is the final
+		// network boundary. A restarted LE still attempts logout but keeps the reuse fence.
+		if pcUsed || pc.NeedsNetworkCleanup() {
+			logger.FromRequest(request).
+				WithField("pc_state_available", !pcStateUnavailable).
+				Infoln("api: starting private connectivity logout before suspend")
 			if logoutErr := pc.Logout(request.Context()); logoutErr != nil {
 				logger.FromRequest(request).
 					WithField("latency", time.Since(startTime)).
 					WithField("time", time.Now().Format(time.RFC3339)).
 					WithError(logoutErr).
 					Errorln("api: private connectivity logout before suspend failed")
-				WriteError(response, logoutErr)
-				return
+				suspendErr = errors.Join(suspendErr, fmt.Errorf("pc logout failed: %w", logoutErr))
 			}
 		}
 
-		if suspendErr := engine.Suspend(request.Context(), suspendRequest.Labels); suspendErr != nil {
+		if suspendErr != nil {
 			logger.FromRequest(request).
 				WithField("latency", time.Since(startTime)).
 				WithField("time", time.Now().Format(time.RFC3339)).
@@ -45,6 +60,12 @@ func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 				Infoln("api: failed suspend")
 			WriteError(response, suspendErr)
 			return
+		}
+		if pcUsed {
+			if cleanupErr := pc.MarkCleanupComplete(); cleanupErr != nil {
+				WriteError(response, cleanupErr)
+				return
+			}
 		}
 
 		WriteJSON(response, api.SuspendResponse{}, http.StatusOK)

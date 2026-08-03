@@ -40,18 +40,11 @@ func tailscalePath() (string, error) {
 	return exec.LookPath("tailscale")
 }
 
-func platformReady(path string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
-	defer cancel()
-	_, err := tailscaleCommandContext(ctx, path, "status", "--json").CombinedOutput()
-	return err == nil
-}
-
 func securePlatformTokenDir() error {
 	return nil
 }
 
-func legacyEgressResidue() bool {
+func legacyEgressResidue(context.Context) bool {
 	return false
 }
 
