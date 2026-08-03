@@ -57,9 +57,10 @@ const (
 	NotStarted ExecutionStatus = iota
 	Running
 	Complete
-	defaultStepTimeout = 10 * time.Hour // default step timeout
-	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
-	maxStepTimeout     = 24 * 7 * time.Hour // 1 week max timeout
+	defaultStepTimeout     = 10 * time.Hour     // default step timeout
+	stepStatusUpdate       = "DLITE_CI_VM_EXECUTE_TASK_V2"
+	maxStepTimeout         = 24 * 7 * time.Hour // 1 week max timeout
+	logServiceResilienceFF = "CI_LOG_SERVICE_RESILIENCE"
 )
 
 type StepExecutor struct {
@@ -404,7 +405,10 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 		tiConfig = getTiCfg(&r.TIConfig, &r.MtlsConfig, r.Envs)
 	}
 	ctx := context.Background()
-	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig, false)
+	logResilience :
+
+	''''= e.engine.GetPipelineEnvs()[logServiceResilienceFF] == trueValue
+	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig, false, logResilience)
 }
 
 // executeStepHelper is a helper function which is used both by this step executor as well as the
@@ -416,7 +420,8 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 	f RunFunc,
 	wr logstream.Writer,
 	tiCfg *tiCfg.Cfg,
-	enableDebugLogs bool) (*runtime.State, map[string]string,
+	enableDebugLogs bool,
+	logServiceResilience bool) (*runtime.State, map[string]string,
 	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
@@ -470,11 +475,11 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 		// close the stream. If the session is a remote session, the
 		// full log buffer is uploaded to the remote server.
 		if closeErr := wr.Close(); closeErr != nil {
-			if result != nil || (exited != nil && exited.ExitCode != 0) {
-				result = multierror.Append(result, closeErr)
-			} else {
+			if logServiceResilience && result == nil && (exited == nil || exited.ExitCode == 0) {
 				logrus.WithError(closeErr).WithField("key", r.LogKey).
 					Warnln("failed to upload/close log stream, ignoring since step execution passed")
+			} else {
+				result = multierror.Append(result, closeErr)
 			}
 		}
 	}
