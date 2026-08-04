@@ -74,7 +74,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step.Entrypoint = r.RunTestsV2.Entrypoint
 	telemetryData := &types.TelemetryData{}
 
-	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, step.ID, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
+	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, step.ID, log, step.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), err
 	}
@@ -130,7 +130,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	var tests []*types.TestCase
 	if r.RunTestsV2.IntelligenceMode {
 		var collectionErr error
-		tests, collectionErr = collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData, r.Envs)
+		tests, collectionErr = collectTestReportsAndCg(ctx, log, r, start, step.Name, tiConfig, telemetryData, step.Envs)
 		if err == nil {
 			err = collectionErr
 		}
@@ -1191,7 +1191,9 @@ func collectTestReportsAndCg(
 
 	// Parse tests from report files
 	tests, parseErr := report.ParseTests(r.TestReport, r.WorkingDir, log, r.Envs)
-	cg, cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, rerunFailedTests, r)
+	callgraphRequest := *r
+	callgraphRequest.Envs = envs
+	cg, cgErr := collectCgFn(ctx, stepName, time.Since(start).Milliseconds(), log, cgStart, tiConfig, outDir, r.ID, tests, rerunFailedTests, &callgraphRequest)
 	if cgErr != nil {
 		log.WithField("error", cgErr).Errorln(fmt.Sprintf("Unable to collect callgraph. Time taken: %s", time.Since(cgStart)))
 		cgErr = fmt.Errorf("failed to collect callgraph: %s", cgErr)
