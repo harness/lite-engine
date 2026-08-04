@@ -74,7 +74,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step.Entrypoint = r.RunTestsV2.Entrypoint
 	telemetryData := &types.TelemetryData{}
 
-	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, step.ID, log, r.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
+	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, step.ID, log, step.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), err
 	}
