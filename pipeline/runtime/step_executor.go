@@ -405,9 +405,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 		tiConfig = getTiCfg(&r.TIConfig, &r.MtlsConfig, r.Envs)
 	}
 	ctx := context.Background()
-	logResilience :
-
-	''''= e.engine.GetPipelineEnvs()[logServiceResilienceFF] == trueValue
+	logResilience := e.engine.GetPipelineEnvs()[logServiceResilienceFF] == trueValue
 	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig, false, logResilience)
 }
 
