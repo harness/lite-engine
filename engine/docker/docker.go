@@ -677,11 +677,25 @@ func buildCredentialedProxyURL(username, password, proxyURL string) (string, err
 // egress-proxy paths so both follow identical restart behavior.
 func applyProxyToDockerDaemon(ctx context.Context, proxyURL, noProxy, goos string) error {
 	if goos == windowsOS {
+		// Set in lite-engine process memory for our own outbound calls and Docker CLI.
 		os.Setenv("HTTP_PROXY", proxyURL)
 		os.Setenv("HTTPS_PROXY", proxyURL)
 		os.Setenv("NO_PROXY", noProxy)
 
-		if err := exec.Command("Restart-Service", "docker").Run(); err != nil {
+		// Set at Machine scope in the Windows registry so the Docker daemon service
+		// inherits the proxy env vars when it starts. os.Setenv alone only affects the
+		// current process; the Docker service runs independently and reads Machine-level
+		// environment variables from the registry on startup.
+		script := fmt.Sprintf(
+			`[Environment]::SetEnvironmentVariable("HTTP_PROXY", "%s", "Machine"); `+
+				`[Environment]::SetEnvironmentVariable("HTTPS_PROXY", "%s", "Machine"); `+
+				`[Environment]::SetEnvironmentVariable("NO_PROXY", "%s", "Machine")`,
+			proxyURL, proxyURL, noProxy)
+		if err := exec.Command("powershell", "-Command", script).Run(); err != nil {
+			logger.FromContext(ctx).WithError(err).Warnln("failed to set Machine-scope proxy env vars")
+		}
+
+		if err := exec.Command("powershell", "-Command", "Restart-Service docker -Force").Run(); err != nil {
 			logger.FromContext(ctx).WithError(err).Infoln("Error restarting Docker service")
 		}
 		return nil
