@@ -57,7 +57,7 @@ const (
 	NotStarted ExecutionStatus = iota
 	Running
 	Complete
-	defaultStepTimeout     = 10 * time.Hour     // default step timeout
+	defaultStepTimeout     = 10 * time.Hour // default step timeout
 	stepStatusUpdate       = "DLITE_CI_VM_EXECUTE_TASK_V2"
 	maxStepTimeout         = 24 * 7 * time.Hour // 1 week max timeout
 	logServiceResilienceFF = "CI_LOG_SERVICE_RESILIENCE"
@@ -473,7 +473,7 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 		// close the stream. If the session is a remote session, the
 		// full log buffer is uploaded to the remote server.
 		if closeErr := wr.Close(); closeErr != nil {
-			if logServiceResilience && result == nil && (exited == nil || exited.ExitCode == 0) {
+			if logServiceResilience && result == nil && exited != nil && exited.ExitCode == 0 {
 				logrus.WithError(closeErr).WithField("key", r.LogKey).
 					Warnln("failed to upload/close log stream, ignoring since step execution passed")
 			} else {

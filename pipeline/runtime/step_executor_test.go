@@ -26,10 +26,10 @@ type mockLogWriter struct {
 }
 
 func (m *mockLogWriter) Write(p []byte) (int, error) { return len(p), nil }
-func (m *mockLogWriter) Open() error                  { return nil }
-func (m *mockLogWriter) Start()                       {}
-func (m *mockLogWriter) Close() error                 { return m.closeErr }
-func (m *mockLogWriter) Error() error                 { return m.errVal }
+func (m *mockLogWriter) Open() error                 { return nil }
+func (m *mockLogWriter) Start()                      {}
+func (m *mockLogWriter) Close() error                { return m.closeErr }
+func (m *mockLogWriter) Error() error                { return m.errVal }
 
 func newTestStepExecutor() *StepExecutor {
 	return &StepExecutor{
@@ -173,6 +173,33 @@ func TestExecuteStepHelper_CloseErrorPropagatedWhenFlagDisabled(t *testing.T) {
 
 	_, _, _, _, _, _, _, err := executeStepHelper(ctx, r, runFn, mockWr, newTestTiConfig(), false, false)
 	assert.Error(t, err, "log close error should propagate when flag is not set")
+	assert.Contains(t, err.Error(), "log service unavailable")
+}
+
+func TestExecuteStepHelper_CloseErrorPropagatedWhenStateUnknown(t *testing.T) {
+	ctx := context.Background()
+	r := &api.StartStepRequest{
+		ID:     "step-close-nil-state",
+		Name:   "test-step-nil-state",
+		LogKey: "log-key-5",
+		Kind:   api.Run,
+		Run:    api.RunConfig{Command: []string{"echo", "hello"}},
+		Envs:   map[string]string{},
+	}
+
+	mockWr := &mockLogWriter{
+		closeErr: fmt.Errorf("log service unavailable"),
+	}
+
+	// A nil state with no error means the execution result is unknown, so it must
+	// not be treated as a pass even when the resilience flag is enabled.
+	runFn := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+		return nil, nil
+	}
+
+	exited, _, _, _, _, _, _, err := executeStepHelper(ctx, r, runFn, mockWr, newTestTiConfig(), false, true)
+	assert.Nil(t, exited)
+	assert.Error(t, err, "log close error should propagate when the step state is unknown")
 	assert.Contains(t, err.Error(), "log service unavailable")
 }
 
