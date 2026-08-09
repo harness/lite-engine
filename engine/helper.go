@@ -107,7 +107,10 @@ func dockerSetupEnabled(cfg *spec.PipelineConfig) bool {
 func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step) {
 	const quad100 = "100.100.100.100"
 
-	if cfg == nil || step == nil || !cfg.PrivateConnectivity || cfg.Platform.OS != "linux" {
+	// Quad100 is served by tailscaled on the host and is reachable from containers on
+	// Linux (bridge) and Windows (nat). macOS has no Docker steps, so it is excluded.
+	if cfg == nil || step == nil || !cfg.PrivateConnectivity ||
+		(cfg.Platform.OS != "linux" && cfg.Platform.OS != "windows") {
 		return
 	}
 

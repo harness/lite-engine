@@ -190,6 +190,10 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			}
 		}
 
+		// MTU 1280 matches the tailscale0 interface so container traffic to the tailnet is
+		// not fragmented. Linux-only: the Windows nat driver does not support
+		// com.docker.network.driver.mtu (moby#35683); on Windows tailscaled's own MSS
+		// clamping covers TCP, which is the dominant CI workload.
 		if pcCfg.Enabled && runtime.GOOS == "linux" {
 			if s.Network.Options == nil {
 				s.Network.Options = make(map[string]string)

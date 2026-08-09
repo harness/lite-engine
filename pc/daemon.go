@@ -89,7 +89,7 @@ func supportedPlatform() bool {
 
 // RuntimeStatus is called only when DRA explicitly requests the PC health contract.
 func RuntimeStatus(ctx context.Context) (string, bool) {
-	if !supportedPlatform() {
+	if !supportedPlatform() || !platformRuntimeReady() {
 		return "", false
 	}
 	statusCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
@@ -107,7 +107,7 @@ func RuntimeStatus(ctx context.Context) (string, bool) {
 
 func runtimeClean(ctx context.Context, path string) bool {
 	if markerExists() || tokenFileExists() || fileExists(cleanupMarkerPath()) || WasUsed() ||
-		legacyEgressResidue(ctx) {
+		platformNetworkResidue() || legacyEgressResidue(ctx) {
 		return false
 	}
 	loggedIn, known := tailscaleLoginState(ctx, path)
@@ -129,8 +129,10 @@ func tailscaleVersion(ctx context.Context, path string) (string, bool) {
 	return version.String(), true
 }
 
-// JoinAndConfigure joins the host to the customer network. Platform DNS and routes are owned by
-// tailscaled; container-only MTU/DNS is applied to the stage network by engine setup.
+// JoinAndConfigure joins the host to the customer network. Routes are owned by tailscaled;
+// platformNetworkPrepare/Activate handles the one supported runtime exception: the open-source
+// macOS daemon requires its Quad100 resolver to be configured by the caller. Container-only
+// MTU/DNS is applied to the stage network by engine setup.
 func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
@@ -160,6 +162,12 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	if err := writeMarker(lifecycleMarker{State: stateJoining, BindingGeneration: cfg.BindingGeneration}); err != nil {
 		return err
 	}
+	if err := platformNetworkPrepare(ctx, path); err != nil {
+		return errors.Join(
+			fmt.Errorf("pc: failed to prepare platform networking: %w", err),
+			removeFile(MarkerFile),
+		)
+	}
 	if err := writeFileAtomically(TokenFile, []byte(cfg.OIDCToken)); err != nil {
 		return rollbackSetup(ctx, fmt.Errorf("pc: failed to write OIDC token file: %w", err))
 	}
@@ -184,6 +192,9 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	}
 	if err := confirmJoined(ctx, path); err != nil {
 		return rollbackSetup(ctx, err)
+	}
+	if err := platformNetworkActivate(ctx, path); err != nil {
+		return rollbackSetup(ctx, fmt.Errorf("pc: failed to activate platform networking: %w", err))
 	}
 	if err := removeFile(TokenFile); err != nil {
 		return rollbackSetup(ctx, err)
@@ -237,20 +248,32 @@ func logoutUnlocked(ctx context.Context) error {
 	}
 
 	cleanupCtx := context.WithoutCancel(ctx)
-	path, err := tailscalePath()
-	if err != nil {
-		return ErrUnsupported
-	}
+	path, pathErr := tailscalePath()
 	logrus.Infoln("pc: starting tailscale logout")
-	logoutCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), logoutTimeout)
-	defer cancel()
-	_, err = tailscaleCommandContext(logoutCtx, path, "logout").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("pc: tailscale logout failed: %w", err)
+	var cleanupErr error
+	if pathErr != nil {
+		cleanupErr = ErrUnsupported
+	} else {
+		logoutCtx, cancel := context.WithTimeout(cleanupCtx, logoutTimeout)
+		_, logoutErr := tailscaleCommandContext(logoutCtx, path, "logout").CombinedOutput()
+		cancel()
+		if logoutErr != nil {
+			cleanupErr = fmt.Errorf("pc: tailscale logout failed: %w", logoutErr)
+		} else {
+			loggedIn, stateKnown := tailscaleLoginState(cleanupCtx, path)
+			if !stateKnown || loggedIn {
+				cleanupErr = fmt.Errorf(
+					"pc: tailscale logout completed but clean logged-out state could not be confirmed")
+			}
+		}
 	}
-	loggedIn, stateKnown := tailscaleLoginState(cleanupCtx, path)
-	if !stateKnown || loggedIn {
-		return fmt.Errorf("pc: tailscale logout completed but clean logged-out state could not be confirmed")
+	// Restore platform-owned state even if logout failed. The durable cleanup marker remains until
+	// both operations succeed, so DRA will discard rather than reuse an uncertain VM.
+	if restoreErr := platformNetworkRestore(cleanupCtx); restoreErr != nil {
+		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("pc: failed to restore platform networking: %w", restoreErr))
+	}
+	if cleanupErr != nil {
+		return cleanupErr
 	}
 	if err := removeFile(TokenFile); err != nil {
 		return err
@@ -267,7 +290,7 @@ func logoutUnlocked(ctx context.Context) error {
 
 // NeedsNetworkCleanup is a cheap lifecycle gate used by destroy/suspend.
 func NeedsNetworkCleanup() bool {
-	if markerExists() || tokenFileExists() || fileExists(cleanupMarkerPath()) {
+	if markerExists() || tokenFileExists() || fileExists(cleanupMarkerPath()) || platformNetworkResidue() {
 		return true
 	}
 	if !fileExists(usedMarkerPath()) {
@@ -336,9 +359,6 @@ func tailscaleLoginState(ctx context.Context, path string) (loggedIn, known bool
 func tailscaleCommandContext(ctx context.Context, path string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, path, args...)
 	cmd.Env = tailscaleEnvironment()
-	if runtime.GOOS == "darwin" {
-		cmd.Env = append(cmd.Env, "TAILSCALE_BE_CLI=1")
-	}
 	return cmd
 }
 

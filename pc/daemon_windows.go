@@ -56,6 +56,26 @@ func securePlatformTokenDir() error {
 	return nil
 }
 
+func platformRuntimeReady() bool {
+	return true
+}
+
+func platformNetworkPrepare(context.Context, string) error {
+	return nil
+}
+
+func platformNetworkActivate(context.Context, string) error {
+	return nil
+}
+
+func platformNetworkRestore(context.Context) error {
+	return nil
+}
+
+func platformNetworkResidue() bool {
+	return false
+}
+
 func legacyEgressResidue(ctx context.Context) bool {
 	ctx, cancel := context.WithTimeout(ctx, legacyInspectionTimeout)
 	defer cancel()
