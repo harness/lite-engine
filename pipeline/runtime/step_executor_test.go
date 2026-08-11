@@ -238,7 +238,7 @@ func TestExecuteStepHelper_CloseErrorAppendedOnFailure(t *testing.T) {
 
 // On a non-zero exit, a writer error only gates the append — the value appended
 // is the run error, not the writer error itself. The log resilience change left
-// that behaviour untouched, so the nudge text never reaches the step result.
+// that behavior untouched, so the nudge text never reaches the step result.
 func TestExecuteStepHelper_WriterErrorAppendsRunError(t *testing.T) {
 	ctx := context.Background()
 	r := &api.StartStepRequest{
