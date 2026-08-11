@@ -6,14 +6,31 @@ package runtime
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"sync"
 	"testing"
 
+	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
+	"github.com/harness/lite-engine/logstream"
+	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type mockLogWriter struct {
+	closeErr error
+	errVal   error
+}
+
+func (m *mockLogWriter) Write(p []byte) (int, error) { return len(p), nil }
+func (m *mockLogWriter) Open() error                 { return nil }
+func (m *mockLogWriter) Start()                      {}
+func (m *mockLogWriter) Close() error                { return m.closeErr }
+func (m *mockLogWriter) Error() error                { return m.errVal }
 
 func newTestStepExecutor() *StepExecutor {
 	return &StepExecutor{
@@ -104,4 +121,145 @@ func TestStartStepWithStatusUpdate_DifferentIDsCoexist(t *testing.T) {
 	assert.Len(t, e.stepStatus, 2)
 	assert.Equal(t, Running, e.stepStatus["step-a"].Status)
 	assert.Equal(t, Running, e.stepStatus["step-b"].Status)
+}
+
+func newTestTiConfig() *tiCfg.Cfg {
+	cfg := tiCfg.New("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", false, "", "")
+	return &cfg
+}
+
+// runStepHelper calls executeStepHelper and returns only the step state and the
+// error, which are the two values the log resilience tests assert on.
+func runStepHelper(ctx context.Context, r *api.StartStepRequest, f RunFunc, wr logstream.Writer,
+	logServiceResilience bool) (*runtime.State, error) {
+	state, _, _, _, _, _, _, err := executeStepHelper(ctx, r, f, wr, newTestTiConfig(), false, logServiceResilience) //nolint:dogsled
+	return state, err
+}
+
+func TestExecuteStepHelper_CloseErrorIgnoredOnSuccess(t *testing.T) {
+	ctx := context.Background()
+	r := &api.StartStepRequest{
+		ID:     "step-close-pass",
+		Name:   "test-step",
+		LogKey: "log-key-1",
+		Kind:   api.Run,
+		Run:    api.RunConfig{Command: []string{"echo", "hello"}},
+		Envs:   map[string]string{},
+	}
+
+	mockWr := &mockLogWriter{
+		closeErr: fmt.Errorf("log service unavailable"),
+	}
+
+	runFn := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+		return &runtime.State{Exited: true, ExitCode: 0}, nil
+	}
+
+	exited, err := runStepHelper(ctx, r, runFn, mockWr, true)
+	assert.NoError(t, err, "log close error should not fail a passing step when flag is enabled")
+	assert.NotNil(t, exited)
+	assert.Equal(t, 0, exited.ExitCode)
+}
+
+func TestExecuteStepHelper_CloseErrorPropagatedWhenFlagDisabled(t *testing.T) {
+	ctx := context.Background()
+	r := &api.StartStepRequest{
+		ID:     "step-close-no-flag",
+		Name:   "test-step-no-flag",
+		LogKey: "log-key-4",
+		Kind:   api.Run,
+		Run:    api.RunConfig{Command: []string{"echo", "hello"}},
+		Envs:   map[string]string{},
+	}
+
+	mockWr := &mockLogWriter{
+		closeErr: fmt.Errorf("log service unavailable"),
+	}
+
+	runFn := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+		return &runtime.State{Exited: true, ExitCode: 0}, nil
+	}
+
+	_, err := runStepHelper(ctx, r, runFn, mockWr, false)
+	assert.Error(t, err, "log close error should propagate when flag is not set")
+	assert.Contains(t, err.Error(), "log service unavailable")
+}
+
+func TestExecuteStepHelper_CloseErrorPropagatedWhenStateUnknown(t *testing.T) {
+	ctx := context.Background()
+	r := &api.StartStepRequest{
+		ID:     "step-close-nil-state",
+		Name:   "test-step-nil-state",
+		LogKey: "log-key-5",
+		Kind:   api.Run,
+		Run:    api.RunConfig{Command: []string{"echo", "hello"}},
+		Envs:   map[string]string{},
+	}
+
+	mockWr := &mockLogWriter{
+		closeErr: fmt.Errorf("log service unavailable"),
+	}
+
+	// A nil state with no error means the execution result is unknown, so it must
+	// not be treated as a pass even when the resilience flag is enabled.
+	runFn := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+		return nil, nil
+	}
+
+	exited, err := runStepHelper(ctx, r, runFn, mockWr, true)
+	assert.Nil(t, exited)
+	assert.Error(t, err, "log close error should propagate when the step state is unknown")
+	assert.Contains(t, err.Error(), "log service unavailable")
+}
+
+func TestExecuteStepHelper_CloseErrorAppendedOnFailure(t *testing.T) {
+	ctx := context.Background()
+	r := &api.StartStepRequest{
+		ID:     "step-close-fail",
+		Name:   "test-step-fail",
+		LogKey: "log-key-2",
+		Kind:   api.Run,
+		Run:    api.RunConfig{Command: []string{"false"}},
+		Envs:   map[string]string{},
+	}
+
+	mockWr := &mockLogWriter{
+		closeErr: fmt.Errorf("log service unavailable"),
+	}
+
+	runFn := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+		return &runtime.State{Exited: true, ExitCode: 1}, nil
+	}
+
+	_, err := runStepHelper(ctx, r, runFn, mockWr, true)
+	assert.Error(t, err, "log close error should be included when step already failed")
+	assert.Contains(t, err.Error(), "log service unavailable")
+}
+
+// On a non-zero exit, a writer error only gates the append — the value appended
+// is the run error, not the writer error itself. The log resilience change left
+// that behavior untouched, so the nudge text never reaches the step result.
+func TestExecuteStepHelper_WriterErrorAppendsRunError(t *testing.T) {
+	ctx := context.Background()
+	r := &api.StartStepRequest{
+		ID:     "step-wr-err",
+		Name:   "test-step-wr-err",
+		LogKey: "log-key-3",
+		Kind:   api.Run,
+		Run:    api.RunConfig{Command: []string{"false"}},
+		Envs:   map[string]string{},
+	}
+
+	mockWr := &mockLogWriter{
+		errVal: fmt.Errorf("nudge: possible error on line 42"),
+	}
+
+	runFn := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
+		return &runtime.State{Exited: true, ExitCode: 1}, fmt.Errorf("command exited with code 1")
+	}
+
+	_, err := runStepHelper(ctx, r, runFn, mockWr, false)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "command exited with code 1")
+	assert.NotContains(t, err.Error(), "nudge: possible error on line 42")
 }
