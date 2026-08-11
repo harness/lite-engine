@@ -129,10 +129,9 @@ func tailscaleVersion(ctx context.Context, path string) (string, bool) {
 	return version.String(), true
 }
 
-// JoinAndConfigure joins the host to the customer network. Routes are owned by tailscaled;
-// platformNetworkPrepare/Activate handles the one supported runtime exception: the open-source
-// macOS daemon requires its Quad100 resolver to be configured by the caller. Container-only
-// MTU/DNS is applied to the stage network by engine setup.
+// JoinAndConfigure joins the host to the customer network. Routes are owned by tailscaled.
+// Tailscaled also owns host DNS on Linux and Windows; the open-source macOS runtime requires the
+// bounded platform snapshot/apply/restore hook. Container-only MTU/DNS is applied by engine setup.
 func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
@@ -183,6 +182,11 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 		"--accept-dns=true",
 		"--hostname=" + cfg.Hostname,
 		fmt.Sprintf("--timeout=%ds", int(JoinTimeout.Seconds())),
+	}
+	// Windows otherwise associates the session with an interactive user. Hosted VMs run headless,
+	// so keep the system service connected for the full stage lifetime.
+	if runtime.GOOS == "windows" {
+		args = append(args, "--unattended=true")
 	}
 	out, joinErr := tailscaleCommandContext(joinCtx, path, args...).CombinedOutput()
 	if joinErr != nil {

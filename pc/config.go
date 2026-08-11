@@ -8,7 +8,7 @@
 //  1. Decode SetupRequest.
 //  2. ExtractAndStrip — extract the CI-issued workload identity, mask the JWT, and strip all fields.
 //  3. Reject PC combined with an egress proxy.
-//  4. Repair Linux arm64 clock drift before validating the time-bound JWT.
+//  4. Attempt Linux arm64 clock repair before validating the time-bound JWT.
 //  5. Validate the complete contract.
 //  6. JoinAndConfigure revalidates the contract and the prebaked runtime immediately before
 //     joining with WIF (file-backed JWT, never argv or os.Setenv).

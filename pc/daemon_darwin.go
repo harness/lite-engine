@@ -63,6 +63,8 @@ func platformRuntimeReady() bool {
 	return os.Geteuid() == 0
 }
 
+// Open-source tailscaled on macOS does not change the system DNS configuration. Snapshot every
+// enabled network service before joining so Quad100 can be applied and then restored exactly.
 func platformNetworkPrepare(ctx context.Context, _ string) error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("open-source macOS tailscaled DNS setup requires root")

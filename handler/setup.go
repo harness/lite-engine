@@ -110,18 +110,13 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			return
 		}
 
-		// Repair post-hibernate ARM64 clock drift before validating and using the short-lived JWT.
-		// PC cannot safely continue when TLS and JWT time validation may use a stale clock.
-		if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
+		// Repair post-hibernate ARM64 clock drift before validating the JWT when chrony is
+		// available. Token iat/exp validation below remains the fail-closed time authority, so a
+		// correctly synchronized image using another clock service is not rejected.
+		if pcCfg.Enabled && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
 			if syncErr := syncSystemClock(r.Context()); syncErr != nil {
-				if pcCfg.Enabled {
-					logger.FromRequest(r).WithError(syncErr).
-						Errorln("api: system clock synchronization failed before private connectivity enrollment")
-					WriteError(w, fmt.Errorf("private connectivity requires synchronized system time: %w", syncErr))
-					return
-				}
 				logger.FromRequest(r).WithError(syncErr).
-					Warnln("api: system clock synchronization failed; continuing non-PC setup")
+					Warnln("api: optional system clock repair failed; continuing to time-bound token validation")
 			}
 		}
 
