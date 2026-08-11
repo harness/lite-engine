@@ -236,7 +236,10 @@ func TestExecuteStepHelper_CloseErrorAppendedOnFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "log service unavailable")
 }
 
-func TestExecuteStepHelper_WriterErrorAppendedCorrectly(t *testing.T) {
+// On a non-zero exit, a writer error only gates the append — the value appended
+// is the run error, not the writer error itself. The log resilience change left
+// that behaviour untouched, so the nudge text never reaches the step result.
+func TestExecuteStepHelper_WriterErrorAppendsRunError(t *testing.T) {
 	ctx := context.Background()
 	r := &api.StartStepRequest{
 		ID:     "step-wr-err",
@@ -252,10 +255,11 @@ func TestExecuteStepHelper_WriterErrorAppendedCorrectly(t *testing.T) {
 	}
 
 	runFn := func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error) {
-		return &runtime.State{Exited: true, ExitCode: 1}, nil
+		return &runtime.State{Exited: true, ExitCode: 1}, fmt.Errorf("command exited with code 1")
 	}
 
 	_, err := runStepHelper(ctx, r, runFn, mockWr, false)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "nudge: possible error on line 42")
+	assert.Contains(t, err.Error(), "command exited with code 1")
+	assert.NotContains(t, err.Error(), "nudge: possible error on line 42")
 }
