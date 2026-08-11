@@ -12,4 +12,7 @@ package spec
 const (
 	WISocketDir  = "/tmp/harness-wi"
 	WISocketName = "wi.sock"
+	// WIHandleEnv is the env var carrying the opaque per-step mint handle. Its presence on a step marks
+	// that the step has registered workload identities; used to decide whether to bind-mount the socket.
+	WIHandleEnv = "HARNESS_WI_HANDLE"
 )

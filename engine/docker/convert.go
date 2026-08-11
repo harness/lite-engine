@@ -164,9 +164,9 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 	// in-step hcli reaches lite-engine's mint endpoint over a Unix socket (no network port / firewall /
 	// mTLS / DNS). Source == target so the injected HARNESS_WI_MINT_URL is identical whether the step
 	// runs in a container (this mount) or directly on the host (containerless, no mount - hcli reads the
-	// same host path directly). Linux/Mac only. Harmless for steps without workload identities (the
-	// socket is simply unused).
-	if runtime.GOOS != windowsOS {
+	// same host path directly). Linux/Mac only. Only mounted for steps that actually registered a
+	// workload identity (marked by the injected handle env), so ordinary steps get no extra mount.
+	if runtime.GOOS != windowsOS && step.Envs[spec.WIHandleEnv] != "" {
 		if _, err := os.Stat(spec.WISocketDir); err == nil {
 			config.Mounts = append(config.Mounts, mount.Mount{
 				Type:   mount.TypeBind,

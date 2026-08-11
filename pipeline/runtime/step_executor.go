@@ -99,7 +99,13 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		// Workload Identity: register any declared identities and inject the handle + mint URL into the
 		// step env. The workload tokens are held in lite-engine and never exposed to the step. No-op when
 		// the step declares no identities.
-		registerWorkloadIdentities(r)
+		handle := registerWorkloadIdentities(r)
+		// Evict the handle (and the sensitive workload tokens it holds) when the step completes: this bounds
+		// memory across steps on a pooled VM and revokes minting once the step is done. A detached step keeps
+		// running after executeStep returns, so its handle is left in place (cleared on stage/pod teardown).
+		if handle != "" && !r.Detach {
+			defer wiStore.delete(handle)
+		}
 
 		// Read r.Envs BEFORE executeStep: a detached step (Detach && Image=="")
 		// runs in its own goroutine that mutates the step env map, so reading
@@ -190,7 +196,12 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			// Workload Identity: register any declared identities and inject the handle + mint URL into
 			// the step env. Workload tokens are held in lite-engine, never exposed to the step. No-op when
 			// none are declared.
-			registerWorkloadIdentities(r)
+			handle := registerWorkloadIdentities(r)
+			// Evict on step completion (bounds memory + revokes minting once done). Detached steps keep
+			// running after executeStep returns, so their handle is left in place (cleared on teardown).
+			if handle != "" && !r.Detach {
+				defer wiStore.delete(handle)
+			}
 			// Read r.Envs BEFORE executeStep: a detached step runs in its own
 			// goroutine that mutates the step env map, so reading r.Envs after
 			// executeStep would race that writer. See toStep's copyEnvs.

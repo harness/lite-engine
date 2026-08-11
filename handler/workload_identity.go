@@ -30,7 +30,11 @@ func HandleMintWorkloadToken() http.HandlerFunc {
 
 		resp := pruntime.MintWorkloadToken(r.Context(), req)
 		status := http.StatusOK
-		if resp.Error != "" {
+		switch {
+		case resp.Error == pruntime.ErrUnknownWorkloadIdentity:
+			// Unknown handle/name is a not-found (client) condition, not an internal mint failure.
+			status = http.StatusNotFound
+		case resp.Error != "":
 			status = http.StatusInternalServerError
 		}
 		WriteJSON(w, resp, status)

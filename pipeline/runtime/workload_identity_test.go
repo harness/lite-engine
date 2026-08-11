@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/harness/lite-engine/api"
@@ -99,11 +100,79 @@ func TestMintWorkloadToken_Success(t *testing.T) {
 
 func TestMintWorkloadToken_UnknownHandle(t *testing.T) {
 	resp := MintWorkloadToken(context.Background(), api.MintWorkloadTokenRequest{Handle: "nope", Name: "X"})
-	if resp.Error == "" {
-		t.Error("expected an error for unknown handle")
+	if resp.Error != ErrUnknownWorkloadIdentity {
+		t.Errorf("expected %q for unknown handle, got %q", ErrUnknownWorkloadIdentity, resp.Error)
 	}
 	if resp.OidcToken != "" {
 		t.Error("expected no token for unknown handle")
+	}
+}
+
+// A handle evicted on step completion (wiStore.delete) can no longer mint - the revocation guarantee.
+func TestMintWorkloadToken_EvictedHandleRejected(t *testing.T) {
+	handle := "handle-evict"
+	wiStore.put(handle, []api.WorkloadIdentity{
+		{Name: "ID", WorkloadToken: "wtok", Audience: "aud"},
+	}, "https://harnessid/token/generate")
+
+	wiStore.delete(handle) // simulate step completion evicting the handle
+
+	resp := MintWorkloadToken(context.Background(), api.MintWorkloadTokenRequest{Handle: handle, Name: "ID"})
+	if resp.Error != ErrUnknownWorkloadIdentity {
+		t.Errorf("evicted handle should be rejected with %q, got %q", ErrUnknownWorkloadIdentity, resp.Error)
+	}
+	if resp.OidcToken != "" {
+		t.Error("evicted handle must not mint")
+	}
+}
+
+// On an upstream (HarnessID) failure the step must get a generic error, never HarnessID's raw body.
+func TestMintWorkloadToken_UpstreamErrorReturnsGenericWithoutLeak(t *testing.T) {
+	const secret = "INTERNAL-HARNESSID-DIAGNOSTIC-DO-NOT-LEAK"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"` + secret + `"}`))
+	}))
+	defer srv.Close()
+
+	handle := "handle-upstream-err"
+	wiStore.put(handle, []api.WorkloadIdentity{{Name: "ID", WorkloadToken: "wtok", Audience: "aud"}}, srv.URL)
+	defer wiStore.delete(handle)
+
+	resp := MintWorkloadToken(context.Background(), api.MintWorkloadTokenRequest{Handle: handle, Name: "ID"})
+	if resp.Error != "failed to mint workload identity token" {
+		t.Errorf("expected generic error, got %q", resp.Error)
+	}
+	if strings.Contains(resp.Error, secret) {
+		t.Errorf("mint error leaked HarnessID internal detail to the step: %q", resp.Error)
+	}
+	if resp.OidcToken != "" {
+		t.Error("expected no token on failure")
+	}
+}
+
+func TestMintBindAddress(t *testing.T) {
+	t.Setenv(wiMintBindEnv, "")
+	if got, want := MintBindAddress(), ":"+defaultMintPort; got != want {
+		t.Errorf("default MintBindAddress = %q, want %q", got, want)
+	}
+	t.Setenv(wiMintBindEnv, "0.0.0.0:9099")
+	if got := MintBindAddress(); got != "0.0.0.0:9099" {
+		t.Errorf("override MintBindAddress = %q, want 0.0.0.0:9099", got)
+	}
+}
+
+func TestMintBindPort(t *testing.T) {
+	cases := map[string]string{
+		"":             defaultMintPort, // default :9080 -> 9080
+		":9090":        "9090",
+		"0.0.0.0:9091": "9091",
+	}
+	for bind, want := range cases {
+		t.Setenv(wiMintBindEnv, bind)
+		if got := mintBindPort(); got != want {
+			t.Errorf("mintBindPort(bind=%q) = %q, want %q", bind, got, want)
+		}
 	}
 }
 

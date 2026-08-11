@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	goruntime "runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,8 +27,12 @@ import (
 
 const (
 	// wiHandleEnv is injected into the step container. hcli reads it and passes it back to the mint
-	// endpoint; it is a non-secret capability reference, not the workload token.
-	wiHandleEnv = "HARNESS_WI_HANDLE"
+	// endpoint; it is a non-secret capability reference, not the workload token. Shared with the docker
+	// package (which uses it to decide whether to bind-mount the socket) via spec.WIHandleEnv.
+	wiHandleEnv = spec.WIHandleEnv
+	// ErrUnknownWorkloadIdentity is returned when a mint request's handle/name does not resolve. It is a
+	// not-found condition (the handler maps it to HTTP 404), not an internal mint failure.
+	ErrUnknownWorkloadIdentity = "unknown workload identity"
 	// wiMintURLEnv tells hcli where lite-engine's mint endpoint is reachable from inside the step.
 	wiMintURLEnv = "HARNESS_WI_MINT_URL"
 	// wiMintURLOverrideEnv lets the lite-engine process override the mint URL handed to steps (used to
@@ -38,13 +43,12 @@ const (
 	// hostGatewayExtraHost lets the step container resolve the VM host as a fallback when the docker
 	// network gateway IP is not available.
 	hostGatewayExtraHost = "host.docker.internal:host-gateway"
-	// mintPort is the port of lite-engine's dedicated PLAIN-HTTP mint listener (separate from the main
-	// mTLS server on 9079, which the in-step hcli cannot present a client cert for).
-	mintPort = "9080"
-	// defaultMintURL is the fallback mint address when the docker network gateway IP is unavailable. It
-	// relies on host.docker.internal (host-gateway), which is not supported on every VM/Docker; prefer
-	// the gateway IP. Override with HARNESS_WI_MINT_URL_OVERRIDE if needed.
-	defaultMintURL = "http://host.docker.internal:9080/mint_workload_token"
+	// wiMintBindEnv is the address lite-engine's Windows TCP mint listener binds to (Linux/Mac use the unix
+	// socket instead). The injected mint URL derives its port from this SAME var so the listener and the URL
+	// cannot drift; HARNESS_WI_MINT_URL_OVERRIDE still overrides the whole URL when set.
+	wiMintBindEnv = "HARNESS_WI_MINT_BIND"
+	// defaultMintPort is the default TCP port for the Windows mint listener.
+	defaultMintPort = "9080"
 )
 
 // wiEntry is the per-handle registration: the identities the step may mint, plus the HarnessID
@@ -149,7 +153,29 @@ func mintURL() string {
 	if goruntime.GOOS != "windows" {
 		return "unix://" + filepath.Join(spec.WISocketDir, spec.WISocketName)
 	}
-	return defaultMintURL
+	// Windows fallback (no unix sockets in Windows containers): the step reaches lite-engine over TCP via
+	// host.docker.internal. Derive the port from the same bind the listener uses so changing the bind can
+	// never leave the injected URL pointing at the wrong port.
+	return fmt.Sprintf("http://host.docker.internal:%s/mint_workload_token", mintBindPort())
+}
+
+// MintBindAddress is the listen address for the Windows TCP mint server (default :9080), overridable via
+// HARNESS_WI_MINT_BIND. Both the listener (cli/server) and the injected mint URL derive from this single
+// source so they always agree.
+func MintBindAddress() string {
+	if b := os.Getenv(wiMintBindEnv); b != "" {
+		return b
+	}
+	return ":" + defaultMintPort
+}
+
+// mintBindPort returns just the port from MintBindAddress, used to build the mint URL handed to the step.
+func mintBindPort() string {
+	addr := MintBindAddress()
+	if i := strings.LastIndex(addr, ":"); i >= 0 && i+1 < len(addr) {
+		return addr[i+1:]
+	}
+	return defaultMintPort
 }
 
 func appendIfMissing(hosts []string, val string) []string {
@@ -167,7 +193,7 @@ func MintWorkloadToken(ctx context.Context, req api.MintWorkloadTokenRequest) ap
 	wi, tokenURL, ok := wiStore.get(req.Handle, req.Name)
 	if !ok {
 		logrus.WithField("name", req.Name).Warnln("workload-identity: unknown handle/name for mint")
-		return api.MintWorkloadTokenResponse{Error: "unknown workload identity"}
+		return api.MintWorkloadTokenResponse{Error: ErrUnknownWorkloadIdentity}
 	}
 	audience := wi.Audience
 	if req.AudienceOverride != "" {
@@ -175,8 +201,10 @@ func MintWorkloadToken(ctx context.Context, req api.MintWorkloadTokenRequest) ap
 	}
 	token, expiresAt, err := mintOidcToken(ctx, tokenURL, wi.WorkloadToken, audience, wi.TokenMode)
 	if err != nil {
+		// Log the detailed cause (which may carry HarnessID's raw error body) server-side only. Return a
+		// generic message to the step: the step is untrusted and must not see HarnessID's internal payload.
 		logrus.WithError(err).WithField("name", req.Name).Errorln("workload-identity: mint failed")
-		return api.MintWorkloadTokenResponse{Error: err.Error()}
+		return api.MintWorkloadTokenResponse{Error: "failed to mint workload identity token"}
 	}
 	return api.MintWorkloadTokenResponse{OidcToken: token, ExpiresAtUnix: expiresAt}
 }

@@ -128,10 +128,9 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 // listener (named-pipe support is a follow-up; the VM firewall would also need the port opened).
 func startWorkloadIdentityMintServer() {
 	if goruntime.GOOS == "windows" {
-		bind := os.Getenv("HARNESS_WI_MINT_BIND")
-		if bind == "" {
-			bind = ":9080"
-		}
+		// Same source as the injected mint URL (runtime.mintURL) so the listener port and the URL port
+		// can never drift.
+		bind := runtime.MintBindAddress()
 		safego.SafeGo("wi_mint_server", func() {
 			logrus.Infof("workload-identity mint server (tcp) listening at %s", bind)
 			if err := http.ListenAndServe(bind, handler.MintHandler()); err != nil {
