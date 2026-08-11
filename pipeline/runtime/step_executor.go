@@ -497,8 +497,8 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 
 	if exited != nil {
 		if exited.ExitCode != 0 {
-			if wrErr := wr.Error(); wrErr != nil {
-				result = multierror.Append(result, wrErr)
+			if wr.Error() != nil {
+				result = multierror.Append(result, err)
 			}
 		}
 
