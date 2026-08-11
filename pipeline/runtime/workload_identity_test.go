@@ -151,6 +151,22 @@ func TestMintWorkloadToken_UpstreamErrorReturnsGenericWithoutLeak(t *testing.T) 
 	}
 }
 
+// ClearWorkloadIdentities (stage teardown) drops every entry, including a detached step's handle that
+// was never evicted on completion - so nothing is mintable after the stage is destroyed.
+func TestClearWorkloadIdentities_DropsAllHandles(t *testing.T) {
+	wiStore.put("h1", []api.WorkloadIdentity{{Name: "ID", WorkloadToken: "wtok", Audience: "aud"}}, "https://harnessid/token/generate")
+	wiStore.put("h2", []api.WorkloadIdentity{{Name: "ID", WorkloadToken: "wtok", Audience: "aud"}}, "https://harnessid/token/generate")
+
+	ClearWorkloadIdentities()
+
+	for _, h := range []string{"h1", "h2"} {
+		resp := MintWorkloadToken(context.Background(), api.MintWorkloadTokenRequest{Handle: h, Name: "ID"})
+		if resp.Error != ErrUnknownWorkloadIdentity {
+			t.Errorf("handle %q should be gone after clear, got error %q", h, resp.Error)
+		}
+	}
+}
+
 func TestMintBindAddress(t *testing.T) {
 	t.Setenv(wiMintBindEnv, "")
 	if got, want := MintBindAddress(), ":"+defaultMintPort; got != want {

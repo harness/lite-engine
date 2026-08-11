@@ -102,7 +102,8 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		handle := registerWorkloadIdentities(r)
 		// Evict the handle (and the sensitive workload tokens it holds) when the step completes: this bounds
 		// memory across steps on a pooled VM and revokes minting once the step is done. A detached step keeps
-		// running after executeStep returns, so its handle is left in place (cleared on stage/pod teardown).
+		// running after executeStep returns, so its handle is left in place and cleared at stage teardown by
+		// ClearWorkloadIdentities in the Destroy handler.
 		if handle != "" && !r.Detach {
 			defer wiStore.delete(handle)
 		}
@@ -198,7 +199,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			// none are declared.
 			handle := registerWorkloadIdentities(r)
 			// Evict on step completion (bounds memory + revokes minting once done). Detached steps keep
-			// running after executeStep returns, so their handle is left in place (cleared on teardown).
+			// running after executeStep returns, so their handle is cleared at stage teardown
+			// (ClearWorkloadIdentities in the Destroy handler).
 			if handle != "" && !r.Detach {
 				defer wiStore.delete(handle)
 			}

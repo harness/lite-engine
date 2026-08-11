@@ -98,6 +98,20 @@ func (s *workloadIdentityStore) delete(handle string) {
 	delete(s.entries, handle)
 }
 
+func (s *workloadIdentityStore) clear() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = make(map[string]*wiEntry)
+}
+
+// ClearWorkloadIdentities drops all registered workload identities. Called at stage teardown (the Destroy
+// handler), after every step - including detached daemons, which are not evicted on step completion - has
+// stopped. This is the backstop that guarantees no workload token or mintable handle outlives the stage,
+// even on a pooled VM where the lite-engine process is reused across stages.
+func ClearWorkloadIdentities() {
+	wiStore.clear()
+}
+
 func newWorkloadIdentityHandle() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
