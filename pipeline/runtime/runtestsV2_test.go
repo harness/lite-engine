@@ -319,3 +319,39 @@ func TestSanitizeTestGlobsV2(t *testing.T) {
 		})
 	}
 }
+
+// CI-22586: when instrumentation/selection is skipped, TotalSelectedTests stays 0 while
+// report collection still sets TotalTests. backfillRunTestsV2SelectedTelemetry must
+// set selected from totals and always mark IsRunTestV2.
+func TestBackfillRunTestsV2SelectedTelemetry_InstrumentationSkipped(t *testing.T) {
+	telemetryData := &types.TelemetryData{}
+	telemetryData.TestIntelligenceMetaData.TotalTests = 5
+	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 2
+
+	backfillRunTestsV2SelectedTelemetry(telemetryData)
+
+	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
+	assert.Equal(t, 5, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
+	assert.Equal(t, 2, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
+}
+
+func TestBackfillRunTestsV2SelectedTelemetry_PreservesExistingSelected(t *testing.T) {
+	telemetryData := &types.TelemetryData{}
+	telemetryData.TestIntelligenceMetaData.TotalTests = 10
+	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 4
+	telemetryData.TestIntelligenceMetaData.TotalSelectedTests = 3
+	telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass = 1
+	telemetryData.TestIntelligenceMetaData.IsRunTestV2 = true
+
+	backfillRunTestsV2SelectedTelemetry(telemetryData)
+
+	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
+	assert.Equal(t, 3, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
+	assert.Equal(t, 1, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
+}
+
+func TestBackfillRunTestsV2SelectedTelemetry_NilSafe(t *testing.T) {
+	assert.NotPanics(t, func() {
+		backfillRunTestsV2SelectedTelemetry(nil)
+	})
+}
