@@ -328,7 +328,7 @@ func TestBackfillRunTestsV2SelectedTelemetry_InstrumentationSkipped(t *testing.T
 	telemetryData.TestIntelligenceMetaData.TotalTests = 5
 	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 2
 
-	backfillRunTestsV2SelectedTelemetry(telemetryData)
+	backfillRunTestsV2SelectedTelemetry(telemetryData, false)
 
 	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
 	assert.Equal(t, 5, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
@@ -343,15 +343,31 @@ func TestBackfillRunTestsV2SelectedTelemetry_PreservesExistingSelected(t *testin
 	telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass = 1
 	telemetryData.TestIntelligenceMetaData.IsRunTestV2 = true
 
-	backfillRunTestsV2SelectedTelemetry(telemetryData)
+	backfillRunTestsV2SelectedTelemetry(telemetryData, false)
 
 	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
 	assert.Equal(t, 3, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
 	assert.Equal(t, 1, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
 }
 
+// With intelligence on, TI may select zero tests while reports still show totals.
+// Selected must stay 0.
+func TestBackfillRunTestsV2SelectedTelemetry_IntelligenceOn_PreservesZeroSelected(t *testing.T) {
+	telemetryData := &types.TelemetryData{}
+	telemetryData.TestIntelligenceMetaData.TotalTests = 5
+	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 2
+	telemetryData.TestIntelligenceMetaData.TotalSelectedTests = 0
+	telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass = 0
+
+	backfillRunTestsV2SelectedTelemetry(telemetryData, true)
+
+	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
+	assert.Equal(t, 0, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
+	assert.Equal(t, 0, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
+}
+
 func TestBackfillRunTestsV2SelectedTelemetry_NilSafe(t *testing.T) {
 	assert.NotPanics(t, func() {
-		backfillRunTestsV2SelectedTelemetry(nil)
+		backfillRunTestsV2SelectedTelemetry(nil, false)
 	})
 }
