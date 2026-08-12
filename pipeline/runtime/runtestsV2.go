@@ -142,10 +142,11 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 		}
 	}
 
-	// CI-22586: selection telemetry is only written in createSelectedTestFile, which is
-	// skipped when IntelligenceMode is off (and also on the enhanced-TI skip path).
-	// After reports populate TotalTests, backfill selected counts for full runs.
-	backfillRunTestsV2SelectedTelemetry(telemetryData)
+	// CI-22586: selection telemetry is only written when IntelligenceMode is on.
+	// When intelligence is off, selection never ran — after reports populate TotalTests,
+	// backfill selected counts for the full-run path. Do not backfill when intelligence
+	// is on: SelectedTests may legitimately be 0 (all tests skipped).
+	backfillRunTestsV2SelectedTelemetry(telemetryData, r.RunTestsV2.IntelligenceMode)
 
 	// Check if all failed tests are quarantined and update exit code accordingly
 	if exited != nil {
@@ -1144,16 +1145,17 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 	return nil
 }
 
-// backfillRunTestsV2SelectedTelemetry marks the step as RunTests V2 and, when selection
-// never ran (or left SelectedTests at 0) but tests executed, sets selected == total.
-// This covers intelligence-skipped / full-run paths for CI-22586.
-func backfillRunTestsV2SelectedTelemetry(telemetryData *types.TelemetryData) {
+// backfillRunTestsV2SelectedTelemetry marks the step as RunTests V2 and, when
+// intelligence is off (selection never ran) but tests executed, sets selected == total.
+// When intelligence is on, SelectedTests may legitimately be 0 (all skipped) and must
+// not be overwritten from TotalTests (CI-22586).
+func backfillRunTestsV2SelectedTelemetry(telemetryData *types.TelemetryData, intelligenceMode bool) {
 	if telemetryData == nil {
 		return
 	}
 	ti := &telemetryData.TestIntelligenceMetaData
 	ti.IsRunTestV2 = true
-	if ti.TotalSelectedTests == 0 && ti.TotalTests > 0 {
+	if !intelligenceMode && ti.TotalSelectedTests == 0 && ti.TotalTests > 0 {
 		ti.TotalSelectedTests = ti.TotalTests
 		ti.TotalSelectedTestClass = ti.TotalTestClasses
 	}
