@@ -1003,7 +1003,7 @@ fi
 			}
 		}
 
-		if goRuntime.GOOS == "windows" {
+		if goRuntime.GOOS == windowsOS {
 			dotNetAgentPathWindows := fmt.Sprintf("%s%spack/%s", tmpFilePath, dotNetAgentV2Path, dotNetAgentV2LibWin)
 			envs["CORECLR_PROFILER_PATH"] = dotNetAgentPathWindows
 			if jsFFVal, ok := envs["CI_ENABLE_RUNTESTV2_JS_FF"]; ok && jsFFVal == trueValue {

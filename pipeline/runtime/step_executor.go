@@ -97,6 +97,11 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.mu.Unlock()
 
 	safego.WithContext(ctx, "step_executor", func(ctx context.Context) {
+		// Workload Identity: register declared identities (inject handle + mint URL; tokens held in
+		// lite-engine, never exposed to the step) and evict on completion. Detached steps are cleared at
+		// stage teardown (ClearWorkloadIdentities in Destroy). No-op when none are declared.
+		defer setupWorkloadIdentity(r)()
+
 		// Read r.Envs BEFORE executeStep: a detached step (Detach && Image=="")
 		// runs in its own goroutine that mutates the step env map, so reading
 		// r.Envs after executeStep would race that writer. See toStep's copyEnvs
@@ -183,6 +188,9 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			if r.StageRuntimeID != "" && r.Image == "" {
 				setPrevStepExportEnvs(r)
 			}
+			// Workload Identity: register declared identities (handle + mint URL; tokens held in
+			// lite-engine) and evict on completion; detached steps cleared at stage teardown. No-op when none.
+			defer setupWorkloadIdentity(r)()
 			// Read r.Envs BEFORE executeStep: a detached step runs in its own
 			// goroutine that mutates the step env map, so reading r.Envs after
 			// executeStep would race that writer. See toStep's copyEnvs.
