@@ -10,14 +10,14 @@
 //  3. Reject PC combined with an egress proxy.
 //  4. Attempt Linux arm64 clock repair before validating the time-bound JWT.
 //  5. Validate the complete contract.
-//  6. JoinAndConfigure revalidates the contract and the prebaked runtime immediately before
-//     joining with WIF (file-backed JWT, never argv or os.Setenv).
+//  6. JoinAndConfigure revalidates the contract and installed runtime, starts tailscaled through
+//     the OS service manager, and joins with WIF (file-backed JWT, never argv or os.Setenv).
 //  7. engine.Setup applies container-scoped DNS/MTU configuration.
 //
 // /destroy order:
 //  1. engine.Destroy (containers first while connectivity remains).
-//  2. Logout from the prebaked Tailscale runtime.
-//  3. Delete token/marker files.
+//  2. Logout from Tailscale, verify the logged-out state, and stop its OS service.
+//  3. Delete token/marker files only after cleanup succeeds.
 package pc
 
 import (
@@ -42,7 +42,7 @@ const (
 	DefaultTag = "tag:ci-runner"
 	// ContractVersion identifies the cross-repository DRA/LE lifecycle contract.
 	ContractVersion = "v2"
-	JoinTimeout     = 90 * time.Second
+	JoinTimeout     = 20 * time.Second
 
 	maxOIDCTokenLifetime = 60 * time.Minute
 	oidcClockSkew        = 30 * time.Second

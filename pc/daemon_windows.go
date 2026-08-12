@@ -57,7 +57,36 @@ func securePlatformTokenDir() error {
 }
 
 func platformRuntimeReady() bool {
-	return true
+	ctx, cancel := context.WithTimeout(context.Background(), runtimeStatusTimeout)
+	defer cancel()
+	return exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+		"Get-Service -Name 'Tailscale' -ErrorAction Stop | Out-Null").Run() == nil
+}
+
+func platformRuntimeStart(ctx context.Context) error {
+	command := "$service = Get-Service -Name 'Tailscale' -ErrorAction Stop; " +
+		"if ($service.Status -ne 'Running') { Start-Service -Name 'Tailscale' -ErrorAction Stop }; " +
+		"$service.WaitForStatus('Running', [TimeSpan]::FromSeconds(30)); " +
+		"if ($service.Status -ne 'Running') { throw 'Tailscale service did not become running' }"
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
+	defer cancel()
+	if out, err := exec.CommandContext(commandCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command).CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to start Tailscale service: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func platformRuntimeStop(ctx context.Context) error {
+	command := "$service = Get-Service -Name 'Tailscale' -ErrorAction Stop; " +
+		"if ($service.Status -ne 'Stopped') { Stop-Service -Name 'Tailscale' -Force -ErrorAction Stop }; " +
+		"$service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30)); " +
+		"if ($service.Status -ne 'Stopped') { throw 'Tailscale service did not become stopped' }"
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
+	defer cancel()
+	if out, err := exec.CommandContext(commandCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command).CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to stop Tailscale service: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
 
 func platformNetworkPrepare(context.Context, string) error {

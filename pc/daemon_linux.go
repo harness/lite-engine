@@ -8,6 +8,7 @@ package pc
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -31,7 +32,36 @@ func securePlatformTokenDir() error {
 }
 
 func platformRuntimeReady() bool {
-	return true
+	if _, err := exec.LookPath("tailscaled"); err != nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), runtimeStatusTimeout)
+	defer cancel()
+	return exec.CommandContext(ctx, "systemctl", "cat", "tailscaled.service").Run() == nil
+}
+
+func platformRuntimeStart(ctx context.Context) error {
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
+	defer cancel()
+	if out, err := exec.CommandContext(commandCtx, "systemctl", "start", "tailscaled.service").CombinedOutput(); err != nil {
+		return fmt.Errorf("systemctl start tailscaled failed: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	if err := exec.CommandContext(commandCtx, "systemctl", "is-active", "--quiet", "tailscaled.service").Run(); err != nil {
+		return fmt.Errorf("tailscaled did not become active: %w", err)
+	}
+	return nil
+}
+
+func platformRuntimeStop(ctx context.Context) error {
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
+	defer cancel()
+	if out, err := exec.CommandContext(commandCtx, "systemctl", "stop", "tailscaled.service").CombinedOutput(); err != nil {
+		return fmt.Errorf("systemctl stop tailscaled failed: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	if exec.CommandContext(commandCtx, "systemctl", "is-active", "--quiet", "tailscaled.service").Run() == nil {
+		return fmt.Errorf("tailscaled remains active after stop")
+	}
+	return nil
 }
 
 func platformNetworkPrepare(context.Context, string) error {

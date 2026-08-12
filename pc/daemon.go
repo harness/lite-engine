@@ -18,27 +18,25 @@ import (
 	"sync"
 	"time"
 
-	semver "github.com/coreos/go-semver/semver"
 	"github.com/sirupsen/logrus"
 )
 
 const (
-	approvedTailscaleVersion = "1.98.9"
-	logoutTimeout            = 30 * time.Second
-	statusTimeout            = 10 * time.Second
-	versionTimeout           = 5 * time.Second
-	legacyInspectionTimeout  = 5 * time.Second
-	runtimeStatusTimeout     = 8 * time.Second
-	privateFileMode          = os.FileMode(0600)
-	privateDirectoryMode     = os.FileMode(0700)
+	logoutTimeout           = 30 * time.Second
+	statusTimeout           = 10 * time.Second
+	joinedStatusTimeout     = 5 * time.Second
+	versionTimeout          = 5 * time.Second
+	legacyInspectionTimeout = 5 * time.Second
+	runtimeStatusTimeout    = 8 * time.Second
+	runtimeServiceTimeout   = 30 * time.Second
+	privateFileMode         = os.FileMode(0600)
+	privateDirectoryMode    = os.FileMode(0700)
 )
 
 var (
-	// ErrUnsupported is returned when the certified, prebaked runtime is unavailable.
-	ErrUnsupported = fmt.Errorf(
-		"pc: a stable tailscale 1.x runtime at or above %s is required",
-		approvedTailscaleVersion)
-	lifecycleMu sync.Mutex
+	// ErrUnsupported is returned when the installed Tailscale CLI or service is unavailable.
+	ErrUnsupported = fmt.Errorf("pc: an installed tailscale runtime is required")
+	lifecycleMu    sync.Mutex
 )
 
 type lifecycleState string
@@ -87,7 +85,9 @@ func supportedPlatform() bool {
 	}
 }
 
-// RuntimeStatus is called only when DRA explicitly requests the PC health contract.
+// RuntimeStatus provides an opt-in diagnostic health view. It does not start tailscaled and it
+// does not enforce a Tailscale version. Setup performs the authoritative validation inside
+// JoinAndConfigure after LE has stripped the OIDC token from the request.
 func RuntimeStatus(ctx context.Context) (string, bool) {
 	if !supportedPlatform() || !platformRuntimeReady() {
 		return "", false
@@ -98,18 +98,19 @@ func RuntimeStatus(ctx context.Context) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	version, versionKnown := tailscaleVersion(statusCtx, path)
-	if !versionKnown {
-		return "", false
-	}
-	return version, runtimeClean(statusCtx, path)
+	version, _ := tailscaleVersion(statusCtx, path)
+	return version, localRuntimeClean(statusCtx)
 }
 
-func runtimeClean(ctx context.Context, path string) bool {
+func localRuntimeClean(ctx context.Context) bool {
 	if markerExists() || tokenFileExists() || fileExists(cleanupMarkerPath()) || WasUsed() ||
 		platformNetworkResidue() || legacyEgressResidue(ctx) {
 		return false
 	}
+	return true
+}
+
+func runtimeLoggedOut(ctx context.Context, path string) bool {
 	loggedIn, known := tailscaleLoginState(ctx, path)
 	return known && !loggedIn
 }
@@ -122,11 +123,10 @@ func tailscaleVersion(ctx context.Context, path string) (string, bool) {
 		return "", false
 	}
 	line := strings.TrimPrefix(strings.TrimSpace(strings.Split(string(out), "\n")[0]), "v")
-	version, err := semver.NewVersion(line)
-	if err != nil {
+	if line == "" {
 		return "", false
 	}
-	return version.String(), true
+	return line, true
 }
 
 // JoinAndConfigure joins the host to the customer network. Routes are owned by tailscaled.
@@ -143,23 +143,33 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return ErrUnsupported
 	}
-	version, ok := tailscaleVersion(ctx, path)
-	if !ok || !supportedTailscaleVersion(version) {
-		return ErrUnsupported
-	}
-	if !runtimeClean(ctx, path) {
+	if !localRuntimeClean(ctx) {
 		return fmt.Errorf("pc: runtime is dirty; VM reuse is forbidden")
 	}
+	serviceStart := time.Now()
+	if err := platformRuntimeStart(ctx); err != nil {
+		logrus.WithError(err).
+			WithField("latency", time.Since(serviceStart)).
+			Errorln("pc: tailscaled service start failed")
+		return fmt.Errorf("pc: failed to start tailscaled service: %w", err)
+	}
+	logrus.WithField("latency", time.Since(serviceStart)).Infoln("pc: tailscaled service start completed")
+	if !runtimeLoggedOut(ctx, path) {
+		stopErr := platformRuntimeStop(context.WithoutCancel(ctx))
+		return errors.Join(
+			fmt.Errorf("pc: runtime is dirty; VM reuse is forbidden"),
+			stopErr,
+		)
+	}
 	logrus.WithFields(logrus.Fields{
-		"tailscale_version":  version,
 		"binding_generation": cfg.BindingGeneration,
 		"hostname":           cfg.Hostname,
-	}).Infoln("pc: runtime preflight completed")
+	}).Infoln("pc: installed runtime is ready for join")
 	if err := secureTokenDir(); err != nil {
-		return err
+		return errors.Join(err, platformRuntimeStop(context.WithoutCancel(ctx)))
 	}
 	if err := writeMarker(lifecycleMarker{State: stateJoining, BindingGeneration: cfg.BindingGeneration}); err != nil {
-		return err
+		return errors.Join(err, platformRuntimeStop(context.WithoutCancel(ctx)))
 	}
 	if err := platformNetworkPrepare(ctx, path); err != nil {
 		return errors.Join(
@@ -188,15 +198,25 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	if runtime.GOOS == "windows" {
 		args = append(args, "--unattended=true")
 	}
+	joinStart := time.Now()
 	out, joinErr := tailscaleCommandContext(joinCtx, path, args...).CombinedOutput()
 	if joinErr != nil {
 		safeOutput := strings.ReplaceAll(string(out), cfg.OIDCToken, "[REDACTED]")
-		logrus.WithError(joinErr).WithField("output", safeOutput).Errorln("pc: tailscale up failed")
+		logrus.WithError(joinErr).
+			WithField("latency", time.Since(joinStart)).
+			WithField("output", safeOutput).
+			Errorln("pc: tailscale up failed")
 		return rollbackSetup(ctx, fmt.Errorf("pc: tailscale up failed: %w", joinErr))
 	}
+	logrus.WithField("latency", time.Since(joinStart)).Infoln("pc: tailscale up completed")
+	confirmationStart := time.Now()
 	if err := confirmJoined(ctx, path); err != nil {
+		logrus.WithError(err).
+			WithField("latency", time.Since(confirmationStart)).
+			Errorln("pc: joined-state confirmation failed")
 		return rollbackSetup(ctx, err)
 	}
+	logrus.WithField("latency", time.Since(confirmationStart)).Infoln("pc: joined-state confirmation completed")
 	if err := platformNetworkActivate(ctx, path); err != nil {
 		return rollbackSetup(ctx, fmt.Errorf("pc: failed to activate platform networking: %w", err))
 	}
@@ -213,15 +233,6 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func supportedTailscaleVersion(value string) bool {
-	version, err := semver.NewVersion(strings.TrimPrefix(strings.TrimSpace(value), "v"))
-	if err != nil || version.Major != 1 || version.PreRelease != "" {
-		return false
-	}
-	minimum := semver.New(approvedTailscaleVersion)
-	return version.Compare(*minimum) >= 0
-}
-
 func rollbackSetup(ctx context.Context, cause error) error {
 	if cleanupErr := logoutUnlocked(ctx); cleanupErr != nil {
 		return errors.Join(cause, fmt.Errorf("pc: setup rollback failed: %w", cleanupErr))
@@ -229,7 +240,7 @@ func rollbackSetup(ctx context.Context, cause error) error {
 	return cause
 }
 
-// Logout removes the authenticated session. The daemon remains running and idle for VM reuse.
+// Logout removes the authenticated session and stops the OS-managed daemon before VM reuse.
 func Logout(ctx context.Context) error {
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
@@ -258,16 +269,20 @@ func logoutUnlocked(ctx context.Context) error {
 	if pathErr != nil {
 		cleanupErr = ErrUnsupported
 	} else {
-		logoutCtx, cancel := context.WithTimeout(cleanupCtx, logoutTimeout)
-		_, logoutErr := tailscaleCommandContext(logoutCtx, path, "logout").CombinedOutput()
-		cancel()
-		if logoutErr != nil {
-			cleanupErr = fmt.Errorf("pc: tailscale logout failed: %w", logoutErr)
+		if startErr := platformRuntimeStart(cleanupCtx); startErr != nil {
+			cleanupErr = fmt.Errorf("pc: failed to start tailscaled for cleanup: %w", startErr)
 		} else {
-			loggedIn, stateKnown := tailscaleLoginState(cleanupCtx, path)
-			if !stateKnown || loggedIn {
-				cleanupErr = fmt.Errorf(
-					"pc: tailscale logout completed but clean logged-out state could not be confirmed")
+			logoutCtx, cancel := context.WithTimeout(cleanupCtx, logoutTimeout)
+			_, logoutErr := tailscaleCommandContext(logoutCtx, path, "logout").CombinedOutput()
+			cancel()
+			if logoutErr != nil {
+				cleanupErr = fmt.Errorf("pc: tailscale logout failed: %w", logoutErr)
+			} else {
+				loggedIn, stateKnown := tailscaleLoginState(cleanupCtx, path)
+				if !stateKnown || loggedIn {
+					cleanupErr = fmt.Errorf(
+						"pc: tailscale logout completed but clean logged-out state could not be confirmed")
+				}
 			}
 		}
 	}
@@ -275,6 +290,9 @@ func logoutUnlocked(ctx context.Context) error {
 	// both operations succeed, so DRA will discard rather than reuse an uncertain VM.
 	if restoreErr := platformNetworkRestore(cleanupCtx); restoreErr != nil {
 		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("pc: failed to restore platform networking: %w", restoreErr))
+	}
+	if stopErr := platformRuntimeStop(cleanupCtx); stopErr != nil {
+		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("pc: failed to stop tailscaled service: %w", stopErr))
 	}
 	if cleanupErr != nil {
 		return cleanupErr
@@ -288,7 +306,7 @@ func logoutUnlocked(ctx context.Context) error {
 	if err := removeFile(cleanupMarkerPath()); err != nil {
 		return err
 	}
-	logrus.Infoln("pc: tailscale logout and clean-state verification completed")
+	logrus.Infoln("pc: tailscale logout, clean-state verification, and service stop completed")
 	return nil
 }
 
@@ -309,7 +327,7 @@ func NeedsNetworkCleanup() bool {
 }
 
 func confirmJoined(ctx context.Context, path string) error {
-	statusCtx, cancel := context.WithTimeout(ctx, statusTimeout)
+	statusCtx, cancel := context.WithTimeout(ctx, joinedStatusTimeout)
 	defer cancel()
 	out, err := tailscaleCommandContext(statusCtx, path, "status", "--json").CombinedOutput()
 	if err != nil {

@@ -247,7 +247,6 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			WriteError(w, errors.Join(err, rollbackErr))
 			return
 		}
-
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
 		logger.FromRequest(r).
 			WithField("latency", time.Since(st)).

@@ -63,6 +63,44 @@ func platformRuntimeReady() bool {
 	return os.Geteuid() == 0
 }
 
+func platformRuntimeStart(ctx context.Context) error {
+	const daemonPath = "/opt/homebrew/bin/tailscaled"
+	if darwinRuntimeRegistered(ctx) {
+		return nil
+	}
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(commandCtx, daemonPath, "install-system-daemon").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to register tailscaled with launchd: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	if !darwinRuntimeRegistered(commandCtx) {
+		return fmt.Errorf("tailscaled launchd service did not become available")
+	}
+	return nil
+}
+
+func platformRuntimeStop(ctx context.Context) error {
+	const daemonPath = "/opt/homebrew/bin/tailscaled"
+	if !darwinRuntimeRegistered(ctx) {
+		return nil
+	}
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(commandCtx, daemonPath, "uninstall-system-daemon").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to unregister tailscaled from launchd: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	if darwinRuntimeRegistered(commandCtx) {
+		return fmt.Errorf("tailscaled launchd service remains registered after cleanup")
+	}
+	return nil
+}
+
+func darwinRuntimeRegistered(ctx context.Context) bool {
+	return exec.CommandContext(ctx, "/bin/launchctl", "print", "system/com.tailscale.tailscaled").Run() == nil
+}
+
 // Open-source tailscaled on macOS does not change the system DNS configuration. Snapshot every
 // enabled network service before joining so Quad100 can be applied and then restored exactly.
 func platformNetworkPrepare(ctx context.Context, _ string) error {

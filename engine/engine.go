@@ -16,6 +16,7 @@ import (
 	osruntime "runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/common/external"
@@ -196,7 +197,17 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	e.mu.Unlock()
 	// required to support m1 where docker isn't installed.
 	if dockerSetupEnabled(pipelineConfig) {
-		return e.docker.Setup(ctx, pipelineConfig)
+		start := time.Now()
+		err := e.docker.Setup(ctx, pipelineConfig)
+		if pipelineConfig.PrivateConnectivity {
+			entry := logrus.WithField("latency", time.Since(start))
+			if err != nil {
+				entry.WithError(err).Errorln("pc: Docker setup failed")
+			} else {
+				entry.Infoln("pc: Docker setup completed")
+			}
+		}
+		return err
 	}
 	return nil
 }
