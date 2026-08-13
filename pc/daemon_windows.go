@@ -154,13 +154,18 @@ func platformNetworkActivate(ctx context.Context, path string) error {
 		return fmt.Errorf("failed to encode Tailscale DNS namespaces: %w", err)
 	}
 
-	// A conflicting pre-existing rule is not overwritten. Doing so could break an
-	// image/customer DNS policy. Rules created here carry a unique comment and are
-	// the only rules removed during rollback/destroy.
+	// Tailscale intentionally groups several split-DNS suffixes into one NRPT rule.
+	// Windows Server accepts that policy but does not consistently apply it to host
+	// or container lookups. Install an equivalent single-suffix rule for each domain,
+	// but permit overlap only with rule IDs explicitly owned by Tailscale. Rules made
+	// here carry our unique comment and are the only rules removed during cleanup.
 	script := `$ErrorActionPreference = 'Stop'
 $managedComment = '` + nrptRuleComment + `'
 $quad100 = '` + quad100DNSAddress + `'
 $namespaces = @(([Console]::In.ReadToEnd() | ConvertFrom-Json) | ForEach-Object { [string]$_ })
+$tailscaleRuleIds = @((Get-ItemProperty -Path 'HKLM:\SOFTWARE\Tailscale IPN' -Name 'NRPTRuleIDs' -ErrorAction Stop).NRPTRuleIDs |
+  ForEach-Object { [string]$_ })
+if ($tailscaleRuleIds.Count -eq 0) { throw "Tailscale NRPT ownership metadata is missing" }
 $allRules = @(Get-DnsClientNrptRule -ErrorAction Stop)
 foreach ($namespace in $namespaces) {
   $matches = @($allRules | Where-Object {
@@ -168,9 +173,10 @@ foreach ($namespace in $namespaces) {
       ForEach-Object { $_.Trim().Trim('.').ToLowerInvariant() })
     $normalized -contains $namespace
   })
-  $managed = @($matches | Where-Object { $_.Comment -eq $managedComment -and @($_.NameServers) -contains $quad100 })
+  $managed = @($matches | Where-Object { $_.Comment -eq $managedComment })
   if ($managed.Count -gt 0) { continue }
-  if ($matches.Count -gt 0) { throw "conflicting NRPT rule for requested private DNS namespace" }
+  $foreign = @($matches | Where-Object { $tailscaleRuleIds -notcontains [string]$_.Name })
+  if ($foreign.Count -gt 0) { throw "conflicting non-Tailscale NRPT rule for requested private DNS namespace" }
   Add-DnsClientNrptRule -Namespace ".$namespace" -NameServers $quad100 -Comment $managedComment -DisplayName 'Harness Private Connectivity' -ErrorAction Stop | Out-Null
 }
 Clear-DnsClientCache -ErrorAction Stop`
@@ -207,15 +213,12 @@ Clear-DnsClientCache -ErrorAction Stop`
 }
 
 func platformNetworkResidue() bool {
-	script := `$rule = Get-DnsClientNrptRule -ErrorAction Stop |
-  Where-Object { $_.Comment -eq '` + nrptRuleComment + `' } |
-  Select-Object -First 1
-if ($null -ne $rule) { Write-Output 'present' }`
-	ctx, cancel := context.WithTimeout(context.Background(), nrptCommandTimeout)
-	defer cancel()
-	output, err := exec.CommandContext(
-		ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).CombinedOutput()
-	return err != nil || strings.TrimSpace(string(output)) == "present"
+	// Lite Engine writes its lifecycle marker before changing Windows networking and
+	// retains the cleanup-incomplete marker until NRPT restoration succeeds. Those
+	// durable files are the reuse fence. Avoid a cold Get-DnsClientNrptRule call here:
+	// on Windows Server it can exceed the setup deadline even on an otherwise clean VM.
+	// Exact pre-existing suffix conflicts are still checked before a rule is added.
+	return false
 }
 
 func normalizeNRPTNamespace(value string) (string, bool) {
@@ -239,23 +242,11 @@ func normalizeNRPTNamespace(value string) (string, bool) {
 	return namespace, true
 }
 
-func legacyEgressResidue(ctx context.Context) bool {
-	ruleCtx, cancelRules := context.WithTimeout(ctx, legacyInspectionTimeout)
-	ruleCommand := "$rule = Get-NetFirewallRule -DisplayName 'Egress-Allow-*' " +
-		"-ErrorAction SilentlyContinue | Select-Object -First 1; " +
-		"if ($null -ne $rule) { Write-Output 'present' }"
-	out, err := exec.CommandContext(
-		ruleCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ruleCommand).CombinedOutput()
-	cancelRules()
-	if err != nil || strings.TrimSpace(string(out)) == "present" {
-		return true
-	}
-
-	policyCtx, cancelPolicy := context.WithTimeout(ctx, legacyInspectionTimeout)
-	policy, policyErr := exec.CommandContext(
-		policyCtx, "netsh", "advfirewall", "show", "allprofiles").CombinedOutput()
-	cancelPolicy()
-	return policyErr != nil || strings.Contains(strings.ToLower(string(policy)), "blockoutbound")
+func legacyEgressResidue(context.Context) bool {
+	// Lite Engine has no Windows egress-policy implementation and therefore no
+	// historical Windows residue to recover. Reuse remains fenced by the durable
+	// PC lifecycle, token, cleanup and used markers checked by localRuntimeClean.
+	return false
 }
 
 func replaceFileAtomically(source, destination string) error {

@@ -206,7 +206,7 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 			WithField("latency", time.Since(joinStart)).
 			WithField("output", safeOutput).
 			Errorln("pc: tailscale up failed")
-		return rollbackSetup(ctx, fmt.Errorf("pc: tailscale up failed: %w", joinErr))
+		return rollbackSetup(ctx, fmt.Errorf("pc: tailscale up failed: %w (%s)", joinErr, strings.TrimSpace(safeOutput)))
 	}
 	logrus.WithField("latency", time.Since(joinStart)).Infoln("pc: tailscale up completed")
 	confirmationStart := time.Now()
