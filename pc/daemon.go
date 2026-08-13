@@ -234,7 +234,12 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 }
 
 func rollbackSetup(ctx context.Context, cause error) error {
-	if cleanupErr := logoutUnlocked(ctx); cleanupErr != nil {
+	// A failed PC setup is outcome-indeterminate and DRA always discards the VM. On
+	// Windows, the Tailscale service can reject self-logout because its LocalSystem
+	// caller does not own the generated login profile. Disposal cleanup may defer
+	// removal of that already-ephemeral node after stopping the service; reusable
+	// cleanup remains strict.
+	if cleanupErr := logoutUnlocked(ctx, true); cleanupErr != nil {
 		return errors.Join(cause, fmt.Errorf("pc: setup rollback failed: %w", cleanupErr))
 	}
 	return cause
@@ -244,10 +249,20 @@ func rollbackSetup(ctx context.Context, cause error) error {
 func Logout(ctx context.Context) error {
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
-	return logoutUnlocked(ctx)
+	return logoutUnlocked(ctx, false)
 }
 
-func logoutUnlocked(ctx context.Context) error {
+// LogoutForDisposal performs terminal cleanup for a VM that DRA will destroy. It differs from
+// Logout only for the documented Windows LocalSystem profile-ownership failure: the service is
+// stopped and the already-ephemeral node is allowed to age out instead of making VM destruction
+// report a false cleanup failure. It must never be used before suspend or pool reuse.
+func LogoutForDisposal(ctx context.Context) error {
+	lifecycleMu.Lock()
+	defer lifecycleMu.Unlock()
+	return logoutUnlocked(ctx, true)
+}
+
+func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) error {
 	if err := secureTokenDir(); err != nil {
 		return err
 	}
@@ -266,6 +281,7 @@ func logoutUnlocked(ctx context.Context) error {
 	path, pathErr := tailscalePath()
 	logrus.Infoln("pc: starting tailscale logout")
 	var cleanupErr error
+	deferredEphemeralRemoval := false
 	if pathErr != nil {
 		cleanupErr = ErrUnsupported
 	} else {
@@ -273,10 +289,24 @@ func logoutUnlocked(ctx context.Context) error {
 			cleanupErr = fmt.Errorf("pc: failed to start tailscaled for cleanup: %w", startErr)
 		} else {
 			logoutCtx, cancel := context.WithTimeout(cleanupCtx, logoutTimeout)
-			_, logoutErr := tailscaleCommandContext(logoutCtx, path, "logout").CombinedOutput()
+			logoutOutput, logoutErr := tailscaleCommandContext(logoutCtx, path, "logout").CombinedOutput()
 			cancel()
 			if logoutErr != nil {
-				cleanupErr = fmt.Errorf("pc: tailscale logout failed: %w", logoutErr)
+				// Tailscale's Windows service currently creates an unattended profile that
+				// its LocalSystem CLI actor cannot later disconnect. The node is already
+				// ephemeral (the WIF client ID requests ephemeral=true), so terminal VM
+				// disposal can safely stop the service and let the control plane remove the
+				// offline node. Never accept this for suspend/reuse, and never expose the
+				// command output in logs or returned errors.
+				if allowDeferredWindowsRemoval && runtime.GOOS == "windows" &&
+					strings.Contains(strings.ToLower(string(logoutOutput)),
+						"target profile does not belong to the user") {
+					deferredEphemeralRemoval = true
+					logrus.Warnln(
+						"pc: Windows profile ownership prevented immediate logout; stopping the service and deferring removal of the ephemeral node")
+				} else {
+					cleanupErr = fmt.Errorf("pc: tailscale logout failed: %w", logoutErr)
+				}
 			} else {
 				loggedIn, stateKnown := tailscaleLoginState(cleanupCtx, path)
 				if !stateKnown || loggedIn {
@@ -306,7 +336,11 @@ func logoutUnlocked(ctx context.Context) error {
 	if err := removeFile(cleanupMarkerPath()); err != nil {
 		return err
 	}
-	logrus.Infoln("pc: tailscale logout, clean-state verification, and service stop completed")
+	if deferredEphemeralRemoval {
+		logrus.Infoln("pc: tailscaled service stopped; ephemeral node removal deferred to the Tailscale control plane")
+	} else {
+		logrus.Infoln("pc: tailscale logout, clean-state verification, and service stop completed")
+	}
 	return nil
 }
 

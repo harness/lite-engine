@@ -237,7 +237,10 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			resourceRollbackCancel()
 			var logoutErr error
 			if pc.NeedsNetworkCleanup() {
-				logoutErr = pc.Logout(cleanupCtx)
+				// A failed PC setup is never retried on this VM; DRA discards it.
+				// Allow the same terminal Windows ephemeral-node cleanup used by
+				// /destroy while keeping /suspend strict for reusable VMs.
+				logoutErr = pc.LogoutForDisposal(cleanupCtx)
 			}
 			rollbackErr := errors.Join(resourceRollbackErr, logoutErr)
 			if rollbackErr != nil {

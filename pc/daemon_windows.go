@@ -8,13 +8,23 @@ package pc
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
+)
+
+const (
+	quad100DNSAddress  = "100.100.100.100"
+	nrptRuleComment    = "Harness Cloud Private Connectivity (managed by lite-engine)"
+	nrptCommandTimeout = 15 * time.Second
 )
 
 var (
@@ -95,16 +105,135 @@ func platformNetworkPrepare(context.Context, string) error {
 	return nil
 }
 
-func platformNetworkActivate(context.Context, string) error {
+func platformNetworkActivate(ctx context.Context, path string) error {
+	// The Tailscale daemon is the source of truth for both customer split DNS and
+	// App Connector's invisible DNS routes. On Windows Server images, the daemon's
+	// built-in resolver can answer those names while the OS is occasionally missing
+	// the corresponding NRPT suffix. Repair only those authoritative suffixes; never
+	// install a global '.' rule or redirect public DNS.
+	statusCtx, cancelStatus := context.WithTimeout(ctx, nrptCommandTimeout)
+	output, err := tailscaleCommandContext(statusCtx, path, "dns", "status", "--json").CombinedOutput()
+	cancelStatus()
+	if err != nil {
+		return fmt.Errorf("failed to read Tailscale DNS status: %w", err)
+	}
+	var status struct {
+		TailscaleDNS   bool                       `json:"TailscaleDNS"`
+		SplitDNSRoutes map[string]json.RawMessage `json:"SplitDNSRoutes"`
+	}
+	if err := json.Unmarshal(output, &status); err != nil {
+		return fmt.Errorf("failed to parse Tailscale DNS status: %w", err)
+	}
+	if !status.TailscaleDNS {
+		return fmt.Errorf("Tailscale DNS is not enabled after join")
+	}
+
+	namespaces := make([]string, 0, len(status.SplitDNSRoutes))
+	seen := make(map[string]struct{}, len(status.SplitDNSRoutes))
+	for rawNamespace := range status.SplitDNSRoutes {
+		namespace, ok := normalizeNRPTNamespace(rawNamespace)
+		if !ok {
+			if strings.TrimSpace(rawNamespace) == "." {
+				continue
+			}
+			return fmt.Errorf("Tailscale returned an invalid split-DNS namespace")
+		}
+		if _, exists := seen[namespace]; exists {
+			continue
+		}
+		seen[namespace] = struct{}{}
+		namespaces = append(namespaces, namespace)
+	}
+	if len(namespaces) == 0 {
+		logrus.Infoln("pc: Tailscale reported no Windows split-DNS namespaces requiring NRPT activation")
+		return nil
+	}
+	sort.Strings(namespaces)
+	payload, err := json.Marshal(namespaces)
+	if err != nil {
+		return fmt.Errorf("failed to encode Tailscale DNS namespaces: %w", err)
+	}
+
+	// A conflicting pre-existing rule is not overwritten. Doing so could break an
+	// image/customer DNS policy. Rules created here carry a unique comment and are
+	// the only rules removed during rollback/destroy.
+	script := `$ErrorActionPreference = 'Stop'
+$managedComment = '` + nrptRuleComment + `'
+$quad100 = '` + quad100DNSAddress + `'
+$namespaces = @([Console]::In.ReadToEnd() | ConvertFrom-Json)
+$allRules = @(Get-DnsClientNrptRule -ErrorAction Stop)
+foreach ($namespace in $namespaces) {
+  $matches = @($allRules | Where-Object {
+    $normalized = @($_.Namespace | ForEach-Object { $_.Trim().Trim('.').ToLowerInvariant() })
+    $normalized -contains $namespace
+  })
+  $managed = @($matches | Where-Object { $_.Comment -eq $managedComment -and @($_.NameServers) -contains $quad100 })
+  if ($managed.Count -gt 0) { continue }
+  if ($matches.Count -gt 0) { throw "conflicting NRPT rule for requested private DNS namespace" }
+  Add-DnsClientNrptRule -Namespace $namespace -NameServers $quad100 -Comment $managedComment -DisplayName 'Harness Private Connectivity' -ErrorAction Stop | Out-Null
+}
+Clear-DnsClientCache -ErrorAction Stop`
+	commandCtx, cancelCommand := context.WithTimeout(ctx, nrptCommandTimeout)
+	defer cancelCommand()
+	command := exec.CommandContext(
+		commandCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script)
+	command.Stdin = strings.NewReader(string(payload))
+	logrus.WithField("namespace_count", len(namespaces)).Infoln(
+		"pc: activating Tailscale-reported Windows split-DNS namespaces")
+	if _, err := command.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to activate Windows private DNS routing: %w", err)
+	}
+	logrus.WithField("namespace_count", len(namespaces)).Infoln(
+		"pc: Windows private DNS namespace activation completed")
 	return nil
 }
 
-func platformNetworkRestore(context.Context) error {
+func platformNetworkRestore(ctx context.Context) error {
+	script := `$ErrorActionPreference = 'Stop'
+$managedComment = '` + nrptRuleComment + `'
+@(Get-DnsClientNrptRule -ErrorAction Stop | Where-Object { $_.Comment -eq $managedComment }) |
+  Remove-DnsClientNrptRule -Force -ErrorAction Stop
+Clear-DnsClientCache -ErrorAction Stop`
+	commandCtx, cancel := context.WithTimeout(ctx, nrptCommandTimeout)
+	defer cancel()
+	if _, err := exec.CommandContext(
+		commandCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to remove Windows private DNS rules: %w", err)
+	}
 	return nil
 }
 
 func platformNetworkResidue() bool {
-	return false
+	script := `$rule = Get-DnsClientNrptRule -ErrorAction Stop |
+  Where-Object { $_.Comment -eq '` + nrptRuleComment + `' } |
+  Select-Object -First 1
+if ($null -ne $rule) { Write-Output 'present' }`
+	ctx, cancel := context.WithTimeout(context.Background(), nrptCommandTimeout)
+	defer cancel()
+	output, err := exec.CommandContext(
+		ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).CombinedOutput()
+	return err != nil || strings.TrimSpace(string(output)) == "present"
+}
+
+func normalizeNRPTNamespace(value string) (string, bool) {
+	namespace := strings.ToLower(strings.Trim(strings.TrimSpace(value), "."))
+	namespace = strings.TrimPrefix(namespace, "*.")
+	if namespace == "" || len(namespace) > 253 {
+		return "", false
+	}
+	for _, label := range strings.Split(namespace, ".") {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return "", false
+		}
+		for _, character := range label {
+			if (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9') ||
+				character == '-' {
+				continue
+			}
+			return "", false
+		}
+	}
+	return namespace, true
 }
 
 func legacyEgressResidue(ctx context.Context) bool {

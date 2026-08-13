@@ -59,7 +59,10 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		if pcUsed || pc.NeedsNetworkCleanup() {
 			log.WithField("pc_state_available", !pcStateUnavailable).
 				Infoln("api: starting private connectivity logout during destroy")
-			if logoutErr := pc.Logout(ctx); logoutErr != nil {
+			// DRA destroys this VM after /destroy even when cleanup reports an error.
+			// Terminal cleanup may therefore use the documented Windows ephemeral-node
+			// fallback; suspend continues to require strict immediate logout.
+			if logoutErr := pc.LogoutForDisposal(ctx); logoutErr != nil {
 				log.WithField("time", time.Now().Format(time.RFC3339)).
 					WithError(logoutErr).
 					Errorln("api: private connectivity logout failed")
