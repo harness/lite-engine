@@ -108,14 +108,21 @@ func platformNetworkResidue() bool {
 }
 
 func legacyEgressResidue(ctx context.Context) bool {
-	ctx, cancel := context.WithTimeout(ctx, legacyInspectionTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "netsh", "advfirewall", "firewall", "show", "rule", "name=all").CombinedOutput()
-	if err != nil || strings.Contains(string(out), "Egress-Allow-") {
+	ruleCtx, cancelRules := context.WithTimeout(ctx, legacyInspectionTimeout)
+	ruleCommand := "$rule = Get-NetFirewallRule -DisplayName 'Egress-Allow-*' " +
+		"-ErrorAction SilentlyContinue | Select-Object -First 1; " +
+		"if ($null -ne $rule) { Write-Output 'present' }"
+	out, err := exec.CommandContext(
+		ruleCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ruleCommand).CombinedOutput()
+	cancelRules()
+	if err != nil || strings.TrimSpace(string(out)) == "present" {
 		return true
 	}
+
+	policyCtx, cancelPolicy := context.WithTimeout(ctx, legacyInspectionTimeout)
 	policy, policyErr := exec.CommandContext(
-		ctx, "netsh", "advfirewall", "show", "allprofiles").CombinedOutput()
+		policyCtx, "netsh", "advfirewall", "show", "allprofiles").CombinedOutput()
+	cancelPolicy()
 	return policyErr != nil || strings.Contains(strings.ToLower(string(policy)), "blockoutbound")
 }
 
