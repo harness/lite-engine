@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -38,18 +37,21 @@ func tailscalePath() (string, error) {
 }
 
 func securePlatformTokenDir() error {
-	currentUser, err := user.Current()
-	if err != nil || currentUser.Username == "" {
-		return fmt.Errorf("pc: failed to identify the Windows runtime user")
+	tokenUser, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil || tokenUser == nil || tokenUser.User.Sid == nil {
+		return fmt.Errorf("pc: failed to identify the Windows runtime SID")
 	}
-	out, err := exec.Command(
-		"icacls",
+	runtimeSID := tokenUser.User.Sid.String()
+	args := []string{
 		TokenDir,
 		"/inheritance:r",
 		"/grant:r",
-		currentUser.Username+":(OI)(CI)F",
-		"*S-1-5-18:(OI)(CI)F",
-	).CombinedOutput()
+		"*" + runtimeSID + ":(OI)(CI)F",
+	}
+	if runtimeSID != "S-1-5-18" {
+		args = append(args, "*S-1-5-18:(OI)(CI)F")
+	}
+	out, err := exec.Command("icacls", args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("pc: failed to secure state directory ACL: %w (output: %s)", err, strings.TrimSpace(string(out)))
 	}
