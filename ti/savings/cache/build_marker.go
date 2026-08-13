@@ -6,26 +6,29 @@ package cache
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 )
 
-// checkBuildToolMarkers checks for marker files in /tmp directory
-// and sets the corresponding flags in the telemetry data
-func checkBuildToolMarkers(telemetryData *types.TelemetryData, log *logrus.Logger) {
+// checkBuildToolMarkers checks for marker files under baseDir (the shared
+// engine volume, mounted into every step container by lite-engine — see
+// pipeline.GetSharedVolPath) and sets the corresponding flags in the
+// telemetry data.
+func checkBuildToolMarkers(baseDir string, telemetryData *types.TelemetryData, log *logrus.Logger) {
 	// Check Maven marker file
-	if checkMarkerFileExists("/tmp/bi-maven", log) {
+	if checkMarkerFileExists(filepath.Join(baseDir, "bi-maven"), log) {
 		telemetryData.BuildIntelligenceMetaData.IsMavenBIUsed = true
 	}
 
 	// Check Gradle marker file
-	if checkMarkerFileExists("/tmp/bi-gradle", log) {
+	if checkMarkerFileExists(filepath.Join(baseDir, "bi-gradle"), log) {
 		telemetryData.BuildIntelligenceMetaData.IsGradleBIUsed = true
 	}
 
 	// Check Bazel marker file
-	if checkMarkerFileExists("/tmp/bi-bazel", log) {
+	if checkMarkerFileExists(filepath.Join(baseDir, "bi-bazel"), log) {
 		telemetryData.BuildIntelligenceMetaData.IsBazelBIUsed = true
 	}
 }
