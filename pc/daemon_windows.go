@@ -160,17 +160,18 @@ func platformNetworkActivate(ctx context.Context, path string) error {
 	script := `$ErrorActionPreference = 'Stop'
 $managedComment = '` + nrptRuleComment + `'
 $quad100 = '` + quad100DNSAddress + `'
-$namespaces = @([Console]::In.ReadToEnd() | ConvertFrom-Json)
+$namespaces = @(([Console]::In.ReadToEnd() | ConvertFrom-Json) | ForEach-Object { [string]$_ })
 $allRules = @(Get-DnsClientNrptRule -ErrorAction Stop)
 foreach ($namespace in $namespaces) {
   $matches = @($allRules | Where-Object {
-    $normalized = @($_.Namespace | ForEach-Object { $_.Trim().Trim('.').ToLowerInvariant() })
+    $normalized = @($_.Namespace | Where-Object { $null -ne $_ } |
+      ForEach-Object { $_.Trim().Trim('.').ToLowerInvariant() })
     $normalized -contains $namespace
   })
   $managed = @($matches | Where-Object { $_.Comment -eq $managedComment -and @($_.NameServers) -contains $quad100 })
   if ($managed.Count -gt 0) { continue }
   if ($matches.Count -gt 0) { throw "conflicting NRPT rule for requested private DNS namespace" }
-  Add-DnsClientNrptRule -Namespace $namespace -NameServers $quad100 -Comment $managedComment -DisplayName 'Harness Private Connectivity' -ErrorAction Stop | Out-Null
+  Add-DnsClientNrptRule -Namespace ".$namespace" -NameServers $quad100 -Comment $managedComment -DisplayName 'Harness Private Connectivity' -ErrorAction Stop | Out-Null
 }
 Clear-DnsClientCache -ErrorAction Stop`
 	commandCtx, cancelCommand := context.WithTimeout(ctx, nrptCommandTimeout)
@@ -180,8 +181,9 @@ Clear-DnsClientCache -ErrorAction Stop`
 	command.Stdin = strings.NewReader(string(payload))
 	logrus.WithField("namespace_count", len(namespaces)).Infoln(
 		"pc: activating Tailscale-reported Windows split-DNS namespaces")
-	if _, err := command.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to activate Windows private DNS routing: %w", err)
+	if output, err := command.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to activate Windows private DNS routing: %w (%s)",
+			err, strings.TrimSpace(string(output)))
 	}
 	logrus.WithField("namespace_count", len(namespaces)).Infoln(
 		"pc: Windows private DNS namespace activation completed")
@@ -196,9 +198,10 @@ $managedComment = '` + nrptRuleComment + `'
 Clear-DnsClientCache -ErrorAction Stop`
 	commandCtx, cancel := context.WithTimeout(ctx, nrptCommandTimeout)
 	defer cancel()
-	if _, err := exec.CommandContext(
+	if output, err := exec.CommandContext(
 		commandCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to remove Windows private DNS rules: %w", err)
+		return fmt.Errorf("failed to remove Windows private DNS rules: %w (%s)",
+			err, strings.TrimSpace(string(output)))
 	}
 	return nil
 }
