@@ -81,3 +81,32 @@ func TestStartStepRequest_EgressPolicyOmitEmpty(t *testing.T) {
 		t.Fatalf("expected egress_policy omitted, got: %s", string(b))
 	}
 }
+
+// TestStepStatusConfig_TokenHash verifies the token_hash field shipped by the
+// runner round-trips through JSON and stays absent when unset, so requests
+// from older runners keep working unchanged.
+func TestStepStatusConfig_TokenHash(t *testing.T) {
+	in := StepStatusConfig{Token: "jwe", TokenHash: "hash-123", AccountID: "acct"}
+	b, err := json.Marshal(in)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"token_hash":"hash-123"`) {
+		t.Fatalf("token_hash missing from JSON: %s", string(b))
+	}
+	var out StepStatusConfig
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out != in {
+		t.Fatalf("roundtrip mismatch: %+v vs %+v", out, in)
+	}
+
+	legacy, err := json.Marshal(StepStatusConfig{Token: "jwe"})
+	if err != nil {
+		t.Fatalf("marshal legacy: %v", err)
+	}
+	if strings.Contains(string(legacy), "token_hash") {
+		t.Fatalf("token_hash should be omitted when empty: %s", string(legacy))
+	}
+}

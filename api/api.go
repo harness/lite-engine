@@ -299,6 +299,7 @@ type (
 	StepStatusConfig struct {
 		Endpoint       string `json:"endpoint,omitempty"`
 		Token          string `json:"token,omitempty"`
+		TokenHash      string `json:"token_hash,omitempty"`
 		AccountID      string `json:"account_id,omitempty"`
 		DelegateID     string `json:"delegate_id,omitempty"`
 		TaskID         string `json:"task_id,omitempty"`

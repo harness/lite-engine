@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
@@ -262,4 +264,48 @@ func TestExecuteStepHelper_WriterErrorAppendsRunError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "command exited with code 1")
 	assert.NotContains(t, err.Error(), "nudge: possible error on line 42")
+}
+
+// TestSendStepStatus_TokenHashHeader verifies the executor forwards
+// StepStatus.TokenHash to the manager client: a set hash arrives as the
+// delegateTokenHash header, an empty hash omits it (legacy behavior). The
+// endpoint comes from the request itself, so an httptest server stands in for
+// the manager without needing an injectable client factory.
+func TestSendStepStatus_TokenHashHeader(t *testing.T) {
+	tests := []struct {
+		name      string
+		tokenHash string
+	}{
+		{"hash forwarded as delegateTokenHash header", "0123abcd0123abcd0123abcd0123abcd0123abcd0123abcd0123abcd0123abcd"},
+		{"empty hash omits header (legacy)", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotHash, gotAuth string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotHash = r.Header.Get("delegateTokenHash")
+				gotAuth = r.Header.Get("Authorization")
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer srv.Close()
+
+			e := &StepExecutor{}
+			r := &api.StartStepRequest{
+				ID: "step-1",
+				StepStatus: api.StepStatusConfig{
+					Endpoint:     srv.URL,
+					AccountID:    "acct",
+					TaskID:       "task-1",
+					DelegateID:   "del-1",
+					Token:        "jwe-token",
+					TokenHash:    tc.tokenHash,
+					TaskStatusV2: true,
+				},
+			}
+			e.sendStepStatus(r, &api.VMTaskExecutionResponse{CommandExecutionStatus: api.Success})
+
+			assert.Equal(t, tc.tokenHash, gotHash)
+			assert.Equal(t, "Delegate jwe-token", gotAuth)
+		})
+	}
 }

@@ -590,7 +590,7 @@ func setPrevStepExportEnvs(r *api.StartStepRequest) {
 }
 
 func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMTaskExecutionResponse) {
-	delegateClient := delegate.NewFromToken(r.StepStatus.Endpoint, r.StepStatus.AccountID, r.StepStatus.Token, true, "")
+	delegateClient := delegate.NewFromTokenWithHash(r.StepStatus.Endpoint, r.StepStatus.AccountID, r.StepStatus.Token, r.StepStatus.TokenHash, true, "")
 
 	if err := e.sendStatus(r, delegateClient, response); err != nil {
 		logrus.WithField("id", r.ID).WithError(err).Errorln("failed to send step status")

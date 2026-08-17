@@ -44,6 +44,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+// TODO: temporary for local development until a dlite release with
+// NewFromTokenWithHash is published; replace with a version bump.
+replace github.com/wings-software/dlite => ../dlite
+
 require (
 	github.com/99designs/httpsignatures-go v0.0.0-20170731043157-88528bf4ca7e // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
