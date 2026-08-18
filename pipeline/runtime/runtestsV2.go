@@ -33,6 +33,7 @@ import (
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
+	"github.com/harness/lite-engine/version"
 	tiClientTypes "github.com/harness/ti-client/chrysalis/types"
 	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
 	"github.com/harness/ti-client/types"
@@ -146,7 +147,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	// When intelligence is off, selection never ran — after reports populate TotalTests,
 	// backfill selected counts for the full-run path. Do not backfill when intelligence
 	// is on: SelectedTests may legitimately be 0 (all tests skipped).
-	backfillRunTestsV2SelectedTelemetry(telemetryData, r.RunTestsV2.IntelligenceMode)
+	backfillRunTestsV2SelectedTelemetry(log, telemetryData, r.RunTestsV2.IntelligenceMode)
 
 	// Check if all failed tests are quarantined and update exit code accordingly
 	if exited != nil {
@@ -1149,15 +1150,28 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 // intelligence is off (selection never ran) but tests executed, sets selected == total.
 // When intelligence is on, SelectedTests may legitimately be 0 (all skipped) and must
 // not be overwritten from TotalTests (CI-22586).
-func backfillRunTestsV2SelectedTelemetry(telemetryData *types.TelemetryData, intelligenceMode bool) {
+func backfillRunTestsV2SelectedTelemetry(log *logrus.Logger, telemetryData *types.TelemetryData, intelligenceMode bool) {
 	if telemetryData == nil {
 		return
 	}
 	ti := &telemetryData.TestIntelligenceMetaData
 	ti.IsRunTestV2 = true
+	selectedCountsBackfilled := false
 	if !intelligenceMode && ti.TotalSelectedTests == 0 && ti.TotalTests > 0 {
 		ti.TotalSelectedTests = ti.TotalTests
 		ti.TotalSelectedTestClass = ti.TotalTestClasses
+		selectedCountsBackfilled = true
+	}
+	if log != nil {
+		log.WithFields(logrus.Fields{
+			"intelligence_mode":          intelligenceMode,
+			"lite_engine_version":        version.GetVersion(),
+			"selected_counts_backfilled": selectedCountsBackfilled,
+			"selected_test_classes":      ti.TotalSelectedTestClass,
+			"selected_tests":             ti.TotalSelectedTests,
+			"total_test_classes":         ti.TotalTestClasses,
+			"total_tests":                ti.TotalTests,
+		}).Infoln("run-tests-v2: accumulated test telemetry")
 	}
 }
 
