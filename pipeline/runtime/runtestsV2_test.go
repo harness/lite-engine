@@ -113,7 +113,7 @@ func Test_createSelectedTestFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := createSelectedTestFile(tt.args.ctx,
+			if _, err := createSelectedTestFile(tt.args.ctx,
 				tt.args.fs,
 				tt.args.stepID,
 				tt.args.workspace,
@@ -321,10 +321,9 @@ func TestSanitizeTestGlobsV2(t *testing.T) {
 	}
 }
 
-// CI-22586: when instrumentation/selection is skipped, TotalSelectedTests stays 0 while
-// report collection still sets TotalTests. backfillRunTestsV2SelectedTelemetry must
-// set selected from totals and always mark IsRunTestV2.
-func TestBackfillRunTestsV2SelectedTelemetry_InstrumentationSkipped(t *testing.T) {
+// CI-22586: enhanced intelligence selects by a skip list and does not populate
+// selected counts before report collection. Executed report totals are authoritative.
+func TestBackfillRunTestsV2SelectedTelemetry_IntelligenceOn_FirstRunAllSelected(t *testing.T) {
 	telemetryData := &types.TelemetryData{}
 	telemetryData.TestIntelligenceMetaData.TotalTests = 5
 	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 2
@@ -332,13 +331,13 @@ func TestBackfillRunTestsV2SelectedTelemetry_InstrumentationSkipped(t *testing.T
 	log := logrus.New()
 	log.SetOutput(&logOutput)
 
-	backfillRunTestsV2SelectedTelemetry(log, telemetryData, false)
+	backfillRunTestsV2SelectedTelemetry(log, telemetryData, true, true)
 
 	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
 	assert.Equal(t, 5, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
 	assert.Equal(t, 2, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
 	assert.Contains(t, logOutput.String(), "run-tests-v2: accumulated test telemetry")
-	assert.Contains(t, logOutput.String(), "intelligence_mode=false")
+	assert.Contains(t, logOutput.String(), "intelligence_mode=true")
 	assert.Contains(t, logOutput.String(), "lite_engine_version=")
 	assert.Contains(t, logOutput.String(), "selected_counts_backfilled=true")
 	assert.Contains(t, logOutput.String(), "selected_test_classes=2")
@@ -347,43 +346,56 @@ func TestBackfillRunTestsV2SelectedTelemetry_InstrumentationSkipped(t *testing.T
 	assert.Contains(t, logOutput.String(), "total_tests=5")
 }
 
+func TestBackfillRunTestsV2SelectedTelemetry_IntelligenceOff_AllSelected(t *testing.T) {
+	telemetryData := &types.TelemetryData{}
+	telemetryData.TestIntelligenceMetaData.TotalTests = 5
+	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 2
+	var logOutput bytes.Buffer
+	log := logrus.New()
+	log.SetOutput(&logOutput)
+
+	backfillRunTestsV2SelectedTelemetry(log, telemetryData, false, true)
+
+	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
+	assert.Equal(t, 5, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
+	assert.Equal(t, 2, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
+	assert.Contains(t, logOutput.String(), "intelligence_mode=false")
+	assert.Contains(t, logOutput.String(), "selected_counts_backfilled=true")
+}
+
 func TestBackfillRunTestsV2SelectedTelemetry_PreservesExistingSelected(t *testing.T) {
 	telemetryData := &types.TelemetryData{}
 	telemetryData.TestIntelligenceMetaData.TotalTests = 10
 	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 4
 	telemetryData.TestIntelligenceMetaData.TotalSelectedTests = 3
 	telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass = 1
-	telemetryData.TestIntelligenceMetaData.IsRunTestV2 = true
+
+	backfillRunTestsV2SelectedTelemetry(nil, telemetryData, true, true)
+
+	assert.Equal(t, 3, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
+	assert.Equal(t, 1, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
+}
+
+// A selection response that explicitly chose zero tests must remain zero, even if
+// report totals are present (for example, stale or unrelated report files).
+func TestBackfillRunTestsV2SelectedTelemetry_IntelligenceOn_SubsequentRunZeroSelected(t *testing.T) {
+	telemetryData := &types.TelemetryData{}
+	telemetryData.TestIntelligenceMetaData.TotalTests = 5
+	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 2
 	var logOutput bytes.Buffer
 	log := logrus.New()
 	log.SetOutput(&logOutput)
 
-	backfillRunTestsV2SelectedTelemetry(log, telemetryData, false)
-
-	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
-	assert.Equal(t, 3, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
-	assert.Equal(t, 1, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
-	assert.Contains(t, logOutput.String(), "selected_counts_backfilled=false")
-}
-
-// With intelligence on, TI may select zero tests while reports still show totals.
-// Selected must stay 0.
-func TestBackfillRunTestsV2SelectedTelemetry_IntelligenceOn_PreservesZeroSelected(t *testing.T) {
-	telemetryData := &types.TelemetryData{}
-	telemetryData.TestIntelligenceMetaData.TotalTests = 5
-	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 2
-	telemetryData.TestIntelligenceMetaData.TotalSelectedTests = 0
-	telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass = 0
-
-	backfillRunTestsV2SelectedTelemetry(nil, telemetryData, true)
+	backfillRunTestsV2SelectedTelemetry(log, telemetryData, true, false)
 
 	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
 	assert.Equal(t, 0, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
 	assert.Equal(t, 0, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
+	assert.Contains(t, logOutput.String(), "selected_counts_backfilled=false")
 }
 
 func TestBackfillRunTestsV2SelectedTelemetry_NilSafe(t *testing.T) {
 	assert.NotPanics(t, func() {
-		backfillRunTestsV2SelectedTelemetry(nil, nil, false)
+		backfillRunTestsV2SelectedTelemetry(nil, nil, false, true)
 	})
 }
