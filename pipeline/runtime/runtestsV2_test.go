@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -327,40 +326,24 @@ func TestBackfillRunTestsV2SelectedTelemetry_IntelligenceOn_FirstRunAllSelected(
 	telemetryData := &types.TelemetryData{}
 	telemetryData.TestIntelligenceMetaData.TotalTests = 5
 	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 2
-	var logOutput bytes.Buffer
-	log := logrus.New()
-	log.SetOutput(&logOutput)
 
-	backfillRunTestsV2SelectedTelemetry(log, telemetryData, true, true)
+	backfillRunTestsV2SelectedTelemetry(telemetryData, true)
 
 	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
 	assert.Equal(t, 5, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
 	assert.Equal(t, 2, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
-	assert.Contains(t, logOutput.String(), "run-tests-v2: accumulated test telemetry")
-	assert.Contains(t, logOutput.String(), "intelligence_mode=true")
-	assert.Contains(t, logOutput.String(), "lite_engine_version=")
-	assert.Contains(t, logOutput.String(), "selected_counts_backfilled=true")
-	assert.Contains(t, logOutput.String(), "selected_test_classes=2")
-	assert.Contains(t, logOutput.String(), "selected_tests=5")
-	assert.Contains(t, logOutput.String(), "total_test_classes=2")
-	assert.Contains(t, logOutput.String(), "total_tests=5")
 }
 
 func TestBackfillRunTestsV2SelectedTelemetry_IntelligenceOff_AllSelected(t *testing.T) {
 	telemetryData := &types.TelemetryData{}
 	telemetryData.TestIntelligenceMetaData.TotalTests = 5
 	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 2
-	var logOutput bytes.Buffer
-	log := logrus.New()
-	log.SetOutput(&logOutput)
 
-	backfillRunTestsV2SelectedTelemetry(log, telemetryData, false, true)
+	backfillRunTestsV2SelectedTelemetry(telemetryData, true)
 
 	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
 	assert.Equal(t, 5, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
 	assert.Equal(t, 2, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
-	assert.Contains(t, logOutput.String(), "intelligence_mode=false")
-	assert.Contains(t, logOutput.String(), "selected_counts_backfilled=true")
 }
 
 func TestBackfillRunTestsV2SelectedTelemetry_PreservesExistingSelected(t *testing.T) {
@@ -370,7 +353,7 @@ func TestBackfillRunTestsV2SelectedTelemetry_PreservesExistingSelected(t *testin
 	telemetryData.TestIntelligenceMetaData.TotalSelectedTests = 3
 	telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass = 1
 
-	backfillRunTestsV2SelectedTelemetry(nil, telemetryData, true, true)
+	backfillRunTestsV2SelectedTelemetry(telemetryData, true)
 
 	assert.Equal(t, 3, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
 	assert.Equal(t, 1, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
@@ -382,20 +365,16 @@ func TestBackfillRunTestsV2SelectedTelemetry_IntelligenceOn_SubsequentRunZeroSel
 	telemetryData := &types.TelemetryData{}
 	telemetryData.TestIntelligenceMetaData.TotalTests = 5
 	telemetryData.TestIntelligenceMetaData.TotalTestClasses = 2
-	var logOutput bytes.Buffer
-	log := logrus.New()
-	log.SetOutput(&logOutput)
 
-	backfillRunTestsV2SelectedTelemetry(log, telemetryData, true, false)
+	backfillRunTestsV2SelectedTelemetry(telemetryData, false)
 
 	assert.True(t, telemetryData.TestIntelligenceMetaData.IsRunTestV2)
 	assert.Equal(t, 0, telemetryData.TestIntelligenceMetaData.TotalSelectedTests)
 	assert.Equal(t, 0, telemetryData.TestIntelligenceMetaData.TotalSelectedTestClass)
-	assert.Contains(t, logOutput.String(), "selected_counts_backfilled=false")
 }
 
 func TestBackfillRunTestsV2SelectedTelemetry_NilSafe(t *testing.T) {
 	assert.NotPanics(t, func() {
-		backfillRunTestsV2SelectedTelemetry(nil, nil, false, true)
+		backfillRunTestsV2SelectedTelemetry(nil, true)
 	})
 }

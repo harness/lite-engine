@@ -33,7 +33,6 @@ import (
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/lite-engine/ti/savings"
 	filter "github.com/harness/lite-engine/ti/testsfilteration"
-	"github.com/harness/lite-engine/version"
 	tiClientTypes "github.com/harness/ti-client/chrysalis/types"
 	telemetryutils "github.com/harness/ti-client/clientUtils/telemetryUtils"
 	"github.com/harness/ti-client/types"
@@ -149,7 +148,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	// CI-22586: after reports populate totals, use them as selected counts only for
 	// paths that explicitly run all tests or derive selection from executed reports.
 	// A zero returned by test selection remains a legitimate zero.
-	backfillRunTestsV2SelectedTelemetry(log, telemetryData, r.RunTestsV2.IntelligenceMode, selectedCountsFromReports)
+	backfillRunTestsV2SelectedTelemetry(telemetryData, selectedCountsFromReports)
 
 	// Check if all failed tests are quarantined and update exit code accordingly
 	if exited != nil {
@@ -1172,9 +1171,7 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 // totals only when setup explicitly identified reports as the selection source.
 // This distinguishes full runs from a legitimate zero returned by TI (CI-22586).
 func backfillRunTestsV2SelectedTelemetry(
-	log *logrus.Logger,
 	telemetryData *types.TelemetryData,
-	intelligenceMode bool,
 	selectedCountsFromReports bool,
 ) {
 	if telemetryData == nil {
@@ -1182,22 +1179,9 @@ func backfillRunTestsV2SelectedTelemetry(
 	}
 	ti := &telemetryData.TestIntelligenceMetaData
 	ti.IsRunTestV2 = true
-	selectedCountsBackfilled := false
 	if selectedCountsFromReports && ti.TotalSelectedTests == 0 && ti.TotalTests > 0 {
 		ti.TotalSelectedTests = ti.TotalTests
 		ti.TotalSelectedTestClass = ti.TotalTestClasses
-		selectedCountsBackfilled = true
-	}
-	if log != nil {
-		log.WithFields(logrus.Fields{
-			"intelligence_mode":          intelligenceMode,
-			"lite_engine_version":        version.GetVersion(),
-			"selected_counts_backfilled": selectedCountsBackfilled,
-			"selected_test_classes":      ti.TotalSelectedTestClass,
-			"selected_tests":             ti.TotalSelectedTests,
-			"total_test_classes":         ti.TotalTestClasses,
-			"total_tests":                ti.TotalTests,
-		}).Infoln("run-tests-v2: accumulated test telemetry")
 	}
 }
 
