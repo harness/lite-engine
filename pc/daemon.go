@@ -129,9 +129,8 @@ func tailscaleVersion(ctx context.Context, path string) (string, bool) {
 	return line, true
 }
 
-// JoinAndConfigure joins the host to the customer network. Routes are owned by tailscaled.
-// Tailscaled also owns host DNS on Linux and Windows; the open-source macOS runtime requires the
-// bounded platform snapshot/apply/restore hook. Container-only MTU/DNS is applied by engine setup.
+// JoinAndConfigure joins the host to the customer network. Host routes and DNS are owned by
+// tailscaled on every supported platform. Container-only MTU/DNS is applied by engine setup.
 func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
