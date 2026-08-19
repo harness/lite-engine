@@ -19,17 +19,27 @@ import (
 )
 
 const (
-	darwinStateDirectory      = "/Library/Application Support/Harness/private-connectivity"
 	darwinNetworkSetupPath    = "/usr/sbin/networksetup"
 	darwinQuad100             = "100.100.100.100"
 	darwinNetworkSetupTimeout = 20 * time.Second
 )
 
 var (
-	TokenDir   = darwinStateDirectory
+	TokenDir   = darwinStateDirectory()
 	TokenFile  = filepath.Join(TokenDir, "oidc-token")
 	MarkerFile = filepath.Join(TokenDir, "lifecycle")
 )
+
+func darwinStateDirectory() string {
+	home, err := os.UserHomeDir()
+	if err == nil && strings.TrimSpace(home) != "" {
+		return filepath.Join(home, "Library", "Application Support", "Harness", "private-connectivity")
+	}
+	// A missing home directory is an invalid hosted runtime. Keep the fallback on a
+	// privileged durable path so a non-root process fails closed instead of placing
+	// lifecycle evidence in an OS-cleanable temporary directory.
+	return "/Library/Application Support/Harness/private-connectivity"
+}
 
 type darwinDNSService struct {
 	Name    string   `json:"name"`
@@ -52,7 +62,7 @@ func tailscalePath() (string, error) {
 	if cliErr == nil && daemonErr == nil && !cliInfo.IsDir() && !daemonInfo.IsDir() {
 		return cliPath, nil
 	}
-	return "", fmt.Errorf("pc: qualified open-source macOS tailscale runtime is unavailable")
+	return "", fmt.Errorf("pc: installed open-source macOS tailscale runtime is unavailable")
 }
 
 func securePlatformTokenDir() error {
@@ -60,7 +70,12 @@ func securePlatformTokenDir() error {
 }
 
 func platformRuntimeReady() bool {
-	return os.Geteuid() == 0
+	if os.Geteuid() == 0 {
+		return true
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, "/usr/bin/sudo", "-n", "true").Run() == nil
 }
 
 func platformRuntimeStart(ctx context.Context) error {
@@ -70,7 +85,7 @@ func platformRuntimeStart(ctx context.Context) error {
 	}
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(commandCtx, daemonPath, "install-system-daemon").CombinedOutput()
+	out, err := darwinPrivilegedCommand(commandCtx, daemonPath, "install-system-daemon").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to register tailscaled with launchd: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
@@ -87,7 +102,7 @@ func platformRuntimeStop(ctx context.Context) error {
 	}
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(commandCtx, daemonPath, "uninstall-system-daemon").CombinedOutput()
+	out, err := darwinPrivilegedCommand(commandCtx, daemonPath, "uninstall-system-daemon").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to unregister tailscaled from launchd: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
@@ -98,14 +113,14 @@ func platformRuntimeStop(ctx context.Context) error {
 }
 
 func darwinRuntimeRegistered(ctx context.Context) bool {
-	return exec.CommandContext(ctx, "/bin/launchctl", "print", "system/com.tailscale.tailscaled").Run() == nil
+	return darwinPrivilegedCommand(ctx, "/bin/launchctl", "print", "system/com.tailscale.tailscaled").Run() == nil
 }
 
 // Open-source tailscaled on macOS does not change the system DNS configuration. Snapshot every
 // enabled network service before joining so Quad100 can be applied and then restored exactly.
 func platformNetworkPrepare(ctx context.Context, _ string) error {
-	if os.Geteuid() != 0 {
-		return fmt.Errorf("open-source macOS tailscaled DNS setup requires root")
+	if !platformRuntimeReady() {
+		return fmt.Errorf("open-source macOS tailscaled DNS setup requires passwordless administrative access")
 	}
 	services, err := darwinNetworkServices(ctx)
 	if err != nil {
@@ -156,8 +171,8 @@ func platformNetworkRestore(ctx context.Context) error {
 	if !platformNetworkResidue() {
 		return nil
 	}
-	if os.Geteuid() != 0 {
-		return fmt.Errorf("open-source macOS tailscaled DNS cleanup requires root")
+	if !platformRuntimeReady() {
+		return fmt.Errorf("open-source macOS tailscaled DNS cleanup requires passwordless administrative access")
 	}
 	snapshot, err := readDarwinDNSSnapshot()
 	if err != nil {
@@ -243,11 +258,21 @@ func darwinSetDNSServers(ctx context.Context, service string, servers []string) 
 func darwinNetworkSetup(ctx context.Context, args ...string) (string, error) {
 	commandCtx, cancel := context.WithTimeout(ctx, darwinNetworkSetupTimeout)
 	defer cancel()
-	out, err := exec.CommandContext(commandCtx, darwinNetworkSetupPath, args...).CombinedOutput()
+	out, err := darwinPrivilegedCommand(commandCtx, darwinNetworkSetupPath, args...).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("networksetup %s failed: %w (%s)", args[0], err, strings.TrimSpace(string(out)))
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func darwinPrivilegedCommand(ctx context.Context, path string, args ...string) *exec.Cmd {
+	if os.Geteuid() == 0 {
+		return exec.CommandContext(ctx, path, args...)
+	}
+	privilegedArgs := make([]string, 0, len(args)+2)
+	privilegedArgs = append(privilegedArgs, "-n", path)
+	privilegedArgs = append(privilegedArgs, args...)
+	return exec.CommandContext(ctx, "/usr/bin/sudo", privilegedArgs...)
 }
 
 func legacyEgressResidue(context.Context) bool {

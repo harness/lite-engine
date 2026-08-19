@@ -175,6 +175,7 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 		return errors.Join(
 			fmt.Errorf("pc: failed to prepare platform networking: %w", err),
 			removeFile(MarkerFile),
+			platformRuntimeStop(context.WithoutCancel(ctx)),
 		)
 	}
 	if err := writeFileAtomically(TokenFile, []byte(cfg.OIDCToken)); err != nil {
@@ -413,7 +414,15 @@ func tailscaleLoginState(ctx context.Context, path string) (loggedIn, known bool
 }
 
 func tailscaleCommandContext(ctx context.Context, path string, args ...string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, path, args...)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "darwin" && os.Geteuid() != 0 {
+		privilegedArgs := make([]string, 0, len(args)+2)
+		privilegedArgs = append(privilegedArgs, "-n", path)
+		privilegedArgs = append(privilegedArgs, args...)
+		cmd = exec.CommandContext(ctx, "/usr/bin/sudo", privilegedArgs...)
+	} else {
+		cmd = exec.CommandContext(ctx, path, args...)
+	}
 	cmd.Env = tailscaleEnvironment()
 	return cmd
 }
