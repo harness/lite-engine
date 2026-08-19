@@ -34,6 +34,7 @@ require (
 	github.com/harness/godotenv/v2 v2.0.0
 	github.com/harness/godotenv/v3 v3.0.1
 	github.com/harness/godotenv/v4 v4.0.2
+	github.com/klauspost/compress v1.18.0
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/shirou/gopsutil/v3 v3.23.5
@@ -70,7 +71,6 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mikelolasagasti/xz v1.0.1 // indirect
