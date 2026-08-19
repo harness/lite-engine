@@ -31,6 +31,11 @@ func checkBuildToolMarkers(baseDir string, telemetryData *types.TelemetryData, l
 	if checkMarkerFileExists(filepath.Join(baseDir, "bi-bazel"), log) {
 		telemetryData.BuildIntelligenceMetaData.IsBazelBIUsed = true
 	}
+
+	// Check Go marker file
+	if checkMarkerFileExists(filepath.Join(baseDir, "bi-go"), log) {
+		telemetryData.BuildIntelligenceMetaData.IsGoBIUsed = true
+	}
 }
 
 // checkMarkerFileExists checks if a marker file exists and logs if found

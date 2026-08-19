@@ -5,9 +5,11 @@ import (
 	"strings"
 
 	"github.com/harness/lite-engine/pipeline"
+	"github.com/harness/lite-engine/ti/savings/cache/golang"
 	"github.com/harness/lite-engine/ti/savings/cache/gradle"
 	"github.com/harness/lite-engine/ti/savings/cache/maven"
 	"github.com/harness/ti-client/types"
+	golangTypes "github.com/harness/ti-client/types/cache/golang"
 	gradleTypes "github.com/harness/ti-client/types/cache/gradle"
 	mavenTypes "github.com/harness/ti-client/types/cache/maven"
 	"github.com/sirupsen/logrus"
@@ -43,16 +45,22 @@ func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64,
 	}
 
 	mavenCacheState, reports, mavenErr := maven.ParseSavings(workspace, log)
+	savingsRequest.MavenMetrics = mavenTypes.MavenMetrics{Reports: reports}
+
+	goCacheState, goReports, goDurationMs, goErr := golang.ParseSavings(workspace, log)
+	savingsRequest.GoMetrics = golangTypes.Metrics{Reports: goReports}
 
 	// Bazel exports no cache reports (unlike gradle/maven above), so the BI
 	// marker file is the only available signal for it. Don't bail out via
-	// the gradle/maven failure gate below when it's present, so a Bazel-only
-	// build (which never produces gradle or maven report files) can still
+	// the report failure gate below when it's present, so a Bazel-only build
+	// (which never produces gradle, maven, or Go report files) can still
 	// surface savings.
 	isBazelBIUsed := telemetryData.BuildIntelligenceMetaData.IsBazelBIUsed
 
-	if gradleErr != nil && mavenErr != nil && !isBazelBIUsed {
-		return types.FULL_RUN, 0, savingsRequest, joinErrors(gradleErr, mavenErr)
+	if gradleErr != nil && mavenErr != nil && goErr != nil {
+		if !isBazelBIUsed {
+			return types.FULL_RUN, 0, savingsRequest, joinErrors(gradleErr, mavenErr, goErr)
+		}
 	}
 
 	// Update cacheState based on gradle results if gradle parsing succeeded
@@ -75,6 +83,18 @@ func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64,
 		buildTime = int(cmdTimeTaken)
 	}
 
-	savingsRequest.MavenMetrics = mavenTypes.MavenMetrics{Reports: reports}
+	if goErr == nil {
+		if goCacheState == types.OPTIMIZED {
+			cacheState = types.OPTIMIZED
+		} else if cacheState == types.DISABLED {
+			cacheState = goCacheState
+		}
+		if buildTime == 0 && goDurationMs > 0 {
+			buildTime = goDurationMs
+		}
+		if buildTime == 0 {
+			buildTime = int(cmdTimeTaken)
+		}
+	}
 	return cacheState, buildTime, savingsRequest, nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/harness/lite-engine/common"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/savings/cache"
+	"github.com/harness/lite-engine/ti/savings/cache/golang"
 	"github.com/harness/lite-engine/ti/savings/cache/gradle"
 	"github.com/harness/lite-engine/ti/savings/dlc"
 	"github.com/harness/ti-client/types"
@@ -41,6 +42,9 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 			}
 
 			totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(&savingsRequest)
+			if totaltasks == 0 && cachedtasks == 0 {
+				totaltasks, cachedtasks = golang.GetMetadataFromGoMetrics(&savingsRequest)
+			}
 			telemetryData.BuildIntelligenceMetaData.BuildTasks = totaltasks
 			telemetryData.BuildIntelligenceMetaData.TasksRestored = cachedtasks
 		}
