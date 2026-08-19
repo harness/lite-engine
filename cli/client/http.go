@@ -36,15 +36,9 @@ var (
 // the peer doesn't ACK within PingTimeout, the conn is closed and the next
 // request dials a fresh one. See: https://pkg.go.dev/golang.org/x/net/http2
 const (
-	http2ReadIdleTimeout = 15 * time.Second
-	http2PingTimeout     = 5 * time.Second
-
-	// startStepAttemptTimeout bounds a single StartStep HTTP attempt. Combined
-	// with the parent timeout passed to RetryStartStep, this allows the retry
-	// loop to discover a broken HTTP/2 stream within a few seconds and dial a
-	// fresh connection on the next attempt instead of waiting for the parent
-	// deadline to fire.
-	startStepAttemptTimeout = 8 * time.Second
+	http2ReadIdleTimeout    = 15 * time.Second
+	http2PingTimeout        = 5 * time.Second
+	startStepAttemptTimeout = 15 * time.Second
 )
 
 var _ Client = (*HTTPClient)(nil)
@@ -74,7 +68,7 @@ func NewHTTPClient(endpoint, serverName, caCertFile, tlsCertFile, tlsKeyFile str
 	tlsConfig.RootCAs.AppendCertsFromPEM([]byte(caCertFile))
 
 	dialer := &net.Dialer{
-		Timeout:   30 * time.Second, //nolint:mnd
+		Timeout:   12 * time.Second, //nolint:mnd
 		KeepAlive: 30 * time.Second, //nolint:mnd
 	}
 	transport := &http.Transport{
