@@ -82,7 +82,7 @@ func TestDownloadCacheMissThenHit(t *testing.T) {
 	var hits int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		atomic.AddInt32(&hits, 1)
-		w.Write([]byte("binary-content"))
+		_, _ = w.Write([]byte("binary-content"))
 	}))
 	defer srv.Close()
 
@@ -122,7 +122,7 @@ func TestDownloadInfersZstFromURL(t *testing.T) {
 	compressed := buf.Bytes()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(compressed)
+		_, _ = w.Write(compressed)
 	}))
 	defer srv.Close()
 

@@ -31,6 +31,12 @@ const (
 	downloadTimeout = 10 * time.Minute
 	dirPerm         = 0o755 // download directories
 	binPerm         = 0o755 // downloaded executable binary
+
+	dialTimeout           = 30 * time.Second
+	dialKeepAlive         = 30 * time.Second
+	tlsHandshakeTimeout   = 10 * time.Second
+	responseHeaderTimeout = 30 * time.Second
+	expectContinueTimeout = 1 * time.Second
 )
 
 // Setup downloads runConfig.Binary under baseDir and exports PLUGIN_HOME /
@@ -49,7 +55,7 @@ func Setup(ctx context.Context, baseDir string, runConfig *api.RunConfig, envs m
 		urls = append(urls, buildURL(source, runConfig.Binary.Version))
 	}
 
-	dest := resolveDest(runConfig.Binary, pluginDir, envs)
+	dest := resolveDest(&runConfig.Binary, pluginDir, envs)
 	log.Infof("Downloading plugin binary %q to %s", runConfig.Binary.Name, dest)
 
 	binaryPath, err := download(ctx, urls, dest, runConfig.Binary.Compressed)
@@ -71,7 +77,7 @@ func Setup(ctx context.Context, baseDir string, runConfig *api.RunConfig, envs m
 
 // resolveDest returns the download destination: the expanded target if set,
 // else a name/version/os/arch path.
-func resolveDest(binary api.Binary, pluginDir string, envs map[string]string) string {
+func resolveDest(binary *api.Binary, pluginDir string, envs map[string]string) string {
 	if binary.Target != "" {
 		return expandEnv(binary.Target, envs)
 	}
@@ -100,12 +106,12 @@ func download(ctx context.Context, urls []string, dest string, compressed bool) 
 		Timeout: downloadTimeout, // overall budget for large binaries
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
-				Timeout:   30 * time.Second,
-				KeepAlive: 30 * time.Second,
+				Timeout:   dialTimeout,
+				KeepAlive: dialKeepAlive,
 			}).DialContext,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: 30 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
+			TLSHandshakeTimeout:   tlsHandshakeTimeout,
+			ResponseHeaderTimeout: responseHeaderTimeout,
+			ExpectContinueTimeout: expectContinueTimeout,
 		},
 	}
 	var lastErr error
@@ -118,7 +124,7 @@ func download(ctx context.Context, urls []string, dest string, compressed bool) 
 			downloadPath = dest + ".zst"
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 		if err != nil {
 			lastErr = fmt.Errorf("failed to create request for %s: %w", url, err)
 			continue
