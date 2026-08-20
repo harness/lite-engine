@@ -13,7 +13,7 @@ require (
 	github.com/drone/drone-go v1.7.1
 	github.com/drone/runner-go v1.13.0
 	github.com/go-chi/chi/v5 v5.2.4
-	github.com/harness/ti-client v0.0.0-20260106231425-06bf65d965b0
+	github.com/harness/ti-client v0.0.0-20260820120339-a359c038ed72
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/linkedin/goavro/v2 v2.12.0
@@ -93,6 +93,7 @@ require (
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.mongodb.org/mongo-driver v1.17.4 // indirect
+	go.mongodb.org/mongo-driver/v2 v2.6.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0 // indirect
 	go.opentelemetry.io/otel v1.43.0 // indirect

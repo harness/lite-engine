@@ -336,7 +336,7 @@ func distributeSkipTestsForParallelism(
 	}
 
 	log.Infof("Calling GetTestTimes for step: %s", stepID)
-	if res, err := client.GetTestTimes(ctx, stepID, &req, 0); err == nil {
+	if res, err := client.GetTestTimes(ctx, stepID, &req, 0, false); err == nil {
 		// Convert the timing data to our format
 		for filename, timing := range res.FileTimeMap {
 			fileTimes[filename] = float64(timing)
