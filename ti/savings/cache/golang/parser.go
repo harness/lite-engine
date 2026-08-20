@@ -1,8 +1,6 @@
 package golang
 
 import (
-	"crypto/sha1" // #nosec G505
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,11 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const (
-	reportPathRegex = "**/.harness/go-cache-report.json"
-	markerDirPerm   = 0755
-	markerFilePerm  = 0600
-)
+const reportPathRegex = "**/.harness/go-cache-report.json"
 
 // ParseSavings finds and parses Go cache savings reports emitted by go-cache-proxy.
 func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecutionState, []golangTypes.Report, int, error) {
@@ -37,10 +31,6 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 
 	processed := 0
 	for _, file := range files {
-		markerPath := markerFilePath(file)
-		if markerExists(markerPath) {
-			continue
-		}
 		report, err := parseReportFile(file)
 		if err != nil {
 			log.WithError(err).WithField("file", file).Errorln("failed to parse go cache report")
@@ -55,8 +45,8 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 				cacheState = types.FULL_RUN
 			}
 		}
-		if err := createMarkerFile(markerPath, file); err != nil {
-			log.WithError(err).Warnf("failed to create marker for %s", file)
+		if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+			log.WithError(err).Warnf("failed to remove parsed Go cache report %s", file)
 		}
 		processed++
 	}
@@ -84,6 +74,9 @@ func findReportFiles(workspace string) ([]string, error) {
 
 	if explicit := strings.TrimSpace(os.Getenv("HARNESS_GO_CACHE_REPORT_PATH")); explicit != "" {
 		add(explicit)
+	}
+	if tmpPath := strings.TrimSpace(os.Getenv("HARNESS_TMP_PATH")); tmpPath != "" {
+		add(filepath.Join(tmpPath, "go-cache-report.json"))
 	}
 	if workspace != "" {
 		add(filepath.Join(workspace, ".harness", "go-cache-report.json"))
@@ -116,24 +109,6 @@ func parseReportFile(path string) (*golangTypes.Report, error) {
 		report.Version = 1
 	}
 	return &report, nil
-}
-
-func markerFilePath(file string) string {
-	h := sha1.New() // #nosec G401
-	h.Write([]byte(file))
-	return filepath.Join(os.TempDir(), "go-cache-report-"+hex.EncodeToString(h.Sum(nil))+".parsed")
-}
-
-func markerExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
-func createMarkerFile(path, file string) error {
-	if err := os.MkdirAll(filepath.Dir(path), markerDirPerm); err != nil {
-		return err
-	}
-	return os.WriteFile(path, []byte(file), markerFilePerm)
 }
 
 // GetMetadataFromGoMetrics returns total get ops and hits for telemetry.
