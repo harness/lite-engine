@@ -95,10 +95,10 @@ func darwinRuntimeRegistered(ctx context.Context) bool {
 	return darwinPrivilegedCommand(ctx, "/bin/launchctl", "print", "system/com.tailscale.tailscaled").Run() == nil
 }
 
-// The open-source macOS daemon owns DNS configuration. It installs scoped
-// /etc/resolver entries for MagicDNS and split-DNS suffixes and removes them
-// when it is logged out/stopped. LE must not also replace every network
-// service's global DNS servers, which can break ordinary Harness traffic.
+// The open-source macOS daemon owns DNS configuration. With the tailnet's active global DNS
+// defaults, it installs Quad100 through SystemConfiguration and routes public, MagicDNS, split-DNS,
+// and App Connector queries internally. Logout/service shutdown removes that configuration; Lite
+// Engine must not install a second DNS policy layer.
 func platformNetworkPrepare(context.Context, string) error { return nil }
 
 func platformNetworkActivate(context.Context, string) error { return nil }

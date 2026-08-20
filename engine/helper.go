@@ -109,17 +109,12 @@ func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step) {
 
 	// Quad100 is served by tailscaled on the host and is reachable from containers on
 	// Linux (bridge) and Windows (nat). macOS has no Docker steps, so it is excluded.
+	// An explicit step DNS list is a customer override; preserve it exactly instead of
+	// silently changing resolver precedence. Such a step is responsible for resolving
+	// the private names it uses through its selected DNS servers.
 	if cfg == nil || step == nil || !cfg.PrivateConnectivity ||
-		(cfg.Platform.OS != "linux" && cfg.Platform.OS != "windows") {
+		(cfg.Platform.OS != "linux" && cfg.Platform.OS != "windows") || len(step.DNS) > 0 {
 		return
 	}
-
-	dns := make([]string, 1, len(step.DNS)+1)
-	dns[0] = quad100
-	for _, server := range step.DNS {
-		if server != quad100 {
-			dns = append(dns, server)
-		}
-	}
-	step.DNS = dns
+	step.DNS = []string{quad100}
 }
