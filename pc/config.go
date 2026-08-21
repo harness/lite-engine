@@ -24,7 +24,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -32,12 +31,15 @@ import (
 // On-VM env var names — FROZEN. Do NOT change without a coordinated update
 // to ci-manager VmInitializeTaskParamsBuilder and the InternalApi contract.
 const (
-	EnvEnabled           = "HARNESS_PC_ENABLED"
-	EnvClientID          = "HARNESS_PC_CLIENT_ID"
-	EnvOIDCToken         = "HARNESS_PC_OIDC_TOKEN"
-	EnvHostname          = "HARNESS_PC_HOSTNAME"
-	EnvTag               = "HARNESS_PC_TAG"
-	EnvBindingGeneration = "HARNESS_PC_BINDING_GENERATION"
+	EnvEnabled   = "HARNESS_PC_ENABLED"
+	EnvClientID  = "HARNESS_PC_CLIENT_ID"
+	EnvOIDCToken = "HARNESS_PC_OIDC_TOKEN"
+	EnvHostname  = "HARNESS_PC_HOSTNAME"
+	EnvTag       = "HARNESS_PC_TAG"
+
+	// Accepted and stripped only during the coordinated rollout from older CI Manager producers.
+	// It has no lifecycle or authorization semantics.
+	legacyEnvBindingGeneration = "HARNESS_PC_BINDING_GENERATION"
 
 	DefaultTag = "tag:ci-runner"
 	// ContractVersion identifies the cross-repository DRA/LE lifecycle contract.
@@ -54,14 +56,12 @@ const (
 type Config struct {
 	Enabled bool
 
-	ClientID          string
-	OIDCToken         string
-	Hostname          string
-	Tag               string
-	BindingGeneration uint64
-	contractPresent   bool
-	unexpectedField   bool
-	invalidGeneration bool
+	ClientID        string
+	OIDCToken       string
+	Hostname        string
+	Tag             string
+	contractPresent bool
+	unexpectedField bool
 }
 
 // ExtractAndStrip reads all HARNESS_PC_* values from envs and removes every key.
@@ -79,16 +79,11 @@ func ExtractAndStrip(envs map[string]string) Config {
 		Hostname:  envs[EnvHostname],
 		Tag:       envs[EnvTag],
 	}
-	if rawGeneration := strings.TrimSpace(envs[EnvBindingGeneration]); rawGeneration != "" {
-		generation, err := strconv.ParseUint(rawGeneration, 10, 64)
-		cfg.BindingGeneration = generation
-		cfg.invalidGeneration = err != nil
-	}
 	for key := range envs {
 		if strings.HasPrefix(key, "HARNESS_PC_") {
 			cfg.contractPresent = true
 			if key != EnvEnabled && key != EnvClientID && key != EnvOIDCToken && key != EnvHostname &&
-				key != EnvTag && key != EnvBindingGeneration {
+				key != EnvTag && key != legacyEnvBindingGeneration {
 				cfg.unexpectedField = true
 			}
 			delete(envs, key)
@@ -120,9 +115,6 @@ func Validate(cfg *Config, now time.Time) error { //nolint:gocyclo // Fail-close
 	}
 	if !validHostname(cfg.Hostname) {
 		return fmt.Errorf("pc: invalid private connectivity hostname")
-	}
-	if cfg.invalidGeneration || cfg.BindingGeneration == 0 {
-		return fmt.Errorf("pc: invalid binding generation")
 	}
 	segments := strings.Split(cfg.OIDCToken, ".")
 	if len(segments) != jwtSegmentCount {

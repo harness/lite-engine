@@ -48,8 +48,7 @@ const (
 )
 
 type lifecycleMarker struct {
-	State             lifecycleState `json:"state"`
-	BindingGeneration uint64         `json:"bindingGeneration"`
+	State lifecycleState `json:"state"`
 }
 
 func cleanupMarkerPath() string {
@@ -160,14 +159,11 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 			stopErr,
 		)
 	}
-	logrus.WithFields(logrus.Fields{
-		"binding_generation": cfg.BindingGeneration,
-		"hostname":           cfg.Hostname,
-	}).Infoln("pc: installed runtime is ready for join")
+	logrus.WithField("hostname", cfg.Hostname).Infoln("pc: installed runtime is ready for join")
 	if err := secureTokenDir(); err != nil {
 		return errors.Join(err, platformRuntimeStop(context.WithoutCancel(ctx)))
 	}
-	if err := writeMarker(lifecycleMarker{State: stateJoining, BindingGeneration: cfg.BindingGeneration}); err != nil {
+	if err := writeMarker(lifecycleMarker{State: stateJoining}); err != nil {
 		return errors.Join(err, platformRuntimeStop(context.WithoutCancel(ctx)))
 	}
 	if err := platformNetworkPrepare(ctx, path); err != nil {
@@ -223,7 +219,7 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	if err := removeFile(TokenFile); err != nil {
 		return rollbackSetup(ctx, err)
 	}
-	if err := writeMarker(lifecycleMarker{State: stateActive, BindingGeneration: cfg.BindingGeneration}); err != nil {
+	if err := writeMarker(lifecycleMarker{State: stateActive}); err != nil {
 		return rollbackSetup(ctx, err)
 	}
 	if err := writeFileAtomically(usedMarkerPath(), []byte("1\n")); err != nil {
@@ -266,11 +262,7 @@ func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) error
 	if err := secureTokenDir(); err != nil {
 		return err
 	}
-	marker := lifecycleMarker{State: stateCleaning}
-	if existing, err := readMarker(); err == nil {
-		marker.BindingGeneration = existing.BindingGeneration
-	}
-	if err := writeMarker(marker); err != nil {
+	if err := writeMarker(lifecycleMarker{State: stateCleaning}); err != nil {
 		return err
 	}
 	if err := writeFileAtomically(cleanupMarkerPath(), []byte("1\n")); err != nil {

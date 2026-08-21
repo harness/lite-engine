@@ -128,7 +128,6 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			logger.FromRequest(r).
 				WithField("platform", runtime.GOOS).
 				WithField("architecture", runtime.GOARCH).
-				WithField("binding_generation", pcCfg.BindingGeneration).
 				WithField("hostname", pcCfg.Hostname).
 				WithField("docker_setup_enabled", s.MountDockerSocket == nil || *s.MountDockerSocket).
 				Infoln("api: validated private connectivity setup contract")
