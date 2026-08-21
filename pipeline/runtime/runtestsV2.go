@@ -74,7 +74,10 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	step.Entrypoint = r.RunTestsV2.Entrypoint
 	telemetryData := &types.TelemetryData{}
 
-	preCmd, err := SetupRunTestV2(ctx, &r.RunTestsV2, step.Name, r.WorkingDir, step.ID, log, step.Envs, tiConfig, &telemetryData.TestIntelligenceMetaData)
+	preCmd, selectedCountsFromReports, err := setupRunTestV2(
+		ctx, &r.RunTestsV2, step.Name, r.WorkingDir, step.ID, log, step.Envs, tiConfig,
+		&telemetryData.TestIntelligenceMetaData,
+	)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), err
 	}
@@ -141,6 +144,11 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 			err = collectReportsErr
 		}
 	}
+
+	// CI-22586: after reports populate totals, use them as selected counts only for
+	// paths that explicitly run all tests or derive selection from executed reports.
+	// A zero returned by test selection remains a legitimate zero.
+	backfillRunTestsV2SelectedTelemetry(telemetryData, selectedCountsFromReports)
 
 	// Check if all failed tests are quarantined and update exit code accordingly
 	if exited != nil {
@@ -221,10 +229,27 @@ func SetupRunTestV2(
 	tiConfig *tiCfg.Cfg,
 	testMetadata *types.TestIntelligenceMetaData,
 ) (string, error) {
+	preCmd, _, err := setupRunTestV2(ctx, config, stepID, workspace, uniqueStepID, log, envs, tiConfig, testMetadata)
+	return preCmd, err
+}
+
+func setupRunTestV2(
+	ctx context.Context,
+	config *api.RunTestsV2Config,
+	stepID, workspace string,
+	uniqueStepID string,
+	log *logrus.Logger,
+	envs map[string]string,
+	tiConfig *tiCfg.Cfg,
+	testMetadata *types.TestIntelligenceMetaData,
+) (string, bool, error) {
 	agentPaths := make(map[string]string)
 	fs := filesystem.New()
 	tmpFilePath := filepath.Join(tiConfig.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, tiConfig))
 	var preCmd, skipTestsFilePath, filterfilePath, failedTestsFilePath string
+	// Intelligence-off and enhanced-TI select tests by what actually executes, so
+	// report totals are the authoritative selected counts.
+	selectedCountsFromReports := true
 
 	if config.IntelligenceMode {
 		// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
@@ -235,26 +260,26 @@ func SetupRunTestV2(
 
 		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig, useQAEnv)
 		if err != nil {
-			return preCmd, fmt.Errorf("failed to get AgentV2 URL from TI")
+			return preCmd, selectedCountsFromReports, fmt.Errorf("failed to get AgentV2 URL from TI")
 		}
 		if len(links) < agentV2LinkLength {
-			return preCmd, fmt.Errorf("error: Could not get agent V2 links from TI")
+			return preCmd, selectedCountsFromReports, fmt.Errorf("error: Could not get agent V2 links from TI")
 		}
 		client := tiConfig.GetClient()
 		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log, client)
 		if err != nil {
-			return preCmd, fmt.Errorf("failed to download Java agent")
+			return preCmd, selectedCountsFromReports, fmt.Errorf("failed to download Java agent")
 		}
 
 		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log, client)
 		if err != nil || rubyArtifactDir == "" {
-			return preCmd, fmt.Errorf("failed to download Ruby agent")
+			return preCmd, selectedCountsFromReports, fmt.Errorf("failed to download Ruby agent")
 		}
 		agentPaths["ruby"] = rubyArtifactDir
 
 		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log, client)
 		if err != nil {
-			return preCmd, fmt.Errorf("failed to download Python agent")
+			return preCmd, selectedCountsFromReports, fmt.Errorf("failed to download Python agent")
 		}
 		agentPaths["python"] = pythonArtifactDir
 
@@ -270,22 +295,25 @@ func SetupRunTestV2(
 		isPsh := IsPowershell(config.Entrypoint)
 		preCmd, filterfilePath, skipTestsFilePath, failedTestsFilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
 		if err != nil || pythonArtifactDir == "" {
-			return preCmd, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
+			return preCmd, selectedCountsFromReports, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
 		}
 
 		if enhancedFFVal, ok := envs["CI_TI_V2_ENHANCED_FF"]; ok && enhancedFFVal == trueValue {
 			err = createSkipAndFailedTestsFiles(ctx, fs, stepID, workspace, log, tiConfig, skipTestsFilePath, failedTestsFilePath, envs, config)
 			if err != nil {
-				return preCmd, fmt.Errorf("error while creating skip tests file %s", err)
+				return preCmd, selectedCountsFromReports, fmt.Errorf("error while creating skip tests file %s", err)
 			}
 		} else {
-			err = createSelectedTestFile(ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs, config, filterfilePath, testMetadata)
+			selectedCountsFromReports, err = createSelectedTestFile(
+				ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs,
+				config, filterfilePath, testMetadata,
+			)
 			if err != nil {
-				return preCmd, fmt.Errorf("error while creating filter file %s", err)
+				return preCmd, selectedCountsFromReports, fmt.Errorf("error while creating filter file %s", err)
 			}
 		}
 	}
-	return preCmd, nil
+	return preCmd, selectedCountsFromReports, nil
 }
 
 //nolint:funlen
@@ -1065,7 +1093,7 @@ func downloadDotNetAgent(ctx context.Context, path, dotNetAgentV2Url string, fs 
 
 // This is nothing but filterfile where all the tests selected will be stored
 func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
-	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string, testMetadata *types.TestIntelligenceMetaData) error {
+	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string, testMetadata *types.TestIntelligenceMetaData) (bool, error) {
 	isManualExecution := instrumentation.IsManualExecution(tiConfig)
 	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig, envs, runV2Config)
 	if runV2Config.IntelligenceMode {
@@ -1083,18 +1111,18 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 	err := fs.MkdirAll(filterFileDir, os.ModePerm)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create nested directory %s", filterFileDir))
-		return err
+		return !isFilterFilePresent, err
 	}
 	err = filter.PopulateItemInFilterFile(resp, filterFilePath, fs, isFilterFilePresent)
 
 	if err != nil {
 		log.WithError(err).Errorln("failed to populate items in filterfile")
-		return err
+		return !isFilterFilePresent, err
 	}
 	testMetadata.TotalSelectedTests = resp.SelectedTests
 	testMetadata.TotalSelectedTestClass = telemetryutils.CountDistinctSelectedClasses(resp.Tests)
 	testMetadata.IsRunTestV2 = true
-	return nil
+	return !isFilterFilePresent, nil
 }
 
 func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
@@ -1137,6 +1165,24 @@ func writetoBazelrcFile(log *logrus.Logger, fs filesystem.FileSystem) error {
 		}
 	}
 	return nil
+}
+
+// backfillRunTestsV2SelectedTelemetry marks the step as RunTests V2 and uses report
+// totals only when setup explicitly identified reports as the selection source.
+// This distinguishes full runs from a legitimate zero returned by TI (CI-22586).
+func backfillRunTestsV2SelectedTelemetry(
+	telemetryData *types.TelemetryData,
+	selectedCountsFromReports bool,
+) {
+	if telemetryData == nil {
+		return
+	}
+	ti := &telemetryData.TestIntelligenceMetaData
+	ti.IsRunTestV2 = true
+	if selectedCountsFromReports && ti.TotalSelectedTests == 0 && ti.TotalTests > 0 {
+		ti.TotalSelectedTests = ti.TotalTests
+		ti.TotalSelectedTestClass = ti.TotalTestClasses
+	}
 }
 
 func collectTestReports(
