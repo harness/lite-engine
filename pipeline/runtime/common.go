@@ -379,7 +379,7 @@ func shouldInjectHcliPath(step *spec.Step) bool {
 	if step == nil || step.Envs == nil {
 		return false
 	}
-	if goruntime.GOOS != "windows" {
+	if goruntime.GOOS != windowsOS {
 		return false
 	}
 	if step.Image == "" || len(step.Command) == 0 {

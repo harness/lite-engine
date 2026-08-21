@@ -20,6 +20,7 @@ import (
 	"github.com/harness/lite-engine/osstats"
 	"github.com/harness/lite-engine/pc"
 	"github.com/harness/lite-engine/pipeline"
+	pruntime "github.com/harness/lite-engine/pipeline/runtime"
 )
 
 // HandleDestroy returns an http.HandlerFunc that destroy the stage resources
@@ -72,6 +73,10 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		if pcUsed && destroyErr == nil {
 			destroyErr = pc.MarkCleanupComplete()
 		}
+
+		// Workload Identity: clear any handles still resident now that the stage is torn down and nothing
+		// can mint. This is the backstop for detached steps, whose handle is not evicted on step completion.
+		pruntime.ClearWorkloadIdentities()
 
 		// Close lite-engine log stream to flush logs (always attempt so logs are uploaded)
 		log.Infoln("api: closing lite-engine log stream")

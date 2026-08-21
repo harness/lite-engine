@@ -153,6 +153,36 @@ type (
 		Files          []*spec.File         `json:"files,omitempty"`
 		StepStatus     StepStatusConfig     `json:"step_status,omitempty"`
 		ProcessConfig  spec.ProcessConfig   `json:"process_config,omitempty"`
+
+		// Workload Identity (OIDC-without-connector broker). One entry per identity declared on the step.
+		// Sensitive: lite-engine holds these in memory and brokers the OIDC mint; the workload token must
+		// never be forwarded to the step environment (only an opaque handle + mint URL are injected).
+		WorkloadIdentities []WorkloadIdentity `json:"workload_identities,omitempty"`
+		// HarnessID OIDC token-generate endpoint that lite-engine POSTs to when minting. Rides in the step
+		// contract from ci-manager (no VM-image/cloud-init config needed).
+		WITokenGenerateURL string `json:"wi_token_generate_url,omitempty"`
+	}
+
+	// WorkloadIdentity is a single registered workload identity delivered from ci-manager to lite-engine.
+	WorkloadIdentity struct {
+		Name          string `json:"name,omitempty"`           // identity name; also the env var the step reads at runtime
+		WorkloadToken string `json:"workload_token,omitempty"` // opaque HMAC workload token (lite-engine held only)
+		Audience      string `json:"audience,omitempty"`       // resolved OIDC audience (expressions rendered ci-manager side)
+		TokenMode     string `json:"token_mode,omitempty"`     // STANDARD | CLIENT_ASSERTION; forwarded to HarnessID at mint
+	}
+
+	// MintWorkloadTokenRequest is the body hcli POSTs to lite-engine's /mint_workload_token endpoint.
+	MintWorkloadTokenRequest struct {
+		Handle           string `json:"handle,omitempty"`            // opaque per-step handle injected as HARNESS_WI_HANDLE
+		Name             string `json:"name,omitempty"`              // identity name to mint
+		AudienceOverride string `json:"audience_override,omitempty"` // optional; empty uses the registered audience
+	}
+
+	// MintWorkloadTokenResponse is lite-engine's reply to hcli.
+	MintWorkloadTokenResponse struct {
+		OidcToken     string `json:"oidc_token,omitempty"`      // short-lived OIDC ID token
+		ExpiresAtUnix int64  `json:"expires_at_unix,omitempty"` // token expiry (epoch seconds) when known
+		Error         string `json:"error,omitempty"`           // error message when minting failed
 	}
 
 	OutputV2 struct {

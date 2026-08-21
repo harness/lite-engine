@@ -160,6 +160,8 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		}
 	}
 
+	appendWorkloadIdentityMount(config, step)
+
 	if len(step.PortBindings) != 0 {
 		portBinding := make(network.PortMap)
 		for hostPort, ctrPort := range step.PortBindings {
@@ -177,6 +179,26 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.PortBindings = portBinding
 	}
 	return config
+}
+
+// appendWorkloadIdentityMount bind-mounts the WI mint socket dir into the step container at the SAME host
+// path so the in-step hcli reaches lite-engine's mint endpoint over a Unix socket (no network port /
+// firewall / mTLS / DNS) - source == target so the injected HARNESS_WI_MINT_URL is identical whether the
+// step runs in a container (this mount) or on the host (containerless, no mount). Linux/Mac only, and only
+// for steps that actually registered a workload identity (marked by the injected handle env). Extracted
+// from toHostConfig to keep its cyclomatic complexity down.
+func appendWorkloadIdentityMount(config *container.HostConfig, step *spec.Step) {
+	if runtime.GOOS == windowsOS || step.Envs[spec.WIHandleEnv] == "" {
+		return
+	}
+	if _, err := os.Stat(spec.WISocketDir); err != nil {
+		return
+	}
+	config.Mounts = append(config.Mounts, mount.Mount{
+		Type:   mount.TypeBind,
+		Source: spec.WISocketDir,
+		Target: spec.WISocketDir,
+	})
 }
 
 // helper function returns the container network configuration.

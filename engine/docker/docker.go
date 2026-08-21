@@ -719,9 +719,11 @@ func applyProxyToDockerDaemon(ctx context.Context, proxyURL, noProxy, goos strin
 		os.Setenv("HTTPS_PROXY", proxyURL)
 		os.Setenv("NO_PROXY", noProxy)
 
-		// Set at Machine scope so the independently running Docker service receives the same
-		// settings. Keep this existing non-PC behavior unchanged; PC requests are rejected when
-		// egress control is present and never execute this path.
+		// Set at Machine scope in the Windows registry so the Docker daemon service
+		// inherits the proxy env vars when it starts. os.Setenv alone only affects the
+		// current process; the Docker service runs independently and reads Machine-level
+		// environment variables from the registry on startup. Private Connectivity requests
+		// with an egress proxy are rejected before this path.
 		script := fmt.Sprintf(
 			`[Environment]::SetEnvironmentVariable("HTTP_PROXY", "%s", "Machine"); `+
 				`[Environment]::SetEnvironmentVariable("HTTPS_PROXY", "%s", "Machine"); `+

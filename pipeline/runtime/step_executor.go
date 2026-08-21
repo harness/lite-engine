@@ -57,9 +57,10 @@ const (
 	NotStarted ExecutionStatus = iota
 	Running
 	Complete
-	defaultStepTimeout = 10 * time.Hour // default step timeout
-	stepStatusUpdate   = "DLITE_CI_VM_EXECUTE_TASK_V2"
-	maxStepTimeout     = 24 * 7 * time.Hour // 1 week max timeout
+	defaultStepTimeout     = 10 * time.Hour // default step timeout
+	stepStatusUpdate       = "DLITE_CI_VM_EXECUTE_TASK_V2"
+	maxStepTimeout         = 24 * 7 * time.Hour // 1 week max timeout
+	logServiceResilienceFF = "CI_LOG_SERVICE_RESILIENCE"
 )
 
 type StepExecutor struct {
@@ -96,6 +97,11 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.mu.Unlock()
 
 	safego.WithContext(ctx, "step_executor", func(ctx context.Context) {
+		// Workload Identity: register declared identities (inject handle + mint URL; tokens held in
+		// lite-engine, never exposed to the step) and evict on completion. Detached steps are cleared at
+		// stage teardown (ClearWorkloadIdentities in Destroy). No-op when none are declared.
+		defer setupWorkloadIdentity(r)()
+
 		// Read r.Envs BEFORE executeStep: a detached step (Detach && Image=="")
 		// runs in its own goroutine that mutates the step env map, so reading
 		// r.Envs after executeStep would race that writer. See toStep's copyEnvs
@@ -182,6 +188,9 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			if r.StageRuntimeID != "" && r.Image == "" {
 				setPrevStepExportEnvs(r)
 			}
+			// Workload Identity: register declared identities (handle + mint URL; tokens held in
+			// lite-engine) and evict on completion; detached steps cleared at stage teardown. No-op when none.
+			defer setupWorkloadIdentity(r)()
 			// Read r.Envs BEFORE executeStep: a detached step runs in its own
 			// goroutine that mutates the step env map, so reading r.Envs after
 			// executeStep would race that writer. See toStep's copyEnvs.
@@ -404,7 +413,8 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 		tiConfig = getTiCfg(&r.TIConfig, &r.MtlsConfig, r.Envs)
 	}
 	ctx := context.Background()
-	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig, false)
+	logResilience := e.engine.GetPipelineEnvs()[logServiceResilienceFF] == trueValue
+	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig, false, logResilience)
 }
 
 // executeStepHelper is a helper function which is used both by this step executor as well as the
@@ -416,7 +426,8 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 	f RunFunc,
 	wr logstream.Writer,
 	tiCfg *tiCfg.Cfg,
-	enableDebugLogs bool) (*runtime.State, map[string]string,
+	enableDebugLogs bool,
+	logServiceResilience bool) (*runtime.State, map[string]string,
 	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
@@ -465,12 +476,17 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 		result = multierror.Append(result, err)
 	}
 
-	// if err is not nill or it's not a detach step then always close the stream
+	// if err is not nil or it's not a detach step then always close the stream
 	if err != nil || !r.Detach {
 		// close the stream. If the session is a remote session, the
 		// full log buffer is uploaded to the remote server.
-		if err = wr.Close(); err != nil {
-			result = multierror.Append(result, err)
+		if closeErr := wr.Close(); closeErr != nil {
+			if logServiceResilience && result == nil && exited != nil && exited.ExitCode == 0 {
+				logrus.WithError(closeErr).WithField("key", r.LogKey).
+					Warnln("failed to upload/close log stream, ignoring since step execution passed")
+			} else {
+				result = multierror.Append(result, closeErr)
+			}
 		}
 	}
 

@@ -70,5 +70,26 @@ func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime
 		return sr
 	}())
 
+	// Workload Identity mint endpoint (OIDC-without-connector broker). hcli inside the step POSTs its
+	// handle + identity name here to obtain a short-lived OIDC token; the workload token stays in
+	// lite-engine.
+	r.Mount("/mint_workload_token", func() http.Handler {
+		sr := chi.NewRouter()
+		sr.Post("/", HandleMintWorkloadToken())
+		return sr
+	}())
+
+	return r
+}
+
+// MintHandler exposes ONLY the workload-identity mint endpoint. It is served on a separate plain-HTTP
+// listener because the main server enforces mTLS (client cert), which the in-step hcli cannot present.
+// The opaque per-step handle is the capability that authorizes the mint, and only short-lived OIDC
+// tokens are returned, so mTLS is not required here.
+func MintHandler() http.Handler {
+	r := chi.NewRouter()
+	r.Use(logger.Middleware)
+	r.Use(middleware.Recoverer)
+	r.Post("/mint_workload_token", HandleMintWorkloadToken())
 	return r
 }

@@ -81,7 +81,8 @@ func (e *StepExecutorStateless) executeStep( //nolint:gocritic
 	tiConfig := getTiCfg(&r.TIConfig, &r.MtlsConfig, r.Envs)
 
 	r.DeleteTempStepFiles = true
-	return executeStepHelper(ctx, r, runFunc, writer, tiConfig, true)
+	logResilience := cfg.Envs[logServiceResilienceFF] == trueValue
+	return executeStepHelper(ctx, r, runFunc, writer, tiConfig, true, logResilience)
 }
 
 func getTiCfg(t *api.TIConfig, mtlsConfig *spec.MtlsConfig, envs map[string]string) *tiCfg.Cfg {
