@@ -76,7 +76,11 @@ func platformRuntimeStop(ctx context.Context) error {
 	if out, err := exec.CommandContext(commandCtx, "systemctl", "stop", "tailscaled.service").CombinedOutput(); err != nil {
 		return fmt.Errorf("systemctl stop tailscaled failed: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
-	if exec.CommandContext(commandCtx, "systemctl", "is-active", "--quiet", "tailscaled.service").Run() == nil {
+	running, known := platformRuntimeRunning(ctx)
+	if !known {
+		return fmt.Errorf("tailscaled stopped but its inactive state could not be confirmed")
+	}
+	if running {
 		return fmt.Errorf("tailscaled remains active after stop")
 	}
 	return nil

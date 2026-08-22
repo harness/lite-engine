@@ -16,7 +16,11 @@ import (
 	"time"
 )
 
-const sudoProbeTimeout = 2 * time.Second
+const (
+	sudoProbeTimeout   = 2 * time.Second
+	darwinService      = "system/com.tailscale.tailscaled"
+	darwinServicePlist = "/Library/LaunchDaemons/com.tailscale.tailscaled.plist"
+)
 
 var (
 	TokenDir   = darwinStateDirectory()
@@ -53,6 +57,10 @@ func securePlatformTokenDir() error {
 }
 
 func platformRuntimeReady() bool {
+	info, err := os.Lstat(darwinServicePlist)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
 	if os.Geteuid() == 0 {
 		return true
 	}
@@ -65,9 +73,9 @@ func platformRuntimeRunning(ctx context.Context) (running, known bool) {
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
 	defer cancel()
 	out, err := darwinPrivilegedCommand(commandCtx, "/bin/launchctl", "print",
-		"system/com.tailscale.tailscaled").CombinedOutput()
+		darwinService).CombinedOutput()
 	if err == nil {
-		return true, true
+		return strings.Contains(strings.ToLower(string(out)), "state = running"), true
 	}
 	message := strings.ToLower(string(out))
 	if strings.Contains(message, "could not find service") ||
@@ -78,41 +86,70 @@ func platformRuntimeRunning(ctx context.Context) (running, known bool) {
 }
 
 func platformRuntimeStart(ctx context.Context) error {
-	const daemonPath = "/opt/homebrew/bin/tailscaled"
-	if darwinRuntimeRegistered(ctx) {
-		return nil
+	running, known := platformRuntimeRunning(ctx)
+	if !known {
+		return fmt.Errorf("tailscaled launchd state could not be inspected")
 	}
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
 	defer cancel()
-	out, err := darwinPrivilegedCommand(commandCtx, daemonPath, "install-system-daemon").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to register tailscaled with launchd: %w (%s)", err, strings.TrimSpace(string(out)))
+	registered, registrationKnown := darwinRuntimeRegistered(commandCtx)
+	if !registrationKnown {
+		return fmt.Errorf("tailscaled launchd registration could not be inspected")
 	}
-	if !darwinRuntimeRegistered(commandCtx) {
-		return fmt.Errorf("tailscaled launchd service did not become available")
+	if !registered {
+		out, err := darwinPrivilegedCommand(
+			commandCtx, "/bin/launchctl", "bootstrap", "system", darwinServicePlist).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to bootstrap preinstalled tailscaled launchd service: %w (%s)",
+				err, strings.TrimSpace(string(out)))
+		}
+	}
+	if !running {
+		out, err := darwinPrivilegedCommand(
+			commandCtx, "/bin/launchctl", "kickstart", "-k", darwinService).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to start preinstalled tailscaled launchd service: %w (%s)",
+				err, strings.TrimSpace(string(out)))
+		}
+	}
+	if running, known := platformRuntimeRunning(commandCtx); !known || !running {
+		return fmt.Errorf("tailscaled launchd service did not become active")
 	}
 	return nil
 }
 
 func platformRuntimeStop(ctx context.Context) error {
-	const daemonPath = "/opt/homebrew/bin/tailscaled"
-	if !darwinRuntimeRegistered(ctx) {
+	registered, known := darwinRuntimeRegistered(ctx)
+	if !known {
+		return fmt.Errorf("tailscaled launchd registration could not be inspected")
+	}
+	if !registered {
 		return nil
 	}
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
 	defer cancel()
-	out, err := darwinPrivilegedCommand(commandCtx, daemonPath, "uninstall-system-daemon").CombinedOutput()
+	out, err := darwinPrivilegedCommand(commandCtx, "/bin/launchctl", "bootout", darwinService).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to unregister tailscaled from launchd: %w (%s)", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("failed to stop preinstalled tailscaled launchd service: %w (%s)",
+			err, strings.TrimSpace(string(out)))
 	}
-	if darwinRuntimeRegistered(commandCtx) {
-		return fmt.Errorf("tailscaled launchd service remains registered after cleanup")
+	if registered, known := darwinRuntimeRegistered(commandCtx); !known || registered {
+		return fmt.Errorf("tailscaled launchd service remains loaded after cleanup")
 	}
 	return nil
 }
 
-func darwinRuntimeRegistered(ctx context.Context) bool {
-	return darwinPrivilegedCommand(ctx, "/bin/launchctl", "print", "system/com.tailscale.tailscaled").Run() == nil
+func darwinRuntimeRegistered(ctx context.Context) (registered, known bool) {
+	out, err := darwinPrivilegedCommand(ctx, "/bin/launchctl", "print", darwinService).CombinedOutput()
+	if err == nil {
+		return true, true
+	}
+	message := strings.ToLower(string(out))
+	if strings.Contains(message, "could not find service") ||
+		strings.Contains(message, "service could not be found") {
+		return false, true
+	}
+	return false, false
 }
 
 // Tailscale must own macOS host DNS; Lite Engine does not install a second DNS policy layer.

@@ -2,22 +2,7 @@
 // Use of this source code is governed by the Polyform License
 // that can be found in the LICENSE file.
 
-// Package pc implements Harness Cloud Private Connectivity lifecycle for lite-engine.
-//
-// Canonical /setup order:
-//  1. Decode SetupRequest.
-//  2. ExtractAndStrip — extract the CI-issued workload identity, mask the JWT, and strip all fields.
-//  3. Reject PC combined with an egress proxy.
-//  4. Attempt Linux arm64 clock repair before validating the time-bound JWT.
-//  5. Validate the complete contract.
-//  6. JoinAndConfigure revalidates the contract and installed runtime, starts tailscaled through
-//     the OS service manager, and joins with WIF (file-backed JWT, never argv or os.Setenv).
-//  7. engine.Setup applies container-scoped DNS/MTU configuration.
-//
-// /destroy order:
-//  1. engine.Destroy (containers first while connectivity remains).
-//  2. Logout from Tailscale, verify the logged-out state, and stop its OS service.
-//  3. Delete the raw token on every exit; clear lifecycle markers only after cleanup succeeds.
+// Package pc implements the Lite Engine side of Cloud Private Connectivity.
 package pc
 
 import (
@@ -36,10 +21,6 @@ const (
 	EnvOIDCToken = "HARNESS_PC_OIDC_TOKEN" //nolint:gosec // Environment variable name, not a credential.
 	EnvHostname  = "HARNESS_PC_HOSTNAME"
 	EnvTag       = "HARNESS_PC_TAG"
-
-	// Accepted and stripped only during the coordinated rollout from older CI Manager producers.
-	// It has no lifecycle or authorization semantics.
-	legacyEnvBindingGeneration = "HARNESS_PC_BINDING_GENERATION"
 
 	DefaultTag = "tag:ci-runner"
 	// ContractVersion identifies the cross-repository DRA/LE lifecycle contract.
@@ -64,13 +45,8 @@ type Config struct {
 	unexpectedField bool
 }
 
-// ExtractAndStrip reads all HARNESS_PC_* values from envs and removes every key.
-//
-// MUST be called immediately after decoding SetupRequest, before setProxyEnvs, setHarnessEnvs,
-// state.Set, cfg construction, or any logging of envs.
-//
-// The returned Config.OIDCToken is secret and must be added to the secrets masking list
-// before calling state.Set(s.Secrets, ...).
+// ExtractAndStrip removes every reserved field immediately after setup decoding. Callers must add
+// the returned OIDC token to masking before recording setup state.
 func ExtractAndStrip(envs map[string]string) Config {
 	cfg := Config{
 		Enabled:   strings.EqualFold(envs[EnvEnabled], "true"),
@@ -82,8 +58,7 @@ func ExtractAndStrip(envs map[string]string) Config {
 	for key := range envs {
 		if strings.HasPrefix(key, "HARNESS_PC_") {
 			cfg.contractPresent = true
-			if key != EnvEnabled && key != EnvClientID && key != EnvOIDCToken && key != EnvHostname &&
-				key != EnvTag && key != legacyEnvBindingGeneration {
+			if key != EnvEnabled && key != EnvClientID && key != EnvOIDCToken && key != EnvHostname && key != EnvTag {
 				cfg.unexpectedField = true
 			}
 			delete(envs, key)
