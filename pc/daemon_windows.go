@@ -65,6 +65,24 @@ func platformRuntimeReady() bool {
 		"Get-Service -Name 'Tailscale' -ErrorAction Stop | Out-Null").Run() == nil
 }
 
+func platformRuntimeRunning(ctx context.Context) (running, known bool) {
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(commandCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+		"(Get-Service -Name 'Tailscale' -ErrorAction Stop).Status.ToString()").CombinedOutput()
+	if err != nil {
+		return false, false
+	}
+	switch strings.ToLower(strings.TrimSpace(string(out))) {
+	case "running", "startpending", "stoppending", "continuepending", "pausepending", "paused":
+		return true, true
+	case "stopped":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
 func platformRuntimeStart(ctx context.Context) error {
 	command := "$service = Get-Service -Name 'Tailscale' -ErrorAction Stop; " +
 		"if ($service.Status -ne 'Running') { Start-Service -Name 'Tailscale' -ErrorAction Stop }; " +

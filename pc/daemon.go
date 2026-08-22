@@ -25,12 +25,13 @@ const (
 	logoutTimeout           = 30 * time.Second
 	statusTimeout           = 10 * time.Second
 	joinedStatusTimeout     = 5 * time.Second
-	versionTimeout          = 5 * time.Second
 	legacyInspectionTimeout = 5 * time.Second
 	runtimeStatusTimeout    = 8 * time.Second
 	runtimeServiceTimeout   = 30 * time.Second
+	loggedOutPollInterval   = 200 * time.Millisecond
 	privateFileMode         = os.FileMode(0600)
 	privateDirectoryMode    = os.FileMode(0700)
+	privilegedExtraArgs     = 2
 )
 
 var (
@@ -84,21 +85,18 @@ func supportedPlatform() bool {
 	}
 }
 
-// RuntimeStatus provides an opt-in diagnostic health view. It does not start tailscaled and it
-// does not enforce a Tailscale version. Setup performs the authoritative validation inside
-// JoinAndConfigure after LE has stripped the OIDC token from the request.
-func RuntimeStatus(ctx context.Context) (string, bool) {
+// RuntimeClean reports whether the baked runtime is available, stopped, and free of lifecycle
+// residue. It does not start tailscaled or enforce a product version.
+func RuntimeClean(ctx context.Context) bool {
 	if !supportedPlatform() || !platformRuntimeReady() {
-		return "", false
+		return false
 	}
 	statusCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
 	defer cancel()
-	path, err := tailscalePath()
-	if err != nil {
-		return "", false
+	if _, err := tailscalePath(); err != nil {
+		return false
 	}
-	version, _ := tailscaleVersion(statusCtx, path)
-	return version, localRuntimeClean(statusCtx)
+	return localRuntimeClean(statusCtx)
 }
 
 func localRuntimeClean(ctx context.Context) bool {
@@ -106,36 +104,21 @@ func localRuntimeClean(ctx context.Context) bool {
 		platformNetworkResidue() || legacyEgressResidue(ctx) {
 		return false
 	}
-	return true
-}
-
-func runtimeLoggedOut(ctx context.Context, path string) bool {
-	loggedIn, known := tailscaleLoginState(ctx, path)
-	return known && !loggedIn
-}
-
-func tailscaleVersion(ctx context.Context, path string) (string, bool) {
-	ctx, cancel := context.WithTimeout(ctx, versionTimeout)
-	defer cancel()
-	out, err := tailscaleCommandContext(ctx, path, "version").CombinedOutput()
-	if err != nil {
-		return "", false
-	}
-	line := strings.TrimPrefix(strings.TrimSpace(strings.Split(string(out), "\n")[0]), "v")
-	if line == "" {
-		return "", false
-	}
-	return line, true
+	running, known := platformRuntimeRunning(ctx)
+	return known && !running
 }
 
 // JoinAndConfigure joins the host to the customer network. Host routes and DNS are owned by
 // tailscaled on every supported platform. Container-only MTU/DNS is applied by engine setup.
-func JoinAndConfigure(ctx context.Context, cfg *Config) error {
+func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo,funlen // Ordered fail-closed lifecycle.
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
 
 	if err := Validate(cfg, time.Now()); err != nil {
 		return err
+	}
+	if !supportedPlatform() {
+		return ErrUnsupported
 	}
 	path, err := tailscalePath()
 	if err != nil {
@@ -149,13 +132,16 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 		logrus.WithError(err).
 			WithField("latency", time.Since(serviceStart)).
 			Errorln("pc: tailscaled service start failed")
-		return fmt.Errorf("pc: failed to start tailscaled service: %w", err)
+		return errors.Join(
+			fmt.Errorf("pc: failed to start tailscaled service: %w", err),
+			platformRuntimeStop(context.WithoutCancel(ctx)),
+		)
 	}
 	logrus.WithField("latency", time.Since(serviceStart)).Infoln("pc: tailscaled service start completed")
-	if !runtimeLoggedOut(ctx, path) {
+	if waitErr := waitForLoggedOut(ctx, path); waitErr != nil {
 		stopErr := platformRuntimeStop(context.WithoutCancel(ctx))
 		return errors.Join(
-			fmt.Errorf("pc: runtime is dirty; VM reuse is forbidden"),
+			fmt.Errorf("pc: runtime is dirty; VM reuse is forbidden: %w", waitErr),
 			stopErr,
 		)
 	}
@@ -216,7 +202,7 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error {
 	if err := platformNetworkActivate(ctx, path); err != nil {
 		return rollbackSetup(ctx, fmt.Errorf("pc: failed to activate platform networking: %w", err))
 	}
-	if err := removeFile(TokenFile); err != nil {
+	if err := removeTokenFile(); err != nil {
 		return rollbackSetup(ctx, err)
 	}
 	if err := writeMarker(lifecycleMarker{State: stateActive}); err != nil {
@@ -258,7 +244,15 @@ func LogoutForDisposal(ctx context.Context) error {
 	return logoutUnlocked(ctx, true)
 }
 
-func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) error {
+func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) (resultErr error) { //nolint:gocyclo // Ordered cleanup.
+	// The raw JWT is never needed for logout. Always attempt its deletion, including when an
+	// earlier cleanup phase fails and the durable reuse fence must remain.
+	defer func() {
+		if tokenErr := removeTokenFile(); tokenErr != nil {
+			resultErr = errors.Join(resultErr, tokenErr)
+		}
+	}()
+
 	if err := secureTokenDir(); err != nil {
 		return err
 	}
@@ -299,12 +293,10 @@ func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) error
 				} else {
 					cleanupErr = fmt.Errorf("pc: tailscale logout failed: %w", logoutErr)
 				}
-			} else {
-				loggedIn, stateKnown := tailscaleLoginState(cleanupCtx, path)
-				if !stateKnown || loggedIn {
-					cleanupErr = fmt.Errorf(
-						"pc: tailscale logout completed but clean logged-out state could not be confirmed")
-				}
+			} else if confirmErr := waitForLoggedOut(cleanupCtx, path); confirmErr != nil {
+				cleanupErr = fmt.Errorf(
+					"pc: tailscale logout completed but clean logged-out state could not be confirmed: %w",
+					confirmErr)
 			}
 		}
 	}
@@ -318,9 +310,6 @@ func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) error
 	}
 	if cleanupErr != nil {
 		return cleanupErr
-	}
-	if err := removeFile(TokenFile); err != nil {
-		return err
 	}
 	if err := removeFile(MarkerFile); err != nil {
 		return err
@@ -381,6 +370,25 @@ func confirmJoined(ctx context.Context, path string) error {
 	return fmt.Errorf("pc: tailscale joined without a tailnet IPv4 address")
 }
 
+func waitForLoggedOut(ctx context.Context, path string) error {
+	statusCtx, cancel := context.WithTimeout(ctx, joinedStatusTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(loggedOutPollInterval)
+	defer ticker.Stop()
+	for {
+		loggedIn, known := tailscaleLoginState(statusCtx, path)
+		if known && !loggedIn {
+			return nil
+		}
+		select {
+		case <-statusCtx.Done():
+			return statusCtx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
 func tailscaleLoginState(ctx context.Context, path string) (loggedIn, known bool) {
 	ctx, cancel := context.WithTimeout(ctx, statusTimeout)
 	defer cancel()
@@ -395,9 +403,9 @@ func tailscaleLoginState(ctx context.Context, path string) (loggedIn, known bool
 		return false, false
 	}
 	switch strings.ToLower(strings.TrimSpace(status.BackendState)) {
-	case "running":
+	case "running", "starting", "needsmachineauth", "stopped", "inuseotheruser":
 		return true, true
-	case "needslogin", "nostate", "stopped":
+	case "needslogin", "nostate":
 		return false, true
 	default:
 		return false, false
@@ -407,7 +415,7 @@ func tailscaleLoginState(ctx context.Context, path string) (loggedIn, known bool
 func tailscaleCommandContext(ctx context.Context, path string, args ...string) *exec.Cmd {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "darwin" && os.Geteuid() != 0 {
-		privilegedArgs := make([]string, 0, len(args)+2)
+		privilegedArgs := make([]string, 0, len(args)+privilegedExtraArgs)
 		privilegedArgs = append(privilegedArgs, "-n", path)
 		privilegedArgs = append(privilegedArgs, args...)
 		cmd = exec.CommandContext(ctx, "/usr/bin/sudo", privilegedArgs...)
@@ -451,6 +459,9 @@ func wifClientID(clientID string) string {
 }
 
 func secureTokenDir() error {
+	if !filepath.IsAbs(TokenDir) {
+		return fmt.Errorf("pc: state directory must be absolute")
+	}
 	if err := os.MkdirAll(TokenDir, privateDirectoryMode); err != nil {
 		return fmt.Errorf("pc: failed to create state directory: %w", err)
 	}
@@ -470,18 +481,6 @@ func writeMarker(marker lifecycleMarker) error {
 		return err
 	}
 	return writeFileAtomically(MarkerFile, data)
-}
-
-func readMarker() (lifecycleMarker, error) {
-	var marker lifecycleMarker
-	data, err := os.ReadFile(MarkerFile)
-	if err != nil {
-		return marker, err
-	}
-	if err := json.Unmarshal(data, &marker); err != nil {
-		return marker, err
-	}
-	return marker, nil
 }
 
 func writeFileAtomically(path string, data []byte) error {
@@ -518,8 +517,8 @@ func tokenFileExists() bool {
 }
 
 func fileExists(path string) bool {
-	info, err := os.Lstat(path)
-	return err == nil && info.Mode().IsRegular()
+	_, err := os.Lstat(path)
+	return err == nil
 }
 
 func removeFile(path string) error {
@@ -527,4 +526,15 @@ func removeFile(path string) error {
 		return fmt.Errorf("pc: failed to remove %s: %w", filepath.Base(path), err)
 	}
 	return nil
+}
+
+func removeTokenFile() error {
+	info, err := os.Lstat(TokenDir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("pc: state path must be a real directory")
+	}
+	return removeFile(TokenFile)
 }

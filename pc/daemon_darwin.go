@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+const sudoProbeTimeout = 2 * time.Second
+
 var (
 	TokenDir   = darwinStateDirectory()
 	TokenFile  = filepath.Join(TokenDir, "oidc-token")
@@ -38,7 +40,9 @@ func tailscalePath() (string, error) {
 	const daemonPath = "/opt/homebrew/bin/tailscaled"
 	cliInfo, cliErr := os.Stat(cliPath)
 	daemonInfo, daemonErr := os.Stat(daemonPath)
-	if cliErr == nil && daemonErr == nil && !cliInfo.IsDir() && !daemonInfo.IsDir() {
+	if cliErr == nil && daemonErr == nil &&
+		!cliInfo.IsDir() && cliInfo.Mode()&0111 != 0 &&
+		!daemonInfo.IsDir() && daemonInfo.Mode()&0111 != 0 {
 		return cliPath, nil
 	}
 	return "", fmt.Errorf("pc: installed open-source macOS tailscale runtime is unavailable")
@@ -52,9 +56,25 @@ func platformRuntimeReady() bool {
 	if os.Geteuid() == 0 {
 		return true
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), sudoProbeTimeout)
 	defer cancel()
 	return exec.CommandContext(ctx, "/usr/bin/sudo", "-n", "true").Run() == nil
+}
+
+func platformRuntimeRunning(ctx context.Context) (running, known bool) {
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
+	defer cancel()
+	out, err := darwinPrivilegedCommand(commandCtx, "/bin/launchctl", "print",
+		"system/com.tailscale.tailscaled").CombinedOutput()
+	if err == nil {
+		return true, true
+	}
+	message := strings.ToLower(string(out))
+	if strings.Contains(message, "could not find service") ||
+		strings.Contains(message, "service could not be found") {
+		return false, true
+	}
+	return false, false
 }
 
 func platformRuntimeStart(ctx context.Context) error {
@@ -95,10 +115,9 @@ func darwinRuntimeRegistered(ctx context.Context) bool {
 	return darwinPrivilegedCommand(ctx, "/bin/launchctl", "print", "system/com.tailscale.tailscaled").Run() == nil
 }
 
-// The open-source macOS daemon owns DNS configuration. With the tailnet's active global DNS
-// defaults, it installs Quad100 through SystemConfiguration and routes public, MagicDNS, split-DNS,
-// and App Connector queries internally. Logout/service shutdown removes that configuration; Lite
-// Engine must not install a second DNS policy layer.
+// Tailscale must own macOS host DNS; Lite Engine does not install a second DNS policy layer.
+// Open-source tailscaled DNS behavior has varied by release, so the hosted image must prove native
+// public, MagicDNS, split-DNS, and App Connector resolution during acceptance testing.
 func platformNetworkPrepare(context.Context, string) error { return nil }
 
 func platformNetworkActivate(context.Context, string) error { return nil }
@@ -111,7 +130,7 @@ func darwinPrivilegedCommand(ctx context.Context, path string, args ...string) *
 	if os.Geteuid() == 0 {
 		return exec.CommandContext(ctx, path, args...)
 	}
-	privilegedArgs := make([]string, 0, len(args)+2)
+	privilegedArgs := make([]string, 0, len(args)+privilegedExtraArgs)
 	privilegedArgs = append(privilegedArgs, "-n", path)
 	privilegedArgs = append(privilegedArgs, args...)
 	return exec.CommandContext(ctx, "/usr/bin/sudo", privilegedArgs...)

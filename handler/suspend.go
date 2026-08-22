@@ -26,6 +26,10 @@ func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 			WriteBadRequest(response, err)
 			return
 		}
+
+		stageLifecycleMu.Lock()
+		defer stageLifecycleMu.Unlock()
+
 		pcUsed := pc.WasUsed()
 		pcStateUnavailable := pcUsed && !engine.PrivateConnectivityConfigured()
 		var suspendErr error

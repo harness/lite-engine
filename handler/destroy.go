@@ -39,6 +39,9 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
+		stageLifecycleMu.Lock()
+		defer stageLifecycleMu.Unlock()
+
 		ctx := r.Context()
 		pcUsed := pc.WasUsed()
 		var destroyErr error

@@ -17,7 +17,7 @@
 // /destroy order:
 //  1. engine.Destroy (containers first while connectivity remains).
 //  2. Logout from Tailscale, verify the logged-out state, and stop its OS service.
-//  3. Delete token/marker files only after cleanup succeeds.
+//  3. Delete the raw token on every exit; clear lifecycle markers only after cleanup succeeds.
 package pc
 
 import (
@@ -33,7 +33,7 @@ import (
 const (
 	EnvEnabled   = "HARNESS_PC_ENABLED"
 	EnvClientID  = "HARNESS_PC_CLIENT_ID"
-	EnvOIDCToken = "HARNESS_PC_OIDC_TOKEN"
+	EnvOIDCToken = "HARNESS_PC_OIDC_TOKEN" //nolint:gosec // Environment variable name, not a credential.
 	EnvHostname  = "HARNESS_PC_HOSTNAME"
 	EnvTag       = "HARNESS_PC_TAG"
 
@@ -107,7 +107,7 @@ func Validate(cfg *Config, now time.Time) error { //nolint:gocyclo // Fail-close
 	if cfg.unexpectedField {
 		return fmt.Errorf("pc: unsupported HARNESS_PC_* field")
 	}
-	if cfg.ClientID == "" || cfg.OIDCToken == "" || cfg.Hostname == "" {
+	if strings.TrimSpace(cfg.ClientID) == "" || cfg.OIDCToken == "" || cfg.Hostname == "" {
 		return fmt.Errorf("pc: private connectivity identity is incomplete")
 	}
 	if cfg.Tag != DefaultTag {
@@ -137,8 +137,8 @@ func Validate(cfg *Config, now time.Time) error { //nolint:gocyclo // Fail-close
 	if issuedErr != nil || expiresErr != nil || issuedAt <= 0 || expiresAt <= issuedAt {
 		return fmt.Errorf("pc: OIDC token must contain valid iat and exp claims")
 	}
-	if len(claims.Audience) == 0 || string(claims.Audience) == "null" {
-		return fmt.Errorf("pc: OIDC token must contain an audience claim")
+	if !validAudience(claims.Audience) {
+		return fmt.Errorf("pc: OIDC token must contain a non-empty audience claim")
 	}
 	if expiresAt-issuedAt > int64(maxOIDCTokenLifetime/time.Second) {
 		return fmt.Errorf("pc: OIDC token lifetime exceeds configured max (%s)",
@@ -149,6 +149,23 @@ func Validate(cfg *Config, now time.Time) error { //nolint:gocyclo // Fail-close
 		return fmt.Errorf("pc: OIDC token is expired or not yet valid")
 	}
 	return nil
+}
+
+func validAudience(raw json.RawMessage) bool {
+	var single string
+	if json.Unmarshal(raw, &single) == nil {
+		return strings.TrimSpace(single) != ""
+	}
+	var multiple []string
+	if json.Unmarshal(raw, &multiple) != nil {
+		return false
+	}
+	for _, audience := range multiple {
+		if strings.TrimSpace(audience) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func validHostname(value string) bool {

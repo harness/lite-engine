@@ -27,7 +27,6 @@ type (
 		PrivateConnectivity        bool   `json:"private_connectivity,omitempty"`
 		PrivateConnectivityVersion string `json:"private_connectivity_version,omitempty"`
 		PrivateConnectivityClean   bool   `json:"private_connectivity_clean,omitempty"`
-		TailscaleVersion           string `json:"tailscale_version,omitempty"`
 	}
 
 	EgressPolicy struct {

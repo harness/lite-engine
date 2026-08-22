@@ -32,11 +32,9 @@ func HandleHealth() http.HandlerFunc {
 			OK:      true,
 		}
 		if strings.EqualFold(r.URL.Query().Get("private_connectivity_requested"), "true") {
-			tailscaleVersion, pcClean := pc.RuntimeStatus(r.Context())
 			response.PrivateConnectivity = true
 			response.PrivateConnectivityVersion = pc.ContractVersion
-			response.PrivateConnectivityClean = pcClean
-			response.TailscaleVersion = tailscaleVersion
+			response.PrivateConnectivityClean = pc.RuntimeClean(r.Context())
 		}
 		status := http.StatusOK
 

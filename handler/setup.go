@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -34,6 +35,7 @@ import (
 var (
 	statsInterval          = 30 * time.Second
 	harnessEnableDebugLogs = "HARNESS_ENABLE_DEBUG_LOGS"
+	stageLifecycleMu       sync.Mutex
 )
 
 const (
@@ -91,32 +93,25 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		if pcCfg.OIDCToken != "" {
 			s.Secrets = append(s.Secrets, pcCfg.OIDCToken)
 		}
-		logProcess := false
-		if val, ok := s.Envs[harnessEnableDebugLogs]; ok && val == "true" {
-			logProcess = true
-		}
-		collector := osstats.New(context.Background(), statsInterval, logProcess)
 
-		setProxyEnvs(s.Envs)
-		setHarnessEnvs(s.Envs)
+		// Setup, destroy, and suspend all mutate process-global stage state. Serialize them so a
+		// teardown cannot log out Tailscale or remove Docker resources while setup is still running.
+		stageLifecycleMu.Lock()
+		defer stageLifecycleMu.Unlock()
 
-		if val, ok := s.Envs[dualLoggingEnvVar]; ok && val == "true" {
-			s.LogConfig.DualLoggingEnabled = true
-		}
-
-		// Mutual exclusion: PC and egress may not run in the same build.
+		// Mutual exclusion: PC and egress may not run in the same build. Perform this check before
+		// mutating process environment or any host state.
 		if pcCfg.Enabled && s.EgressPolicy != nil && strings.TrimSpace(s.EgressPolicy.ProxyURL) != "" {
 			WriteBadRequest(w, fmt.Errorf("pc: private connectivity and an egress proxy are mutually exclusive"))
 			return
 		}
 
 		// Repair post-hibernate ARM64 clock drift before validating the JWT when chrony is
-		// available. Token iat/exp validation below remains the fail-closed time authority, so a
-		// correctly synchronized image using another clock service is not rejected.
-		if pcCfg.Enabled && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
+		// available. This is also existing main behavior for non-PC ARM64 builds.
+		if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
 			if syncErr := syncSystemClock(r.Context()); syncErr != nil {
 				logger.FromRequest(r).WithError(syncErr).
-					Warnln("api: optional system clock repair failed; continuing to time-bound token validation")
+					Warnln("api: optional system clock repair failed; continuing setup")
 			}
 		}
 
@@ -131,6 +126,19 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 				WithField("hostname", pcCfg.Hostname).
 				WithField("docker_setup_enabled", s.MountDockerSocket == nil || *s.MountDockerSocket).
 				Infoln("api: validated private connectivity setup contract")
+		}
+
+		logProcess := false
+		if val, ok := s.Envs[harnessEnableDebugLogs]; ok && val == "true" {
+			logProcess = true
+		}
+		collector := osstats.New(context.Background(), statsInterval, logProcess)
+
+		setProxyEnvs(s.Envs)
+		setHarnessEnvs(s.Envs)
+
+		if val, ok := s.Envs[dualLoggingEnvVar]; ok && val == "true" {
+			s.LogConfig.DualLoggingEnabled = true
 		}
 
 		state := pipeline.GetState()
@@ -241,7 +249,17 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 				// /destroy while keeping /suspend strict for reusable VMs.
 				logoutErr = pc.LogoutForDisposal(cleanupCtx)
 			}
-			rollbackErr := errors.Join(resourceRollbackErr, logoutErr)
+			collector.Stop()
+			var streamRollbackErr error
+			if closeErr := closeLELogStream(cleanupCtx, state); closeErr != nil {
+				streamRollbackErr = errors.Join(streamRollbackErr, closeErr)
+			}
+			for _, key := range state.GetAllOSStatsKeys() {
+				if closeErr := closeOSStatsStream(state, key); closeErr != nil {
+					streamRollbackErr = errors.Join(streamRollbackErr, closeErr)
+				}
+			}
+			rollbackErr := errors.Join(resourceRollbackErr, logoutErr, streamRollbackErr)
 			if rollbackErr != nil {
 				logger.FromRequest(r).WithError(rollbackErr).
 					Errorln("api: private connectivity resource rollback did not complete cleanly")
@@ -428,7 +446,8 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 // mark the NTP source as too variable and refuse to step, leaving the clock minutes behind.
 func syncSystemClock(ctx context.Context) error {
 	if _, err := exec.LookPath("chronyc"); err != nil {
-		return fmt.Errorf("chronyc is unavailable: %w", err)
+		// Preserve main's behavior on images that use a different clock service.
+		return nil
 	}
 
 	syncCtx, cancel := context.WithTimeout(ctx, clockSyncTimeout)

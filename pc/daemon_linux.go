@@ -40,6 +40,24 @@ func platformRuntimeReady() bool {
 	return exec.CommandContext(ctx, "systemctl", "cat", "tailscaled.service").Run() == nil
 }
 
+func platformRuntimeRunning(ctx context.Context) (running, known bool) {
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(commandCtx, "systemctl", "show", "tailscaled.service",
+		"--property=ActiveState", "--value").CombinedOutput()
+	if err != nil {
+		return false, false
+	}
+	switch strings.ToLower(strings.TrimSpace(string(out))) {
+	case "active", "activating", "reloading", "deactivating":
+		return true, true
+	case "inactive":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
 func platformRuntimeStart(ctx context.Context) error {
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
 	defer cancel()
