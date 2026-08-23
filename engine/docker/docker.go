@@ -129,7 +129,7 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	// that are mounted into each container step.
 
 	if pipelineConfig.EgressProxy != nil && pipelineConfig.EgressProxy.ProxyURL != "" {
-		logrus.WithField("platform", pipelineConfig.Platform.OS).Infoln("setup: applying egress proxy config")
+		logrus.WithField("proxy_url", pipelineConfig.EgressProxy.ProxyURL).Infoln("setup: applying egress proxy config")
 		if err := setupEgressProxy(ctx, pipelineConfig.EgressProxy, pipelineConfig.Platform.OS); err != nil {
 			return fmt.Errorf("failed to configure docker proxy for egress: %w", err)
 		}
@@ -703,7 +703,7 @@ func buildCredentialedProxyURL(username, password, proxyURL string) (string, err
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		return "", fmt.Errorf("invalid proxy URL: %w", err)
+		return "", fmt.Errorf("invalid proxy URL %q: %w", proxyURL, err)
 	}
 	u.User = url.UserPassword(username, password)
 	return u.String(), nil
@@ -722,8 +722,7 @@ func applyProxyToDockerDaemon(ctx context.Context, proxyURL, noProxy, goos strin
 		// Set at Machine scope in the Windows registry so the Docker daemon service
 		// inherits the proxy env vars when it starts. os.Setenv alone only affects the
 		// current process; the Docker service runs independently and reads Machine-level
-		// environment variables from the registry on startup. Private Connectivity requests
-		// with an egress proxy are rejected before this path.
+		// environment variables from the registry on startup.
 		script := fmt.Sprintf(
 			`[Environment]::SetEnvironmentVariable("HTTP_PROXY", "%s", "Machine"); `+
 				`[Environment]::SetEnvironmentVariable("HTTPS_PROXY", "%s", "Machine"); `+

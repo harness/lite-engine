@@ -110,15 +110,11 @@ func legacyEgressResidue(ctx context.Context) bool {
 		return true
 	}
 	for _, rule := range strings.Split(string(out), "\n") {
-		switch strings.Join(strings.Fields(rule), " ") {
-		case "-A OUTPUT -o lo -j ACCEPT",
-			"-A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT",
-			"-A OUTPUT -m state --state RELATED,ESTABLISHED -j ACCEPT",
-			"-A OUTPUT -p udp --dport 53 -j ACCEPT",
-			"-A OUTPUT -p udp -m udp --dport 53 -j ACCEPT",
-			"-A OUTPUT -p tcp --dport 53 -j ACCEPT",
-			"-A OUTPUT -p tcp -m tcp --dport 53 -j ACCEPT",
-			"-A OUTPUT -j DROP":
+		// The retired OS-level egress implementation appended this unconditional
+		// drop rule last. Its preceding loopback, established-connection, and DNS
+		// allow rules are harmless on their own and may also be part of a valid
+		// host firewall, so they must not make a clean PC image fail preflight.
+		if strings.Join(strings.Fields(rule), " ") == "-A OUTPUT -j DROP" {
 			return true
 		}
 	}

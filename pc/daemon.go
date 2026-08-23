@@ -108,8 +108,9 @@ func localRuntimeClean(ctx context.Context) bool {
 	return known && !running
 }
 
-// JoinAndConfigure joins the host to the customer network. Host routes and DNS are owned by
-// tailscaled on every supported platform. Container-only MTU/DNS is applied by engine setup.
+// JoinAndConfigure joins the host to the customer network. Host routes are owned by tailscaled.
+// Host DNS is owned by Tailscale except for the headless macOS runtime, whose Quad100 resolver is
+// activated and restored by the platform hooks. Container-only MTU/DNS is applied by engine setup.
 func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo,funlen // Ordered fail-closed lifecycle.
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()

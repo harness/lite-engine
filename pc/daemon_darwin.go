@@ -8,18 +8,24 @@ package pc
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
 
 const (
-	sudoProbeTimeout   = 2 * time.Second
-	darwinService      = "system/com.tailscale.tailscaled"
-	darwinServicePlist = "/Library/LaunchDaemons/com.tailscale.tailscaled.plist"
+	sudoProbeTimeout          = 2 * time.Second
+	darwinService             = "system/com.tailscale.tailscaled"
+	darwinCLIPath             = "/opt/homebrew/bin/tailscale"
+	darwinDaemonPath          = "/opt/homebrew/bin/tailscaled"
+	darwinNetworkSetupPath    = "/usr/sbin/networksetup"
+	darwinQuad100             = "100.100.100.100"
+	darwinNetworkSetupTimeout = 20 * time.Second
 )
 
 var (
@@ -39,15 +45,26 @@ func darwinStateDirectory() string {
 	return "/Library/Application Support/Harness/private-connectivity"
 }
 
+type darwinDNSService struct {
+	Name    string   `json:"name"`
+	Servers []string `json:"servers,omitempty"`
+}
+
+type darwinDNSSnapshot struct {
+	Services []darwinDNSService `json:"services"`
+}
+
+func darwinDNSSnapshotPath() string {
+	return filepath.Join(TokenDir, "darwin-dns.json")
+}
+
 func tailscalePath() (string, error) {
-	const cliPath = "/opt/homebrew/bin/tailscale"
-	const daemonPath = "/opt/homebrew/bin/tailscaled"
-	cliInfo, cliErr := os.Stat(cliPath)
-	daemonInfo, daemonErr := os.Stat(daemonPath)
+	cliInfo, cliErr := os.Stat(darwinCLIPath)
+	daemonInfo, daemonErr := os.Stat(darwinDaemonPath)
 	if cliErr == nil && daemonErr == nil &&
 		!cliInfo.IsDir() && cliInfo.Mode()&0111 != 0 &&
 		!daemonInfo.IsDir() && daemonInfo.Mode()&0111 != 0 {
-		return cliPath, nil
+		return darwinCLIPath, nil
 	}
 	return "", fmt.Errorf("pc: installed open-source macOS tailscale runtime is unavailable")
 }
@@ -57,10 +74,6 @@ func securePlatformTokenDir() error {
 }
 
 func platformRuntimeReady() bool {
-	info, err := os.Lstat(darwinServicePlist)
-	if err != nil || !info.Mode().IsRegular() {
-		return false
-	}
 	if os.Geteuid() == 0 {
 		return true
 	}
@@ -75,7 +88,7 @@ func platformRuntimeRunning(ctx context.Context) (running, known bool) {
 	out, err := darwinPrivilegedCommand(commandCtx, "/bin/launchctl", "print",
 		darwinService).CombinedOutput()
 	if err == nil {
-		return strings.Contains(strings.ToLower(string(out)), "state = running"), true
+		return true, true
 	}
 	message := strings.ToLower(string(out))
 	if strings.Contains(message, "could not find service") ||
@@ -86,34 +99,22 @@ func platformRuntimeRunning(ctx context.Context) (running, known bool) {
 }
 
 func platformRuntimeStart(ctx context.Context) error {
-	running, known := platformRuntimeRunning(ctx)
+	registered, known := darwinRuntimeRegistered(ctx)
 	if !known {
 		return fmt.Errorf("tailscaled launchd state could not be inspected")
 	}
+	if registered {
+		return nil
+	}
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
 	defer cancel()
-	registered, registrationKnown := darwinRuntimeRegistered(commandCtx)
-	if !registrationKnown {
-		return fmt.Errorf("tailscaled launchd registration could not be inspected")
+	out, err := darwinPrivilegedCommand(commandCtx, darwinDaemonPath, "install-system-daemon").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to register preinstalled tailscaled with launchd: %w (%s)",
+			err, strings.TrimSpace(string(out)))
 	}
-	if !registered {
-		out, err := darwinPrivilegedCommand(
-			commandCtx, "/bin/launchctl", "bootstrap", "system", darwinServicePlist).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to bootstrap preinstalled tailscaled launchd service: %w (%s)",
-				err, strings.TrimSpace(string(out)))
-		}
-	}
-	if !running {
-		out, err := darwinPrivilegedCommand(
-			commandCtx, "/bin/launchctl", "kickstart", "-k", darwinService).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("failed to start preinstalled tailscaled launchd service: %w (%s)",
-				err, strings.TrimSpace(string(out)))
-		}
-	}
-	if running, known := platformRuntimeRunning(commandCtx); !known || !running {
-		return fmt.Errorf("tailscaled launchd service did not become active")
+	if registered, known := darwinRuntimeRegistered(commandCtx); !known || !registered {
+		return fmt.Errorf("tailscaled launchd service did not become available")
 	}
 	return nil
 }
@@ -128,13 +129,13 @@ func platformRuntimeStop(ctx context.Context) error {
 	}
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
 	defer cancel()
-	out, err := darwinPrivilegedCommand(commandCtx, "/bin/launchctl", "bootout", darwinService).CombinedOutput()
+	out, err := darwinPrivilegedCommand(commandCtx, darwinDaemonPath, "uninstall-system-daemon").CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to stop preinstalled tailscaled launchd service: %w (%s)",
+		return fmt.Errorf("failed to unregister preinstalled tailscaled from launchd: %w (%s)",
 			err, strings.TrimSpace(string(out)))
 	}
 	if registered, known := darwinRuntimeRegistered(commandCtx); !known || registered {
-		return fmt.Errorf("tailscaled launchd service remains loaded after cleanup")
+		return fmt.Errorf("tailscaled launchd service remains registered after cleanup")
 	}
 	return nil
 }
@@ -152,16 +153,148 @@ func darwinRuntimeRegistered(ctx context.Context) (registered, known bool) {
 	return false, false
 }
 
-// Tailscale must own macOS host DNS; Lite Engine does not install a second DNS policy layer.
-// Open-source tailscaled DNS behavior has varied by release, so the hosted image must prove native
-// public, MagicDNS, split-DNS, and App Connector resolution during acceptance testing.
-func platformNetworkPrepare(context.Context, string) error { return nil }
+// The open-source headless macOS daemon does not configure system DNS. Capture the exact existing
+// resolver state before joining, then use its device-local Quad100 resolver for the stage. The
+// tailnet supplies public fallback resolvers as well as split DNS, App Connector, and MagicDNS.
+func platformNetworkPrepare(ctx context.Context, _ string) error {
+	if !platformRuntimeReady() {
+		return fmt.Errorf("open-source macOS tailscaled DNS setup requires passwordless administrative access")
+	}
+	services, err := darwinNetworkServices(ctx)
+	if err != nil {
+		return err
+	}
+	snapshot := darwinDNSSnapshot{Services: make([]darwinDNSService, 0, len(services))}
+	for _, service := range services {
+		servers, getErr := darwinGetDNSServers(ctx, service)
+		if getErr != nil {
+			return getErr
+		}
+		snapshot.Services = append(snapshot.Services, darwinDNSService{Name: service, Servers: servers})
+	}
+	data, err := json.Marshal(snapshot)
+	if err != nil {
+		return fmt.Errorf("failed to encode macOS DNS snapshot: %w", err)
+	}
+	if err := writeFileAtomically(darwinDNSSnapshotPath(), data); err != nil {
+		return fmt.Errorf("failed to persist macOS DNS snapshot: %w", err)
+	}
+	return nil
+}
 
-func platformNetworkActivate(context.Context, string) error { return nil }
+func platformNetworkActivate(ctx context.Context, _ string) error {
+	snapshot, err := readDarwinDNSSnapshot()
+	if err != nil {
+		return err
+	}
+	for _, service := range snapshot.Services {
+		if err := darwinSetDNSServers(ctx, service.Name, []string{darwinQuad100}); err != nil {
+			return err
+		}
+		configured, getErr := darwinGetDNSServers(ctx, service.Name)
+		if getErr != nil || !slices.Equal(configured, []string{darwinQuad100}) {
+			return fmt.Errorf("failed to verify Quad100 DNS for macOS network service %q", service.Name)
+		}
+	}
+	return nil
+}
 
-func platformNetworkRestore(context.Context) error { return nil }
+func platformNetworkRestore(ctx context.Context) error {
+	if !platformNetworkResidue() {
+		return nil
+	}
+	if !platformRuntimeReady() {
+		return fmt.Errorf("open-source macOS tailscaled DNS cleanup requires passwordless administrative access")
+	}
+	snapshot, err := readDarwinDNSSnapshot()
+	if err != nil {
+		return err
+	}
+	for _, service := range snapshot.Services {
+		if err := darwinSetDNSServers(ctx, service.Name, service.Servers); err != nil {
+			return err
+		}
+		configured, getErr := darwinGetDNSServers(ctx, service.Name)
+		if getErr != nil || !slices.Equal(configured, service.Servers) {
+			return fmt.Errorf("failed to verify restored DNS for macOS network service %q", service.Name)
+		}
+	}
+	return removeFile(darwinDNSSnapshotPath())
+}
 
-func platformNetworkResidue() bool { return false }
+func platformNetworkResidue() bool {
+	return fileExists(darwinDNSSnapshotPath())
+}
+
+func readDarwinDNSSnapshot() (darwinDNSSnapshot, error) {
+	var snapshot darwinDNSSnapshot
+	data, err := os.ReadFile(darwinDNSSnapshotPath())
+	if err != nil {
+		return snapshot, fmt.Errorf("failed to read macOS DNS snapshot: %w", err)
+	}
+	if err := json.Unmarshal(data, &snapshot); err != nil || len(snapshot.Services) == 0 {
+		return snapshot, fmt.Errorf("macOS DNS snapshot is invalid")
+	}
+	return snapshot, nil
+}
+
+func darwinNetworkServices(ctx context.Context) ([]string, error) {
+	out, err := darwinNetworkSetup(ctx, "-listallnetworkservices")
+	if err != nil {
+		return nil, err
+	}
+	services := make([]string, 0)
+	for _, line := range strings.Split(out, "\n") {
+		service := strings.TrimSpace(line)
+		if service == "" || strings.HasPrefix(service, "An asterisk") || strings.HasPrefix(service, "*") {
+			continue
+		}
+		services = append(services, service)
+	}
+	if len(services) == 0 {
+		return nil, fmt.Errorf("no enabled macOS network service is available")
+	}
+	return services, nil
+}
+
+func darwinGetDNSServers(ctx context.Context, service string) ([]string, error) {
+	out, err := darwinNetworkSetup(ctx, "-getdnsservers", service)
+	if err != nil {
+		return nil, err
+	}
+	if strings.HasPrefix(out, "There aren't any DNS Servers set on") {
+		return nil, nil
+	}
+	servers := make([]string, 0)
+	for _, line := range strings.Split(out, "\n") {
+		server := strings.TrimSpace(line)
+		if server != "" {
+			servers = append(servers, server)
+		}
+	}
+	return servers, nil
+}
+
+func darwinSetDNSServers(ctx context.Context, service string, servers []string) error {
+	args := []string{"-setdnsservers", service}
+	if len(servers) == 0 {
+		args = append(args, "empty")
+	} else {
+		args = append(args, servers...)
+	}
+	_, err := darwinNetworkSetup(ctx, args...)
+	return err
+}
+
+func darwinNetworkSetup(ctx context.Context, args ...string) (string, error) {
+	commandCtx, cancel := context.WithTimeout(ctx, darwinNetworkSetupTimeout)
+	defer cancel()
+	out, err := darwinPrivilegedCommand(commandCtx, darwinNetworkSetupPath, args...).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("networksetup %s failed: %w (%s)", args[0], err, strings.TrimSpace(string(out)))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
 
 func darwinPrivilegedCommand(ctx context.Context, path string, args ...string) *exec.Cmd {
 	if os.Geteuid() == 0 {
