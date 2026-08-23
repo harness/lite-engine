@@ -279,7 +279,7 @@ func (e *Engine) Suspend(ctx context.Context, labels map[string]string) error {
 	if !dockerSetupEnabled(cfg) {
 		return nil
 	}
-	return e.docker.Suspend(ctx, labels, false)
+	return e.docker.Suspend(ctx, labels)
 }
 
 // PrivateConnectivityConfigured proves that this process still has the pipeline configuration

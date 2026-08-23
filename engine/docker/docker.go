@@ -308,8 +308,8 @@ func (e *Docker) Run(ctx context.Context, pipelineConfig *spec.PipelineConfig, s
 	return state, err
 }
 
-func (e *Docker) Suspend(ctx context.Context, labels map[string]string, strictCleanup bool) error {
-	return e.destroyStoppedContainers(ctx, labels, strictCleanup)
+func (e *Docker) Suspend(ctx context.Context, labels map[string]string) error {
+	return e.destroyStoppedContainers(ctx, labels)
 }
 
 func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, output io.Writer, logHandles *logutil.LogFileHandles) (*runtime.State, error) {
@@ -341,11 +341,7 @@ func (e *Docker) startContainer(ctx context.Context, stepID string, tty bool, ou
 	return state, err
 }
 
-func (e *Docker) destroyStoppedContainers(
-	ctx context.Context,
-	labels map[string]string,
-	strictCleanup bool,
-) error {
+func (e *Docker) destroyStoppedContainers(ctx context.Context, labels map[string]string) error {
 	// Create filter to match containers with the given label
 	f := client.Filters{}
 	for key, value := range labels {
@@ -362,30 +358,17 @@ func (e *Docker) destroyStoppedContainers(
 		return fmt.Errorf("failed to list stopped plugin containers: %w", err)
 	}
 
-	var cleanupErr error
 	for i := range result.Items {
 		pluginContainer := result.Items[i]
-		_, err := e.client.ContainerRemove(
-			ctx,
-			pluginContainer.ID,
-			client.ContainerRemoveOptions{Force: strictCleanup},
-		)
-		if err != nil {
+		if _, err := e.client.ContainerRemove(ctx, pluginContainer.ID, client.ContainerRemoveOptions{}); err != nil {
 			logrus.WithContext(ctx).
 				WithField("container", pluginContainer.ID).
 				WithField("error", err).Warnln("failed to remove container")
-			if strictCleanup && !cerrdefs.IsNotFound(err) {
-				cleanupErr = stderrors.Join(
-					cleanupErr,
-					fmt.Errorf("remove stopped container %s: %w", pluginContainer.ID, err),
-				)
-				continue
-			}
 		}
 		// remove container from e.containers matching container.ID
 		e.removeContainerByID(pluginContainer.ID)
 	}
-	return cleanupErr
+	return nil
 }
 
 //
