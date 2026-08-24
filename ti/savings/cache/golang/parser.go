@@ -21,10 +21,7 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 	reports := make([]golangTypes.Report, 0)
 	totalDurationMs := 0
 
-	files, err := findReportFiles(workspace)
-	if err != nil {
-		return cacheState, reports, totalDurationMs, err
-	}
+	files := findReportFiles(workspace)
 	if len(files) == 0 {
 		return cacheState, reports, totalDurationMs, fmt.Errorf("no go cache reports found")
 	}
@@ -56,7 +53,7 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 	return cacheState, reports, totalDurationMs, nil
 }
 
-func findReportFiles(workspace string) ([]string, error) {
+func findReportFiles(workspace string) []string {
 	candidates := make([]string, 0)
 	seen := make(map[string]struct{})
 	add := func(path string) {
@@ -93,7 +90,7 @@ func findReportFiles(workspace string) ([]string, error) {
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		add(filepath.Join(home, ".harness", "go-cache-report.json"))
 	}
-	return candidates, nil
+	return candidates
 }
 
 func parseReportFile(path string) (*golangTypes.Report, error) {

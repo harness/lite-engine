@@ -83,18 +83,31 @@ func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64,
 		buildTime = int(cmdTimeTaken)
 	}
 
-	if goErr == nil {
-		if goCacheState == types.OPTIMIZED {
-			cacheState = types.OPTIMIZED
-		} else if cacheState == types.DISABLED {
-			cacheState = goCacheState
-		}
-		if buildTime == 0 && goDurationMs > 0 {
-			buildTime = goDurationMs
-		}
-		if buildTime == 0 {
-			buildTime = int(cmdTimeTaken)
-		}
-	}
+	cacheState, buildTime = applyGoCacheSavings(cacheState, buildTime, goCacheState, goDurationMs, goErr, cmdTimeTaken)
 	return cacheState, buildTime, savingsRequest, nil
+}
+
+func applyGoCacheSavings(
+	cacheState types.IntelligenceExecutionState,
+	buildTime int,
+	goCacheState types.IntelligenceExecutionState,
+	goDurationMs int,
+	goErr error,
+	cmdTimeTaken int64,
+) (nextState types.IntelligenceExecutionState, nextBuildTime int) {
+	if goErr != nil {
+		return cacheState, buildTime
+	}
+	if goCacheState == types.OPTIMIZED {
+		cacheState = types.OPTIMIZED
+	} else if cacheState == types.DISABLED {
+		cacheState = goCacheState
+	}
+	if buildTime == 0 && goDurationMs > 0 {
+		buildTime = goDurationMs
+	}
+	if buildTime == 0 {
+		buildTime = int(cmdTimeTaken)
+	}
+	return cacheState, buildTime
 }

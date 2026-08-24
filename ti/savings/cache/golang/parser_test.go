@@ -29,8 +29,11 @@ func TestParseSavings_Optimized(t *testing.T) {
 		"started_at_unix_ms": 1,
 		"ended_at_unix_ms":   2,
 	}
-	data, _ := json.Marshal(payload)
-	if err := os.WriteFile(reportPath, data, 0644); err != nil {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(reportPath, data, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -50,8 +53,17 @@ func TestParseSavings_Optimized(t *testing.T) {
 }
 
 func TestParseSavings_DisabledWhenMissing(t *testing.T) {
-	_, _, _, err := ParseSavings(t.TempDir(), logrus.New())
+	state, reports, duration, err := ParseSavings(t.TempDir(), logrus.New())
 	if err == nil {
 		t.Fatal("expected error when report missing")
+	}
+	if state != types.DISABLED {
+		t.Fatalf("state = %s, want DISABLED", state)
+	}
+	if len(reports) != 0 {
+		t.Fatalf("unexpected reports: %+v", reports)
+	}
+	if duration != 0 {
+		t.Fatalf("duration = %d, want 0", duration)
 	}
 }

@@ -23,32 +23,7 @@ const restoreCacheHarnessStepID = "restore-cache-harness"
 func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, stepSuccess bool, cmdTimeTaken int64,
 	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *types.TelemetryData, stepType string) types.IntelligenceExecutionState {
 	states := make([]types.IntelligenceExecutionState, 0)
-
-	// Cache Savings
-	// Only parse build cache savings if its not a plugin step
-	if stepType != common.StepTypePlugin {
-		start := time.Now()
-		cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log, cmdTimeTaken, telemetryData)
-		if err == nil {
-			states = append(states, cacheState)
-			log.Infof("Computed build cache execution details with state %s and time %sms in %0.2f seconds",
-				cacheState, strconv.Itoa(timeTaken), time.Since(start).Seconds())
-
-			tiStart := time.Now()
-			tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, cacheState, int64(timeTaken), savingsRequest)
-			if tiErr == nil {
-				log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
-					types.BUILD_CACHE, time.Since(tiStart).Seconds())
-			}
-
-			totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(&savingsRequest)
-			if totaltasks == 0 && cachedtasks == 0 {
-				totaltasks, cachedtasks = golang.GetMetadataFromGoMetrics(&savingsRequest)
-			}
-			telemetryData.BuildIntelligenceMetaData.BuildTasks = totaltasks
-			telemetryData.BuildIntelligenceMetaData.TasksRestored = cachedtasks
-		}
-	}
+	states = append(states, parseAndUploadCacheSavings(ctx, workspace, log, stepID, cmdTimeTaken, tiConfig, telemetryData, stepType)...)
 
 	// TI Savings
 	if tiState, err := tiConfig.GetFeatureState(stepID, types.TI); err == nil {
@@ -105,6 +80,35 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 	}
 
 	return getStepState(states)
+}
+
+func parseAndUploadCacheSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, cmdTimeTaken int64,
+	tiConfig *tiCfg.Cfg, telemetryData *types.TelemetryData, stepType string) []types.IntelligenceExecutionState {
+	if stepType == common.StepTypePlugin {
+		return nil
+	}
+	start := time.Now()
+	cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log, cmdTimeTaken, telemetryData)
+	if err != nil {
+		return nil
+	}
+	log.Infof("Computed build cache execution details with state %s and time %sms in %0.2f seconds",
+		cacheState, strconv.Itoa(timeTaken), time.Since(start).Seconds())
+
+	tiStart := time.Now()
+	tiErr := tiConfig.GetClient().WriteSavings(ctx, stepID, types.BUILD_CACHE, cacheState, int64(timeTaken), savingsRequest)
+	if tiErr == nil {
+		log.Infof("Successfully uploaded savings for feature %s in %0.2f seconds",
+			types.BUILD_CACHE, time.Since(tiStart).Seconds())
+	}
+
+	totaltasks, cachedtasks := gradle.GetMetadataFromGradleMetrics(&savingsRequest)
+	if totaltasks == 0 && cachedtasks == 0 {
+		totaltasks, cachedtasks = golang.GetMetadataFromGoMetrics(&savingsRequest)
+	}
+	telemetryData.BuildIntelligenceMetaData.BuildTasks = totaltasks
+	telemetryData.BuildIntelligenceMetaData.TasksRestored = cachedtasks
+	return []types.IntelligenceExecutionState{cacheState}
 }
 
 func getStepState(states []types.IntelligenceExecutionState) types.IntelligenceExecutionState {
