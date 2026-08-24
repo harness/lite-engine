@@ -37,16 +37,16 @@ require (
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/shirou/gopsutil/v3 v3.23.5
-	github.com/wings-software/dlite v1.0.0-rc.15
+	github.com/wings-software/dlite v1.0.0-rc.15.0.20260820130338-9975eaff3c15
 	go.uber.org/mock v0.6.0
 	golang.org/x/net v0.52.0
 	golang.org/x/sys v0.42.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
-// TODO: temporary for local development until a dlite release with
-// NewFromTokenWithHash is published; replace with a version bump.
-replace github.com/wings-software/dlite => ../dlite
+// TODO: temporary pseudo-version of dlite PR #35 (DEL-10328, commit 9975eaf)
+// until a dlite release with NewFromTokenWithHash is published; then bump to
+// the released tag.
 
 require (
 	github.com/99designs/httpsignatures-go v0.0.0-20170731043157-88528bf4ca7e // indirect
