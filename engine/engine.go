@@ -227,11 +227,11 @@ func (e *Engine) Destroy(ctx context.Context) error {
 	e.mu.Lock()
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
-	if cfg == nil || !cfg.PrivateConnectivity {
+	if cfg == nil {
+		return nil
+	}
+	if !cfg.PrivateConnectivity {
 		_ = destroyHelper(cfg)
-		if !dockerSetupEnabled(cfg) {
-			return nil
-		}
 		return e.docker.Destroy(ctx, cfg)
 	}
 	var destroyErr error
@@ -256,7 +256,7 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 	}
 
 	if step.Image != "" {
-		applyPrivateConnectivityDNS(cfg, step)
+		applyPrivateConnectivityDNS(cfg, step, isHosted)
 		return e.docker.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
@@ -276,10 +276,24 @@ func (e *Engine) Suspend(ctx context.Context, labels map[string]string) error {
 		}
 		return errors.Join(dockerErr, destroyHelper(cfg))
 	}
-	if !dockerSetupEnabled(cfg) {
-		return nil
-	}
 	return e.docker.Suspend(ctx, labels)
+}
+
+func dockerSetupEnabled(cfg *spec.PipelineConfig) bool {
+	return cfg != nil && (cfg.EnableDockerSetup == nil || *cfg.EnableDockerSetup)
+}
+
+func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step, isHosted bool) {
+	const quad100 = "100.100.100.100"
+
+	// Quad100 is served by tailscaled on the host and is reachable from containers on
+	// Linux (bridge) and Windows (nat). macOS has no Docker steps, so it is excluded.
+	// An explicit step DNS list is a customer override and is preserved exactly.
+	if !isHosted || cfg == nil || step == nil || !cfg.PrivateConnectivity ||
+		(cfg.Platform.OS != "linux" && cfg.Platform.OS != "windows") || len(step.DNS) > 0 {
+		return
+	}
+	step.DNS = []string{quad100}
 }
 
 // PrivateConnectivityConfigured proves that this process still has the pipeline configuration

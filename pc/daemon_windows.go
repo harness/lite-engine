@@ -58,13 +58,6 @@ func securePlatformTokenDir() error {
 	return nil
 }
 
-func platformRuntimeReady() bool {
-	ctx, cancel := context.WithTimeout(context.Background(), runtimeStatusTimeout)
-	defer cancel()
-	return exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-		"Get-Service -Name 'Tailscale' -ErrorAction Stop | Out-Null").Run() == nil
-}
-
 func platformRuntimeRunning(ctx context.Context) (running, known bool) {
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
 	defer cancel()
@@ -123,13 +116,6 @@ func platformNetworkRestore(context.Context) error { return nil }
 func platformNetworkResidue() bool {
 	// Lite Engine does not install independent Windows DNS policy. Lifecycle and used markers remain
 	// the reuse fence for an interrupted Tailscale join or logout.
-	return false
-}
-
-func legacyEgressResidue(context.Context) bool {
-	// Lite Engine has no Windows egress-policy implementation and therefore no
-	// historical Windows residue to recover. Reuse remains fenced by the durable
-	// PC lifecycle, token, cleanup and used markers checked by localRuntimeClean.
 	return false
 }
 

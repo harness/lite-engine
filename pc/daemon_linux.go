@@ -31,15 +31,6 @@ func securePlatformTokenDir() error {
 	return nil
 }
 
-func platformRuntimeReady() bool {
-	if _, err := exec.LookPath("tailscaled"); err != nil {
-		return false
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), runtimeStatusTimeout)
-	defer cancel()
-	return exec.CommandContext(ctx, "systemctl", "cat", "tailscaled.service").Run() == nil
-}
-
 func platformRuntimeRunning(ctx context.Context) (running, known bool) {
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
 	defer cancel()
@@ -99,25 +90,6 @@ func platformNetworkRestore(context.Context) error {
 }
 
 func platformNetworkResidue() bool {
-	return false
-}
-
-func legacyEgressResidue(ctx context.Context) bool {
-	ctx, cancel := context.WithTimeout(ctx, legacyInspectionTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "iptables", "-S", "OUTPUT").CombinedOutput()
-	if err != nil {
-		return true
-	}
-	for _, rule := range strings.Split(string(out), "\n") {
-		// The retired OS-level egress implementation appended this unconditional
-		// drop rule last. Its preceding loopback, established-connection, and DNS
-		// allow rules are harmless on their own and may also be part of a valid
-		// host firewall, so they must not make a clean PC image fail preflight.
-		if strings.Join(strings.Fields(rule), " ") == "-A OUTPUT -j DROP" {
-			return true
-		}
-	}
 	return false
 }
 

@@ -361,10 +361,6 @@ func (c *HTTPClient) Health(ctx context.Context, in *api.HealthRequest) (*api.He
 	}
 	if in.HealthCheckConnectivityDuration > 0 {
 		path += fmt.Sprintf("%sconnectivity_check_duration_seconds=%d", separator, int(in.HealthCheckConnectivityDuration.Seconds()))
-		separator = "&"
-	}
-	if in.PrivateConnectivityRequested {
-		path += separator + "private_connectivity_requested=true"
 	}
 
 	out := new(api.HealthResponse)

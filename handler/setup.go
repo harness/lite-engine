@@ -41,7 +41,6 @@ var (
 const (
 	OSWindows                    = "windows"
 	dualLoggingEnvVar            = "HARNESS_LOG_STREAMING_STDOUT_ENABLED"
-	clockSyncTimeout             = 15 * time.Second
 	setupResourceRollbackTimeout = 30 * time.Second
 )
 
@@ -106,20 +105,15 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			return
 		}
 
-		// Repair post-hibernate ARM64 clock drift before validating the JWT when chrony is
-		// available. This is also existing main behavior for non-PC ARM64 builds.
-		if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-			if syncErr := syncSystemClock(r.Context()); syncErr != nil {
-				logger.FromRequest(r).WithError(syncErr).
-					Warnln("api: optional system clock repair failed; continuing setup")
-			}
-		}
-
-		if validateErr := pc.Validate(&pcCfg, time.Now()); validateErr != nil {
+		if validateErr := pc.Validate(&pcCfg); validateErr != nil {
 			WriteBadRequest(w, validateErr)
 			return
 		}
 		if pcCfg.Enabled {
+			// Repair post-hibernate clock drift before Tailscale performs TLS/WIF requests.
+			if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
+				syncSystemClock()
+			}
 			logger.FromRequest(r).
 				WithField("platform", runtime.GOOS).
 				WithField("architecture", runtime.GOARCH).
@@ -227,16 +221,22 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		}
 		collector.Start()
 
+		// Preserve the existing non-PC ARM64 clock repair at its original lifecycle point.
+		if !pcCfg.Enabled && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
+			syncSystemClock()
+		}
+
 		if err := engine.Setup(r.Context(), cfg); err != nil {
-			logger.FromRequest(r).
+			entry := logger.FromRequest(r).
 				WithField("latency", time.Since(st)).
 				WithField("time", time.Now().Format(time.RFC3339)).
-				WithField("error", err).
-				Infoln("api: failed stage setup")
+				WithField("error", err)
 			if !pcCfg.Enabled {
+				entry.WithField("cfg", cfg).Infoln("api: failed stage setup")
 				WriteError(w, err)
 				return
 			}
+			entry.Infoln("api: failed stage setup")
 			cleanupCtx := context.WithoutCancel(r.Context())
 			resourceRollbackCtx, resourceRollbackCancel :=
 				context.WithTimeout(cleanupCtx, setupResourceRollbackTimeout)
@@ -444,25 +444,22 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 // This fixes clock skew on ARM64 VMs after GCP hibernate resume, where the arch_sys_counter
 // clock source doesn't auto-adjust (unlike x86's kvm-clock). Without this, chrony may
 // mark the NTP source as too variable and refuse to step, leaving the clock minutes behind.
-func syncSystemClock(ctx context.Context) error {
+func syncSystemClock() {
 	if _, err := exec.LookPath("chronyc"); err != nil {
-		// Preserve main's behavior on images that use a different clock service.
-		return nil
+		return
 	}
 
-	syncCtx, cancel := context.WithTimeout(ctx, clockSyncTimeout)
-	defer cancel()
-
 	// Restart chrony to reset source state (clears the "too variable" flag from post-resume measurements)
-	if _, err := exec.CommandContext(syncCtx, "systemctl", "restart", "chrony").CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to restart chrony: %w", err)
+	if out, err := exec.CommandContext(context.Background(), "systemctl", "restart", "chrony").CombinedOutput(); err != nil {
+		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to restart chrony")
+		return
 	}
 
 	// Force an immediate clock step
-	if _, err := exec.CommandContext(syncCtx, "chronyc", "-a", "makestep").CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to force chrony clock step: %w", err)
+	if out, err := exec.CommandContext(context.Background(), "chronyc", "-a", "makestep").CombinedOutput(); err != nil {
+		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to force chrony clock step")
+		return
 	}
 
 	logrus.Infoln("setup: forced chrony clock sync on ARM64")
-	return nil
 }

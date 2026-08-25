@@ -16,17 +16,11 @@ type (
 		PerformDNSLookup                bool          `json:"perform_dns_lookup,omitempty"`
 		HealthCheckConnectivityDuration time.Duration `json:"health_check_connectivity_duration,omitempty"`
 		Timeout                         time.Duration `json:"timeout,omitempty"`
-		PrivateConnectivityRequested    bool          `json:"private_connectivity_requested,omitempty"`
 	}
 
 	HealthResponse struct {
 		Version string `json:"version"`
 		OK      bool   `json:"ok"`
-		// PrivateConnectivity is true when this lite-engine binary includes the PC
-		// identity stripping, join, and cleanup lifecycle.
-		PrivateConnectivity        bool   `json:"private_connectivity,omitempty"`
-		PrivateConnectivityVersion string `json:"private_connectivity_version,omitempty"`
-		PrivateConnectivityClean   bool   `json:"private_connectivity_clean,omitempty"`
 	}
 
 	EgressPolicy struct {

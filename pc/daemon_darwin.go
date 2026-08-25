@@ -306,10 +306,6 @@ func darwinPrivilegedCommand(ctx context.Context, path string, args ...string) *
 	return exec.CommandContext(ctx, "/usr/bin/sudo", privilegedArgs...)
 }
 
-func legacyEgressResidue(context.Context) bool {
-	return false
-}
-
 func replaceFileAtomically(source, destination string) error {
 	return os.Rename(source, destination)
 }

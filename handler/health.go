@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
-	"github.com/harness/lite-engine/pc"
 	"github.com/harness/lite-engine/version"
 	"github.com/sirupsen/logrus"
 )
@@ -30,11 +29,6 @@ func HandleHealth() http.HandlerFunc {
 		response := api.HealthResponse{
 			Version: version,
 			OK:      true,
-		}
-		if strings.EqualFold(r.URL.Query().Get("private_connectivity_requested"), "true") {
-			response.PrivateConnectivity = true
-			response.PrivateConnectivityVersion = pc.ContractVersion
-			response.PrivateConnectivityClean = pc.RuntimeClean(r.Context())
 		}
 		status := http.StatusOK
 

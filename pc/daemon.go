@@ -22,16 +22,15 @@ import (
 )
 
 const (
-	logoutTimeout           = 30 * time.Second
-	statusTimeout           = 10 * time.Second
-	joinedStatusTimeout     = 5 * time.Second
-	legacyInspectionTimeout = 5 * time.Second
-	runtimeStatusTimeout    = 8 * time.Second
-	runtimeServiceTimeout   = 30 * time.Second
-	loggedOutPollInterval   = 200 * time.Millisecond
-	privateFileMode         = os.FileMode(0600)
-	privateDirectoryMode    = os.FileMode(0700)
-	privilegedExtraArgs     = 2
+	logoutTimeout         = 30 * time.Second
+	statusTimeout         = 10 * time.Second
+	joinedStatusTimeout   = 5 * time.Second
+	runtimeStatusTimeout  = 8 * time.Second
+	runtimeServiceTimeout = 30 * time.Second
+	loggedOutPollInterval = 200 * time.Millisecond
+	privateFileMode       = os.FileMode(0600)
+	privateDirectoryMode  = os.FileMode(0700)
+	privilegedExtraArgs   = 2
 )
 
 var (
@@ -85,23 +84,9 @@ func supportedPlatform() bool {
 	}
 }
 
-// RuntimeClean reports whether the baked runtime is available, stopped, and free of lifecycle
-// residue. It does not start tailscaled or enforce a product version.
-func RuntimeClean(ctx context.Context) bool {
-	if !supportedPlatform() || !platformRuntimeReady() {
-		return false
-	}
-	statusCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
-	defer cancel()
-	if _, err := tailscalePath(); err != nil {
-		return false
-	}
-	return localRuntimeClean(statusCtx)
-}
-
 func localRuntimeClean(ctx context.Context) bool {
 	if markerExists() || tokenFileExists() || fileExists(cleanupMarkerPath()) || WasUsed() ||
-		platformNetworkResidue() || legacyEgressResidue(ctx) {
+		platformNetworkResidue() {
 		return false
 	}
 	running, known := platformRuntimeRunning(ctx)
@@ -115,7 +100,7 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo
 	lifecycleMu.Lock()
 	defer lifecycleMu.Unlock()
 
-	if err := Validate(cfg, time.Now()); err != nil {
+	if err := Validate(cfg); err != nil {
 		return err
 	}
 	if !supportedPlatform() {

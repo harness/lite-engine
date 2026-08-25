@@ -6,7 +6,6 @@ package engine
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	"github.com/drone/runner-go/pipeline/runtime"
@@ -25,9 +24,6 @@ func SetupPipeline(
 	opts Opts,
 	pipelineConfig *spec.PipelineConfig,
 ) error {
-	if !dockerSetupEnabled(pipelineConfig) {
-		return setupHelper(pipelineConfig)
-	}
 	d, err := docker.NewEnv(opts.Opts)
 	if err != nil {
 		return err
@@ -36,7 +32,11 @@ func SetupPipeline(
 		return err
 	}
 
-	return d.Setup(ctx, pipelineConfig)
+	// required to support m1 where docker isn't installed.
+	if pipelineConfig.EnableDockerSetup == nil || *pipelineConfig.EnableDockerSetup {
+		return d.Setup(ctx, pipelineConfig)
+	}
+	return nil
 }
 
 // DestroyPipeline is a helper function to destroy a pipeline given a pipeline configuration.
@@ -48,24 +48,12 @@ func DestroyPipeline(
 	labelKey string, // label to use if containers need to be destroyed
 	labelValue string,
 ) error {
-	if !dockerSetupEnabled(cfg) {
-		if cfg == nil || !cfg.PrivateConnectivity {
-			_ = destroyHelper(cfg)
-			return nil
-		}
-		return destroyHelper(cfg)
-	}
 	d, err := docker.NewEnv(opts.Opts)
 	if err != nil {
 		return err
 	}
-	if cfg == nil || !cfg.PrivateConnectivity {
-		_ = destroyHelper(cfg)
-		return d.DestroyContainersByLabel(ctx, cfg, labelKey, labelValue)
-	}
-	destroyErr := d.DestroyContainersByLabel(ctx, cfg, labelKey, labelValue)
-	volumeErr := destroyHelper(cfg)
-	return errors.Join(destroyErr, volumeErr)
+	_ = destroyHelper(cfg)
+	return d.DestroyContainersByLabel(ctx, cfg, labelKey, labelValue)
 }
 
 // RunStep executes a step in a pipeline. It takes a pipeline configuration and a step configuration
@@ -93,28 +81,9 @@ func RunStep(
 		printCommand(step, output)
 	}
 	if step.Image != "" {
-		applyPrivateConnectivityDNS(cfg, step)
+		applyPrivateConnectivityDNS(cfg, step, isHosted)
 		return d.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
 	return exec.Run(ctx, step, output)
-}
-
-func dockerSetupEnabled(cfg *spec.PipelineConfig) bool {
-	return cfg != nil && (cfg.EnableDockerSetup == nil || *cfg.EnableDockerSetup)
-}
-
-func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step) {
-	const quad100 = "100.100.100.100"
-
-	// Quad100 is served by tailscaled on the host and is reachable from containers on
-	// Linux (bridge) and Windows (nat). macOS has no Docker steps, so it is excluded.
-	// An explicit step DNS list is a customer override; preserve it exactly instead of
-	// silently changing resolver precedence. Such a step is responsible for resolving
-	// the private names it uses through its selected DNS servers.
-	if cfg == nil || step == nil || !cfg.PrivateConnectivity ||
-		(cfg.Platform.OS != "linux" && cfg.Platform.OS != "windows") || len(step.DNS) > 0 {
-		return
-	}
-	step.DNS = []string{quad100}
 }
