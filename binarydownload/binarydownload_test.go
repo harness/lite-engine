@@ -19,31 +19,57 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-const (
-	uncompressedURL = "https://github.com/meenaravichandran1/drone-gcs/releases/download/v1.6.3-debug/ServiceNow-0.0.1-darwin-arm64"
-	compressedURL   = "https://github.com/meenaravichandran1/drone-gcs/releases/download/v1.6.3-debug/ServiceNow-darwin-arm64.zst"
-)
-
-// TestDownloadUncompressed downloads a plain binary and asserts it is present and executable.
+// TestDownloadUncompressed downloads a plain binary from a local test server
+// and asserts it is present, has correct content, and is executable.
 func TestDownloadUncompressed(t *testing.T) {
+	want := []byte("binary-content")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(want)
+	}))
+	defer srv.Close()
+
 	dest := filepath.Join(t.TempDir(), "ServiceNow")
 
-	got, err := download(context.Background(), []string{uncompressedURL}, dest, false)
+	got, err := download(context.Background(), []string{srv.URL + "/ServiceNow"}, dest, false)
 	if err != nil {
 		t.Fatalf("download failed: %v", err)
 	}
 	if got != dest {
 		t.Fatalf("expected path %s, got %s", dest, got)
 	}
+	data, err := os.ReadFile(got)
+	if err != nil {
+		t.Fatalf("read dest: %v", err)
+	}
+	if !bytes.Equal(data, want) {
+		t.Fatalf("content mismatch: got %q want %q", data, want)
+	}
 	assertExecutable(t, got)
 }
 
-// TestDownloadCompressed downloads a .zst binary and asserts it is decompressed,
-// executable, and the intermediate .zst file is removed.
+// TestDownloadCompressed downloads a zstd-compressed binary from a local test server,
+// asserts it is decompressed, executable, and the intermediate .zst file is removed.
 func TestDownloadCompressed(t *testing.T) {
+	want := []byte("binary-content")
+	var buf bytes.Buffer
+	enc, err := zstd.NewWriter(&buf)
+	if err != nil {
+		t.Fatalf("zstd writer: %v", err)
+	}
+	if _, err := enc.Write(want); err != nil {
+		t.Fatalf("zstd write: %v", err)
+	}
+	enc.Close()
+	compressedBytes := buf.Bytes()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(compressedBytes)
+	}))
+	defer srv.Close()
+
 	dest := filepath.Join(t.TempDir(), "ServiceNow")
 
-	got, err := download(context.Background(), []string{compressedURL}, dest, true)
+	got, err := download(context.Background(), []string{srv.URL + "/ServiceNow.zst"}, dest, true)
 	if err != nil {
 		t.Fatalf("download failed: %v", err)
 	}
@@ -55,6 +81,13 @@ func TestDownloadCompressed(t *testing.T) {
 	}
 	if _, err := os.Stat(dest + ".zst"); !os.IsNotExist(err) {
 		t.Fatalf("expected .zst file to be removed, stat err: %v", err)
+	}
+	data, err := os.ReadFile(got)
+	if err != nil {
+		t.Fatalf("read dest: %v", err)
+	}
+	if !bytes.Equal(data, want) {
+		t.Fatalf("decompressed content mismatch: got %q want %q", data, want)
 	}
 	assertExecutable(t, got)
 }
