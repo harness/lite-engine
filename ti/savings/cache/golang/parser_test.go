@@ -67,3 +67,13 @@ func TestParseSavings_DisabledWhenMissing(t *testing.T) {
 		t.Fatalf("duration = %d, want 0", duration)
 	}
 }
+
+func TestIsolateSharedTmpForLocalInfra(t *testing.T) {
+	t.Setenv("HARNESS_EXECUTION_ID", "exec-abc")
+	if got, want := isolateSharedTmp("/tmp/"), filepath.Join("/tmp", "harness", "exec-abc"); got != want {
+		t.Fatalf("isolateSharedTmp(/tmp/) = %q, want %q", got, want)
+	}
+	if got := isolateSharedTmp("/addon/tmp"); got != "/addon/tmp" {
+		t.Fatalf("isolateSharedTmp(/addon/tmp) = %q, want /addon/tmp", got)
+	}
+}

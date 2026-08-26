@@ -73,7 +73,12 @@ func findReportFiles(workspace string) []string {
 		add(explicit)
 	}
 	if tmpPath := strings.TrimSpace(os.Getenv("HARNESS_TMP_PATH")); tmpPath != "" {
-		add(filepath.Join(tmpPath, "go-cache-report.json"))
+		isolated := isolateSharedTmp(tmpPath)
+		add(filepath.Join(isolated, "go-cache-report.json"))
+		if isolated != filepath.Clean(tmpPath) {
+			_ = os.Remove(filepath.Join(filepath.Clean(tmpPath), "go-cache-report.json"))
+			_ = os.Remove(filepath.Join(filepath.Clean(tmpPath), "harness-go-cache-report.json"))
+		}
 	}
 	if workspace != "" {
 		add(filepath.Join(workspace, ".harness", "go-cache-report.json"))
@@ -91,6 +96,40 @@ func findReportFiles(workspace string) []string {
 		add(filepath.Join(home, ".harness", "go-cache-report.json"))
 	}
 	return candidates
+}
+
+func isolateSharedTmp(tmpPath string) string {
+	clean := filepath.Clean(tmpPath)
+	if !isHostSharedTmp(clean) {
+		return clean
+	}
+	return filepath.Join(clean, "harness", executionScope())
+}
+
+func isHostSharedTmp(clean string) bool {
+	switch clean {
+	case "/tmp", "/var/tmp", `\tmp`, `C:\tmp`, `c:\tmp`:
+		return true
+	}
+	return clean == filepath.Clean(os.TempDir())
+}
+
+func executionScope() string {
+	for _, key := range []string{"HARNESS_EXECUTION_ID", "HARNESS_STAGE_ID", "HARNESS_BUILD_ID"} {
+		if value := sanitizePathElement(os.Getenv(key)); value != "" {
+			return value
+		}
+	}
+	return "unknown"
+}
+
+func sanitizePathElement(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer("/", "_", `\`, "_", "..", "_")
+	return replacer.Replace(value)
 }
 
 func parseReportFile(path string) (*golangTypes.Report, error) {
