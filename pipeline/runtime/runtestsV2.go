@@ -474,7 +474,7 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 	log.Infof("Successfully created/verified directory: %s", skipTestsFileDir)
 
 	// Get file checksums from git repository using workspace
-	fileChecksums, err := instrumentation.GetGitFileChecksums(ctx, workspace, log)
+	fileChecksums, _, err := instrumentation.GetGitFileChecksums(ctx, workspace, log)
 	if err != nil {
 		return fmt.Errorf("failed to get git file checksums: %w", err)
 	}

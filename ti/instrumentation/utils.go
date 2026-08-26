@@ -104,77 +104,130 @@ var codeFileExtensions = []string{
 	".ticonfig.yaml", // TI config file
 }
 
-// FindNonCodeFiles returns a deterministic string representation of all non-code file paths.
-func FindNonCodeFiles(fileChecksums map[string]uint64) string {
-	if len(fileChecksums) == 0 {
-		return ""
+var defaultNonCodeIncludePatterns = []string{
+	"**/BUILD",
+	"**/BUILD.bazel",
+	"**/WORKSPACE",
+	"**/WORKSPACE.bazel",
+	"**/MODULE.bazel",
+	"**/*.bzl",
+	"**/pom.xml",
+	"**/build.gradle",
+	"**/build.gradle.kts",
+	"**/settings.gradle",
+	"**/settings.gradle.kts",
+	"**/gradle.properties",
+	"**/requirements.txt",
+	"**/requirements-*.txt",
+	"**/pyproject.toml",
+	"**/poetry.lock",
+	"**/package.json",
+	"**/package-lock.json",
+	"**/yarn.lock",
+	"**/pnpm-lock.yaml",
+	"**/go.mod",
+	"**/go.sum",
+	"**/Cargo.toml",
+	"**/Cargo.lock",
+	"**/Gemfile",
+	"**/Gemfile.lock",
+	"**/pytest.ini",
+	"**/tox.ini",
+	"**/testng.xml",
+	"**/*.properties",
+	"**/*.yaml",
+	"**/*.yml",
+	"**/*.toml",
+	"**/*.ini",
+	"**/*.conf",
+}
+
+// NonCodeConfig controls which git-tracked non-code files participate in the TI sentinel.
+type NonCodeConfig struct {
+	Include []string `yaml:"include" json:"include"`
+	Exclude []string `yaml:"exclude" json:"exclude"`
+}
+
+type parsedTiConfigYAML struct {
+	Config struct {
+		Ignore                  []string      `yaml:"ignore" json:"ignore"`
+		BazelOptimization       bool          `yaml:"enableBazelOptimization" json:"enableBazelOptimization"`
+		BazelFileCountThreshold int           `yaml:"bazelFileCountThreshold" json:"bazelFileCountThreshold"`
+		NonCode                 NonCodeConfig `yaml:"nonCode" json:"nonCode"`
+	} `yaml:"config" json:"config"`
+}
+
+// IsCodeFile returns true if the file path has a known code file extension.
+func IsCodeFile(filePath string) bool {
+	for _, ext := range codeFileExtensions {
+		if strings.HasSuffix(filePath, ext) {
+			return true
+		}
 	}
+	return false
+}
+
+// GetNonCodeSentinelPaths returns git-tracked non-code sentinel paths selected by whitelist rules.
+func GetNonCodeSentinelPaths(fileChecksums map[string]uint64, nonCodeConfig NonCodeConfig) []string {
+	if len(fileChecksums) == 0 {
+		return nil
+	}
+
+	includePatterns := nonCodeConfig.Include
+	if len(includePatterns) == 0 {
+		includePatterns = defaultNonCodeIncludePatterns
+	}
+	excludePatterns := nonCodeConfig.Exclude
 
 	nonCodePaths := make([]string, 0, len(fileChecksums))
 	for filePath := range fileChecksums {
 		if filePath == NonCodeChainPath {
 			continue
 		}
-
-		isCodeFile := false
-		for _, ext := range codeFileExtensions {
-			if strings.HasSuffix(filePath, ext) {
-				isCodeFile = true
-				break
-			}
+		if IsCodeFile(filePath) {
+			continue
 		}
-
-		if !isCodeFile {
-			nonCodePaths = append(nonCodePaths, filePath)
+		if !matchesAnyPathPattern(filePath, includePatterns) {
+			continue
 		}
+		if matchesAnyPathPattern(filePath, excludePatterns) {
+			continue
+		}
+		nonCodePaths = append(nonCodePaths, filePath)
 	}
+	sort.Strings(nonCodePaths)
+	return nonCodePaths
+}
 
+// FindNonCodeFiles returns a deterministic string representation of the
+// whitelisted non-code sentinel file paths.
+func FindNonCodeFiles(fileChecksums map[string]uint64, nonCodeConfig NonCodeConfig) string {
+	nonCodePaths := GetNonCodeSentinelPaths(fileChecksums, nonCodeConfig)
 	if len(nonCodePaths) == 0 {
 		return ""
 	}
 
-	sort.Strings(nonCodePaths)
 	return strings.Join(nonCodePaths, "#")
 }
 
 // PopulateNonCodeEntities builds a special test and chain entry for non-code files.
-func PopulateNonCodeEntities(fileChecksums map[string]uint64, alreadyProcessed map[string]struct{}) (cgTypes.Test, cgTypes.Chain) {
-	// Filter out non-code files (files that don't have code extensions)
-	var nonCodePaths []string
-	for filePath := range fileChecksums {
-		// Check if the file has a code extension
-		isCodeFile := false
-		for _, ext := range codeFileExtensions {
-			if strings.HasSuffix(filePath, ext) {
-				isCodeFile = true
-				break
-			}
-		}
+// The sentinel is intentionally based only on git-tracked whitelisted config files,
+// so it is stable and independent of callgraph collection.
+func PopulateNonCodeEntities(fileChecksums map[string]uint64, nonCodeConfig NonCodeConfig) (cgTypes.Test, cgTypes.Chain) {
+	sourcePaths := GetNonCodeSentinelPaths(fileChecksums, nonCodeConfig)
 
-		// If it's not a code file, add it to non-code paths
-		if !isCodeFile {
-			if _, exists := alreadyProcessed[filePath]; !exists {
-				nonCodePaths = append(nonCodePaths, filePath)
-			}
-		}
-	}
-
-	// Sort paths for consistency
-	sort.Strings(nonCodePaths)
-
-	// Create the test structure
 	test := cgTypes.Test{
 		Path: NonCodeChainPath,
 		IndicativeChains: []cgTypes.IndicativeChain{
 			{
-				SourcePaths: nonCodePaths,
+				SourcePaths: sourcePaths,
 			},
 		},
 	}
 
 	chainChecksum := uint64(0)
-	if len(nonCodePaths) > 0 {
-		chainChecksum = tiClientUtils.ChainChecksum(nonCodePaths, fileChecksums)
+	if len(sourcePaths) > 0 {
+		chainChecksum = tiClientUtils.ChainChecksum(sourcePaths, fileChecksums)
 	}
 
 	chain := cgTypes.Chain{
@@ -185,6 +238,46 @@ func PopulateNonCodeEntities(fileChecksums map[string]uint64, alreadyProcessed m
 	}
 
 	return test, chain
+}
+
+func matchesAnyPathPattern(filePath string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if matchesPathPattern(filePath, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesPathPattern checks if filePath matches pattern using three tiers:
+// 1. Direct glob match (handles **/foo/bar and relative paths).
+// 2. If pattern starts with **/, strip that prefix and retry — covers zglob
+//    implementations that don't anchor **/ to the full path.
+// 3. If pattern contains no /, match against the basename only — so a pattern
+//    like "pom.xml" matches both "pom.xml" and "subdir/pom.xml".
+func matchesPathPattern(filePath string, pattern string) bool {
+	pattern = strings.TrimSpace(pattern)
+	if pattern == "" {
+		return false
+	}
+
+	matched, _ := zglob.Match(pattern, filePath)
+	if matched {
+		return true
+	}
+	if strings.HasPrefix(pattern, "**/") {
+		matched, _ = zglob.Match(strings.TrimPrefix(pattern, "**/"), filePath)
+		if matched {
+			return true
+		}
+	}
+	if !strings.Contains(pattern, "/") {
+		matched, _ = zglob.Match(pattern, filepath.Base(filePath))
+		if matched {
+			return true
+		}
+	}
+	return false
 }
 
 func GetTIExecutionContext(envs map[string]string) map[string]string {
@@ -799,8 +892,8 @@ instrPackages: [%s]`, dir, strings.Join(p, ","))
 	return outputFile, nil
 }
 
-func getTiConfig(workspace string, fs filesystem.FileSystem) (ti.TiConfig, error) {
-	res := ti.TiConfig{}
+func getParsedTiConfig(workspace string, fs filesystem.FileSystem) (parsedTiConfigYAML, error) {
+	res := parsedTiConfigYAML{}
 
 	path := fmt.Sprintf("%s/%s", workspace, tiConfigPath)
 	_, err := os.Stat(path)
@@ -819,6 +912,19 @@ func getTiConfig(workspace string, fs filesystem.FileSystem) (ti.TiConfig, error
 	if err != nil {
 		return res, fmt.Errorf("could not unmarshal ticonfig file: %w", err)
 	}
+	return res, nil
+}
+
+func getTiConfig(workspace string, fs filesystem.FileSystem) (ti.TiConfig, error) {
+	parsed, err := getParsedTiConfig(workspace, fs)
+	if err != nil {
+		return ti.TiConfig{}, err
+	}
+
+	res := ti.TiConfig{}
+	res.Config.Ignore = parsed.Config.Ignore
+	res.Config.BazelOptimization = parsed.Config.BazelOptimization
+	res.Config.BazelFileCountThreshold = parsed.Config.BazelFileCountThreshold
 	return res, nil
 }
 
@@ -992,8 +1098,8 @@ func IsStageParallelismEnabledWithoutMatrix(envs map[string]string) bool {
 }
 
 // GetGitFileChecksums gets git file checksums from the specified repository
-// and returns them as a map of filepath to 64-bit checksum
-func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger) (map[string]uint64, error) {
+// and returns them as a map of filepath to 64-bit checksum.
+func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger) (map[string]uint64, NonCodeConfig, error) {
 	// Git ls-tree output format: "<mode> <type> <checksum>\t<filepath>"
 	// Minimum required parts: mode, type, checksum, filepath
 	const minGitLsTreeParts = 4
@@ -1005,15 +1111,16 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 	// Execute git ls-tree -r HEAD . command in the specified directory
 	cmd := execCmdCtx(ctx, gitBin, "ls-tree", "-r", "HEAD", ".")
 	cmd.Dir = repoDir
-	tiConfig, err := getTiConfig(repoDir, filesystem.New())
+	parsedTiConfig, err := getParsedTiConfig(repoDir, filesystem.New())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ti config: %w", err)
+		return nil, NonCodeConfig{}, fmt.Errorf("failed to get ti config: %w", err)
 	}
-	ignoreList := tiConfig.Config.Ignore
+	ignoreList := parsedTiConfig.Config.Ignore
+	nonCodeConfig := parsedTiConfig.Config.NonCode
 
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute git ls-tree command: %w", err)
+		return nil, NonCodeConfig{}, fmt.Errorf("failed to execute git ls-tree command: %w", err)
 	}
 
 	// Parse the output and create file:checksum map
@@ -1057,10 +1164,10 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 
 		fileChecksums[filepath] = checksum64
 	}
-	nonCodeChecksumStr := FindNonCodeFiles(fileChecksums)
+	nonCodeChecksumStr := FindNonCodeFiles(fileChecksums, nonCodeConfig)
 	fileChecksums[NonCodeChainPath] = xxhash.Sum64String(nonCodeChecksumStr)
 	log.Infof("Successfully processed %d files from git repository", len(fileChecksums))
-	return fileChecksums, nil
+	return fileChecksums, nonCodeConfig, nil
 }
 
 func isFileInIgnoreList(filePath string, ignoreList []string) bool {
