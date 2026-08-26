@@ -144,3 +144,30 @@ func TestStatsCollector_StopIsIdempotent(t *testing.T) {
 	collector.Stop()
 	collector.Stop()
 }
+
+func TestStatsCollector_StopBeforeStartIsSafe(t *testing.T) {
+	collector := New(context.Background(), time.Hour, false)
+
+	requireStopCompletes(t, collector)
+	collector.Start()
+	requireStopCompletes(t, collector)
+}
+
+func TestStatsCollector_ZeroValueStopIsSafe(t *testing.T) {
+	collector := &StatsCollector{}
+	requireStopCompletes(t, collector)
+}
+
+func requireStopCompletes(t *testing.T, collector *StatsCollector) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		collector.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("StatsCollector.Stop blocked")
+	}
+}

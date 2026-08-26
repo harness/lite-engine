@@ -30,7 +30,8 @@ type StatsCollector struct {
 	doneCh     chan struct{} // closed by Stop() to signal the collector loop
 	stoppedCh  chan struct{} // closed by the collector goroutine on exit
 	logProcess bool
-	stopOnce   sync.Once
+	started    bool
+	stopped    bool
 
 	mu         sync.Mutex
 	stats      *spec.OSStats
@@ -72,13 +73,33 @@ func New(ctx context.Context, interval time.Duration, logProcess bool) *StatsCol
 }
 
 func (s *StatsCollector) Start() {
+	s.mu.Lock()
+	if s.started || s.stopped || s.doneCh == nil || s.stoppedCh == nil {
+		s.mu.Unlock()
+		return
+	}
+	s.started = true
 	s.st = time.Now()
+	s.mu.Unlock()
 	safego.SafeGo("stats_collector", s.collectStats)
 }
 
 func (s *StatsCollector) Stop() {
-	s.stopOnce.Do(func() { close(s.doneCh) })
-	<-s.stoppedCh
+	s.mu.Lock()
+	if s.doneCh == nil || s.stoppedCh == nil {
+		s.mu.Unlock()
+		return
+	}
+	if !s.stopped {
+		close(s.doneCh)
+		s.stopped = true
+	}
+	started := s.started
+	stoppedCh := s.stoppedCh
+	s.mu.Unlock()
+	if started {
+		<-stoppedCh
+	}
 }
 
 func (s *StatsCollector) Stats() *spec.OSStats {

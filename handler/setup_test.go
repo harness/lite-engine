@@ -14,3 +14,26 @@ func TestValidatePrivateConnectivityReuse(t *testing.T) {
 	require.NoError(t, validatePrivateConnectivityReuse(false))
 	require.ErrorContains(t, validatePrivateConnectivityReuse(true), "discard this VM")
 }
+
+func TestPrivateConnectivityConflictsWithEgress(t *testing.T) {
+	tests := []struct {
+		name     string
+		enabled  bool
+		proxyURL string
+		envs     map[string]string
+		want     bool
+	}{
+		{name: "PC disabled", proxyURL: "http://proxy", envs: map[string]string{harnessHTTPSProxyEnvVar: "http://proxy"}},
+		{name: "no proxy", enabled: true},
+		{name: "egress policy proxy", enabled: true, proxyURL: "http://proxy", want: true},
+		{name: "Harness HTTPS proxy", enabled: true,
+			envs: map[string]string{harnessHTTPSProxyEnvVar: "http://proxy"}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want,
+				privateConnectivityConflictsWithEgress(tt.enabled, tt.proxyURL, tt.envs))
+		})
+	}
+}

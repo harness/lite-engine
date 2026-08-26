@@ -40,6 +40,7 @@ var (
 const (
 	OSWindows                    = "windows"
 	dualLoggingEnvVar            = "HARNESS_LOG_STREAMING_STDOUT_ENABLED"
+	harnessHTTPSProxyEnvVar      = "HARNESS_HTTPS_PROXY"
 	setupResourceRollbackTimeout = 30 * time.Second
 )
 
@@ -92,14 +93,20 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			s.Secrets = append(s.Secrets, pcCfg.OIDCToken)
 		}
 
-		// Setup, destroy, and suspend all mutate process-global stage state. Serialize them so a
-		// teardown cannot log out Tailscale or remove Docker resources while setup is still running.
-		stageLifecycleMu.Lock()
-		defer stageLifecycleMu.Unlock()
+		// Serialize only PC-relevant setup with destroy and suspend. Ordinary setup keeps its
+		// existing behavior, while teardown cannot race a PC join or a fenced VM.
+		if pcCfg.Enabled || pc.WasUsed() || engine.PrivateConnectivityConfigured() {
+			stageLifecycleMu.Lock()
+			defer stageLifecycleMu.Unlock()
+		}
 
 		// Mutual exclusion: PC and egress may not run in the same build. Perform this check before
 		// mutating process environment or any host state.
-		if pcCfg.Enabled && s.EgressPolicy != nil && s.EgressPolicy.ProxyURL != "" {
+		egressProxyURL := ""
+		if s.EgressPolicy != nil {
+			egressProxyURL = s.EgressPolicy.ProxyURL
+		}
+		if privateConnectivityConflictsWithEgress(pcCfg.Enabled, egressProxyURL, s.Envs) {
 			WriteBadRequest(w, fmt.Errorf("pc: private connectivity and an egress proxy are mutually exclusive"))
 			return
 		}
@@ -115,7 +122,9 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		if pcCfg.Enabled {
 			// Repair post-hibernate clock drift before Tailscale performs TLS/WIF requests.
 			if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-				syncSystemClock()
+				clockCtx, clockCancel := context.WithTimeout(r.Context(), 5*time.Second) //nolint:mnd
+				syncSystemClock(clockCtx)
+				clockCancel()
 			}
 			logger.FromRequest(r).
 				WithField("platform", runtime.GOOS).
@@ -226,7 +235,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 
 		// Preserve the existing non-PC ARM64 clock repair at its original lifecycle point.
 		if !pcCfg.Enabled && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-			syncSystemClock()
+			syncSystemClock(context.Background())
 		}
 
 		if err := engine.Setup(r.Context(), cfg); err != nil {
@@ -282,6 +291,17 @@ func validatePrivateConnectivityReuse(fenced bool) error {
 		return fmt.Errorf("pc: private connectivity reuse fence is active; discard this VM")
 	}
 	return nil
+}
+
+func privateConnectivityConflictsWithEgress(enabled bool, proxyURL string, envs map[string]string) bool {
+	if !enabled {
+		return false
+	}
+	if proxyURL != "" {
+		return true
+	}
+	_, hasHarnessProxy := envs[harnessHTTPSProxyEnvVar]
+	return hasHarnessProxy
 }
 
 func getSharedVolume() *spec.Volume {
@@ -453,19 +473,19 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 // This fixes clock skew on ARM64 VMs after GCP hibernate resume, where the arch_sys_counter
 // clock source doesn't auto-adjust (unlike x86's kvm-clock). Without this, chrony may
 // mark the NTP source as too variable and refuse to step, leaving the clock minutes behind.
-func syncSystemClock() {
+func syncSystemClock(ctx context.Context) {
 	if _, err := exec.LookPath("chronyc"); err != nil {
 		return
 	}
 
 	// Restart chrony to reset source state (clears the "too variable" flag from post-resume measurements)
-	if out, err := exec.CommandContext(context.Background(), "systemctl", "restart", "chrony").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, "systemctl", "restart", "chrony").CombinedOutput(); err != nil {
 		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to restart chrony")
 		return
 	}
 
 	// Force an immediate clock step
-	if out, err := exec.CommandContext(context.Background(), "chronyc", "-a", "makestep").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, "chronyc", "-a", "makestep").CombinedOutput(); err != nil {
 		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to force chrony clock step")
 		return
 	}
