@@ -137,7 +137,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs), s.MtlsConfig, collector)
 
-		// PC join before LE/OS streams so a failed single-attempt join cannot leak stream resources.
+		// Join before LE/OS streams so a failed PC attempt cannot leak stream resources.
 		if pcCfg.Enabled {
 			logger.FromRequest(r).Infoln("api: starting private connectivity runtime join")
 			if joinErr := pc.JoinAndConfigure(r.Context(), &pcCfg); joinErr != nil {
@@ -243,9 +243,8 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			resourceRollbackCancel()
 			var logoutErr error
 			if pc.NeedsNetworkCleanup() {
-				// A failed PC setup is never retried on this VM; DRA discards it.
-				// Allow the same terminal Windows ephemeral-node cleanup used by
-				// /destroy while keeping /suspend strict for reusable VMs.
+				// Keep the reuse fence after a post-join setup failure. A retry fails
+				// closed on this VM, while pool fallback can provision a clean VM.
 				logoutErr = pc.LogoutForDisposal(cleanupCtx)
 			}
 			collector.Stop()

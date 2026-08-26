@@ -207,11 +207,10 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo
 }
 
 func rollbackSetup(ctx context.Context, cause error) error {
-	// A failed PC setup is outcome-indeterminate and DRA always discards the VM. On
-	// Windows, the Tailscale service can reject self-logout because its LocalSystem
-	// caller does not own the generated login profile. Disposal cleanup may defer
-	// removal of that already-ephemeral node after stopping the service; reusable
-	// cleanup remains strict.
+	// Roll back before returning so a safe DRA retry can start cleanly. On Windows,
+	// the service can reject self-logout when LocalSystem does not own the generated
+	// login profile; disposal cleanup stops the service and lets that ephemeral node
+	// expire instead.
 	if cleanupErr := logoutUnlocked(ctx, true); cleanupErr != nil {
 		return errors.Join(cause, fmt.Errorf("pc: setup rollback failed: %w", cleanupErr))
 	}
