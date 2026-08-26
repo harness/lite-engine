@@ -14,6 +14,7 @@ import (
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/binarydownload"
 	"github.com/harness/lite-engine/common"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/pipeline"
@@ -30,6 +31,18 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	start := time.Now()
 	var internalTempFiles []string
 	step := toStep(r)
+
+	// run.download on hosted VMs: download the plugin binary and export PLUGIN_PATH/HOME/
+	// DEFAULT_DL_PATH before the command+entrypoint are copied below. Skip when PLUGIN_PATH
+	// is preset (runner already downloaded) or the entrypoint is the launcher form, which the
+	// pre-installed drone/plugin launcher resolves via its own "-sources".
+	_, alreadySetup := step.Envs["PLUGIN_PATH"]
+	if !isLauncherEntrypoint(r.Run.Entrypoint) && !alreadySetup && len(r.Run.Binary.Source) > 0 {
+		if err := binarydownload.Setup(ctx, pipeline.GetSharedVolPath(), &r.Run, step.Envs); err != nil {
+			return nil, nil, nil, nil, nil, nil, string(types.DISABLED), fmt.Errorf("failed to setup plugin binary: %w", err)
+		}
+	}
+
 	step.Command = r.Run.Command
 	step.Entrypoint = r.Run.Entrypoint
 	setTiEnvVariables(step, tiConfig)
@@ -292,6 +305,13 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 
 	// If FF is on and we have outputs, return summary outputs with regular outputs merged in
 	return exited, summaryOutputs, exportEnvs, artifact, summaryOutputsV2, telemetryData, string(optimizationState), err
+}
+
+// isLauncherEntrypoint reports whether ep is the drone/plugin launcher form
+// ["plugin", "-kind", ...], which downloads via its own "-sources" arg. lite-engine
+// must not download the binary itself for these.
+func isLauncherEntrypoint(ep []string) bool {
+	return len(ep) > 2 && ep[0] == "plugin" && ep[1] == "-kind"
 }
 
 func parseBuildInfo(telemetryData *types.TelemetryData, buildFile string) error {

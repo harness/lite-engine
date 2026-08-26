@@ -61,3 +61,24 @@ func TestExecuteRunStepUsesResolvedEnvsForSavings(t *testing.T) {
 		t.Fatalf("request env was mutated: got %q", got)
 	}
 }
+
+func TestIsLauncherEntrypoint(t *testing.T) {
+	cases := []struct {
+		name string
+		ep   []string
+		want bool
+	}{
+		{"launcher form", []string{"plugin", "-kind", "harness", "-sources", "u"}, true},
+		{"custom entrypoint", []string{"/bin/sh", "-c", "echo hi"}, false},
+		{"plugin without -kind", []string{"plugin", "-name", "x", "y"}, false},
+		{"too short", []string{"plugin", "-kind"}, false},
+		{"empty", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isLauncherEntrypoint(tc.ep); got != tc.want {
+				t.Fatalf("isLauncherEntrypoint(%v) = %v, want %v", tc.ep, got, tc.want)
+			}
+		})
+	}
+}
