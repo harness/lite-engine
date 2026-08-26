@@ -11,12 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPrivateConnectivityDNSIsLimitedToHostedContainers(t *testing.T) {
+func TestPrivateConnectivityDNSIsLimitedToConfiguredPCContainers(t *testing.T) {
 	tests := []struct {
 		name     string
 		cfg      *spec.PipelineConfig
 		step     *spec.Step
-		hosted   bool
 		expected []string
 	}{
 		{
@@ -25,7 +24,7 @@ func TestPrivateConnectivityDNSIsLimitedToHostedContainers(t *testing.T) {
 				PrivateConnectivity: true,
 				Platform:            spec.Platform{OS: "linux"},
 			},
-			step: &spec.Step{}, hosted: true, expected: []string{"100.100.100.100"},
+			step: &spec.Step{}, expected: []string{"100.100.100.100"},
 		},
 		{
 			name: "hosted Windows PC container",
@@ -33,22 +32,14 @@ func TestPrivateConnectivityDNSIsLimitedToHostedContainers(t *testing.T) {
 				PrivateConnectivity: true,
 				Platform:            spec.Platform{OS: "windows"},
 			},
-			step: &spec.Step{}, hosted: true, expected: []string{"100.100.100.100"},
-		},
-		{
-			name: "runner local is unchanged",
-			cfg: &spec.PipelineConfig{
-				PrivateConnectivity: true,
-				Platform:            spec.Platform{OS: "linux"},
-			},
-			step: &spec.Step{}, expected: nil,
+			step: &spec.Step{}, expected: []string{"100.100.100.100"},
 		},
 		{
 			name: "PC off is unchanged",
 			cfg: &spec.PipelineConfig{
 				Platform: spec.Platform{OS: "linux"},
 			},
-			step: &spec.Step{}, hosted: true, expected: nil,
+			step: &spec.Step{}, expected: nil,
 		},
 		{
 			name: "macOS native execution is unchanged",
@@ -56,7 +47,7 @@ func TestPrivateConnectivityDNSIsLimitedToHostedContainers(t *testing.T) {
 				PrivateConnectivity: true,
 				Platform:            spec.Platform{OS: "darwin"},
 			},
-			step: &spec.Step{}, hosted: true, expected: nil,
+			step: &spec.Step{}, expected: nil,
 		},
 		{
 			name: "explicit step DNS is preserved",
@@ -64,13 +55,13 @@ func TestPrivateConnectivityDNSIsLimitedToHostedContainers(t *testing.T) {
 				PrivateConnectivity: true,
 				Platform:            spec.Platform{OS: "windows"},
 			},
-			step: &spec.Step{DNS: []string{"10.0.0.53"}}, hosted: true, expected: []string{"10.0.0.53"},
+			step: &spec.Step{DNS: []string{"10.0.0.53"}}, expected: []string{"10.0.0.53"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			applyPrivateConnectivityDNS(tt.cfg, tt.step, tt.hosted)
+			applyPrivateConnectivityDNS(tt.cfg, tt.step)
 			require.Equal(t, tt.expected, tt.step.DNS)
 		})
 	}

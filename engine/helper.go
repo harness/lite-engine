@@ -81,7 +81,7 @@ func RunStep(
 		printCommand(step, output)
 	}
 	if step.Image != "" {
-		applyPrivateConnectivityDNS(cfg, step, isHosted)
+		applyPrivateConnectivityDNS(cfg, step)
 		return d.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 

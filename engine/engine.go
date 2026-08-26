@@ -256,7 +256,7 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 	}
 
 	if step.Image != "" {
-		applyPrivateConnectivityDNS(cfg, step, isHosted)
+		applyPrivateConnectivityDNS(cfg, step)
 		return e.docker.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
@@ -283,13 +283,13 @@ func dockerSetupEnabled(cfg *spec.PipelineConfig) bool {
 	return cfg != nil && (cfg.EnableDockerSetup == nil || *cfg.EnableDockerSetup)
 }
 
-func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step, isHosted bool) {
+func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step) {
 	const quad100 = "100.100.100.100"
 
 	// Quad100 is served by tailscaled on the host and is reachable from containers on
 	// Linux (bridge) and Windows (nat). macOS has no Docker steps, so it is excluded.
 	// An explicit step DNS list is a customer override and is preserved exactly.
-	if !isHosted || cfg == nil || step == nil || !cfg.PrivateConnectivity ||
+	if cfg == nil || step == nil || !cfg.PrivateConnectivity ||
 		(cfg.Platform.OS != "linux" && cfg.Platform.OS != "windows") || len(step.DNS) > 0 {
 		return
 	}
