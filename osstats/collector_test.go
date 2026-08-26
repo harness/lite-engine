@@ -136,3 +136,11 @@ func TestStatsCollector_StopWhileReading(t *testing.T) {
 	close(stop)
 	wg.Wait()
 }
+
+func TestStatsCollector_StopIsIdempotent(t *testing.T) {
+	collector := New(context.Background(), time.Hour, false)
+	collector.Start()
+
+	collector.Stop()
+	collector.Stop()
+}

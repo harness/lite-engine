@@ -30,6 +30,7 @@ type StatsCollector struct {
 	doneCh     chan struct{} // closed by Stop() to signal the collector loop
 	stoppedCh  chan struct{} // closed by the collector goroutine on exit
 	logProcess bool
+	stopOnce   sync.Once
 
 	mu         sync.Mutex
 	stats      *spec.OSStats
@@ -76,7 +77,7 @@ func (s *StatsCollector) Start() {
 }
 
 func (s *StatsCollector) Stop() {
-	close(s.doneCh)
+	s.stopOnce.Do(func() { close(s.doneCh) })
 	<-s.stoppedCh
 }
 

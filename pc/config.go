@@ -82,7 +82,8 @@ func Validate(cfg *Config) error {
 	if cfg.unexpectedField {
 		return fmt.Errorf("pc: unsupported HARNESS_PC_* field")
 	}
-	if strings.TrimSpace(cfg.ClientID) == "" || cfg.OIDCToken == "" || cfg.Hostname == "" {
+	if strings.TrimSpace(cfg.ClientID) == "" || cfg.OIDCToken == "" || cfg.Hostname == "" ||
+		strings.TrimSpace(cfg.Tag) == "" {
 		return fmt.Errorf("pc: private connectivity identity is incomplete")
 	}
 	if cfg.Tag != DefaultTag {

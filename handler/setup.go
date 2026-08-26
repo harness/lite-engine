@@ -108,6 +108,10 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			WriteBadRequest(w, validateErr)
 			return
 		}
+		if reuseErr := validatePrivateConnectivityReuse(pc.WasUsed()); reuseErr != nil {
+			WriteError(w, reuseErr)
+			return
+		}
 		if pcCfg.Enabled {
 			// Repair post-hibernate clock drift before Tailscale performs TLS/WIF requests.
 			if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
@@ -271,6 +275,13 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			WithField("time", time.Now().Format(time.RFC3339)).
 			Infoln("api: successfully completed the stage setup")
 	}
+}
+
+func validatePrivateConnectivityReuse(fenced bool) error {
+	if fenced {
+		return fmt.Errorf("pc: private connectivity reuse fence is active; discard this VM")
+	}
+	return nil
 }
 
 func getSharedVolume() *spec.Volume {

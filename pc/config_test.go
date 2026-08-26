@@ -87,6 +87,12 @@ func TestValidateRejectsIncompletePrivateConnectivityIdentity(t *testing.T) {
 				EnvEnabled: "true", EnvClientID: "client", EnvOIDCToken: "token", EnvTag: DefaultTag,
 			},
 		},
+		{
+			name: "missing tag",
+			envs: map[string]string{
+				EnvEnabled: "true", EnvClientID: "client", EnvOIDCToken: "token", EnvHostname: "stage-123",
+			},
+		},
 	}
 
 	for _, tt := range tests {
