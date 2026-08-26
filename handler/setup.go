@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -100,7 +99,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 
 		// Mutual exclusion: PC and egress may not run in the same build. Perform this check before
 		// mutating process environment or any host state.
-		if pcCfg.Enabled && s.EgressPolicy != nil && strings.TrimSpace(s.EgressPolicy.ProxyURL) != "" {
+		if pcCfg.Enabled && s.EgressPolicy != nil && s.EgressPolicy.ProxyURL != "" {
 			WriteBadRequest(w, fmt.Errorf("pc: private connectivity and an egress proxy are mutually exclusive"))
 			return
 		}

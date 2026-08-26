@@ -63,3 +63,60 @@ func TestValidateRejectsUnexpectedPrivateConnectivityField(t *testing.T) {
 	cfg := ExtractAndStrip(envs)
 	require.ErrorContains(t, Validate(&cfg), "unsupported HARNESS_PC_* field")
 }
+
+func TestValidateRejectsIncompletePrivateConnectivityIdentity(t *testing.T) {
+	tests := []struct {
+		name string
+		envs map[string]string
+	}{
+		{
+			name: "missing client ID",
+			envs: map[string]string{
+				EnvEnabled: "true", EnvOIDCToken: "token", EnvHostname: "stage-123", EnvTag: DefaultTag,
+			},
+		},
+		{
+			name: "missing OIDC token",
+			envs: map[string]string{
+				EnvEnabled: "true", EnvClientID: "client", EnvHostname: "stage-123", EnvTag: DefaultTag,
+			},
+		},
+		{
+			name: "missing hostname",
+			envs: map[string]string{
+				EnvEnabled: "true", EnvClientID: "client", EnvOIDCToken: "token", EnvTag: DefaultTag,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := ExtractAndStrip(tt.envs)
+			require.ErrorContains(t, Validate(&cfg), "private connectivity identity is incomplete")
+		})
+	}
+}
+
+func TestValidateRejectsUnsupportedPrivateConnectivityTag(t *testing.T) {
+	envs := map[string]string{
+		EnvEnabled: "true", EnvClientID: "client", EnvOIDCToken: "token",
+		EnvHostname: "stage-123", EnvTag: "tag:customer-controlled",
+	}
+	cfg := ExtractAndStrip(envs)
+	require.ErrorContains(t, Validate(&cfg), "unsupported private connectivity tag")
+}
+
+func TestWIFClientIDAddsEphemeralPreauthorizedClaims(t *testing.T) {
+	require.Equal(t, "client?ephemeral=true&preauthorized=true", wifClientID("client"))
+	require.Equal(t, "client?audience=harness&ephemeral=true&preauthorized=true",
+		wifClientID("client?audience=harness"))
+}
+
+func TestProxyEnvironmentKeyMatching(t *testing.T) {
+	for _, key := range []string{"HTTP_PROXY", "https_proxy", " No_Proxy ", "all_proxy"} {
+		require.True(t, isProxyEnvironmentKey(key), key)
+	}
+	for _, key := range []string{"PATH", "HARNESS_HTTPS_PROXY", "PROXY_URL"} {
+		require.False(t, isProxyEnvironmentKey(key), key)
+	}
+}

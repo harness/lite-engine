@@ -36,7 +36,7 @@ func tailscalePath() (string, error) {
 	return exec.LookPath("tailscale.exe")
 }
 
-func securePlatformTokenDir() error {
+func securePlatformTokenDir(ctx context.Context) error {
 	tokenUser, err := windows.GetCurrentProcessToken().GetTokenUser()
 	if err != nil || tokenUser == nil || tokenUser.User.Sid == nil {
 		return fmt.Errorf("pc: failed to identify the Windows runtime SID")
@@ -51,7 +51,9 @@ func securePlatformTokenDir() error {
 	if runtimeSID != "S-1-5-18" {
 		args = append(args, "*S-1-5-18:(OI)(CI)F")
 	}
-	out, err := exec.Command("icacls", args...).CombinedOutput()
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(commandCtx, "icacls", args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("pc: failed to secure state directory ACL: %w (output: %s)", err, strings.TrimSpace(string(out)))
 	}

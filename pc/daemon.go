@@ -25,6 +25,7 @@ const (
 	logoutTimeout         = 30 * time.Second
 	statusTimeout         = 10 * time.Second
 	joinedStatusTimeout   = 5 * time.Second
+	loggedOutProbeTimeout = 2 * time.Second
 	runtimeStatusTimeout  = 8 * time.Second
 	runtimeServiceTimeout = 30 * time.Second
 	loggedOutPollInterval = 200 * time.Millisecond
@@ -84,6 +85,10 @@ func supportedPlatform() bool {
 	}
 }
 
+// localRuntimeClean enforces the hosted-image and warm-reuse contract. Tailscale must be
+// preinstalled but dormant, with no enrollment or Harness lifecycle residue; Lite Engine starts
+// the service only for a PC stage. An active service is rejected because its ownership and prior
+// state cannot be proven safe for the next stage.
 func localRuntimeClean(ctx context.Context) bool {
 	if markerExists() || tokenFileExists() || fileExists(cleanupMarkerPath()) || WasUsed() ||
 		platformNetworkResidue() {
@@ -132,7 +137,7 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo
 		)
 	}
 	logrus.WithField("hostname", cfg.Hostname).Infoln("pc: installed runtime is ready for join")
-	if err := secureTokenDir(); err != nil {
+	if err := secureTokenDir(ctx); err != nil {
 		return errors.Join(err, platformRuntimeStop(context.WithoutCancel(ctx)))
 	}
 	if err := writeMarker(lifecycleMarker{State: stateJoining}); err != nil {
@@ -239,7 +244,8 @@ func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) (resu
 		}
 	}()
 
-	if err := secureTokenDir(); err != nil {
+	cleanupCtx := context.WithoutCancel(ctx)
+	if err := secureTokenDir(cleanupCtx); err != nil {
 		return err
 	}
 	if err := writeMarker(lifecycleMarker{State: stateCleaning}); err != nil {
@@ -249,7 +255,6 @@ func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) (resu
 		return err
 	}
 
-	cleanupCtx := context.WithoutCancel(ctx)
 	path, pathErr := tailscalePath()
 	logrus.Infoln("pc: starting tailscale logout")
 	var cleanupErr error
@@ -363,7 +368,9 @@ func waitForLoggedOut(ctx context.Context, path string) error {
 	ticker := time.NewTicker(loggedOutPollInterval)
 	defer ticker.Stop()
 	for {
-		loggedIn, known := tailscaleLoginState(statusCtx, path)
+		probeCtx, probeCancel := context.WithTimeout(statusCtx, loggedOutProbeTimeout)
+		loggedIn, known := tailscaleLoginState(probeCtx, path)
+		probeCancel()
 		if known && !loggedIn {
 			return nil
 		}
@@ -444,14 +451,14 @@ func wifClientID(clientID string) string {
 	return clientID + separator + "ephemeral=true&preauthorized=true"
 }
 
-func secureTokenDir() error {
+func secureTokenDir(ctx context.Context) error {
 	if !filepath.IsAbs(TokenDir) {
 		return fmt.Errorf("pc: state directory must be absolute")
 	}
 	if err := os.MkdirAll(TokenDir, privateDirectoryMode); err != nil {
 		return fmt.Errorf("pc: failed to create state directory: %w", err)
 	}
-	if err := securePlatformTokenDir(); err != nil {
+	if err := securePlatformTokenDir(ctx); err != nil {
 		return err
 	}
 	info, err := os.Lstat(TokenDir)

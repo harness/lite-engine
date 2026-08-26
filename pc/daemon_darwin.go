@@ -69,7 +69,7 @@ func tailscalePath() (string, error) {
 	return "", fmt.Errorf("pc: installed open-source macOS tailscale runtime is unavailable")
 }
 
-func securePlatformTokenDir() error {
+func securePlatformTokenDir(context.Context) error {
 	return nil
 }
 
@@ -83,19 +83,7 @@ func platformRuntimeReady() bool {
 }
 
 func platformRuntimeRunning(ctx context.Context) (running, known bool) {
-	commandCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
-	defer cancel()
-	out, err := darwinPrivilegedCommand(commandCtx, "/bin/launchctl", "print",
-		darwinService).CombinedOutput()
-	if err == nil {
-		return true, true
-	}
-	message := strings.ToLower(string(out))
-	if strings.Contains(message, "could not find service") ||
-		strings.Contains(message, "service could not be found") {
-		return false, true
-	}
-	return false, false
+	return darwinRuntimeRegistered(ctx)
 }
 
 func platformRuntimeStart(ctx context.Context) error {
@@ -113,7 +101,7 @@ func platformRuntimeStart(ctx context.Context) error {
 		return fmt.Errorf("failed to register preinstalled tailscaled with launchd: %w (%s)",
 			err, strings.TrimSpace(string(out)))
 	}
-	if registered, known := darwinRuntimeRegistered(commandCtx); !known || !registered {
+	if registered, known := darwinRuntimeRegistered(ctx); !known || !registered {
 		return fmt.Errorf("tailscaled launchd service did not become available")
 	}
 	return nil
@@ -134,14 +122,16 @@ func platformRuntimeStop(ctx context.Context) error {
 		return fmt.Errorf("failed to unregister preinstalled tailscaled from launchd: %w (%s)",
 			err, strings.TrimSpace(string(out)))
 	}
-	if registered, known := darwinRuntimeRegistered(commandCtx); !known || registered {
+	if registered, known := darwinRuntimeRegistered(ctx); !known || registered {
 		return fmt.Errorf("tailscaled launchd service remains registered after cleanup")
 	}
 	return nil
 }
 
 func darwinRuntimeRegistered(ctx context.Context) (registered, known bool) {
-	out, err := darwinPrivilegedCommand(ctx, "/bin/launchctl", "print", darwinService).CombinedOutput()
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
+	defer cancel()
+	out, err := darwinPrivilegedCommand(commandCtx, "/bin/launchctl", "print", darwinService).CombinedOutput()
 	if err == nil {
 		return true, true
 	}

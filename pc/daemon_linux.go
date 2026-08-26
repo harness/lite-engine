@@ -27,7 +27,7 @@ func tailscalePath() (string, error) {
 	return exec.LookPath("tailscale")
 }
 
-func securePlatformTokenDir() error {
+func securePlatformTokenDir(context.Context) error {
 	return nil
 }
 
@@ -51,11 +51,14 @@ func platformRuntimeRunning(ctx context.Context) (running, known bool) {
 
 func platformRuntimeStart(ctx context.Context) error {
 	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
-	defer cancel()
-	if out, err := exec.CommandContext(commandCtx, "systemctl", "start", "tailscaled.service").CombinedOutput(); err != nil {
+	out, err := exec.CommandContext(commandCtx, "systemctl", "start", "tailscaled.service").CombinedOutput()
+	cancel()
+	if err != nil {
 		return fmt.Errorf("systemctl start tailscaled failed: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
-	if err := exec.CommandContext(commandCtx, "systemctl", "is-active", "--quiet", "tailscaled.service").Run(); err != nil {
+	statusCtx, statusCancel := context.WithTimeout(ctx, runtimeStatusTimeout)
+	defer statusCancel()
+	if err := exec.CommandContext(statusCtx, "systemctl", "is-active", "--quiet", "tailscaled.service").Run(); err != nil {
 		return fmt.Errorf("tailscaled did not become active: %w", err)
 	}
 	return nil

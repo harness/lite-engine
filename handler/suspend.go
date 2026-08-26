@@ -35,13 +35,13 @@ func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 		var suspendErr error
 		if pcStateUnavailable {
 			suspendErr = fmt.Errorf(
-				"private connectivity cleanup state is unavailable after lite-engine restart; discard this VM")
+				"private connectivity cleanup state is not available in this process; discard this VM")
 		} else {
 			suspendErr = engine.Suspend(request.Context(), suspendRequest.Labels)
 		}
 
 		// For PC, Engine.Suspend performs full stage-resource cleanup first. Logout is the final
-		// network boundary. A restarted LE still attempts logout but keeps the reuse fence.
+		// network boundary. Missing process-local state still triggers logout but keeps the reuse fence.
 		if pcUsed || pc.NeedsNetworkCleanup() {
 			logger.FromRequest(request).
 				WithField("pc_state_available", !pcStateUnavailable).
