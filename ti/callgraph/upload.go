@@ -75,11 +75,11 @@ func Upload(
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse callgraph files: %w", err)
 		}
-		fileChecksums, err := instrumentation.GetGitFileChecksums(ctx, r.WorkingDir, log)
+		fileChecksums, nonCodeConfig, err := instrumentation.GetGitFileChecksums(ctx, r.WorkingDir, log)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get file hashes: %w", err)
 		}
-		uploadPayload, err := CreateUploadPayload(cg, fileChecksums, repo, cfg, sha, tests, log, r.Envs)
+		uploadPayload, err := CreateUploadPayload(cg, fileChecksums, nonCodeConfig, repo, cfg, sha, tests, log, r.Envs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create upload payload: %w", err)
 		}
@@ -362,8 +362,9 @@ func fetchFailedTests(filePath string) ([]string, error) {
 }
 
 //nolint:funlen
-func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo string, cfg *tiCfg.Cfg, commitSha string,
-	reportTests []*tiClientTypes.TestCase, log *logrus.Logger, envs map[string]string) (*types.UploadCgRequest, error) {
+func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, nonCodeConfig instrumentation.NonCodeConfig,
+	repo string, cfg *tiCfg.Cfg, commitSha string, reportTests []*tiClientTypes.TestCase, log *logrus.Logger,
+	envs map[string]string) (*types.UploadCgRequest, error) {
 	repoInfo := types.Identifier{
 		AccountID: cfg.GetAccountID(),
 		OrgID:     cfg.GetOrgID(),
@@ -379,7 +380,6 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 	var tests []types.Test
 	var chains []types.Chain
 	numTestsMap := make(map[string]int)
-	alreadyProcessed := make(map[string]struct{})
 
 	if cg != nil {
 		nodeMap := make(map[int]Node)
@@ -418,7 +418,6 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 				for _, path := range sourcePaths {
 					if _, exists := uniquePaths[path]; !exists {
 						uniquePaths[path] = struct{}{}
-						alreadyProcessed[path] = struct{}{}
 						dedupedSourcePaths = append(dedupedSourcePaths, path)
 					}
 				}
@@ -493,7 +492,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 	}
 
 	// Add non-code entities to tests and chains
-	nonCodeTest, nonCodeChain := instrumentation.PopulateNonCodeEntities(fileChecksums, alreadyProcessed)
+	nonCodeTest, nonCodeChain := instrumentation.PopulateNonCodeEntities(fileChecksums, nonCodeConfig)
 
 	tests = append(tests, nonCodeTest)
 	chains = append(chains, nonCodeChain)
