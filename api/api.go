@@ -321,15 +321,16 @@ type (
 	}
 
 	VMTaskExecutionResponse struct {
-		ErrorMessage           string                 `json:"error_message,omitempty"`
-		OutputVars             map[string]string      `json:"output_vars,omitempty"`
-		CommandExecutionStatus CommandExecutionStatus `json:"command_execution_status,omitempty"`
-		Artifact               []byte                 `json:"artifact,omitempty"`
-		Outputs                []*OutputV2            `json:"outputs,omitempty"`
-		OptimizationState      string                 `json:"optimization_state,omitempty"`
-		TelemetryData          *types.TelemetryData   `json:"telemetry_data,omitempty"`
-		ErrorDetails           *ErrorDetails          `json:"error_details,omitempty"`
-		NativeArtifactOutput   string                 `json:"native_artifact_output,omitempty"`
+		ErrorMessage                 string                 `json:"error_message,omitempty"`
+		OutputVars                   map[string]string      `json:"output_vars,omitempty"`
+		CommandExecutionStatus       CommandExecutionStatus `json:"command_execution_status,omitempty"`
+		Artifact                     []byte                 `json:"artifact,omitempty"`
+		Outputs                      []*OutputV2            `json:"outputs,omitempty"`
+		OptimizationState            string                 `json:"optimization_state,omitempty"`
+		TelemetryData                *types.TelemetryData   `json:"telemetry_data,omitempty"`
+		ErrorDetails                 *ErrorDetails          `json:"error_details,omitempty"`
+		NativeArtifactOutput         string                 `json:"native_artifact_output,omitempty"`
+		TaskExecutionStartedAtMillis int64                  `json:"task_execution_started_at_millis,omitempty"`
 	}
 )
 

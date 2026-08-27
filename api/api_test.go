@@ -81,3 +81,22 @@ func TestStartStepRequest_EgressPolicyOmitEmpty(t *testing.T) {
 		t.Fatalf("expected egress_policy omitted, got: %s", string(b))
 	}
 }
+
+func TestVMTaskExecutionResponse_TaskExecutionStartedAtMillisRoundtrip(t *testing.T) {
+	in := VMTaskExecutionResponse{TaskExecutionStartedAtMillis: 1_700_000_000_000}
+	b, err := json.Marshal(in)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(b), `"task_execution_started_at_millis":1700000000000`) {
+		t.Fatalf("unexpected JSON: %s", string(b))
+	}
+
+	var out VMTaskExecutionResponse
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if out.TaskExecutionStartedAtMillis != in.TaskExecutionStartedAtMillis {
+		t.Fatalf("timestamp mismatch: %d vs %d", out.TaskExecutionStartedAtMillis, in.TaskExecutionStartedAtMillis)
+	}
+}
