@@ -83,7 +83,9 @@ func platformRuntimeStart(ctx context.Context) error {
 		"if ($service.Status -ne 'Running') { Start-Service -Name 'Tailscale' -ErrorAction Stop }; " +
 		"$service.WaitForStatus('Running', [TimeSpan]::FromSeconds(30)); " +
 		"if ($service.Status -ne 'Running') { throw 'Tailscale service did not become running' }"
-	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
+	// PowerShell owns the 30-second service wait. Keep the outer process deadline slightly larger
+	// so WaitForStatus can return its useful failure instead of being killed at the same instant.
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceCommandTimeout)
 	defer cancel()
 	if out, err := exec.CommandContext(commandCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command).CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to start Tailscale service: %w (%s)", err, strings.TrimSpace(string(out)))
@@ -96,7 +98,7 @@ func platformRuntimeStop(ctx context.Context) error {
 		"if ($service.Status -ne 'Stopped') { Stop-Service -Name 'Tailscale' -Force -ErrorAction Stop }; " +
 		"$service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30)); " +
 		"if ($service.Status -ne 'Stopped') { throw 'Tailscale service did not become stopped' }"
-	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceTimeout)
+	commandCtx, cancel := context.WithTimeout(ctx, runtimeServiceCommandTimeout)
 	defer cancel()
 	if out, err := exec.CommandContext(commandCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command).CombinedOutput(); err != nil {
 		return fmt.Errorf("failed to stop Tailscale service: %w (%s)", err, strings.TrimSpace(string(out)))

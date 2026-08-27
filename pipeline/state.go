@@ -194,7 +194,7 @@ func GetState() *State {
 			mu:             sync.Mutex{},
 			logConfig:      api.LogConfig{},
 			tiConfig:       tiCfg.Cfg{},
-			statsCollector: nil,
+			statsCollector: &osstats.StatsCollector{},
 			secrets:        make([]string, 0),
 			logClient:      nil,
 			mtlsConfig:     spec.MtlsConfig{},

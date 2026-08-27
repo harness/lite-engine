@@ -66,6 +66,7 @@ func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 		if pcUsed {
+			clearProxyEnvs()
 			if cleanupErr := pc.MarkCleanupComplete(); cleanupErr != nil {
 				WriteError(response, cleanupErr)
 				return

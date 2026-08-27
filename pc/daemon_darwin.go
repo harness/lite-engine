@@ -24,6 +24,7 @@ const (
 	darwinCLIPath             = "/opt/homebrew/bin/tailscale"
 	darwinDaemonPath          = "/opt/homebrew/bin/tailscaled"
 	darwinNetworkSetupPath    = "/usr/sbin/networksetup"
+	darwinEnvPath             = "/usr/bin/env"
 	darwinQuad100             = "100.100.100.100"
 	darwinNetworkSetupTimeout = 20 * time.Second
 )
@@ -287,12 +288,15 @@ func darwinNetworkSetup(ctx context.Context, args ...string) (string, error) {
 }
 
 func darwinPrivilegedCommand(ctx context.Context, path string, args ...string) *exec.Cmd {
+	// networksetup and launchctl emit text that we must classify. Force a stable locale on the
+	// privileged side of sudo so host language settings cannot change those protocol strings.
+	commandArgs := append([]string{"LC_ALL=C", "LANG=C", path}, args...)
 	if os.Geteuid() == 0 {
-		return exec.CommandContext(ctx, path, args...)
+		return exec.CommandContext(ctx, darwinEnvPath, commandArgs...)
 	}
-	privilegedArgs := make([]string, 0, len(args)+privilegedExtraArgs)
-	privilegedArgs = append(privilegedArgs, "-n", path)
-	privilegedArgs = append(privilegedArgs, args...)
+	privilegedArgs := make([]string, 0, len(commandArgs)+privilegedExtraArgs)
+	privilegedArgs = append(privilegedArgs, "-n", darwinEnvPath)
+	privilegedArgs = append(privilegedArgs, commandArgs...)
 	return exec.CommandContext(ctx, "/usr/bin/sudo", privilegedArgs...)
 }
 

@@ -5,6 +5,8 @@
 package pc
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -84,7 +86,7 @@ func TestValidateRejectsIncompletePrivateConnectivityIdentity(t *testing.T) {
 		{
 			name: "missing hostname",
 			envs: map[string]string{
-				EnvEnabled: "true", EnvClientID: "client", EnvOIDCToken: "token", EnvTag: DefaultTag,
+				EnvEnabled: "true", EnvClientID: "client", EnvOIDCToken: "token", EnvHostname: " ", EnvTag: DefaultTag,
 			},
 		},
 		{
@@ -125,4 +127,23 @@ func TestProxyEnvironmentKeyMatching(t *testing.T) {
 	for _, key := range []string{"PATH", "HARNESS_HTTPS_PROXY", "PROXY_URL"} {
 		require.False(t, isProxyEnvironmentKey(key), key)
 	}
+}
+
+func TestHasLifecycleResidueIncludesPreUseArtifacts(t *testing.T) {
+	originalTokenDir, originalTokenFile, originalMarkerFile := TokenDir, TokenFile, MarkerFile
+	TokenDir = t.TempDir()
+	TokenFile = filepath.Join(TokenDir, "oidc-token")
+	MarkerFile = filepath.Join(TokenDir, "lifecycle")
+	t.Cleanup(func() {
+		TokenDir, TokenFile, MarkerFile = originalTokenDir, originalTokenFile, originalMarkerFile
+	})
+
+	require.False(t, HasLifecycleResidue())
+	require.NoError(t, os.WriteFile(TokenFile, []byte("token"), privateFileMode))
+	require.False(t, WasUsed(), "the regression state intentionally predates pc-used")
+	require.True(t, HasLifecycleResidue())
+	require.NoError(t, os.Remove(TokenFile))
+	require.NoError(t, os.WriteFile(MarkerFile, []byte("1\n"), privateFileMode))
+	require.False(t, WasUsed())
+	require.True(t, HasLifecycleResidue())
 }

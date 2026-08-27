@@ -16,7 +16,6 @@ import (
 	osruntime "runtime"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/common/external"
@@ -196,18 +195,8 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	e.pipelineConfig = pipelineConfig
 	e.mu.Unlock()
 	// required to support m1 where docker isn't installed.
-	if dockerSetupEnabled(pipelineConfig) {
-		start := time.Now()
-		err := e.docker.Setup(ctx, pipelineConfig)
-		if pipelineConfig.PrivateConnectivity {
-			entry := logrus.WithField("latency", time.Since(start))
-			if err != nil {
-				entry.WithError(err).Errorln("pc: Docker setup failed")
-			} else {
-				entry.Infoln("pc: Docker setup completed")
-			}
-		}
-		return err
+	if pipelineConfig.EnableDockerSetup == nil || *pipelineConfig.EnableDockerSetup {
+		return e.docker.Setup(ctx, pipelineConfig)
 	}
 	return nil
 }
@@ -220,25 +209,22 @@ func (e *Engine) RollbackSetup(ctx context.Context, cfg *spec.PipelineConfig) er
 	if dockerSetupEnabled(cfg) {
 		dockerErr = e.docker.RollbackSetup(ctx, cfg)
 	}
-	return errors.Join(dockerErr, destroyHelper(cfg))
+	return errors.Join(dockerErr, destroyHelperStrict(cfg))
 }
 
 func (e *Engine) Destroy(ctx context.Context) error {
 	e.mu.Lock()
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
-	if cfg == nil {
-		return nil
-	}
 	if !cfg.PrivateConnectivity {
-		_ = destroyHelper(cfg)
+		destroyHelper(cfg)
 		return e.docker.Destroy(ctx, cfg)
 	}
 	var destroyErr error
 	if dockerSetupEnabled(cfg) {
 		destroyErr = e.docker.Destroy(ctx, cfg)
 	}
-	volumeErr := destroyHelper(cfg)
+	volumeErr := destroyHelperStrict(cfg)
 	return errors.Join(destroyErr, volumeErr)
 }
 
@@ -274,7 +260,7 @@ func (e *Engine) Suspend(ctx context.Context, labels map[string]string) error {
 			// not only stopped plugin containers, before Tailscale logout is allowed.
 			dockerErr = e.docker.Destroy(ctx, cfg)
 		}
-		return errors.Join(dockerErr, destroyHelper(cfg))
+		return errors.Join(dockerErr, destroyHelperStrict(cfg))
 	}
 	return e.docker.Suspend(ctx, labels)
 }
@@ -315,10 +301,11 @@ func (e *Engine) GetPipelineEnvs() map[string]string {
 	return e.pipelineConfig.Envs
 }
 
-func destroyHelper(cfg *spec.PipelineConfig) error {
-	if cfg == nil {
-		return nil
-	}
+func destroyHelper(cfg *spec.PipelineConfig) {
+	_ = destroyHelperStrict(cfg)
+}
+
+func destroyHelperStrict(cfg *spec.PipelineConfig) error {
 	var cleanupErr error
 	for _, vol := range cfg.Volumes {
 		if vol == nil || vol.HostPath == nil {

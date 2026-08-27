@@ -22,16 +22,19 @@ import (
 )
 
 const (
-	logoutTimeout         = 30 * time.Second
-	statusTimeout         = 10 * time.Second
-	joinedStatusTimeout   = 5 * time.Second
-	loggedOutProbeTimeout = 2 * time.Second
-	runtimeStatusTimeout  = 8 * time.Second
-	runtimeServiceTimeout = 30 * time.Second
-	loggedOutPollInterval = 200 * time.Millisecond
-	privateFileMode       = os.FileMode(0600)
-	privateDirectoryMode  = os.FileMode(0700)
-	privilegedExtraArgs   = 2
+	logoutTimeout                = 30 * time.Second
+	statusTimeout                = 10 * time.Second
+	joinedStatusTimeout          = 5 * time.Second
+	loggedOutWaitTimeout         = 10 * time.Second
+	loggedOutProbeTimeout        = 2 * time.Second
+	runtimeStatusTimeout         = 8 * time.Second
+	runtimeServiceTimeout        = 30 * time.Second
+	runtimeServiceCommandTimeout = runtimeServiceTimeout + 5*time.Second
+	joinCommandTimeout           = JoinTimeout + 5*time.Second
+	loggedOutPollInterval        = 200 * time.Millisecond
+	privateFileMode              = os.FileMode(0600)
+	privateDirectoryMode         = os.FileMode(0700)
+	privilegedExtraArgs          = 2
 )
 
 var (
@@ -39,22 +42,6 @@ var (
 	ErrUnsupported = fmt.Errorf("pc: an installed tailscale runtime is required")
 	lifecycleMu    sync.Mutex
 )
-
-type lifecycleState string
-
-const (
-	stateJoining  lifecycleState = "JOINING"
-	stateActive   lifecycleState = "ACTIVE"
-	stateCleaning lifecycleState = "CLEANING"
-)
-
-type lifecycleMarker struct {
-	State lifecycleState `json:"state"`
-}
-
-func cleanupMarkerPath() string {
-	return filepath.Join(TokenDir, "cleanup-incomplete")
-}
 
 func usedMarkerPath() string {
 	return filepath.Join(TokenDir, "pc-used")
@@ -64,6 +51,13 @@ func usedMarkerPath() string {
 // stage-resource cleanup proof before reuse.
 func WasUsed() bool {
 	return fileExists(usedMarkerPath())
+}
+
+// HasLifecycleResidue reports whether durable PC lifecycle evidence remains on this VM. Unlike
+// NeedsNetworkCleanup it performs no service or CLI probes, so setup admission can use it before
+// mutating process or host state.
+func HasLifecycleResidue() bool {
+	return markerExists() || tokenFileExists() || WasUsed() || platformNetworkResidue()
 }
 
 // MarkCleanupComplete clears the durable reuse fence only after the handler has completed both
@@ -90,8 +84,7 @@ func supportedPlatform() bool {
 // the service only for a PC stage. An active service is rejected because its ownership and prior
 // state cannot be proven safe for the next stage.
 func localRuntimeClean(ctx context.Context) bool {
-	if markerExists() || tokenFileExists() || fileExists(cleanupMarkerPath()) || WasUsed() ||
-		platformNetworkResidue() {
+	if HasLifecycleResidue() {
 		return false
 	}
 	running, known := platformRuntimeRunning(ctx)
@@ -140,7 +133,7 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo
 	if err := secureTokenDir(ctx); err != nil {
 		return errors.Join(err, platformRuntimeStop(context.WithoutCancel(ctx)))
 	}
-	if err := writeMarker(lifecycleMarker{State: stateJoining}); err != nil {
+	if err := writeMarker(); err != nil {
 		return errors.Join(err, platformRuntimeStop(context.WithoutCancel(ctx)))
 	}
 	if err := platformNetworkPrepare(ctx, path); err != nil {
@@ -154,7 +147,9 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo
 		return rollbackSetup(ctx, fmt.Errorf("pc: failed to write OIDC token file: %w", err))
 	}
 
-	joinCtx, cancel := context.WithTimeout(ctx, JoinTimeout)
+	// The CLI owns JoinTimeout. Give the process a small outer grace period so its own timeout and
+	// diagnostics can complete before Go forcefully terminates it.
+	joinCtx, cancel := context.WithTimeout(ctx, joinCommandTimeout)
 	defer cancel()
 	args := []string{
 		"up",
@@ -196,9 +191,6 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo
 	if err := removeTokenFile(); err != nil {
 		return rollbackSetup(ctx, err)
 	}
-	if err := writeMarker(lifecycleMarker{State: stateActive}); err != nil {
-		return rollbackSetup(ctx, err)
-	}
 	if err := writeFileAtomically(usedMarkerPath(), []byte("1\n")); err != nil {
 		return rollbackSetup(ctx, err)
 	}
@@ -207,11 +199,9 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo
 }
 
 func rollbackSetup(ctx context.Context, cause error) error {
-	// Roll back before returning so a safe DRA retry can start cleanly. On Windows,
-	// the service can reject self-logout when LocalSystem does not own the generated
-	// login profile; disposal cleanup stops the service and lets that ephemeral node
-	// expire instead.
-	if cleanupErr := logoutUnlocked(ctx, true); cleanupErr != nil {
+	// Setup rollback is strict because the VM may be retried. If immediate logout cannot be
+	// proven, durable residue remains and setup admission forces the VM to be discarded.
+	if cleanupErr := logoutUnlocked(ctx, false); cleanupErr != nil {
 		return errors.Join(cause, fmt.Errorf("pc: setup rollback failed: %w", cleanupErr))
 	}
 	return cause
@@ -247,10 +237,7 @@ func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) (resu
 	if err := secureTokenDir(cleanupCtx); err != nil {
 		return err
 	}
-	if err := writeMarker(lifecycleMarker{State: stateCleaning}); err != nil {
-		return err
-	}
-	if err := writeFileAtomically(cleanupMarkerPath(), []byte("1\n")); err != nil {
+	if err := writeMarker(); err != nil {
 		return err
 	}
 
@@ -304,9 +291,6 @@ func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) (resu
 	if err := removeFile(MarkerFile); err != nil {
 		return err
 	}
-	if err := removeFile(cleanupMarkerPath()); err != nil {
-		return err
-	}
 	if deferredEphemeralRemoval {
 		logrus.Infoln("pc: tailscaled service stopped; ephemeral node removal deferred to the Tailscale control plane")
 	} else {
@@ -317,7 +301,7 @@ func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) (resu
 
 // NeedsNetworkCleanup is a cheap lifecycle gate used by destroy/suspend.
 func NeedsNetworkCleanup() bool {
-	if markerExists() || tokenFileExists() || fileExists(cleanupMarkerPath()) || platformNetworkResidue() {
+	if markerExists() || tokenFileExists() || platformNetworkResidue() {
 		return true
 	}
 	if !fileExists(usedMarkerPath()) {
@@ -334,7 +318,7 @@ func NeedsNetworkCleanup() bool {
 func confirmJoined(ctx context.Context, path string) error {
 	statusCtx, cancel := context.WithTimeout(ctx, joinedStatusTimeout)
 	defer cancel()
-	out, err := tailscaleCommandContext(statusCtx, path, "status", "--json").CombinedOutput()
+	out, err := tailscaleCommandContext(statusCtx, path, "status", "--json").Output()
 	if err != nil {
 		return fmt.Errorf("pc: failed to confirm tailscale join: %w", err)
 	}
@@ -361,7 +345,7 @@ func confirmJoined(ctx context.Context, path string) error {
 }
 
 func waitForLoggedOut(ctx context.Context, path string) error {
-	statusCtx, cancel := context.WithTimeout(ctx, joinedStatusTimeout)
+	statusCtx, cancel := context.WithTimeout(ctx, loggedOutWaitTimeout)
 	defer cancel()
 
 	ticker := time.NewTicker(loggedOutPollInterval)
@@ -375,7 +359,7 @@ func waitForLoggedOut(ctx context.Context, path string) error {
 		}
 		select {
 		case <-statusCtx.Done():
-			return statusCtx.Err()
+			return fmt.Errorf("pc: timed out waiting for tailscale logged-out state: %w", statusCtx.Err())
 		case <-ticker.C:
 		}
 	}
@@ -384,7 +368,7 @@ func waitForLoggedOut(ctx context.Context, path string) error {
 func tailscaleLoginState(ctx context.Context, path string) (loggedIn, known bool) {
 	ctx, cancel := context.WithTimeout(ctx, statusTimeout)
 	defer cancel()
-	out, err := tailscaleCommandContext(ctx, path, "status", "--json").CombinedOutput()
+	out, err := tailscaleCommandContext(ctx, path, "status", "--json").Output()
 	if err != nil {
 		return false, false
 	}
@@ -467,12 +451,8 @@ func secureTokenDir(ctx context.Context) error {
 	return os.Chmod(TokenDir, privateDirectoryMode)
 }
 
-func writeMarker(marker lifecycleMarker) error {
-	data, err := json.Marshal(marker)
-	if err != nil {
-		return err
-	}
-	return writeFileAtomically(MarkerFile, data)
+func writeMarker() error {
+	return writeFileAtomically(MarkerFile, []byte("1\n"))
 }
 
 func writeFileAtomically(path string, data []byte) error {
@@ -510,7 +490,8 @@ func tokenFileExists() bool {
 
 func fileExists(path string) bool {
 	_, err := os.Lstat(path)
-	return err == nil
+	// Only a proven absence is clean. Permission or I/O errors must retain the reuse fence.
+	return err == nil || !os.IsNotExist(err)
 }
 
 func removeFile(path string) error {

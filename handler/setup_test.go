@@ -5,14 +5,22 @@
 package handler
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidatePrivateConnectivityReuse(t *testing.T) {
-	require.NoError(t, validatePrivateConnectivityReuse(false))
-	require.ErrorContains(t, validatePrivateConnectivityReuse(true), "discard this VM")
+func TestClearProxyEnvs(t *testing.T) {
+	keys := []string{"http_proxy", "https_proxy", "no_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"}
+	for _, key := range keys {
+		t.Setenv(key, "http://previous-stage-proxy")
+	}
+	clearProxyEnvs()
+	for _, key := range keys {
+		_, present := os.LookupEnv(key)
+		require.False(t, present, key)
+	}
 }
 
 func TestPrivateConnectivityConflictsWithEgress(t *testing.T) {
