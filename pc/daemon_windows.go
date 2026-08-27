@@ -18,9 +18,8 @@ import (
 )
 
 var (
-	TokenDir   = filepath.Join(os.Getenv("ProgramData"), "Harness", "private-connectivity")
-	TokenFile  = filepath.Join(TokenDir, "oidc-token")
-	MarkerFile = filepath.Join(TokenDir, "lifecycle")
+	TokenDir  = filepath.Join(os.Getenv("ProgramData"), "Harness", "private-connectivity")
+	TokenFile = filepath.Join(TokenDir, "oidc-token")
 )
 
 func tailscalePath() (string, error) {
@@ -60,24 +59,6 @@ func securePlatformTokenDir(ctx context.Context) error {
 	return nil
 }
 
-func platformRuntimeRunning(ctx context.Context) (running, known bool) {
-	commandCtx, cancel := context.WithTimeout(ctx, runtimeStatusTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(commandCtx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
-		"(Get-Service -Name 'Tailscale' -ErrorAction Stop).Status.ToString()").CombinedOutput()
-	if err != nil {
-		return false, false
-	}
-	switch strings.ToLower(strings.TrimSpace(string(out))) {
-	case "running", "startpending", "stoppending", "continuepending", "pausepending", "paused":
-		return true, true
-	case "stopped":
-		return false, true
-	default:
-		return false, false
-	}
-}
-
 func platformRuntimeStart(ctx context.Context) error {
 	command := "$service = Get-Service -Name 'Tailscale' -ErrorAction Stop; " +
 		"if ($service.Status -ne 'Running') { Start-Service -Name 'Tailscale' -ErrorAction Stop }; " +
@@ -106,35 +87,13 @@ func platformRuntimeStop(ctx context.Context) error {
 	return nil
 }
 
-func platformNetworkPrepare(context.Context, string) error {
-	return nil
-}
+func platformNetworkPrepare(context.Context) error { return nil }
 
 // Tailscale owns Windows host DNS. The tailnet's active global defaults make Quad100 a complete
 // resolver for public, split-DNS, App Connector, and MagicDNS names, so Lite Engine must not add a
 // second NRPT policy layer.
-func platformNetworkActivate(context.Context, string) error { return nil }
+func platformNetworkActivate(context.Context) error { return nil }
 
 func platformNetworkRestore(context.Context) error { return nil }
 
-func platformNetworkResidue() bool {
-	// Lite Engine does not install independent Windows DNS policy. Lifecycle and used markers remain
-	// the reuse fence for an interrupted Tailscale join or logout.
-	return false
-}
-
-func replaceFileAtomically(source, destination string) error {
-	sourcePtr, err := windows.UTF16PtrFromString(source)
-	if err != nil {
-		return err
-	}
-	destinationPtr, err := windows.UTF16PtrFromString(destination)
-	if err != nil {
-		return err
-	}
-	return windows.MoveFileEx(
-		sourcePtr,
-		destinationPtr,
-		windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH,
-	)
-}
+func platformNetworkResidue() bool { return false }

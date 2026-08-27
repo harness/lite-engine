@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"sync"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -34,14 +33,11 @@ import (
 var (
 	statsInterval          = 30 * time.Second
 	harnessEnableDebugLogs = "HARNESS_ENABLE_DEBUG_LOGS"
-	stageLifecycleMu       sync.Mutex
 )
 
 const (
-	OSWindows                    = "windows"
-	dualLoggingEnvVar            = "HARNESS_LOG_STREAMING_STDOUT_ENABLED"
-	harnessHTTPSProxyEnvVar      = "HARNESS_HTTPS_PROXY"
-	setupResourceRollbackTimeout = 30 * time.Second
+	OSWindows         = "windows"
+	dualLoggingEnvVar = "HARNESS_LOG_STREAMING_STDOUT_ENABLED"
 )
 
 func GetNetrc(os string) string {
@@ -88,69 +84,26 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		// Extract and strip all HARNESS_PC_* from s.Envs immediately,
 		// before setProxyEnvs, setHarnessEnvs, state.Set, PipelineConfig, or any log of envs.
 		// The OIDC token is secret and must never be set in os.Setenv or step envs.
-		pcCfg := pc.ExtractAndStrip(s.Envs)
+		pcCfg, err := pc.ExtractAndValidate(s.Envs)
 		if pcCfg.OIDCToken != "" {
 			s.Secrets = append(s.Secrets, pcCfg.OIDCToken)
 		}
-
-		// Serialize PC setup and any VM carrying durable PC lifecycle residue with destroy/suspend.
-		// Admission must include incomplete joins: pc-used is intentionally written only after a
-		// successful join, while lifecycle/token/DNS residue can exist earlier.
-		pcReuseBlocked := pc.HasLifecycleResidue()
-		if pcCfg.Enabled || pcReuseBlocked || engine.PrivateConnectivityConfigured() {
-			stageLifecycleMu.Lock()
-			defer stageLifecycleMu.Unlock()
-			// State may have changed while this request waited for teardown.
-			pcReuseBlocked = pc.HasLifecycleResidue()
-		}
-
-		// Mutual exclusion: PC and egress may not run in the same build. Perform this check before
-		// mutating process environment or any host state.
-		egressProxyURL := ""
-		if s.EgressPolicy != nil {
-			egressProxyURL = s.EgressPolicy.ProxyURL
-		}
-		if privateConnectivityConflictsWithEgress(pcCfg.Enabled, egressProxyURL, s.Envs) {
-			WriteBadRequest(w, fmt.Errorf("pc: private connectivity and an egress proxy are mutually exclusive"))
-			return
-		}
-
-		if validateErr := pc.Validate(&pcCfg); validateErr != nil {
-			WriteBadRequest(w, validateErr)
-			return
-		}
-		if pcReuseBlocked {
-			WriteError(w, fmt.Errorf("pc: private connectivity reuse fence is active; discard this VM"))
+		if err != nil {
+			WriteBadRequest(w, err)
 			return
 		}
 		if pcCfg.Enabled {
-			clearProxyEnvs()
+			pc.ClearProxyEnvironment()
 			// Repair post-hibernate clock drift before Tailscale performs TLS/WIF requests.
 			if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
-				clockCtx, clockCancel := context.WithTimeout(r.Context(), 5*time.Second) //nolint:mnd
-				syncSystemClockWithContext(clockCtx)
-				clockCancel()
+				syncSystemClock()
 			}
-		}
-
-		if val, ok := s.Envs[dualLoggingEnvVar]; ok && val == "true" {
-			s.LogConfig.DualLoggingEnabled = true
-		}
-
-		state := pipeline.GetState()
-		tiConfig := getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs)
-
-		// Keep the collector nil until Tailscale has joined. A failed join can then be followed by
-		// /destroy without requiring generic collector lifecycle changes.
-		if pcCfg.Enabled {
-			state.Set(s.Secrets, s.LogConfig, tiConfig, s.MtlsConfig, nil)
 			if joinErr := pc.JoinAndConfigure(r.Context(), &pcCfg); joinErr != nil {
 				logger.FromRequest(r).
 					WithField("time", time.Now().Format(time.RFC3339)).
 					WithError(joinErr).
 					Errorln("api: private connectivity setup failed; failing closed")
 				WriteError(w, fmt.Errorf("private connectivity setup failed: %w", joinErr))
-				clearFailedPrivateConnectivityState(state)
 				return
 			}
 		}
@@ -160,9 +113,16 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			logProcess = true
 		}
 		collector := osstats.New(context.Background(), statsInterval, logProcess)
+
 		setProxyEnvs(s.Envs)
 		setHarnessEnvs(s.Envs)
-		state.Set(s.Secrets, s.LogConfig, tiConfig, s.MtlsConfig, collector)
+
+		if val, ok := s.Envs[dualLoggingEnvVar]; ok && val == "true" {
+			s.LogConfig.DualLoggingEnabled = true
+		}
+
+		state := pipeline.GetState()
+		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs), s.MtlsConfig, collector)
 
 		// Initialize lite-engine log streaming if LELogKey is provided
 		if err := initializeLELogStreaming(&s, state); err != nil {
@@ -198,16 +158,6 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			}
 		}
 
-		// MTU 1280 matches the tailscale0 interface so container traffic to the tailnet is
-		// not fragmented. Linux-only: the Windows nat driver does not support
-		// com.docker.network.driver.mtu (moby#35683); on Windows tailscaled's own MSS
-		// clamping covers TCP, which is the dominant CI workload.
-		if pcCfg.Enabled && runtime.GOOS == "linux" {
-			if s.Network.Options == nil {
-				s.Network.Options = make(map[string]string)
-			}
-			s.Network.Options["com.docker.network.driver.mtu"] = "1280"
-		}
 		cfg := &spec.PipelineConfig{
 			Envs:                s.Envs,
 			Network:             s.Network,
@@ -243,63 +193,27 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 				WithField("latency", time.Since(st)).
 				WithField("time", time.Now().Format(time.RFC3339)).
 				WithField("error", err)
-			if !pcCfg.Enabled {
-				entry.WithField("cfg", cfg).Infoln("api: failed stage setup")
-				WriteError(w, err)
-				return
-			}
-			entry.Infoln("api: failed stage setup")
-			cleanupCtx := context.WithoutCancel(r.Context())
-			resourceRollbackCtx, resourceRollbackCancel :=
-				context.WithTimeout(cleanupCtx, setupResourceRollbackTimeout)
-			resourceRollbackErr := engine.RollbackSetup(resourceRollbackCtx, cfg)
-			resourceRollbackCancel()
-			var logoutErr error
-			if pc.NeedsNetworkCleanup() {
-				// Keep the reuse fence after a post-join setup failure. A retry fails
-				// closed on this VM, while pool fallback can provision a clean VM.
-				logoutErr = pc.LogoutForDisposal(cleanupCtx)
-			}
-			collector.Stop()
-			var streamRollbackErr error
-			if closeErr := closeLELogStream(cleanupCtx, state); closeErr != nil {
-				streamRollbackErr = errors.Join(streamRollbackErr, closeErr)
-			}
-			for _, key := range state.GetAllOSStatsKeys() {
-				if closeErr := closeOSStatsStream(state, key); closeErr != nil {
-					streamRollbackErr = errors.Join(streamRollbackErr, closeErr)
+			if pcCfg.Enabled {
+				entry.Infoln("api: failed stage setup")
+				logoutErr := pc.Logout(r.Context())
+				if logoutErr != nil {
+					logger.FromRequest(r).WithError(logoutErr).
+						Errorln("api: private connectivity logout after stage setup failure failed")
 				}
+				err = errors.Join(err, logoutErr)
+			} else {
+				entry.WithField("cfg", cfg).Infoln("api: failed stage setup")
 			}
-			rollbackErr := errors.Join(resourceRollbackErr, logoutErr, streamRollbackErr)
-			if rollbackErr != nil {
-				logger.FromRequest(r).WithError(rollbackErr).
-					Errorln("api: private connectivity resource rollback did not complete cleanly")
-			}
-			WriteError(w, errors.Join(err, rollbackErr))
-			clearFailedPrivateConnectivityState(state)
+			WriteError(w, err)
 			return
 		}
+
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
 		logger.FromRequest(r).
 			WithField("latency", time.Since(st)).
 			WithField("time", time.Now().Format(time.RFC3339)).
 			Infoln("api: successfully completed the stage setup")
 	}
-}
-
-func clearFailedPrivateConnectivityState(state *pipeline.State) {
-	state.Set(nil, api.LogConfig{}, tiCfg.Cfg{}, spec.MtlsConfig{}, nil)
-}
-
-func privateConnectivityConflictsWithEgress(enabled bool, proxyURL string, envs map[string]string) bool {
-	if !enabled {
-		return false
-	}
-	if proxyURL != "" {
-		return true
-	}
-	_, hasHarnessProxy := envs[harnessHTTPSProxyEnvVar]
-	return hasHarnessProxy
 }
 
 func getSharedVolume() *spec.Volume {
@@ -332,12 +246,6 @@ func setProxyEnvs(environment map[string]string) {
 		if val, ok := environment[v]; ok {
 			os.Setenv(v, val)
 		}
-	}
-}
-
-func clearProxyEnvs() {
-	for _, key := range []string{"http_proxy", "https_proxy", "no_proxy", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"} {
-		_ = os.Unsetenv(key)
 	}
 }
 
@@ -478,22 +386,18 @@ func initializeDualLogHook(setupReq *api.SetupRequest) {
 // clock source doesn't auto-adjust (unlike x86's kvm-clock). Without this, chrony may
 // mark the NTP source as too variable and refuse to step, leaving the clock minutes behind.
 func syncSystemClock() {
-	syncSystemClockWithContext(context.Background())
-}
-
-func syncSystemClockWithContext(ctx context.Context) {
 	if _, err := exec.LookPath("chronyc"); err != nil {
 		return
 	}
 
 	// Restart chrony to reset source state (clears the "too variable" flag from post-resume measurements)
-	if out, err := exec.CommandContext(ctx, "systemctl", "restart", "chrony").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(context.Background(), "systemctl", "restart", "chrony").CombinedOutput(); err != nil {
 		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to restart chrony")
 		return
 	}
 
 	// Force an immediate clock step
-	if out, err := exec.CommandContext(ctx, "chronyc", "-a", "makestep").CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(context.Background(), "chronyc", "-a", "makestep").CombinedOutput(); err != nil {
 		logrus.WithError(err).WithField("output", string(out)).Warnln("setup: failed to force chrony clock step")
 		return
 	}

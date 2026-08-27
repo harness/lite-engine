@@ -20,8 +20,8 @@ const (
 	EnvHostname  = "HARNESS_PC_HOSTNAME"
 	EnvTag       = "HARNESS_PC_TAG"
 
-	DefaultTag  = "tag:ci-runner"
-	JoinTimeout = 20 * time.Second
+	runnerTag   = "tag:ci-runner"
+	joinTimeout = 20 * time.Second
 )
 
 // Config holds the private connectivity configuration extracted from HARNESS_PC_* env vars.
@@ -29,65 +29,41 @@ const (
 type Config struct {
 	Enabled bool
 
-	ClientID        string
-	OIDCToken       string
-	Hostname        string
-	Tag             string
-	contractPresent bool
-	explicitlyOff   bool
-	payloadPresent  bool
-	unexpectedField bool
+	ClientID  string
+	OIDCToken string
+	Hostname  string
+	Tag       string
 }
 
-// ExtractAndStrip removes every reserved field immediately after setup decoding. Callers must add
-// the returned OIDC token to masking before recording setup state.
-func ExtractAndStrip(envs map[string]string) Config {
-	enabledValue, enabledPresent := envs[EnvEnabled]
+// ExtractAndValidate removes every reserved field immediately after setup decoding and validates
+// the enabled contract before any host mutation. Callers must add the returned token to masking.
+func ExtractAndValidate(envs map[string]string) (Config, error) {
+	enabledValue := strings.TrimSpace(envs[EnvEnabled])
 	cfg := Config{
-		Enabled:   strings.EqualFold(strings.TrimSpace(enabledValue), "true"),
 		ClientID:  envs[EnvClientID],
 		OIDCToken: envs[EnvOIDCToken],
 		Hostname:  envs[EnvHostname],
 		Tag:       envs[EnvTag],
-		explicitlyOff: enabledPresent &&
-			strings.EqualFold(strings.TrimSpace(enabledValue), "false"),
 	}
 	for key := range envs {
 		if strings.HasPrefix(key, "HARNESS_PC_") {
-			cfg.contractPresent = true
-			if key != EnvEnabled {
-				cfg.payloadPresent = true
-			}
-			if key != EnvEnabled && key != EnvClientID && key != EnvOIDCToken && key != EnvHostname && key != EnvTag {
-				cfg.unexpectedField = true
-			}
 			delete(envs, key)
 		}
 	}
-	return cfg
-}
-
-// Validate rejects an incomplete or unsupported contract before network or filesystem mutation.
-// The OIDC token is intentionally opaque here; Tailscale WIF owns its claim and signature validation.
-func Validate(cfg *Config) error {
-	if cfg == nil {
-		return fmt.Errorf("pc: private connectivity configuration is required")
+	if enabledValue == "" || strings.EqualFold(enabledValue, "false") {
+		return cfg, nil
 	}
-	if !cfg.Enabled {
-		if !cfg.contractPresent || (cfg.explicitlyOff && !cfg.payloadPresent) {
-			return nil
-		}
-		return fmt.Errorf("pc: private connectivity fields require HARNESS_PC_ENABLED=true")
+	if !strings.EqualFold(enabledValue, "true") {
+		return cfg, fmt.Errorf("pc: private connectivity enabled value must be true or false")
 	}
-	if cfg.unexpectedField {
-		return fmt.Errorf("pc: unsupported HARNESS_PC_* field")
-	}
-	if strings.TrimSpace(cfg.ClientID) == "" || cfg.OIDCToken == "" || strings.TrimSpace(cfg.Hostname) == "" ||
+	cfg.Enabled = true
+	if strings.TrimSpace(cfg.ClientID) == "" || strings.TrimSpace(cfg.OIDCToken) == "" || strings.TrimSpace(cfg.Hostname) == "" ||
 		strings.TrimSpace(cfg.Tag) == "" {
-		return fmt.Errorf("pc: private connectivity identity is incomplete")
+		return cfg, fmt.Errorf("pc: private connectivity identity is incomplete")
 	}
-	if cfg.Tag != DefaultTag {
-		return fmt.Errorf("pc: unsupported private connectivity tag")
+	// The tag is server-owned; accepting an arbitrary tag would expand the runner's ACL identity.
+	if cfg.Tag != runnerTag {
+		return cfg, fmt.Errorf("pc: unsupported private connectivity tag")
 	}
-	return nil
+	return cfg, nil
 }

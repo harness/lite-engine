@@ -202,3 +202,30 @@ func TestEngine_ConcurrentSetupAndGet(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestPrivateConnectivityDNSIsLimitedToConfiguredPCContainers(t *testing.T) {
+	tests := []struct {
+		name, os string
+		enabled  bool
+		dns      []string
+		expected []string
+	}{
+		{name: "Linux PC", os: "linux", enabled: true, expected: []string{"100.100.100.100"}},
+		{name: "Windows PC", os: "windows", enabled: true, expected: []string{"100.100.100.100"}},
+		{name: "PC off", os: "linux"},
+		{name: "macOS", os: "darwin", enabled: true},
+		{
+			name: "explicit DNS", os: "windows", enabled: true,
+			dns: []string{"10.0.0.53"}, expected: []string{"10.0.0.53"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &spec.PipelineConfig{PrivateConnectivity: tt.enabled, Platform: spec.Platform{OS: tt.os}}
+			step := &spec.Step{DNS: tt.dns}
+			applyPrivateConnectivityDNS(cfg, step)
+			assert.Equal(t, tt.expected, step.DNS)
+		})
+	}
+}

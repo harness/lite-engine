@@ -13,13 +13,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 )
 
 const (
-	sudoProbeTimeout          = 2 * time.Second
 	darwinService             = "system/com.tailscale.tailscaled"
 	darwinCLIPath             = "/opt/homebrew/bin/tailscale"
 	darwinDaemonPath          = "/opt/homebrew/bin/tailscaled"
@@ -30,9 +28,8 @@ const (
 )
 
 var (
-	TokenDir   = darwinStateDirectory()
-	TokenFile  = filepath.Join(TokenDir, "oidc-token")
-	MarkerFile = filepath.Join(TokenDir, "lifecycle")
+	TokenDir  = darwinStateDirectory()
+	TokenFile = filepath.Join(TokenDir, "oidc-token")
 )
 
 func darwinStateDirectory() string {
@@ -40,20 +37,11 @@ func darwinStateDirectory() string {
 	if err == nil && strings.TrimSpace(home) != "" {
 		return filepath.Join(home, "Library", "Application Support", "Harness", "private-connectivity")
 	}
-	// A missing home directory is an invalid hosted runtime. Keep the fallback on a
-	// privileged durable path so a non-root process fails closed instead of placing
-	// lifecycle evidence in an OS-cleanable temporary directory.
+	// Keep state on a privileged durable path when the hosted user's home is unavailable.
 	return "/Library/Application Support/Harness/private-connectivity"
 }
 
-type darwinDNSService struct {
-	Name    string   `json:"name"`
-	Servers []string `json:"servers,omitempty"`
-}
-
-type darwinDNSSnapshot struct {
-	Services []darwinDNSService `json:"services"`
-}
+type darwinDNSSnapshot map[string][]string
 
 func darwinDNSSnapshotPath() string {
 	return filepath.Join(TokenDir, "darwin-dns.json")
@@ -70,22 +58,7 @@ func tailscalePath() (string, error) {
 	return "", fmt.Errorf("pc: installed open-source macOS tailscale runtime is unavailable")
 }
 
-func securePlatformTokenDir(context.Context) error {
-	return nil
-}
-
-func platformRuntimeReady() bool {
-	if os.Geteuid() == 0 {
-		return true
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), sudoProbeTimeout)
-	defer cancel()
-	return exec.CommandContext(ctx, "/usr/bin/sudo", "-n", "true").Run() == nil
-}
-
-func platformRuntimeRunning(ctx context.Context) (running, known bool) {
-	return darwinRuntimeRegistered(ctx)
-}
+func securePlatformTokenDir(context.Context) error { return nil }
 
 func platformRuntimeStart(ctx context.Context) error {
 	registered, known := darwinRuntimeRegistered(ctx)
@@ -147,44 +120,37 @@ func darwinRuntimeRegistered(ctx context.Context) (registered, known bool) {
 // The open-source headless macOS daemon does not configure system DNS. Capture the exact existing
 // resolver state before joining, then use its device-local Quad100 resolver for the stage. The
 // tailnet supplies public fallback resolvers as well as split DNS, App Connector, and MagicDNS.
-func platformNetworkPrepare(ctx context.Context, _ string) error {
-	if !platformRuntimeReady() {
-		return fmt.Errorf("open-source macOS tailscaled DNS setup requires passwordless administrative access")
-	}
+func platformNetworkPrepare(ctx context.Context) error {
 	services, err := darwinNetworkServices(ctx)
 	if err != nil {
 		return err
 	}
-	snapshot := darwinDNSSnapshot{Services: make([]darwinDNSService, 0, len(services))}
+	snapshot := make(darwinDNSSnapshot, len(services))
 	for _, service := range services {
 		servers, getErr := darwinGetDNSServers(ctx, service)
 		if getErr != nil {
 			return getErr
 		}
-		snapshot.Services = append(snapshot.Services, darwinDNSService{Name: service, Servers: servers})
+		snapshot[service] = servers
 	}
 	data, err := json.Marshal(snapshot)
 	if err != nil {
 		return fmt.Errorf("failed to encode macOS DNS snapshot: %w", err)
 	}
-	if err := writeFileAtomically(darwinDNSSnapshotPath(), data); err != nil {
+	if err := writePrivateFile(darwinDNSSnapshotPath(), data); err != nil {
 		return fmt.Errorf("failed to persist macOS DNS snapshot: %w", err)
 	}
 	return nil
 }
 
-func platformNetworkActivate(ctx context.Context, _ string) error {
+func platformNetworkActivate(ctx context.Context) error {
 	snapshot, err := readDarwinDNSSnapshot()
 	if err != nil {
 		return err
 	}
-	for _, service := range snapshot.Services {
-		if err := darwinSetDNSServers(ctx, service.Name, []string{darwinQuad100}); err != nil {
+	for service := range snapshot {
+		if err := darwinSetDNSServers(ctx, service, []string{darwinQuad100}); err != nil {
 			return err
-		}
-		configured, getErr := darwinGetDNSServers(ctx, service.Name)
-		if getErr != nil || !slices.Equal(configured, []string{darwinQuad100}) {
-			return fmt.Errorf("failed to verify Quad100 DNS for macOS network service %q", service.Name)
 		}
 	}
 	return nil
@@ -194,20 +160,13 @@ func platformNetworkRestore(ctx context.Context) error {
 	if !platformNetworkResidue() {
 		return nil
 	}
-	if !platformRuntimeReady() {
-		return fmt.Errorf("open-source macOS tailscaled DNS cleanup requires passwordless administrative access")
-	}
 	snapshot, err := readDarwinDNSSnapshot()
 	if err != nil {
 		return err
 	}
-	for _, service := range snapshot.Services {
-		if err := darwinSetDNSServers(ctx, service.Name, service.Servers); err != nil {
+	for service, servers := range snapshot {
+		if err := darwinSetDNSServers(ctx, service, servers); err != nil {
 			return err
-		}
-		configured, getErr := darwinGetDNSServers(ctx, service.Name)
-		if getErr != nil || !slices.Equal(configured, service.Servers) {
-			return fmt.Errorf("failed to verify restored DNS for macOS network service %q", service.Name)
 		}
 	}
 	return removeFile(darwinDNSSnapshotPath())
@@ -223,7 +182,7 @@ func readDarwinDNSSnapshot() (darwinDNSSnapshot, error) {
 	if err != nil {
 		return snapshot, fmt.Errorf("failed to read macOS DNS snapshot: %w", err)
 	}
-	if err := json.Unmarshal(data, &snapshot); err != nil || len(snapshot.Services) == 0 {
+	if err := json.Unmarshal(data, &snapshot); err != nil || len(snapshot) == 0 {
 		return snapshot, fmt.Errorf("macOS DNS snapshot is invalid")
 	}
 	return snapshot, nil
@@ -294,12 +253,6 @@ func darwinPrivilegedCommand(ctx context.Context, path string, args ...string) *
 	if os.Geteuid() == 0 {
 		return exec.CommandContext(ctx, darwinEnvPath, commandArgs...)
 	}
-	privilegedArgs := make([]string, 0, len(commandArgs)+privilegedExtraArgs)
-	privilegedArgs = append(privilegedArgs, "-n", darwinEnvPath)
-	privilegedArgs = append(privilegedArgs, commandArgs...)
+	privilegedArgs := append([]string{"-n", darwinEnvPath}, commandArgs...)
 	return exec.CommandContext(ctx, "/usr/bin/sudo", privilegedArgs...)
-}
-
-func replaceFileAtomically(source, destination string) error {
-	return os.Rename(source, destination)
 }

@@ -10,7 +10,6 @@ package docker
 
 import (
 	"context"
-	stderrors "errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -162,9 +161,7 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 		if err := clearProxyForPrivateConnectivity(ctx, pipelineConfig.Platform.OS); err != nil {
 			return fmt.Errorf("failed to clear inherited proxy before private connectivity setup: %w", err)
 		}
-	}
-
-	if pipelineConfig.EgressProxy != nil && pipelineConfig.EgressProxy.ProxyURL != "" {
+	} else if pipelineConfig.EgressProxy != nil && pipelineConfig.EgressProxy.ProxyURL != "" {
 		logrus.WithField("proxy_url", pipelineConfig.EgressProxy.ProxyURL).Infoln("setup: applying egress proxy config")
 		if err := setupEgressProxy(ctx, pipelineConfig.EgressProxy, pipelineConfig.Platform.OS); err != nil {
 			return fmt.Errorf("failed to configure docker proxy for egress: %w", err)
@@ -189,13 +186,6 @@ func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 
 	err := e.createNetworkWithRetries(ctx, pipelineConfig)
 	return errors.TrimExtraInfo(err)
-}
-
-// RollbackSetup removes only resources that Setup can create before any stage step runs.
-// It deliberately does not use the engine's stateful container inventory, which may describe a
-// previous stage when setup fails before the new configuration is installed.
-func (e *Docker) RollbackSetup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
-	return e.destroyContainers(ctx, pipelineConfig, nil)
 }
 
 // DestroyContainersByLabel destroys a pipeline config and cleans up all containers with
@@ -228,15 +218,11 @@ func (e *Docker) DestroyContainersByLabel(
 
 // destroyContainers is a method which takes in a list of containers and a pipeline environment
 // to destroy.
-//
-//nolint:gocyclo // Linear cleanup keeps legacy and strict PC handling visibly aligned.
 func (e *Docker) destroyContainers(
 	ctx context.Context,
 	pipelineConfig *spec.PipelineConfig,
 	containers []Container,
 ) error {
-	strictCleanup := pipelineConfig.PrivateConnectivity
-	var cleanupErr error
 	removeOpts := client.ContainerRemoveOptions{
 		Force:         true,
 		RemoveLinks:   false,
@@ -258,9 +244,6 @@ func (e *Docker) destroyContainers(
 	for _, ctr := range containers {
 		if _, err := e.client.ContainerRemove(ctx, ctr.ID, removeOpts); err != nil {
 			logrus.WithContext(ctx).WithField("container", ctr.ID).WithField("error", err).Warnln("failed to remove container")
-			if strictCleanup && !cerrdefs.IsNotFound(err) {
-				cleanupErr = stderrors.Join(cleanupErr, fmt.Errorf("remove container %s: %w", ctr.ID, err))
-			}
 		}
 	}
 
@@ -276,24 +259,19 @@ func (e *Docker) destroyContainers(
 		}
 		if _, err := e.client.VolumeRemove(ctx, vol.EmptyDir.ID, client.VolumeRemoveOptions{Force: true}); err != nil {
 			logrus.WithContext(ctx).WithField("volume", vol.EmptyDir.ID).WithField("error", err).Warnln("failed to remove volume")
-			if strictCleanup && !cerrdefs.IsNotFound(err) {
-				cleanupErr = stderrors.Join(cleanupErr, fmt.Errorf("remove volume %s: %w", vol.EmptyDir.ID, err))
-			}
 		}
 	}
 
 	// cleanup the network
 	if _, err := e.client.NetworkRemove(ctx, pipelineConfig.Network.ID, client.NetworkRemoveOptions{}); err != nil {
 		logrus.WithContext(ctx).WithField("network", pipelineConfig.Network.ID).WithField("error", err).Warnln("failed to remove network")
-		if strictCleanup && !cerrdefs.IsNotFound(err) {
-			cleanupErr =
-				stderrors.Join(cleanupErr, fmt.Errorf("remove network %s: %w", pipelineConfig.Network.ID, err))
-		}
 	}
 
-	// Legacy cleanup remains best-effort. A PC VM cannot be reused safely when its final
-	// container, volume, or network removal is uncertain, so surface those failures.
-	return cleanupErr
+	// notice that we never collect or return any errors.
+	// this is because we silently ignore cleanup failures
+	// and instead ask the system admin to periodically run
+	// `docker prune` commands.
+	return nil
 }
 
 // Destroy the pipeline environment.

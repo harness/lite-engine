@@ -13,9 +13,7 @@ import (
 	"github.com/harness/lite-engine/pc"
 )
 
-// HandleSuspend returns a http.HandlerFunc that suspends a VM.
-// Private Connectivity must fully remove stage resources and then logout before hibernate so
-// warm reuse cannot retain Docker or tailnet state after /run markers vanish.
+// HandleSuspend returns a http.HandlerFunc that suspends a VM
 func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
 		startTime := time.Now()
@@ -27,25 +25,10 @@ func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
-		stageLifecycleMu.Lock()
-		defer stageLifecycleMu.Unlock()
+		pcEnabled := engine.PrivateConnectivityEnabled()
+		suspendErr := engine.Suspend(request.Context(), suspendRequest.Labels)
 
-		pcUsed := pc.WasUsed()
-		pcStateUnavailable := pcUsed && !engine.PrivateConnectivityConfigured()
-		var suspendErr error
-		if pcStateUnavailable {
-			suspendErr = fmt.Errorf(
-				"private connectivity cleanup state is not available in this process; discard this VM")
-		} else {
-			suspendErr = engine.Suspend(request.Context(), suspendRequest.Labels)
-		}
-
-		// For PC, Engine.Suspend performs full stage-resource cleanup first. Logout is the final
-		// network boundary. Missing process-local state still triggers logout but keeps the reuse fence.
-		if pcUsed || pc.NeedsNetworkCleanup() {
-			logger.FromRequest(request).
-				WithField("pc_state_available", !pcStateUnavailable).
-				Infoln("api: starting private connectivity logout before suspend")
+		if pcEnabled {
 			if logoutErr := pc.Logout(request.Context()); logoutErr != nil {
 				logger.FromRequest(request).
 					WithField("latency", time.Since(startTime)).
@@ -64,13 +47,6 @@ func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 				Infoln("api: failed suspend")
 			WriteError(response, suspendErr)
 			return
-		}
-		if pcUsed {
-			clearProxyEnvs()
-			if cleanupErr := pc.MarkCleanupComplete(); cleanupErr != nil {
-				WriteError(response, cleanupErr)
-				return
-			}
 		}
 
 		WriteJSON(response, api.SuspendResponse{}, http.StatusOK)

@@ -7,7 +7,6 @@ package engine
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -201,31 +200,13 @@ func (e *Engine) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig)
 	return nil
 }
 
-// RollbackSetup removes resources created by an unsuccessful setup using the attempted
-// configuration rather than the engine's prior state. The caller remains responsible for the
-// private-connectivity logout that must follow resource cleanup.
-func (e *Engine) RollbackSetup(ctx context.Context, cfg *spec.PipelineConfig) error {
-	var dockerErr error
-	if dockerSetupEnabled(cfg) {
-		dockerErr = e.docker.RollbackSetup(ctx, cfg)
-	}
-	return errors.Join(dockerErr, destroyHelperStrict(cfg))
-}
-
 func (e *Engine) Destroy(ctx context.Context) error {
 	e.mu.Lock()
 	cfg := e.pipelineConfig
 	e.mu.Unlock()
-	if !cfg.PrivateConnectivity {
-		destroyHelper(cfg)
-		return e.docker.Destroy(ctx, cfg)
-	}
-	var destroyErr error
-	if dockerSetupEnabled(cfg) {
-		destroyErr = e.docker.Destroy(ctx, cfg)
-	}
-	volumeErr := destroyHelperStrict(cfg)
-	return errors.Join(destroyErr, volumeErr)
+	destroyHelper(cfg)
+
+	return e.docker.Destroy(ctx, cfg)
 }
 
 func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isDrone, isHosted bool) (*runtime.State, error) {
@@ -250,23 +231,7 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 }
 
 func (e *Engine) Suspend(ctx context.Context, labels map[string]string) error {
-	e.mu.Lock()
-	cfg := e.pipelineConfig
-	e.mu.Unlock()
-	if cfg != nil && cfg.PrivateConnectivity {
-		var dockerErr error
-		if dockerSetupEnabled(cfg) {
-			// PC suspension is a terminal reuse boundary. Remove every stage resource,
-			// not only stopped plugin containers, before Tailscale logout is allowed.
-			dockerErr = e.docker.Destroy(ctx, cfg)
-		}
-		return errors.Join(dockerErr, destroyHelperStrict(cfg))
-	}
 	return e.docker.Suspend(ctx, labels)
-}
-
-func dockerSetupEnabled(cfg *spec.PipelineConfig) bool {
-	return cfg != nil && (cfg.EnableDockerSetup == nil || *cfg.EnableDockerSetup)
 }
 
 func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step) {
@@ -282,10 +247,8 @@ func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step) {
 	step.DNS = []string{quad100}
 }
 
-// PrivateConnectivityConfigured proves that this process still has the pipeline configuration
-// required for strict Docker/resource cleanup. A durable pc-used marker without this in-memory
-// state means LE restarted mid-lifecycle and the VM must be discarded rather than reused.
-func (e *Engine) PrivateConnectivityConfigured() bool {
+// PrivateConnectivityEnabled reports whether the current stage joined its private network.
+func (e *Engine) PrivateConnectivityEnabled() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.pipelineConfig != nil && e.pipelineConfig.PrivateConnectivity
@@ -302,11 +265,6 @@ func (e *Engine) GetPipelineEnvs() map[string]string {
 }
 
 func destroyHelper(cfg *spec.PipelineConfig) {
-	_ = destroyHelperStrict(cfg)
-}
-
-func destroyHelperStrict(cfg *spec.PipelineConfig) error {
-	var cleanupErr error
 	for _, vol := range cfg.Volumes {
 		if vol == nil || vol.HostPath == nil {
 			continue
@@ -315,12 +273,10 @@ func destroyHelperStrict(cfg *spec.PipelineConfig) error {
 			continue
 		}
 
+		// TODO: Add logging
 		path := vol.HostPath.Path
-		if err := os.RemoveAll(path); err != nil {
-			cleanupErr = errors.Join(cleanupErr, fmt.Errorf("failed to remove host volume %s: %w", path, err))
-		}
+		os.RemoveAll(path)
 	}
-	return cleanupErr
 }
 
 func runHelper(cfg *spec.PipelineConfig, step *spec.Step) error {

@@ -7,7 +7,6 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -39,42 +38,18 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
-		stageLifecycleMu.Lock()
-		defer stageLifecycleMu.Unlock()
-
 		ctx := r.Context()
-		pcUsed := pc.WasUsed()
-		var destroyErr error
-		pcStateUnavailable := pcUsed && !engine.PrivateConnectivityConfigured()
-		if pcStateUnavailable {
-			// PipelineConfig is intentionally process-local. If PC was used but its configuration is
-			// unavailable (for example, after restart or before setup recorded it), LE does not have the
-			// identifiers required to prove resource cleanup. Tailscale logout is still attempted below,
-			// but the durable fence is retained and DRA must discard the VM.
-			destroyErr = fmt.Errorf(
-				"private connectivity cleanup state is not available in this process; discard this VM")
-		} else {
-			destroyErr = engine.Destroy(ctx)
-		}
+		pcEnabled := engine.PrivateConnectivityEnabled()
+		destroyErr := engine.Destroy(ctx)
 
-		// Keep connectivity until resources stop, then prove logout before this VM can be reused.
-		// pcUsed also covers missing process-local state when the daemon is already logged out but the
-		// reuse fence must intentionally remain because resource cleanup can no longer be proven.
-		if pcUsed || pc.NeedsNetworkCleanup() {
-			log.WithField("pc_state_available", !pcStateUnavailable).
-				Infoln("api: starting private connectivity logout during destroy")
-			// DRA destroys this VM after /destroy even when cleanup reports an error.
-			// Terminal cleanup may therefore use the documented Windows ephemeral-node
-			// fallback; suspend continues to require strict immediate logout.
-			if logoutErr := pc.LogoutForDisposal(ctx); logoutErr != nil {
+		if pcEnabled {
+			// Destroy is terminal: DRA discards the VM even if this bounded best-effort
+			// logout fails. Suspend remains strict because that VM can be reused.
+			if logoutErr := pc.Logout(ctx); logoutErr != nil {
 				log.WithField("time", time.Now().Format(time.RFC3339)).
 					WithError(logoutErr).
 					Errorln("api: private connectivity logout failed")
-				destroyErr = errors.Join(destroyErr, fmt.Errorf("pc logout failed: %w", logoutErr))
 			}
-		}
-		if pcUsed && destroyErr == nil {
-			destroyErr = pc.MarkCleanupComplete()
 		}
 
 		// Workload Identity: clear any handles still resident now that the stage is torn down and nothing

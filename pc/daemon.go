@@ -9,13 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -23,131 +21,57 @@ import (
 
 const (
 	logoutTimeout                = 30 * time.Second
-	statusTimeout                = 10 * time.Second
-	joinedStatusTimeout          = 5 * time.Second
 	loggedOutWaitTimeout         = 10 * time.Second
 	loggedOutProbeTimeout        = 2 * time.Second
 	runtimeStatusTimeout         = 8 * time.Second
 	runtimeServiceTimeout        = 30 * time.Second
 	runtimeServiceCommandTimeout = runtimeServiceTimeout + 5*time.Second
-	joinCommandTimeout           = JoinTimeout + 5*time.Second
+	joinCommandTimeout           = joinTimeout + 5*time.Second
 	loggedOutPollInterval        = 200 * time.Millisecond
 	privateFileMode              = os.FileMode(0600)
 	privateDirectoryMode         = os.FileMode(0700)
-	privilegedExtraArgs          = 2
 )
 
-var (
-	// ErrUnsupported is returned when the installed Tailscale CLI or service is unavailable.
-	ErrUnsupported = fmt.Errorf("pc: an installed tailscale runtime is required")
-	lifecycleMu    sync.Mutex
-)
-
-func usedMarkerPath() string {
-	return filepath.Join(TokenDir, "pc-used")
-}
-
-// WasUsed reports whether this VM has entered the PC lifecycle and still requires a complete
-// stage-resource cleanup proof before reuse.
-func WasUsed() bool {
-	return fileExists(usedMarkerPath())
-}
-
-// HasLifecycleResidue reports whether durable PC lifecycle evidence remains on this VM. Unlike
-// NeedsNetworkCleanup it performs no service or CLI probes, so setup admission can use it before
-// mutating process or host state.
-func HasLifecycleResidue() bool {
-	return markerExists() || tokenFileExists() || WasUsed() || platformNetworkResidue()
-}
-
-// MarkCleanupComplete clears the durable reuse fence only after the handler has completed both
-// strict stage-resource cleanup and Tailscale logout.
-func MarkCleanupComplete() error {
-	return removeFile(usedMarkerPath())
-}
-
-func supportedPlatform() bool {
-	switch runtime.GOOS {
-	case "linux":
-		return runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64"
-	case "windows":
-		return runtime.GOARCH == "amd64"
-	case "darwin":
-		return runtime.GOARCH == "arm64"
-	default:
-		return false
-	}
-}
-
-// localRuntimeClean enforces the hosted-image and warm-reuse contract. Tailscale must be
-// preinstalled but dormant, with no enrollment or Harness lifecycle residue; Lite Engine starts
-// the service only for a PC stage. An active service is rejected because its ownership and prior
-// state cannot be proven safe for the next stage.
-func localRuntimeClean(ctx context.Context) bool {
-	if HasLifecycleResidue() {
-		return false
-	}
-	running, known := platformRuntimeRunning(ctx)
-	return known && !running
-}
+var errUnsupported = errors.New("pc: an installed tailscale runtime is required")
 
 // JoinAndConfigure joins the host to the customer network. Host routes are owned by tailscaled.
 // Host DNS is owned by Tailscale except for the headless macOS runtime, whose Quad100 resolver is
-// activated and restored by the platform hooks. Container-only MTU/DNS is applied by engine setup.
+// activated and restored by the platform hooks. Container DNS is applied by engine setup.
 func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo,funlen // Ordered fail-closed lifecycle.
-	lifecycleMu.Lock()
-	defer lifecycleMu.Unlock()
-
-	if err := Validate(cfg); err != nil {
-		return err
-	}
-	if !supportedPlatform() {
-		return ErrUnsupported
-	}
 	path, err := tailscalePath()
 	if err != nil {
-		return ErrUnsupported
+		return errUnsupported
 	}
-	if !localRuntimeClean(ctx) {
+	if fileExists(TokenFile) || platformNetworkResidue() {
 		return fmt.Errorf("pc: runtime is dirty; VM reuse is forbidden")
 	}
-	serviceStart := time.Now()
 	if err := platformRuntimeStart(ctx); err != nil {
-		logrus.WithError(err).
-			WithField("latency", time.Since(serviceStart)).
-			Errorln("pc: tailscaled service start failed")
 		return errors.Join(
 			fmt.Errorf("pc: failed to start tailscaled service: %w", err),
-			platformRuntimeStop(context.WithoutCancel(ctx)),
+			platformRuntimeStop(ctx),
 		)
 	}
-	logrus.WithField("latency", time.Since(serviceStart)).Infoln("pc: tailscaled service start completed")
 	if waitErr := waitForLoggedOut(ctx, path); waitErr != nil {
-		stopErr := platformRuntimeStop(context.WithoutCancel(ctx))
+		stopErr := platformRuntimeStop(ctx)
 		return errors.Join(
 			fmt.Errorf("pc: runtime is dirty; VM reuse is forbidden: %w", waitErr),
 			stopErr,
 		)
 	}
-	logrus.WithField("hostname", cfg.Hostname).Infoln("pc: installed runtime is ready for join")
 	if err := secureTokenDir(ctx); err != nil {
-		return errors.Join(err, platformRuntimeStop(context.WithoutCancel(ctx)))
+		return errors.Join(err, platformRuntimeStop(ctx))
 	}
-	if err := writeMarker(); err != nil {
-		return errors.Join(err, platformRuntimeStop(context.WithoutCancel(ctx)))
-	}
-	if err := platformNetworkPrepare(ctx, path); err != nil {
+	if err := platformNetworkPrepare(ctx); err != nil {
 		return errors.Join(
 			fmt.Errorf("pc: failed to prepare platform networking: %w", err),
-			removeFile(MarkerFile),
-			platformRuntimeStop(context.WithoutCancel(ctx)),
+			platformRuntimeStop(ctx),
 		)
 	}
-	if err := writeFileAtomically(TokenFile, []byte(cfg.OIDCToken)); err != nil {
+	if err := writePrivateFile(TokenFile, []byte(cfg.OIDCToken)); err != nil {
 		return rollbackSetup(ctx, fmt.Errorf("pc: failed to write OIDC token file: %w", err))
 	}
 
-	// The CLI owns JoinTimeout. Give the process a small outer grace period so its own timeout and
+	// The CLI owns joinTimeout. Give the process a small outer grace period so its own timeout and
 	// diagnostics can complete before Go forcefully terminates it.
 	joinCtx, cancel := context.WithTimeout(ctx, joinCommandTimeout)
 	defer cancel()
@@ -159,39 +83,22 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo
 		"--accept-routes",
 		"--accept-dns=true",
 		"--hostname=" + cfg.Hostname,
-		fmt.Sprintf("--timeout=%ds", int(JoinTimeout.Seconds())),
+		fmt.Sprintf("--timeout=%ds", int(joinTimeout.Seconds())),
 	}
 	// Windows otherwise associates the session with an interactive user. Hosted VMs run headless,
 	// so keep the system service connected for the full stage lifetime.
 	if runtime.GOOS == "windows" {
 		args = append(args, "--unattended=true")
 	}
-	joinStart := time.Now()
 	out, joinErr := tailscaleCommandContext(joinCtx, path, args...).CombinedOutput()
 	if joinErr != nil {
 		safeOutput := strings.ReplaceAll(string(out), cfg.OIDCToken, "[REDACTED]")
-		logrus.WithError(joinErr).
-			WithField("latency", time.Since(joinStart)).
-			WithField("output", safeOutput).
-			Errorln("pc: tailscale up failed")
 		return rollbackSetup(ctx, fmt.Errorf("pc: tailscale up failed: %w (%s)", joinErr, strings.TrimSpace(safeOutput)))
 	}
-	logrus.WithField("latency", time.Since(joinStart)).Infoln("pc: tailscale up completed")
-	confirmationStart := time.Now()
-	if err := confirmJoined(ctx, path); err != nil {
-		logrus.WithError(err).
-			WithField("latency", time.Since(confirmationStart)).
-			Errorln("pc: joined-state confirmation failed")
-		return rollbackSetup(ctx, err)
-	}
-	logrus.WithField("latency", time.Since(confirmationStart)).Infoln("pc: joined-state confirmation completed")
-	if err := platformNetworkActivate(ctx, path); err != nil {
+	if err := platformNetworkActivate(ctx); err != nil {
 		return rollbackSetup(ctx, fmt.Errorf("pc: failed to activate platform networking: %w", err))
 	}
 	if err := removeTokenFile(); err != nil {
-		return rollbackSetup(ctx, err)
-	}
-	if err := writeFileAtomically(usedMarkerPath(), []byte("1\n")); err != nil {
 		return rollbackSetup(ctx, err)
 	}
 	logrus.WithField("hostname", cfg.Hostname).Infoln("pc: joined customer network")
@@ -199,9 +106,7 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo
 }
 
 func rollbackSetup(ctx context.Context, cause error) error {
-	// Setup rollback is strict because the VM may be retried. If immediate logout cannot be
-	// proven, durable residue remains and setup admission forces the VM to be discarded.
-	if cleanupErr := logoutUnlocked(ctx, false); cleanupErr != nil {
+	if cleanupErr := Logout(ctx); cleanupErr != nil {
 		return errors.Join(cause, fmt.Errorf("pc: setup rollback failed: %w", cleanupErr))
 	}
 	return cause
@@ -209,139 +114,33 @@ func rollbackSetup(ctx context.Context, cause error) error {
 
 // Logout removes the authenticated session and stops the OS-managed daemon before VM reuse.
 func Logout(ctx context.Context) error {
-	lifecycleMu.Lock()
-	defer lifecycleMu.Unlock()
-	return logoutUnlocked(ctx, false)
-}
-
-// LogoutForDisposal performs terminal cleanup for a VM that DRA will destroy. It differs from
-// Logout only for the documented Windows LocalSystem profile-ownership failure: the service is
-// stopped and the already-ephemeral node is allowed to age out instead of making VM destruction
-// report a false cleanup failure. It must never be used before suspend or pool reuse.
-func LogoutForDisposal(ctx context.Context) error {
-	lifecycleMu.Lock()
-	defer lifecycleMu.Unlock()
-	return logoutUnlocked(ctx, true)
-}
-
-func logoutUnlocked(ctx context.Context, allowDeferredWindowsRemoval bool) (resultErr error) { //nolint:gocyclo // Ordered cleanup.
-	// The raw JWT is never needed for logout. Always attempt its deletion, including when an
-	// earlier cleanup phase fails and the durable reuse fence must remain.
-	defer func() {
-		if tokenErr := removeTokenFile(); tokenErr != nil {
-			resultErr = errors.Join(resultErr, tokenErr)
-		}
-	}()
-
-	cleanupCtx := context.WithoutCancel(ctx)
-	if err := secureTokenDir(cleanupCtx); err != nil {
-		return err
-	}
-	if err := writeMarker(); err != nil {
-		return err
-	}
-
 	path, pathErr := tailscalePath()
-	logrus.Infoln("pc: starting tailscale logout")
 	var cleanupErr error
-	deferredEphemeralRemoval := false
 	if pathErr != nil {
-		cleanupErr = ErrUnsupported
+		cleanupErr = errUnsupported
+	} else if startErr := platformRuntimeStart(ctx); startErr != nil {
+		cleanupErr = fmt.Errorf("pc: failed to start tailscaled for cleanup: %w", startErr)
 	} else {
-		if startErr := platformRuntimeStart(cleanupCtx); startErr != nil {
-			cleanupErr = fmt.Errorf("pc: failed to start tailscaled for cleanup: %w", startErr)
-		} else {
-			logoutCtx, cancel := context.WithTimeout(cleanupCtx, logoutTimeout)
-			logoutOutput, logoutErr := tailscaleCommandContext(logoutCtx, path, "logout").CombinedOutput()
-			cancel()
-			if logoutErr != nil {
-				// Tailscale's Windows service currently creates an unattended profile that
-				// its LocalSystem CLI actor cannot later disconnect. The node is already
-				// ephemeral (the WIF client ID requests ephemeral=true), so terminal VM
-				// disposal can safely stop the service and let the control plane remove the
-				// offline node. Never accept this for suspend/reuse, and never expose the
-				// command output in logs or returned errors.
-				if allowDeferredWindowsRemoval && runtime.GOOS == "windows" &&
-					strings.Contains(strings.ToLower(string(logoutOutput)),
-						"target profile does not belong to the user") {
-					deferredEphemeralRemoval = true
-					logrus.Warnln(
-						"pc: Windows profile ownership prevented immediate logout; stopping the service and deferring removal of the ephemeral node")
-				} else {
-					cleanupErr = fmt.Errorf("pc: tailscale logout failed: %w", logoutErr)
-				}
-			} else if confirmErr := waitForLoggedOut(cleanupCtx, path); confirmErr != nil {
-				cleanupErr = fmt.Errorf(
-					"pc: tailscale logout completed but clean logged-out state could not be confirmed: %w",
-					confirmErr)
-			}
+		logoutCtx, cancel := context.WithTimeout(ctx, logoutTimeout)
+		logoutErr := tailscaleCommandContext(logoutCtx, path, "logout").Run()
+		cancel()
+		if logoutErr != nil {
+			cleanupErr = fmt.Errorf("pc: tailscale logout failed: %w", logoutErr)
 		}
 	}
-	// Restore platform-owned state even if logout failed. The durable cleanup marker remains until
-	// both operations succeed, so DRA will discard rather than reuse an uncertain VM.
-	if restoreErr := platformNetworkRestore(cleanupCtx); restoreErr != nil {
+	// Restore platform-owned state even if logout failed.
+	if restoreErr := platformNetworkRestore(ctx); restoreErr != nil {
 		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("pc: failed to restore platform networking: %w", restoreErr))
 	}
-	if stopErr := platformRuntimeStop(cleanupCtx); stopErr != nil {
+	if stopErr := platformRuntimeStop(ctx); stopErr != nil {
 		cleanupErr = errors.Join(cleanupErr, fmt.Errorf("pc: failed to stop tailscaled service: %w", stopErr))
 	}
+	cleanupErr = errors.Join(cleanupErr, removeTokenFile())
 	if cleanupErr != nil {
 		return cleanupErr
 	}
-	if err := removeFile(MarkerFile); err != nil {
-		return err
-	}
-	if deferredEphemeralRemoval {
-		logrus.Infoln("pc: tailscaled service stopped; ephemeral node removal deferred to the Tailscale control plane")
-	} else {
-		logrus.Infoln("pc: tailscale logout, clean-state verification, and service stop completed")
-	}
+	logrus.Infoln("pc: tailscale logout and service stop completed")
 	return nil
-}
-
-// NeedsNetworkCleanup is a cheap lifecycle gate used by destroy/suspend.
-func NeedsNetworkCleanup() bool {
-	if markerExists() || tokenFileExists() || platformNetworkResidue() {
-		return true
-	}
-	if !fileExists(usedMarkerPath()) {
-		return false
-	}
-	path, err := tailscalePath()
-	if err != nil {
-		return true
-	}
-	loggedIn, known := tailscaleLoginState(context.Background(), path)
-	return !known || loggedIn
-}
-
-func confirmJoined(ctx context.Context, path string) error {
-	statusCtx, cancel := context.WithTimeout(ctx, joinedStatusTimeout)
-	defer cancel()
-	out, err := tailscaleCommandContext(statusCtx, path, "status", "--json").Output()
-	if err != nil {
-		return fmt.Errorf("pc: failed to confirm tailscale join: %w", err)
-	}
-	var status struct {
-		BackendState string `json:"BackendState"`
-		Self         struct {
-			Online       bool     `json:"Online"`
-			TailscaleIPs []string `json:"TailscaleIPs"`
-		} `json:"Self"`
-	}
-	if err := json.Unmarshal(out, &status); err != nil {
-		return fmt.Errorf("pc: failed to parse tailscale status: %w", err)
-	}
-	if !strings.EqualFold(status.BackendState, "Running") || !status.Self.Online {
-		return fmt.Errorf("pc: tailscale did not become online")
-	}
-	tailnetRange := netip.MustParsePrefix("100.64.0.0/10")
-	for _, raw := range status.Self.TailscaleIPs {
-		if address, parseErr := netip.ParseAddr(raw); parseErr == nil && tailnetRange.Contains(address) {
-			return nil
-		}
-	}
-	return fmt.Errorf("pc: tailscale joined without a tailnet IPv4 address")
 }
 
 func waitForLoggedOut(ctx context.Context, path string) error {
@@ -352,9 +151,9 @@ func waitForLoggedOut(ctx context.Context, path string) error {
 	defer ticker.Stop()
 	for {
 		probeCtx, probeCancel := context.WithTimeout(statusCtx, loggedOutProbeTimeout)
-		loggedIn, known := tailscaleLoginState(probeCtx, path)
+		loggedOut := tailscaleLoggedOut(probeCtx, path)
 		probeCancel()
-		if known && !loggedIn {
+		if loggedOut {
 			return nil
 		}
 		select {
@@ -365,35 +164,24 @@ func waitForLoggedOut(ctx context.Context, path string) error {
 	}
 }
 
-func tailscaleLoginState(ctx context.Context, path string) (loggedIn, known bool) {
-	ctx, cancel := context.WithTimeout(ctx, statusTimeout)
-	defer cancel()
-	out, err := tailscaleCommandContext(ctx, path, "status", "--json").Output()
-	if err != nil {
-		return false, false
-	}
+func tailscaleLoggedOut(ctx context.Context, path string) bool {
 	var status struct {
 		BackendState string `json:"BackendState"`
 	}
-	if json.Unmarshal(out, &status) != nil {
-		return false, false
+	out, err := tailscaleCommandContext(ctx, path, "status", "--json").Output()
+	if err == nil {
+		err = json.Unmarshal(out, &status)
 	}
-	switch strings.ToLower(strings.TrimSpace(status.BackendState)) {
-	case "running", "starting", "needsmachineauth", "stopped", "inuseotheruser":
-		return true, true
-	case "needslogin":
-		return false, true
-	default:
-		return false, false
+	if err != nil {
+		return false
 	}
+	return strings.EqualFold(strings.TrimSpace(status.BackendState), "NeedsLogin")
 }
 
 func tailscaleCommandContext(ctx context.Context, path string, args ...string) *exec.Cmd {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "darwin" && os.Geteuid() != 0 {
-		privilegedArgs := make([]string, 0, len(args)+privilegedExtraArgs)
-		privilegedArgs = append(privilegedArgs, "-n", path)
-		privilegedArgs = append(privilegedArgs, args...)
+		privilegedArgs := append([]string{"-n", path}, args...)
 		cmd = exec.CommandContext(ctx, "/usr/bin/sudo", privilegedArgs...)
 	} else {
 		cmd = exec.CommandContext(ctx, path, args...)
@@ -415,6 +203,16 @@ func tailscaleEnvironment() []string {
 		filtered = append(filtered, entry)
 	}
 	return filtered
+}
+
+// ClearProxyEnvironment removes process-global proxy state inherited from an earlier stage.
+func ClearProxyEnvironment() {
+	for _, entry := range os.Environ() {
+		key, _, found := strings.Cut(entry, "=")
+		if found && isProxyEnvironmentKey(key) {
+			_ = os.Unsetenv(key)
+		}
+	}
 }
 
 func isProxyEnvironmentKey(key string) bool {
@@ -441,56 +239,36 @@ func secureTokenDir(ctx context.Context) error {
 	if err := os.MkdirAll(TokenDir, privateDirectoryMode); err != nil {
 		return fmt.Errorf("pc: failed to create state directory: %w", err)
 	}
-	if err := securePlatformTokenDir(ctx); err != nil {
-		return err
-	}
 	info, err := os.Lstat(TokenDir)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return fmt.Errorf("pc: state path must be a real directory")
 	}
+	if err := securePlatformTokenDir(ctx); err != nil {
+		return err
+	}
 	return os.Chmod(TokenDir, privateDirectoryMode)
 }
 
-func writeMarker() error {
-	return writeFileAtomically(MarkerFile, []byte("1\n"))
-}
-
-func writeFileAtomically(path string, data []byte) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".pc-*")
+func writePrivateFile(path string, data []byte) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, privateFileMode)
 	if err != nil {
 		return err
 	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-	if err := tmp.Chmod(privateFileMode); err != nil {
-		_ = tmp.Close()
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
 		return err
 	}
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
+	if err := file.Close(); err != nil {
+		_ = os.Remove(path)
 		return err
 	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return replaceFileAtomically(tmpName, path)
-}
-
-func markerExists() bool {
-	return fileExists(MarkerFile)
-}
-
-func tokenFileExists() bool {
-	return fileExists(TokenFile)
+	return nil
 }
 
 func fileExists(path string) bool {
 	_, err := os.Lstat(path)
-	// Only a proven absence is clean. Permission or I/O errors must retain the reuse fence.
+	// Only a proven absence is clean; permission and I/O failures must fail closed.
 	return err == nil || !os.IsNotExist(err)
 }
 
