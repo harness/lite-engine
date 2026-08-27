@@ -45,26 +45,27 @@ func JoinAndConfigure(ctx context.Context, cfg *Config) error { //nolint:gocyclo
 	if fileExists(TokenFile) || platformNetworkResidue() {
 		return fmt.Errorf("pc: runtime is dirty; VM reuse is forbidden")
 	}
+	cleanupCtx := context.WithoutCancel(ctx)
 	if err := platformRuntimeStart(ctx); err != nil {
 		return errors.Join(
 			fmt.Errorf("pc: failed to start tailscaled service: %w", err),
-			platformRuntimeStop(ctx),
+			platformRuntimeStop(cleanupCtx),
 		)
 	}
 	if waitErr := waitForLoggedOut(ctx, path); waitErr != nil {
-		stopErr := platformRuntimeStop(ctx)
+		stopErr := platformRuntimeStop(cleanupCtx)
 		return errors.Join(
 			fmt.Errorf("pc: runtime is dirty; VM reuse is forbidden: %w", waitErr),
 			stopErr,
 		)
 	}
 	if err := secureTokenDir(ctx); err != nil {
-		return errors.Join(err, platformRuntimeStop(ctx))
+		return errors.Join(err, platformRuntimeStop(cleanupCtx))
 	}
 	if err := platformNetworkPrepare(ctx); err != nil {
 		return errors.Join(
 			fmt.Errorf("pc: failed to prepare platform networking: %w", err),
-			platformRuntimeStop(ctx),
+			platformRuntimeStop(cleanupCtx),
 		)
 	}
 	if err := writePrivateFile(TokenFile, []byte(cfg.OIDCToken)); err != nil {
@@ -114,6 +115,9 @@ func rollbackSetup(ctx context.Context, cause error) error {
 
 // Logout removes the authenticated session and stops the OS-managed daemon before VM reuse.
 func Logout(ctx context.Context) error {
+	// Cleanup must outlive the HTTP request that initiated it. Each platform command below
+	// retains its own deadline, so detaching cancellation cannot make cleanup unbounded.
+	ctx = context.WithoutCancel(ctx)
 	path, pathErr := tailscalePath()
 	var cleanupErr error
 	if pathErr != nil {
@@ -240,7 +244,7 @@ func secureTokenDir(ctx context.Context) error {
 		return fmt.Errorf("pc: failed to create state directory: %w", err)
 	}
 	info, err := os.Lstat(TokenDir)
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+	if err != nil || !info.IsDir() {
 		return fmt.Errorf("pc: state path must be a real directory")
 	}
 	if err := securePlatformTokenDir(ctx); err != nil {
@@ -269,7 +273,7 @@ func writePrivateFile(path string, data []byte) error {
 func fileExists(path string) bool {
 	_, err := os.Lstat(path)
 	// Only a proven absence is clean; permission and I/O failures must fail closed.
-	return err == nil || !os.IsNotExist(err)
+	return !os.IsNotExist(err)
 }
 
 func removeFile(path string) error {
@@ -284,7 +288,7 @@ func removeTokenFile() error {
 	if os.IsNotExist(err) {
 		return nil
 	}
-	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+	if err != nil || !info.IsDir() {
 		return fmt.Errorf("pc: state path must be a real directory")
 	}
 	return removeFile(TokenFile)

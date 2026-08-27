@@ -40,10 +40,10 @@ type Config struct {
 func ExtractAndValidate(envs map[string]string) (Config, error) {
 	enabledValue := strings.TrimSpace(envs[EnvEnabled])
 	cfg := Config{
-		ClientID:  envs[EnvClientID],
-		OIDCToken: envs[EnvOIDCToken],
-		Hostname:  envs[EnvHostname],
-		Tag:       envs[EnvTag],
+		ClientID:  strings.TrimSpace(envs[EnvClientID]),
+		OIDCToken: strings.TrimSpace(envs[EnvOIDCToken]),
+		Hostname:  strings.TrimSpace(envs[EnvHostname]),
+		Tag:       strings.TrimSpace(envs[EnvTag]),
 	}
 	for key := range envs {
 		if strings.HasPrefix(key, "HARNESS_PC_") {
@@ -57,8 +57,7 @@ func ExtractAndValidate(envs map[string]string) (Config, error) {
 		return cfg, fmt.Errorf("pc: private connectivity enabled value must be true or false")
 	}
 	cfg.Enabled = true
-	if strings.TrimSpace(cfg.ClientID) == "" || strings.TrimSpace(cfg.OIDCToken) == "" || strings.TrimSpace(cfg.Hostname) == "" ||
-		strings.TrimSpace(cfg.Tag) == "" {
+	if cfg.ClientID == "" || cfg.OIDCToken == "" || cfg.Hostname == "" || cfg.Tag == "" {
 		return cfg, fmt.Errorf("pc: private connectivity identity is incomplete")
 	}
 	// The tag is server-owned; accepting an arbitrary tag would expand the runner's ACL identity.

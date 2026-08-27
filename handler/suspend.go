@@ -36,6 +36,8 @@ func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 					WithError(logoutErr).
 					Errorln("api: private connectivity logout before suspend failed")
 				suspendErr = errors.Join(suspendErr, fmt.Errorf("pc logout failed: %w", logoutErr))
+			} else {
+				engine.ClearPrivateConnectivity()
 			}
 		}
 

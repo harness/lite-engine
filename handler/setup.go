@@ -199,6 +199,8 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 				if logoutErr != nil {
 					logger.FromRequest(r).WithError(logoutErr).
 						Errorln("api: private connectivity logout after stage setup failure failed")
+				} else {
+					engine.ClearPrivateConnectivity()
 				}
 				err = errors.Join(err, logoutErr)
 			} else {

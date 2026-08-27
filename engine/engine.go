@@ -240,7 +240,7 @@ func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step) {
 	// Quad100 is served by tailscaled on the host and is reachable from containers on
 	// Linux (bridge) and Windows (nat). macOS has no Docker steps, so it is excluded.
 	// An explicit step DNS list is a customer override and is preserved exactly.
-	if cfg == nil || step == nil || !cfg.PrivateConnectivity ||
+	if !cfg.PrivateConnectivity ||
 		(cfg.Platform.OS != "linux" && cfg.Platform.OS != "windows") || len(step.DNS) > 0 {
 		return
 	}
@@ -251,7 +251,16 @@ func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step) {
 func (e *Engine) PrivateConnectivityEnabled() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.pipelineConfig != nil && e.pipelineConfig.PrivateConnectivity
+	return e.pipelineConfig.PrivateConnectivity
+}
+
+// ClearPrivateConnectivity records successful teardown before the VM can be reused.
+func (e *Engine) ClearPrivateConnectivity() {
+	e.mu.Lock()
+	cfg := *e.pipelineConfig
+	cfg.PrivateConnectivity = false
+	e.pipelineConfig = &cfg
+	e.mu.Unlock()
 }
 
 // GetPipelineEnvs returns the pipeline/stage level environment variables

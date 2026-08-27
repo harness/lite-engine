@@ -49,6 +49,8 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 				log.WithField("time", time.Now().Format(time.RFC3339)).
 					WithError(logoutErr).
 					Errorln("api: private connectivity logout failed")
+			} else {
+				engine.ClearPrivateConnectivity()
 			}
 		}
 

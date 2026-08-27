@@ -9,6 +9,7 @@ package pc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -164,10 +165,12 @@ func platformNetworkRestore(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	var restoreErr error
 	for service, servers := range snapshot {
-		if err := darwinSetDNSServers(ctx, service, servers); err != nil {
-			return err
-		}
+		restoreErr = errors.Join(restoreErr, darwinSetDNSServers(ctx, service, servers))
+	}
+	if restoreErr != nil {
+		return restoreErr
 	}
 	return removeFile(darwinDNSSnapshotPath())
 }
