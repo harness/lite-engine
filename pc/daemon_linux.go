@@ -42,7 +42,7 @@ func platformRuntimeRunning(ctx context.Context) (running, known bool) {
 	switch strings.ToLower(strings.TrimSpace(string(out))) {
 	case "active", "activating", "reloading", "deactivating":
 		return true, true
-	case "inactive":
+	case "inactive", "failed":
 		return false, true
 	default:
 		return false, false

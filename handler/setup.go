@@ -111,18 +111,15 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			egressProxyURL = s.EgressPolicy.ProxyURL
 		}
 		if privateConnectivityConflictsWithEgress(pcCfg.Enabled, egressProxyURL, s.Envs) {
-			clearFailedPrivateConnectivityState(pipeline.GetState())
 			WriteBadRequest(w, fmt.Errorf("pc: private connectivity and an egress proxy are mutually exclusive"))
 			return
 		}
 
 		if validateErr := pc.Validate(&pcCfg); validateErr != nil {
-			clearFailedPrivateConnectivityState(pipeline.GetState())
 			WriteBadRequest(w, validateErr)
 			return
 		}
 		if pcReuseBlocked {
-			clearFailedPrivateConnectivityState(pipeline.GetState())
 			WriteError(w, fmt.Errorf("pc: private connectivity reuse fence is active; discard this VM"))
 			return
 		}

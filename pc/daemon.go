@@ -381,7 +381,7 @@ func tailscaleLoginState(ctx context.Context, path string) (loggedIn, known bool
 	switch strings.ToLower(strings.TrimSpace(status.BackendState)) {
 	case "running", "starting", "needsmachineauth", "stopped", "inuseotheruser":
 		return true, true
-	case "needslogin", "nostate":
+	case "needslogin":
 		return false, true
 	default:
 		return false, false
