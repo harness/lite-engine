@@ -53,6 +53,7 @@ func toStep(r *api.StartStepRequest) *spec.Step {
 		NetworkAliases: r.NetworkAliases,
 		ProcessConfig:  r.ProcessConfig,
 		Secrets:        convertRequestSecretsToStepSecrets(r),
+		ShowScriptInExecutionLogs: r.ShowScriptInExecutionLogs,
 	}
 }
 

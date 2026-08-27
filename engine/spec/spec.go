@@ -71,6 +71,8 @@ type (
 		WorkingDir     string            `json:"working_dir,omitempty"`
 		SoftStop       bool              `json:"soft_stop,omitempty"`
 		ProcessConfig  ProcessConfig     `json:"process_config,omitempty"`
+	
+		ShowScriptInExecutionLogs *bool `json:"show_script_in_execution_logs,omitempty"`
 	}
 
 	// Secret represents a secret variable.

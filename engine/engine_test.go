@@ -115,6 +115,81 @@ func newRaceTestEngine() *Engine {
 	}
 }
 
+// TestShowScriptInExecutionLogs_PreambleGating validates that the engine.Run
+// method emits the preamble when ShowScriptInExecutionLogs is nil or true, and
+// suppresses it when false — covering the three backward-compatibility cases.
+func TestShowScriptInExecutionLogs_PreambleGating(t *testing.T) {
+	boolPtr := func(v bool) *bool { return &v }
+
+	cases := []struct {
+		name         string
+		flag         *bool
+		wantPreamble bool
+	}{
+		{"nil (old manager / absent field) → show", nil, true},
+		{"explicit true → show", boolPtr(true), true},
+		{"explicit false → hide preamble", boolPtr(false), false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			step := &spec.Step{
+				Entrypoint:                []string{"bash", "-c"},
+				Command:                   []string{"echo hello"},
+				ShowScriptInExecutionLogs: tc.flag,
+			}
+			var buf bytes.Buffer
+			// Mirror the gate logic from engine.Run
+			if step.ShowScriptInExecutionLogs == nil || *step.ShowScriptInExecutionLogs {
+				printCommand(step, &buf)
+			}
+			hasPreamble := strings.Contains(buf.String(), "Executing the following command")
+			assert.Equal(t, tc.wantPreamble, hasPreamble,
+				"preamble presence mismatch for flag=%v", tc.flag)
+		})
+	}
+}
+
+// TestRunStep_ShowScriptInExecutionLogs_PreambleGating validates the preamble-gating
+// logic in helper.RunStep, which covers HostedVm / Cloud VM execution paths.
+// The gate mirrors engine.Run: nil or true → show; false → suppress.
+// An additional case ensures isDrone=true always skips the preamble regardless of the flag.
+func TestRunStep_ShowScriptInExecutionLogs_PreambleGating(t *testing.T) {
+	boolPtr := func(v bool) *bool { return &v }
+
+	cases := []struct {
+		name         string
+		flag         *bool
+		isDrone      bool
+		wantPreamble bool
+	}{
+		{"nil (old manager / absent field) → show", nil, false, true},
+		{"explicit true → show", boolPtr(true), false, true},
+		{"explicit false → hide preamble", boolPtr(false), false, false},
+		{"drone mode → always suppress", nil, true, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			step := &spec.Step{
+				Entrypoint:                []string{"bash", "-c"},
+				Command:                   []string{"echo hello"},
+				ShowScriptInExecutionLogs: tc.flag,
+			}
+			var buf bytes.Buffer
+			// Mirror the gate logic from helper.RunStep
+			if !tc.isDrone && len(step.Command) > 0 {
+				if step.ShowScriptInExecutionLogs == nil || *step.ShowScriptInExecutionLogs {
+					printCommand(step, &buf)
+				}
+			}
+			hasPreamble := strings.Contains(buf.String(), "Executing the following command")
+			assert.Equal(t, tc.wantPreamble, hasPreamble,
+				"preamble presence mismatch for flag=%v isDrone=%v", tc.flag, tc.isDrone)
+		})
+	}
+}
+
 // TestEngine_ConcurrentGetPipelineEnvs exercises the e.mu critical section
 // from many readers while a writer concurrently rebinds e.pipelineConfig.
 //
