@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -34,6 +35,38 @@ var (
 	statsInterval          = 30 * time.Second
 	harnessEnableDebugLogs = "HARNESS_ENABLE_DEBUG_LOGS"
 )
+
+type privateConnectivitySetupIdentity struct {
+	clientID string
+	hostname string
+	tag      string
+}
+
+// Serializes PC setup and remembers only non-secret identity after the full setup succeeds.
+type privateConnectivitySetupGuard struct {
+	sync.Mutex
+	completed *privateConnectivitySetupIdentity
+}
+
+func (g *privateConnectivitySetupGuard) isCompletedReplay(cfg pc.Config, active bool) (bool, error) {
+	if !active {
+		g.completed = nil
+		return false, nil
+	}
+	if g.completed == nil {
+		return false, fmt.Errorf("private connectivity is active without a completed setup")
+	}
+	incoming := privateConnectivitySetupIdentity{clientID: cfg.ClientID, hostname: cfg.Hostname, tag: cfg.Tag}
+	if *g.completed != incoming {
+		return false, fmt.Errorf("private connectivity is already active for a different setup")
+	}
+	return true, nil
+}
+
+func (g *privateConnectivitySetupGuard) markCompleted(cfg pc.Config) {
+	identity := privateConnectivitySetupIdentity{clientID: cfg.ClientID, hostname: cfg.Hostname, tag: cfg.Tag}
+	g.completed = &identity
+}
 
 const (
 	OSWindows         = "windows"
@@ -71,6 +104,7 @@ func GetNetrcFile(env map[string]string) (*spec.File, error) {
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
 func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funlen
+	pcSetupGuard := &privateConnectivitySetupGuard{}
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
@@ -93,6 +127,20 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			return
 		}
 		if pcCfg.Enabled {
+			pcSetupGuard.Lock()
+			defer pcSetupGuard.Unlock()
+			replayed, replayErr := pcSetupGuard.isCompletedReplay(pcCfg, engine.PrivateConnectivityEnabled())
+			if replayErr != nil {
+				logger.FromRequest(r).WithError(replayErr).
+					Errorln("api: private connectivity setup replay rejected")
+				WriteError(w, replayErr)
+				return
+			}
+			if replayed {
+				WriteJSON(w, api.SetupResponse{}, http.StatusOK)
+				logger.FromRequest(r).Infoln("api: private connectivity setup replay completed")
+				return
+			}
 			pc.ClearProxyEnvironment()
 			// Repair post-hibernate clock drift before Tailscale performs TLS/WIF requests.
 			if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
@@ -208,6 +256,9 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			}
 			WriteError(w, err)
 			return
+		}
+		if pcCfg.Enabled {
+			pcSetupGuard.markCompleted(pcCfg)
 		}
 
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)
