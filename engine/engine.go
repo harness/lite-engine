@@ -223,6 +223,7 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 	}
 
 	if step.Image != "" {
+		applyPrivateConnectivityDNS(cfg, step)
 		return e.docker.Run(ctx, cfg, step, output, isDrone, isHosted)
 	}
 
@@ -231,6 +232,35 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 
 func (e *Engine) Suspend(ctx context.Context, labels map[string]string) error {
 	return e.docker.Suspend(ctx, labels)
+}
+
+func applyPrivateConnectivityDNS(cfg *spec.PipelineConfig, step *spec.Step) {
+	const quad100 = "100.100.100.100"
+
+	// Quad100 is served by tailscaled on the host and is reachable from containers on
+	// Linux (bridge) and Windows (nat). macOS has no Docker steps, so it is excluded.
+	// An explicit step DNS list is a customer override and is preserved exactly.
+	if !cfg.PrivateConnectivity ||
+		(cfg.Platform.OS != "linux" && cfg.Platform.OS != "windows") || len(step.DNS) > 0 {
+		return
+	}
+	step.DNS = []string{quad100}
+}
+
+// PrivateConnectivityEnabled reports whether the current stage joined its private network.
+func (e *Engine) PrivateConnectivityEnabled() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.pipelineConfig.PrivateConnectivity
+}
+
+// ClearPrivateConnectivity records successful teardown before the VM can be reused.
+func (e *Engine) ClearPrivateConnectivity() {
+	e.mu.Lock()
+	cfg := *e.pipelineConfig
+	cfg.PrivateConnectivity = false
+	e.pipelineConfig = &cfg
+	e.mu.Unlock()
 }
 
 // GetPipelineEnvs returns the pipeline/stage level environment variables

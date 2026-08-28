@@ -122,12 +122,46 @@ func (e *Docker) Ping(ctx context.Context) error {
 	return err
 }
 
+// clearProxyForPrivateConnectivity removes Docker service proxy state left by an earlier stage.
+func clearProxyForPrivateConnectivity(ctx context.Context, goos string) error {
+	if goos == windowsOS {
+		script := `$changed = $false; foreach ($name in @("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY")) { ` +
+			`if ([Environment]::GetEnvironmentVariable($name, "Machine")) { ` +
+			`[Environment]::SetEnvironmentVariable($name, $null, "Machine"); $changed = $true } }; ` +
+			`if ($changed) { Restart-Service docker -Force -ErrorAction Stop }`
+		if out, err := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script).
+			CombinedOutput(); err != nil {
+			return fmt.Errorf("failed to clear Docker service proxy: %w (%s)", err, strings.TrimSpace(string(out)))
+		}
+		return nil
+	}
+	if goos != "linux" {
+		return nil
+	}
+	if err := os.Remove(httpProxyConfFilePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to remove Docker service proxy configuration: %w", err)
+	}
+	if err := exec.CommandContext(ctx, "systemctl", "daemon-reload").Run(); err != nil {
+		return fmt.Errorf("failed to reload systemd after clearing Docker service proxy: %w", err)
+	}
+	if err := exec.CommandContext(ctx, "systemctl", "restart", "docker").Run(); err != nil {
+		return fmt.Errorf("failed to restart Docker after clearing service proxy: %w", err)
+	}
+	return nil
+}
+
 // Setup the pipeline environment.
 func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
-
-	if pipelineConfig.EgressProxy != nil && pipelineConfig.EgressProxy.ProxyURL != "" {
+	if pipelineConfig.PrivateConnectivity {
+		if err := clearProxyForPrivateConnectivity(ctx, pipelineConfig.Platform.OS); err != nil {
+			return fmt.Errorf("failed to clear inherited proxy before private connectivity setup: %w", err)
+		}
+	} else if pipelineConfig.EgressProxy != nil && pipelineConfig.EgressProxy.ProxyURL != "" {
 		logrus.WithField("proxy_url", pipelineConfig.EgressProxy.ProxyURL).Infoln("setup: applying egress proxy config")
 		if err := setupEgressProxy(ctx, pipelineConfig.EgressProxy, pipelineConfig.Platform.OS); err != nil {
 			return fmt.Errorf("failed to configure docker proxy for egress: %w", err)

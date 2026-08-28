@@ -17,6 +17,7 @@ import (
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/osstats"
+	"github.com/harness/lite-engine/pc"
 	"github.com/harness/lite-engine/pipeline"
 	pruntime "github.com/harness/lite-engine/pipeline/runtime"
 )
@@ -38,7 +39,20 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		ctx := r.Context()
+		pcEnabled := engine.PrivateConnectivityEnabled()
 		destroyErr := engine.Destroy(ctx)
+
+		if pcEnabled {
+			// Destroy is terminal: DRA discards the VM even if this bounded best-effort
+			// logout fails. Suspend remains strict because that VM can be reused.
+			if logoutErr := pc.Logout(ctx); logoutErr != nil {
+				log.WithField("time", time.Now().Format(time.RFC3339)).
+					WithError(logoutErr).
+					Errorln("api: private connectivity logout failed")
+			} else {
+				engine.ClearPrivateConnectivity()
+			}
+		}
 
 		// Workload Identity: clear any handles still resident now that the stage is torn down and nothing
 		// can mint. This is the backstop for detached steps, whose handle is not evicted on step completion.

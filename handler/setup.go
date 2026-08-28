@@ -7,12 +7,14 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/harness/lite-engine/api"
@@ -23,6 +25,7 @@ import (
 	"github.com/harness/lite-engine/logger"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/osstats"
+	"github.com/harness/lite-engine/pc"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/sirupsen/logrus"
@@ -32,6 +35,38 @@ var (
 	statsInterval          = 30 * time.Second
 	harnessEnableDebugLogs = "HARNESS_ENABLE_DEBUG_LOGS"
 )
+
+type privateConnectivitySetupIdentity struct {
+	clientID string
+	hostname string
+	tag      string
+}
+
+// Serializes PC setup and remembers only non-secret identity after the full setup succeeds.
+type privateConnectivitySetupGuard struct {
+	sync.Mutex
+	completed *privateConnectivitySetupIdentity
+}
+
+func (g *privateConnectivitySetupGuard) isCompletedReplay(cfg pc.Config, active bool) (bool, error) {
+	if !active {
+		g.completed = nil
+		return false, nil
+	}
+	if g.completed == nil {
+		return false, fmt.Errorf("private connectivity is active without a completed setup")
+	}
+	incoming := privateConnectivitySetupIdentity{clientID: cfg.ClientID, hostname: cfg.Hostname, tag: cfg.Tag}
+	if *g.completed != incoming {
+		return false, fmt.Errorf("private connectivity is already active for a different setup")
+	}
+	return true, nil
+}
+
+func (g *privateConnectivitySetupGuard) markCompleted(cfg pc.Config) {
+	identity := privateConnectivitySetupIdentity{clientID: cfg.ClientID, hostname: cfg.Hostname, tag: cfg.Tag}
+	g.completed = &identity
+}
 
 const (
 	OSWindows         = "windows"
@@ -69,6 +104,7 @@ func GetNetrcFile(env map[string]string) (*spec.File, error) {
 
 // HandleExecuteStep returns an http.HandlerFunc that executes a step
 func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funlen
+	pcSetupGuard := &privateConnectivitySetupGuard{}
 	return func(w http.ResponseWriter, r *http.Request) {
 		st := time.Now()
 
@@ -78,6 +114,48 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			WriteBadRequest(w, err)
 			return
 		}
+
+		// Extract and strip all HARNESS_PC_* from s.Envs immediately,
+		// before setProxyEnvs, setHarnessEnvs, state.Set, PipelineConfig, or any log of envs.
+		// The OIDC token is secret and must never be set in os.Setenv or step envs.
+		pcCfg, err := pc.ExtractAndValidate(s.Envs)
+		if pcCfg.OIDCToken != "" {
+			s.Secrets = append(s.Secrets, pcCfg.OIDCToken)
+		}
+		if err != nil {
+			WriteBadRequest(w, err)
+			return
+		}
+		if pcCfg.Enabled {
+			pcSetupGuard.Lock()
+			defer pcSetupGuard.Unlock()
+			replayed, replayErr := pcSetupGuard.isCompletedReplay(pcCfg, engine.PrivateConnectivityEnabled())
+			if replayErr != nil {
+				logger.FromRequest(r).WithError(replayErr).
+					Errorln("api: private connectivity setup replay rejected")
+				WriteError(w, replayErr)
+				return
+			}
+			if replayed {
+				WriteJSON(w, api.SetupResponse{}, http.StatusOK)
+				logger.FromRequest(r).Infoln("api: private connectivity setup replay completed")
+				return
+			}
+			pc.ClearProxyEnvironment()
+			// Repair post-hibernate clock drift before Tailscale performs TLS/WIF requests.
+			if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
+				syncSystemClock()
+			}
+			if joinErr := pc.JoinAndConfigure(r.Context(), &pcCfg); joinErr != nil {
+				logger.FromRequest(r).
+					WithField("time", time.Now().Format(time.RFC3339)).
+					WithError(joinErr).
+					Errorln("api: private connectivity setup failed; failing closed")
+				WriteError(w, fmt.Errorf("private connectivity setup failed: %w", joinErr))
+				return
+			}
+		}
+
 		logProcess := false
 		if val, ok := s.Envs[harnessEnableDebugLogs]; ok && val == "true" {
 			logProcess = true
@@ -129,8 +207,9 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		}
 
 		cfg := &spec.PipelineConfig{
-			Envs:    s.Envs,
-			Network: s.Network,
+			Envs:                s.Envs,
+			Network:             s.Network,
+			PrivateConnectivity: pcCfg.Enabled,
 			Platform: spec.Platform{
 				OS:   runtime.GOOS,
 				Arch: runtime.GOARCH,
@@ -152,22 +231,34 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		}
 		collector.Start()
 
-		// Fix clock skew on Linux ARM64 VMs after hibernate resume.
-		// ARM64 uses arch_sys_counter which doesn't auto-adjust after GCP suspend/resume.
-		// Restarting chrony resets its source state and with makestep 1 -1 config, it steps immediately.
-		if runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
+		// Preserve the existing non-PC ARM64 clock repair at its original lifecycle point.
+		if !pcCfg.Enabled && runtime.GOOS == "linux" && runtime.GOARCH == "arm64" {
 			syncSystemClock()
 		}
 
 		if err := engine.Setup(r.Context(), cfg); err != nil {
-			logger.FromRequest(r).
+			entry := logger.FromRequest(r).
 				WithField("latency", time.Since(st)).
 				WithField("time", time.Now().Format(time.RFC3339)).
-				WithField("error", err).
-				WithField("cfg", cfg).
-				Infoln("api: failed stage setup")
+				WithField("error", err)
+			if pcCfg.Enabled {
+				entry.Infoln("api: failed stage setup")
+				logoutErr := pc.Logout(r.Context())
+				if logoutErr != nil {
+					logger.FromRequest(r).WithError(logoutErr).
+						Errorln("api: private connectivity logout after stage setup failure failed")
+				} else {
+					engine.ClearPrivateConnectivity()
+				}
+				err = errors.Join(err, logoutErr)
+			} else {
+				entry.WithField("cfg", cfg).Infoln("api: failed stage setup")
+			}
 			WriteError(w, err)
 			return
+		}
+		if pcCfg.Enabled {
+			pcSetupGuard.markCompleted(pcCfg)
 		}
 
 		WriteJSON(w, api.SetupResponse{}, http.StatusOK)

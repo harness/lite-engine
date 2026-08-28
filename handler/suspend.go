@@ -2,12 +2,15 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/pc"
 )
 
 // HandleSuspend returns a http.HandlerFunc that suspends a VM
@@ -22,7 +25,23 @@ func HandleSuspend(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
-		if suspendErr := engine.Suspend(request.Context(), suspendRequest.Labels); suspendErr != nil {
+		pcEnabled := engine.PrivateConnectivityEnabled()
+		suspendErr := engine.Suspend(request.Context(), suspendRequest.Labels)
+
+		if pcEnabled {
+			if logoutErr := pc.Logout(request.Context()); logoutErr != nil {
+				logger.FromRequest(request).
+					WithField("latency", time.Since(startTime)).
+					WithField("time", time.Now().Format(time.RFC3339)).
+					WithError(logoutErr).
+					Errorln("api: private connectivity logout before suspend failed")
+				suspendErr = errors.Join(suspendErr, fmt.Errorf("pc logout failed: %w", logoutErr))
+			} else {
+				engine.ClearPrivateConnectivity()
+			}
+		}
+
+		if suspendErr != nil {
 			logger.FromRequest(request).
 				WithField("latency", time.Since(startTime)).
 				WithField("time", time.Now().Format(time.RFC3339)).
