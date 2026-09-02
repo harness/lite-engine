@@ -58,8 +58,9 @@ const (
 	ciTiRerunFailedTestFF = "CI_TI_RERUN_FAILED_TEST_FF"
 
 	// revamp constants
-	constantChecksum = 1
-	NonCodeChainPath = "HARNESS_TI_NON_CODE_CHAIN_PATH"
+	constantChecksum   = 1
+	NonCodeChainPath   = "HARNESS_TI_NON_CODE_CHAIN_PATH"
+	NonCodeDefaultPath = "HARNESS_TI_NON_CODE_DEFAULT_PATH"
 )
 
 // Code file extensions that are considered "code" files
@@ -181,7 +182,7 @@ func GetNonCodeSentinelPaths(fileChecksums map[string]uint64, nonCodeConfig NonC
 
 	nonCodePaths := make([]string, 0, len(fileChecksums))
 	for filePath := range fileChecksums {
-		if filePath == NonCodeChainPath {
+		if filePath == NonCodeChainPath || filePath == NonCodeDefaultPath {
 			continue
 		}
 		if IsCodeFile(filePath) {
@@ -215,6 +216,11 @@ func FindNonCodeFiles(fileChecksums map[string]uint64, nonCodeConfig NonCodeConf
 // so it is stable and independent of callgraph collection.
 func PopulateNonCodeEntities(fileChecksums map[string]uint64, nonCodeConfig NonCodeConfig) (cgTypes.Test, cgTypes.Chain) {
 	sourcePaths := GetNonCodeSentinelPaths(fileChecksums, nonCodeConfig)
+	if len(sourcePaths) == 0 {
+		if _, exists := fileChecksums[NonCodeDefaultPath]; exists {
+			sourcePaths = []string{NonCodeDefaultPath}
+		}
+	}
 
 	test := cgTypes.Test{
 		Path: NonCodeChainPath,
@@ -250,11 +256,11 @@ func matchesAnyPathPattern(filePath string, patterns []string) bool {
 }
 
 // matchesPathPattern checks if filePath matches pattern using three tiers:
-// 1. Direct glob match (handles **/foo/bar and relative paths).
-// 2. If pattern starts with **/, strip that prefix and retry — covers zglob
-//    implementations that don't anchor **/ to the full path.
-// 3. If pattern contains no /, match against the basename only — so a pattern
-//    like "pom.xml" matches both "pom.xml" and "subdir/pom.xml".
+//  1. Direct glob match (handles **/foo/bar and relative paths).
+//  2. If pattern starts with **/, strip that prefix and retry — covers zglob
+//     implementations that don't anchor **/ to the full path.
+//  3. If pattern contains no /, match against the basename only — so a pattern
+//     like "pom.xml" matches both "pom.xml" and "subdir/pom.xml".
 func matchesPathPattern(filePath string, pattern string) bool {
 	pattern = strings.TrimSpace(pattern)
 	if pattern == "" {
@@ -1164,6 +1170,9 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 
 		fileChecksums[filepath] = checksum64
 	}
+	// Keep a synthetic source available for the empty non-code set. The
+	// sentinel checksum below intentionally excludes this reserved path.
+	fileChecksums[NonCodeDefaultPath] = constantChecksum
 	nonCodeChecksumStr := FindNonCodeFiles(fileChecksums, nonCodeConfig)
 	fileChecksums[NonCodeChainPath] = xxhash.Sum64String(nonCodeChecksumStr)
 	log.Infof("Successfully processed %d files from git repository", len(fileChecksums))

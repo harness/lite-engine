@@ -1,12 +1,16 @@
 package instrumentation
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"testing"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/harness/lite-engine/internal/filesystem"
+	"github.com/sirupsen/logrus"
 )
 
 func TestGetNonCodeSentinelPaths(t *testing.T) {
@@ -25,6 +29,7 @@ func TestGetNonCodeSentinelPaths(t *testing.T) {
 				"src/main.java":              4,
 				"scripts/setup.sh":           5,
 				NonCodeChainPath:             6,
+				NonCodeDefaultPath:           1,
 				"nested/BUILD.bazel":         7,
 				"frontend/package-lock.json": 8,
 			},
@@ -61,6 +66,15 @@ func TestGetNonCodeSentinelPaths(t *testing.T) {
 			},
 			want: []string{"config/service.yaml"},
 		},
+		{
+			name: "reserved sentinel keys are excluded from the path set",
+			fileChecksums: map[string]uint64{
+				NonCodeChainPath:   6,
+				NonCodeDefaultPath: 1,
+				"src/main.java":    4,
+			},
+			want: []string{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -71,6 +85,9 @@ func TestGetNonCodeSentinelPaths(t *testing.T) {
 			}
 
 			got := GetNonCodeSentinelPaths(tt.fileChecksums, cfg)
+			if got == nil {
+				got = []string{}
+			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("GetNonCodeSentinelPaths() = %#v, want %#v", got, tt.want)
 			}
@@ -83,6 +100,7 @@ func TestFindNonCodeFilesUsesSentinelPathSelection(t *testing.T) {
 		"pom.xml":             1,
 		"config/service.yaml": 2,
 		"src/main.java":       3,
+		NonCodeDefaultPath:    1,
 	}
 
 	got := FindNonCodeFiles(fileChecksums, NonCodeConfig{})
@@ -93,12 +111,25 @@ func TestFindNonCodeFilesUsesSentinelPathSelection(t *testing.T) {
 	}
 }
 
+func TestFindNonCodeFilesEmptySetExcludesDefaultPath(t *testing.T) {
+	fileChecksums := map[string]uint64{
+		"src/main.java":    3,
+		NonCodeDefaultPath: 1,
+	}
+
+	got := FindNonCodeFiles(fileChecksums, NonCodeConfig{})
+	if got != "" {
+		t.Fatalf("FindNonCodeFiles() = %q, want empty string", got)
+	}
+}
+
 func TestPopulateNonCodeEntitiesUsesStaticSentinelPaths(t *testing.T) {
 	fileChecksums := map[string]uint64{
 		"pom.xml":               1,
 		"config/service.yaml":   2,
 		"src/main.java":         3,
 		NonCodeChainPath:        4,
+		NonCodeDefaultPath:      1,
 		"docs/readme.md":        5,
 		"testdata/fixture.yaml": 6,
 		"generated/output.yaml": 7,
@@ -124,8 +155,57 @@ func TestPopulateNonCodeEntitiesUsesStaticSentinelPaths(t *testing.T) {
 	if chain.TestChecksum != "4" {
 		t.Fatalf("chain.TestChecksum = %q, want %q", chain.TestChecksum, "4")
 	}
-	if chain.Checksum == "" {
-		t.Fatal("chain.Checksum should not be empty")
+	if chain.Checksum == "" || chain.Checksum == "0" {
+		t.Fatalf("chain.Checksum = %q, want a non-zero checksum", chain.Checksum)
+	}
+}
+
+func TestPopulateNonCodeEntitiesUsesDefaultSourceForEmptySet(t *testing.T) {
+	fileChecksums := map[string]uint64{
+		"src/main.java":    3,
+		NonCodeChainPath:   4,
+		NonCodeDefaultPath: 1,
+	}
+
+	test, chain := PopulateNonCodeEntities(fileChecksums, NonCodeConfig{})
+
+	got := test.IndicativeChains[0].SourcePaths
+	want := []string{NonCodeDefaultPath}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("source paths = %#v, want %#v", got, want)
+	}
+	if chain.Checksum == "0" {
+		t.Fatal("empty non-code set must use a non-zero default-source chain checksum")
+	}
+}
+
+func TestGetGitFileChecksumsAddsDefaultNonCodeFile(t *testing.T) {
+	repoDir := t.TempDir()
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repoDir
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v failed: %v\n%s", args, err, output)
+		}
+	}
+
+	runGit("init")
+	if err := os.WriteFile(filepath.Join(repoDir, "main.go"), []byte("package main\n"), 0644); err != nil {
+		t.Fatalf("failed to write source file: %v", err)
+	}
+	runGit("add", "main.go")
+	runGit("-c", "user.email=test@example.com", "-c", "user.name=Test User", "commit", "-m", "initial")
+
+	checksums, _, err := GetGitFileChecksums(context.Background(), repoDir, logrus.New())
+	if err != nil {
+		t.Fatalf("GetGitFileChecksums() unexpected error: %v", err)
+	}
+	if got := checksums[NonCodeDefaultPath]; got != constantChecksum {
+		t.Fatalf("default non-code checksum = %d, want %d", got, constantChecksum)
+	}
+	if got := checksums[NonCodeChainPath]; got != xxhash.Sum64String("") {
+		t.Fatalf("empty non-code sentinel checksum = %d, want %d", got, xxhash.Sum64String(""))
 	}
 }
 
