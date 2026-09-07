@@ -741,13 +741,7 @@ func applyProxyToDockerDaemon(ctx context.Context, proxyURL, noProxy, goos strin
 		}
 	}
 
-	proxyConf := fmt.Sprintf(`[Service]
-Environment="HTTP_PROXY=%s"
-Environment="HTTPS_PROXY=%s"
-Environment="NO_PROXY=%s"
-`, proxyURL, proxyURL, noProxy)
-
-	if err := os.WriteFile(httpProxyConfFilePath, []byte(proxyConf), filePermission); err != nil {
+	if err := os.WriteFile(httpProxyConfFilePath, []byte(buildSystemdProxyConf(proxyURL, noProxy)), filePermission); err != nil {
 		return fmt.Errorf("error writing proxy configuration: %w", err)
 	}
 
@@ -759,6 +753,25 @@ Environment="NO_PROXY=%s"
 		return fmt.Errorf("error restarting Docker service: %w", err)
 	}
 	return nil
+}
+
+// buildSystemdProxyConf renders the systemd drop-in that injects proxy env vars
+// into the Docker daemon.
+//
+// systemd unit files interpret '%' as a specifier prefix (e.g. %H, %i).
+// Proxy URLs often contain URL-encoded characters like %7C ('|'), which
+// systemd fails to resolve ("Invalid slot") and then silently drops the
+// entire Environment= line. Escape '%' as '%%' so systemd passes the
+// literal value through to the Docker daemon.
+func buildSystemdProxyConf(proxyURL, noProxy string) string {
+	escapedProxyURL := strings.ReplaceAll(proxyURL, "%", "%%")
+	escapedNoProxy := strings.ReplaceAll(noProxy, "%", "%%")
+
+	return fmt.Sprintf(`[Service]
+Environment="HTTP_PROXY=%s"
+Environment="HTTPS_PROXY=%s"
+Environment="NO_PROXY=%s"
+`, escapedProxyURL, escapedProxyURL, escapedNoProxy)
 }
 
 func (e *Docker) setProxyInDockerDaemon(ctx context.Context, pipelineConfig *spec.PipelineConfig) {

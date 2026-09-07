@@ -80,3 +80,61 @@ func TestBuildCredentialedProxyURL(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildSystemdProxyConf(t *testing.T) {
+	tests := []struct {
+		name     string
+		proxyURL string
+		noProxy  string
+		want     string
+	}{
+		{
+			name:     "plain URL without percent-encoding is unchanged",
+			proxyURL: "http://user:pass@proxy.example.com:3128",
+			noProxy:  "localhost,127.0.0.1",
+			want: `[Service]
+Environment="HTTP_PROXY=http://user:pass@proxy.example.com:3128"
+Environment="HTTPS_PROXY=http://user:pass@proxy.example.com:3128"
+Environment="NO_PROXY=localhost,127.0.0.1"
+`,
+		},
+		{
+			name:     "percent-encoded chars are escaped for systemd specifiers",
+			proxyURL: "http://token%7Corg%7Cuser:pass%40word@172.22.64.9:3128",
+			noProxy:  "localhost,127.0.0.1",
+			want: `[Service]
+Environment="HTTP_PROXY=http://token%%7Corg%%7Cuser:pass%%40word@172.22.64.9:3128"
+Environment="HTTPS_PROXY=http://token%%7Corg%%7Cuser:pass%%40word@172.22.64.9:3128"
+Environment="NO_PROXY=localhost,127.0.0.1"
+`,
+		},
+		{
+			name:     "percent signs in noProxy are also escaped",
+			proxyURL: "http://proxy.example.com:3128",
+			noProxy:  "localhost,%25.internal",
+			want: `[Service]
+Environment="HTTP_PROXY=http://proxy.example.com:3128"
+Environment="HTTPS_PROXY=http://proxy.example.com:3128"
+Environment="NO_PROXY=localhost,%%25.internal"
+`,
+		},
+		{
+			name:     "empty values render empty env vars",
+			proxyURL: "",
+			noProxy:  "",
+			want: `[Service]
+Environment="HTTP_PROXY="
+Environment="HTTPS_PROXY="
+Environment="NO_PROXY="
+`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := buildSystemdProxyConf(tc.proxyURL, tc.noProxy); got != tc.want {
+				t.Errorf("buildSystemdProxyConf() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
