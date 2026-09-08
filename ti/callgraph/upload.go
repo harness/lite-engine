@@ -453,6 +453,17 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, nonCode
 					continue
 				}
 
+				// Resolve the checksum before recording the test, so an unresolvable node
+				// leaves nothing half-added to the payload.
+				testChecksum, exists := fileChecksums[testPath]
+				if !exists {
+					// git ls-tree lists only committed files, so generated test sources and
+					// anything under a build output directory never resolve. Drop the node
+					// rather than the whole callgraph, which would leave TI unable to learn.
+					log.Warnf("Skipping test node not found in git tree: %s", testPath)
+					continue
+				}
+
 				test := types.Test{
 					Path: testPath,
 					IndicativeChains: []types.IndicativeChain{
@@ -462,11 +473,6 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, nonCode
 					},
 				}
 				tests = append(tests, test)
-
-				if _, exists := fileChecksums[testPath]; !exists {
-					return nil, fmt.Errorf("file checksum not found for %s", testPath)
-				}
-				testChecksum := fileChecksums[testPath]
 
 				nodeCopy := node
 				filteredTests := findTestsForNode(reportTests, &nodeCopy)

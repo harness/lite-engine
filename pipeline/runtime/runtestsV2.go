@@ -731,7 +731,7 @@ func getFailedTestsFilePath(tmpDir string, splitIdx int) string {
 	return failedTestsFilePath
 }
 
-func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger, filterfilePath, outDir string, splitIdx int) (string, error) {
+func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.Logger, filterfilePath, outDir string, splitIdx int, envs map[string]string) (string, error) {
 	iniFileDir := fmt.Sprintf(configV2Dir, tmpDir)
 	err := fs.MkdirAll(iniFileDir, os.ModePerm)
 	if err != nil {
@@ -741,12 +741,23 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 	// create file paths with splitidx for splitting
 	iniFile := fmt.Sprintf("%s/config_%d.ini", iniFileDir, splitIdx)
 
+	// The enhanced flow keys every callgraph node on its git-tracked file path. The agent only
+	// emits those paths under sourceFilesNonNative, and ignoreMethodLevel keeps nodes at class
+	// granularity so one node maps to one file. Without both, nodes carry only a
+	// package/class/method identifier, which can never match a git checksum.
+	enhancedOpts := ""
+	if envs["CI_TI_V2_ENHANCED_FF"] == trueValue {
+		enhancedOpts = `
+	sourceFilesNonNative: true
+	ignoreMethodLevel: true`
+	}
+
 	data := fmt.Sprintf(`outDir: %s
 	logLevel: 0
 	logConsole: false
 	writeTo: JSON
-	packageInference: true
-	filterFile: %s`, outDir, filterfilePath)
+	packageInference: true%s
+	filterFile: %s`, outDir, enhancedOpts, filterfilePath)
 
 	log.Infof("Writing to %s with config:\n%s", iniFile, data)
 	f, err := fs.Create(iniFile)
@@ -830,7 +841,7 @@ func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *log
 	envs["TI_FAILED_TESTS_FILE_PATH"] = failedTestsFilePath
 
 	// Java
-	iniFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx)
+	iniFilePath, err := createJavaConfigFile(tmpFilePath, fs, log, filterFilePath, outDir, splitIdx, envs)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create java agent config file in path %s", iniFilePath))
 		return "", "", "", "", err
