@@ -464,6 +464,22 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, nonCode
 					continue
 				}
 
+				if len(sourcePaths) == 0 {
+					log.Warnf("Skipping test node with no connected sources: %s", testPath)
+					continue
+				}
+				missingSource := false
+				for _, path := range sourcePaths {
+					if _, exists := fileChecksums[path]; !exists {
+						log.Warnf("Skipping test node with missing source checksum: test=%s source=%s", testPath, path)
+						missingSource = true
+						break
+					}
+				}
+				if missingSource {
+					continue
+				}
+
 				test := types.Test{
 					Path: testPath,
 					IndicativeChains: []types.IndicativeChain{

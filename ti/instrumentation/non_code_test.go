@@ -183,7 +183,7 @@ func TestGetGitFileChecksumsAddsDefaultNonCodeFile(t *testing.T) {
 	repoDir := t.TempDir()
 	runGit := func(args ...string) {
 		t.Helper()
-		cmd := exec.Command("git", args...)
+		cmd := exec.CommandContext(context.Background(), "git", args...)
 		cmd.Dir = repoDir
 		if output, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("git %v failed: %v\n%s", args, err, output)
@@ -191,7 +191,7 @@ func TestGetGitFileChecksumsAddsDefaultNonCodeFile(t *testing.T) {
 	}
 
 	runGit("init")
-	if err := os.WriteFile(filepath.Join(repoDir, "main.go"), []byte("package main\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(repoDir, "main.go"), []byte("package main\n"), 0600); err != nil {
 		t.Fatalf("failed to write source file: %v", err)
 	}
 	runGit("add", "main.go")
@@ -221,7 +221,7 @@ func TestGetParsedTiConfigParsesNonCodeConfig(t *testing.T) {
     exclude:
       - "**/generated/**"
 `)
-	if err := os.WriteFile(configPath, config, 0644); err != nil {
+	if err := os.WriteFile(configPath, config, 0600); err != nil {
 		t.Fatalf("failed to write config: %v", err)
 	}
 

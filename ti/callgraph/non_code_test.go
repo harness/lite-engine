@@ -96,3 +96,81 @@ func TestCreateUploadPayloadUsesDefaultSourceForEmptyNonCodeSet(t *testing.T) {
 		}
 	}
 }
+
+func TestCreateUploadPayloadSkipsTestsWithMissingSources(t *testing.T) {
+	fileChecksums := map[string]uint64{
+		"src/test/java/example/CompleteTest.java": 1,
+		"src/main/java/example/Service.java":      2,
+		"src/test/java/example/PartialTest.java":  3,
+		"src/test/java/example/OrphanTest.java":   4,
+		instrumentation.NonCodeChainPath:          5,
+		instrumentation.NonCodeDefaultPath:        6,
+	}
+	cg := &Callgraph{
+		Nodes: []Node{
+			{ID: 1, Type: nodeTypeTest, File: "src/test/java/example/CompleteTest.java"},
+			{ID: 2, Type: "source", File: "src/main/java/example/Service.java"},
+			{ID: 3, Type: nodeTypeTest, File: "src/test/java/example/PartialTest.java"},
+			{ID: 4, Type: "source", File: "src/main/java/example/Generated.java"},
+			{ID: 5, Type: nodeTypeTest, File: "src/test/java/example/OrphanTest.java"},
+		},
+		TestRelations: []Relation{
+			{Source: 2, Tests: []int{1}},
+			{Source: 4, Tests: []int{3}},
+		},
+	}
+	cfg := config.New("", "", "acct", "org", "proj", "", "", "", "", "", "", "", "", "", "", "", false, "", "")
+
+	payload, err := CreateUploadPayload(
+		cg,
+		fileChecksums,
+		instrumentation.NonCodeConfig{},
+		"repo",
+		&cfg,
+		"sha",
+		nil,
+		logrus.New(),
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("CreateUploadPayload() unexpected error: %v", err)
+	}
+
+	var testPaths []string
+	for _, test := range payload.Tests {
+		testPaths = append(testPaths, test.Path)
+	}
+	var chainPaths []string
+	for _, chain := range payload.Chains {
+		chainPaths = append(chainPaths, chain.Path)
+	}
+
+	wantCodeTest := "src/test/java/example/CompleteTest.java"
+	if !containsPath(testPaths, wantCodeTest) {
+		t.Fatalf("tests = %#v, want complete test %q", testPaths, wantCodeTest)
+	}
+	if containsPath(testPaths, "src/test/java/example/PartialTest.java") {
+		t.Fatalf("tests = %#v, partial test with missing source should be omitted", testPaths)
+	}
+	if containsPath(testPaths, "src/test/java/example/OrphanTest.java") {
+		t.Fatalf("tests = %#v, test with no sources should be omitted", testPaths)
+	}
+	if !containsPath(chainPaths, wantCodeTest) {
+		t.Fatalf("chains = %#v, want complete test %q", chainPaths, wantCodeTest)
+	}
+	if containsPath(chainPaths, "src/test/java/example/PartialTest.java") {
+		t.Fatalf("chains = %#v, partial test with missing source should be omitted", chainPaths)
+	}
+	if containsPath(chainPaths, "src/test/java/example/OrphanTest.java") {
+		t.Fatalf("chains = %#v, test with no sources should be omitted", chainPaths)
+	}
+}
+
+func containsPath(paths []string, want string) bool {
+	for _, path := range paths {
+		if path == want {
+			return true
+		}
+	}
+	return false
+}

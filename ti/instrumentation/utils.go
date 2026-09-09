@@ -261,7 +261,7 @@ func matchesAnyPathPattern(filePath string, patterns []string) bool {
 //     implementations that don't anchor **/ to the full path.
 //  3. If pattern contains no /, match against the basename only — so a pattern
 //     like "pom.xml" matches both "pom.xml" and "subdir/pom.xml".
-func matchesPathPattern(filePath string, pattern string) bool {
+func matchesPathPattern(filePath, pattern string) bool {
 	pattern = strings.TrimSpace(pattern)
 	if pattern == "" {
 		return false
