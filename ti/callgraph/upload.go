@@ -75,11 +75,11 @@ func Upload(
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse callgraph files: %w", err)
 		}
-		fileChecksums, err := instrumentation.GetGitFileChecksums(ctx, r.WorkingDir, log)
+		fileChecksums, nonCodeConfig, err := instrumentation.GetGitFileChecksums(ctx, r.WorkingDir, log)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get file hashes: %w", err)
 		}
-		uploadPayload, err := CreateUploadPayload(cg, fileChecksums, repo, cfg, sha, tests, log, r.Envs)
+		uploadPayload, err := CreateUploadPayload(cg, fileChecksums, nonCodeConfig, repo, cfg, sha, tests, log, r.Envs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create upload payload: %w", err)
 		}
@@ -362,8 +362,9 @@ func fetchFailedTests(filePath string) ([]string, error) {
 }
 
 //nolint:funlen
-func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo string, cfg *tiCfg.Cfg, commitSha string,
-	reportTests []*tiClientTypes.TestCase, log *logrus.Logger, envs map[string]string) (*types.UploadCgRequest, error) {
+func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, nonCodeConfig instrumentation.NonCodeConfig,
+	repo string, cfg *tiCfg.Cfg, commitSha string, reportTests []*tiClientTypes.TestCase, log *logrus.Logger,
+	envs map[string]string) (*types.UploadCgRequest, error) {
 	repoInfo := types.Identifier{
 		AccountID: cfg.GetAccountID(),
 		OrgID:     cfg.GetOrgID(),
@@ -379,7 +380,6 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 	var tests []types.Test
 	var chains []types.Chain
 	numTestsMap := make(map[string]int)
-	alreadyProcessed := make(map[string]struct{})
 
 	if cg != nil {
 		nodeMap := make(map[int]Node)
@@ -418,7 +418,6 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 				for _, path := range sourcePaths {
 					if _, exists := uniquePaths[path]; !exists {
 						uniquePaths[path] = struct{}{}
-						alreadyProcessed[path] = struct{}{}
 						dedupedSourcePaths = append(dedupedSourcePaths, path)
 					}
 				}
@@ -454,6 +453,33 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 					continue
 				}
 
+				// Resolve the checksum before recording the test, so an unresolvable node
+				// leaves nothing half-added to the payload.
+				testChecksum, exists := fileChecksums[testPath]
+				if !exists {
+					// git ls-tree lists only committed files, so generated test sources and
+					// anything under a build output directory never resolve. Drop the node
+					// rather than the whole callgraph, which would leave TI unable to learn.
+					log.Warnf("Skipping test node not found in git tree: %s", testPath)
+					continue
+				}
+
+				if len(sourcePaths) == 0 {
+					log.Warnf("Skipping test node with no connected sources: %s", testPath)
+					continue
+				}
+				missingSource := false
+				for _, path := range sourcePaths {
+					if _, exists := fileChecksums[path]; !exists {
+						log.Warnf("Skipping test node with missing source checksum: test=%s source=%s", testPath, path)
+						missingSource = true
+						break
+					}
+				}
+				if missingSource {
+					continue
+				}
+
 				test := types.Test{
 					Path: testPath,
 					IndicativeChains: []types.IndicativeChain{
@@ -463,11 +489,6 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 					},
 				}
 				tests = append(tests, test)
-
-				if _, exists := fileChecksums[testPath]; !exists {
-					return nil, fmt.Errorf("file checksum not found for %s", testPath)
-				}
-				testChecksum := fileChecksums[testPath]
 
 				nodeCopy := node
 				filteredTests := findTestsForNode(reportTests, &nodeCopy)
@@ -493,7 +514,7 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, repo st
 	}
 
 	// Add non-code entities to tests and chains
-	nonCodeTest, nonCodeChain := instrumentation.PopulateNonCodeEntities(fileChecksums, alreadyProcessed)
+	nonCodeTest, nonCodeChain := instrumentation.PopulateNonCodeEntities(fileChecksums, nonCodeConfig)
 
 	tests = append(tests, nonCodeTest)
 	chains = append(chains, nonCodeChain)
