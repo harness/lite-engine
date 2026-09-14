@@ -51,6 +51,7 @@ type StepStatus struct {
 	OptimizationState    string
 	TelemetryData        *types.TelemetryData
 	NativeArtifactOutput string
+	LogServiceStats      *api.LogServiceStats
 }
 
 const (
@@ -115,7 +116,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		outputs = mergeArtifactVars(outputs, artifactVars)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata,
-			NativeArtifactOutput: nativeArtifactRaw}
+			NativeArtifactOutput: nativeArtifactRaw, LogServiceStats: logServiceStatsFrom(wr)}
 
 		if stepErr == nil && state.ExitCode == 0 && ffEnabled {
 			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
@@ -202,7 +203,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			outputs = mergeArtifactVars(outputs, artifactVars)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
-				NativeArtifactOutput: nativeArtifactRaw}
+				NativeArtifactOutput: nativeArtifactRaw, LogServiceStats: logServiceStatsFrom(wr)}
 			pollResponse := convertStatus(status)
 			if stepErr == nil && state.ExitCode == 0 && ffEnabled {
 				logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
@@ -244,7 +245,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			if wr != nil {
 				wr.Close()
 			}
-			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out"}
+			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out",
+				LogServiceStats: logServiceStatsFrom(wr)}
 			e.sendStepStatus(r, &resp)
 			return
 		}
@@ -673,6 +675,7 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 		OptimizationState:    status.OptimizationState,
 		TelemetryData:        status.TelemetryData,
 		NativeArtifactOutput: status.NativeArtifactOutput,
+		LogServiceStats:      status.LogServiceStats,
 	}
 
 	stepErr := status.StepErr
@@ -772,6 +775,19 @@ func formatBytesHuman(b int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
 }
 
+func logServiceStatsFrom(wr logstream.Writer) *api.LogServiceStats {
+	s := logstream.CopyStats(wr)
+	if s == nil {
+		return nil
+	}
+	return &api.LogServiceStats{
+		Open:   api.LogServiceOpStats{Count: s.Open.Count, ErrorCount: s.Open.ErrorCount, LatencyMs: s.Open.LatencyMs, Bytes: s.Open.Bytes},
+		Write:  api.LogServiceOpStats{Count: s.Write.Count, ErrorCount: s.Write.ErrorCount, LatencyMs: s.Write.LatencyMs, Bytes: s.Write.Bytes},
+		Close:  api.LogServiceOpStats{Count: s.Close.Count, ErrorCount: s.Close.ErrorCount, LatencyMs: s.Close.LatencyMs, Bytes: s.Close.Bytes},
+		Upload: api.LogServiceOpStats{Count: s.Upload.Count, ErrorCount: s.Upload.ErrorCount, LatencyMs: s.Upload.LatencyMs, Bytes: s.Upload.Bytes},
+	}
+}
+
 func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[string]string, errorDetails *api.ErrorDetails) api.VMTaskExecutionResponse {
 	if r.Error == "" {
 		return api.VMTaskExecutionResponse{
@@ -782,6 +798,7 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 			OptimizationState:      r.OptimizationState,
 			TelemetryData:          r.TelemetryData,
 			NativeArtifactOutput:   r.NativeArtifactOutput,
+			LogServiceStats:        r.LogServiceStats,
 		}
 	}
 	if report.TestSummaryAsOutputEnabled(envs) {
@@ -794,6 +811,7 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 			TelemetryData:          r.TelemetryData,
 			ErrorDetails:           errorDetails,
 			NativeArtifactOutput:   r.NativeArtifactOutput,
+			LogServiceStats:        r.LogServiceStats,
 		}
 	}
 	return api.VMTaskExecutionResponse{
@@ -802,5 +820,6 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 		OptimizationState:      r.OptimizationState,
 		ErrorDetails:           errorDetails,
 		NativeArtifactOutput:   r.NativeArtifactOutput,
+		LogServiceStats:        r.LogServiceStats,
 	}
 }

@@ -202,6 +202,21 @@ type (
 		OptimizationState    string               `json:"optimization_state,omitempty"`
 		TelemetryData        *types.TelemetryData `json:"telemetry_data,omitempty"`
 		NativeArtifactOutput string               `json:"native_artifact_output,omitempty"`
+		LogServiceStats      *LogServiceStats     `json:"log_service_stats,omitempty"`
+	}
+
+	LogServiceStats struct {
+		Open   LogServiceOpStats `json:"open"`
+		Write  LogServiceOpStats `json:"write"`
+		Close  LogServiceOpStats `json:"close"`
+		Upload LogServiceOpStats `json:"upload"`
+	}
+
+	LogServiceOpStats struct {
+		Count      int64 `json:"count"`
+		ErrorCount int64 `json:"error_count"`
+		LatencyMs  int64 `json:"latency_ms"`
+		Bytes      int64 `json:"bytes"`
 	}
 
 	StreamOutputRequest struct {
@@ -331,6 +346,7 @@ type (
 		ErrorDetails                 *ErrorDetails          `json:"error_details,omitempty"`
 		NativeArtifactOutput         string                 `json:"native_artifact_output,omitempty"`
 		TaskExecutionStartedAtMillis int64                  `json:"task_execution_started_at_millis,omitempty"`
+		LogServiceStats              *LogServiceStats       `json:"log_service_stats,omitempty"`
 	}
 )
 

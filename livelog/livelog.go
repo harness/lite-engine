@@ -71,6 +71,8 @@ type Writer struct {
 
 	dualLogMeta *duallog.Meta
 	dualLogType string
+
+	stats logstream.Stats
 }
 
 // New returns a new writer
@@ -207,7 +209,9 @@ func (b *Writer) Open() error {
 		b.opened = true
 		return nil
 	}
+	start := time.Now()
 	err := b.client.Open(b.ctx, b.key)
+	b.recordOp("open", err, time.Since(start), 0)
 	if err != nil {
 		logrus.WithError(err).WithField("key", b.key).
 			Errorln("could not open the stream")
@@ -253,9 +257,10 @@ func (b *Writer) Close() error {
 		}
 	}
 
-	// Close the log stream once upload has completed. Log in case of any error
-
-	if errc := b.client.Close(b.ctx, b.key, b.skipOpeningStream); errc != nil {
+	start := time.Now()
+	errc := b.client.Close(b.ctx, b.key, b.skipOpeningStream)
+	b.recordOp("close", errc, time.Since(start), 0)
+	if errc != nil {
 		// In case skipOpeningStream is true, we call the stream-close endpoint passing
 		// `snapshot=true`, which will close the stream and snapshot its content into a blob.
 		// TODO: we can get rid of using `snapshot=true` here once we are able to append logs
@@ -285,7 +290,16 @@ func (b *Writer) writeWithoutClose() error {
 
 // upload uploads the full log history to the server.
 func (b *Writer) upload() error {
-	return b.client.Upload(b.ctx, b.key, b.history)
+	start := time.Now()
+	err := b.client.Upload(b.ctx, b.key, b.history)
+	var bytes int64
+	for _, line := range b.history {
+		if jsonLine, herr := getLineBytes(line); herr == nil {
+			bytes += int64(len(jsonLine))
+		}
+	}
+	b.recordOp("upload", err, time.Since(start), bytes)
+	return err
 }
 
 // Flush sends any buffered log lines to the stream. Call after writing the final
@@ -332,7 +346,15 @@ func (b *Writer) flush() error {
 
 	ctx, cancel := context.WithTimeout(b.ctx, flushNetworkTimeout)
 	defer cancel()
+	start := time.Now()
 	err := b.client.Write(ctx, b.key, lines)
+	var bytes int64
+	for _, line := range lines {
+		if jsonLine, herr := getLineBytes(line); herr == nil {
+			bytes += int64(len(jsonLine))
+		}
+	}
+	b.recordOp("write", err, time.Since(start), bytes)
 	if err != nil {
 		log.Printf("failed to flush lines: key=%s num_lines=%d err=%v", b.key, len(lines), err)
 		return err
@@ -456,6 +478,46 @@ func split(p []byte) []string {
 func formatNudge(line *logstream.Line, nudge logstream.Nudge) error {
 	return fmt.Errorf("found possible error on line %d.\n Log: %s.\n Possible error: %s.\n Possible resolution: %s",
 		line.Number+1, line.Message, nudge.GetError(), nudge.GetResolution())
+}
+
+func (b *Writer) LogServiceStats() logstream.Stats {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.stats
+}
+
+func (b *Writer) recordOp(op string, rpcErr error, latency time.Duration, bytes int64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	s := b.opStatsLocked(op)
+	if s == nil {
+		return
+	}
+	s.Count++
+	if rpcErr != nil {
+		s.ErrorCount++
+	}
+	if latency > 0 {
+		s.LatencyMs += latency.Milliseconds()
+	}
+	if bytes > 0 {
+		s.Bytes += bytes
+	}
+}
+
+func (b *Writer) opStatsLocked(op string) *logstream.OpStats {
+	switch op {
+	case "open":
+		return &b.stats.Open
+	case "write":
+		return &b.stats.Write
+	case "close":
+		return &b.stats.Close
+	case "upload":
+		return &b.stats.Upload
+	default:
+		return nil
+	}
 }
 
 func max(a, b int) int { //nolint:gocritic,revive // builtinShadowDecl,redefines-builtin-id: intentional helper function name
