@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="335dd934-cff2-4b13-b7bd-a4acb7b9eab1" name="agent skip" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-09-07T13:54:30.2740010+05:30" queuing="2026-09-07T13:54:30.2740010+05:30" start="2026-09-07T13:54:29.1143700+05:30" finish="2026-09-07T13:54:30.2917440+05:30" />
+  <Results>
+    <UnitTestResult executionId="eb6d0877-91ef-4b9c-9f98-6f2050f31c06" testId="89590894-54a2-e20b-61ad-e10ea1e836a4" testName="CalcXUnitTests.UnitTest2.Add_Numbers_ReturnsExpectedResult" computerName="test-host" duration="00:00:00.0010000" startTime="2026-09-07T13:54:30.1065120+05:30" endTime="2026-09-07T13:54:30.1065400+05:30" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="NotExecuted">
+      <Output>
+        <ErrorInfo>
+          <Message>Test skipped by Harness Test Intelligence.</Message>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="CalcXUnitTests.UnitTest2.Add_Numbers_ReturnsExpectedResult" storage="/test/bin/CalcXUnitTests.dll" id="89590894-54a2-e20b-61ad-e10ea1e836a4">
+      <Execution id="eb6d0877-91ef-4b9c-9f98-6f2050f31c06" />
+      <TestMethod codeBase="/test/bin/CalcXUnitTests.dll" adapterTypeName="executor://xunit/VsTestRunner2/netcoreapp" className="CalcXUnitTests.UnitTest2" name="Add_Numbers_ReturnsExpectedResult" />
+    </UnitTest>
+  </TestDefinitions>
+</TestRun>

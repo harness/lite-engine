@@ -402,3 +402,17 @@ func TestFilterSelection(t *testing.T) {
 	filteredTests = filterTestsAfterSelection(selection, testGlob, []string{"**/vendor/**/*.rb"})
 	assert.Equal(t, filteredTests.Tests, rts)
 }
+
+func TestInjectReportInformationAddsDefaultTrxPathForCsharp(t *testing.T) {
+	request := &api.StartStepRequest{
+		RunTest: api.RunTestConfig{
+			Language: "csharp",
+			Args:     "test CalcXUnitTests.csproj --logger:trx",
+		},
+	}
+
+	InjectReportInformation(request)
+
+	assert.Equal(t, api.Junit, request.TestReport.Kind)
+	assert.Equal(t, []string{"**/*.xml", "**/*.trx"}, request.TestReport.Junit.Paths)
+}

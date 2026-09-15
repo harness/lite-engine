@@ -245,22 +245,22 @@ func handleUnitTestResultNode(decoder *xml.Decoder, startElement *xml.StartEleme
 
 	if u.Outcome == "Failed" {
 		(*failed)++
-		failureNode := xmlNode{XMLName: xml.Name{Local: "failure"}}
-		testCase.Nodes = append(testCase.Nodes, failureNode)
+		testCase.Nodes = append(testCase.Nodes, xmlNode{XMLName: xml.Name{Local: "failure"}})
+		failureNode := &testCase.Nodes[len(testCase.Nodes)-1]
 		failureNode.Attrs = make(map[string]string)
 		failureNode.Attrs["message"] = u.Message
 		failureNode.Content = []byte(u.StackTrace)
 	} else if u.Outcome == "" || u.Outcome == "Error" {
 		(*errors)++
-		errorNode := xmlNode{XMLName: xml.Name{Local: "error"}}
-		testCase.Nodes = append(testCase.Nodes, errorNode)
+		testCase.Nodes = append(testCase.Nodes, xmlNode{XMLName: xml.Name{Local: "error"}})
+		errorNode := &testCase.Nodes[len(testCase.Nodes)-1]
 		errorNode.Attrs = make(map[string]string)
 		errorNode.Attrs["message"] = u.Message
 		errorNode.Content = []byte(u.StackTrace)
 	} else if u.Outcome != "Failed" && u.Outcome != "Passed" {
 		(*skipped)++
-		skippedNode := xmlNode{XMLName: xml.Name{Local: "skipped"}}
-		testCase.Nodes = append(testCase.Nodes, skippedNode)
+		testCase.Nodes = append(testCase.Nodes, xmlNode{XMLName: xml.Name{Local: "skipped"}})
+		skippedNode := &testCase.Nodes[len(testCase.Nodes)-1]
 		skippedNode.Attrs = make(map[string]string)
 		skippedNode.Attrs["message"] = u.Message
 		skippedNode.Content = []byte(u.StackTrace)

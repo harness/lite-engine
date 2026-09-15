@@ -380,6 +380,20 @@ func TestProcessTestSuites(t *testing.T) {
 	}
 }
 
+func TestAgentSkippedTrxConvertsToSkippedByTi(t *testing.T) {
+	suites, err := gojunit.IngestFile("testdata/agent-skip.trx", defaultRootSuiteName)
+	assert.NoError(t, err)
+	assert.Len(t, suites, 1)
+	assert.Len(t, suites[0].Tests, 1)
+
+	var testCases []*ti.TestCase
+	counts := processTestSuites(&testCases, suites)
+
+	assert.Equal(t, TestCounts{Total: 1, SkippedByTi: 1}, counts)
+	assert.Equal(t, "skipped", string(testCases[0].Result.Status))
+	assert.Equal(t, testIntelligenceSkipMessage, testCases[0].Result.Message)
+}
+
 func getSingleSuiteWithMixedResults() struct {
 	name           string
 	suites         []gojunit.Suite
