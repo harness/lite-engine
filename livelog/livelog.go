@@ -31,6 +31,16 @@ const (
 	defaultLimit        = 5242880 // 5MB
 	flushThresholdTime  = 10 * time.Minute
 	flushNetworkTimeout = 15 * time.Second
+
+	// openWaitTimeout bounds how long Close() waits for the asynchronous Open() to
+	// finish before the final flush. The stream is opened in a background goroutine
+	// (see step_executor.go / common.go: safego "log_stream_open"), so a sub-second
+	// step can reach Close() before the open completes; without waiting, flush() sees
+	// !opened and drops the step's buffered lines from the live stream (they survive
+	// only in the blob upload, which pure-ClickHouse reads never consult). Normal
+	// steps never wait (open is already done); on timeout we proceed exactly as
+	// before, so a slow/down log-service never blocks or fails a build.
+	openWaitTimeout = 3 * time.Second
 )
 
 // Writer is an io.Writer that sends logs to the server.
@@ -69,6 +79,12 @@ type Writer struct {
 	lastFlushTime     time.Time
 	ctx               context.Context
 
+	// openDone is closed once the asynchronous Open() attempt finishes (success or
+	// failure). Close() waits on it briefly so a fast step cannot race ahead of the
+	// open and lose its streamed logs. openOnce guards the close-exactly-once.
+	openOnce sync.Once
+	openDone chan struct{}
+
 	dualLogMeta *duallog.Meta
 	dualLogType string
 }
@@ -90,6 +106,7 @@ func New(ctx context.Context, client logstream.Client, key, name string, nudges 
 		lastFlushTime:     time.Now(),
 		trimNewLineSuffix: trimNewLineSuffix,
 		ctx:               ctx,
+		openDone:          make(chan struct{}),
 	}
 	b.interval.Store(int64(defaultInterval))
 	safego.SafeGo("livelog_buffer", b.Start)
@@ -202,6 +219,9 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 }
 
 func (b *Writer) Open() error {
+	// Announce completion of the open attempt on every return path (success,
+	// failure, or skip) so a step blocked in Close()'s waitForOpen is released.
+	defer b.signalOpenDone()
 	if b.skipOpeningStream {
 		// Do nothing in case the stream has been already opened before.
 		b.opened = true
@@ -219,9 +239,43 @@ func (b *Writer) Open() error {
 	return nil
 }
 
+// signalOpenDone closes openDone exactly once to announce that the asynchronous
+// Open() attempt has finished (whether it succeeded or failed).
+func (b *Writer) signalOpenDone() {
+	b.openOnce.Do(func() {
+		if b.openDone != nil {
+			close(b.openDone)
+		}
+	})
+}
+
+// waitForOpen blocks until the asynchronous Open() has finished or timeout elapses.
+// It is the fix for the fast-step log-loss race: a sub-second step can reach Close()
+// before the "log_stream_open" goroutine has returned, and without this wait the
+// final flush would see !opened and drop the step's buffered lines from the live
+// (ClickHouse) stream. The wait is non-fatal and self-limiting: a normal step
+// returns instantly (opened already true), a fast step waits only until the quick
+// open RPC lands, and a down/slow log-service hits the timer and proceeds as before.
+func (b *Writer) waitForOpen(timeout time.Duration) {
+	if b.opened || b.openDone == nil {
+		return
+	}
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-b.openDone:
+	case <-timer.C:
+		logrus.WithField("key", b.key).Warnln("timed out waiting for log stream open before close; proceeding")
+	}
+}
+
 // Close closes the writer and uploads the full contents to
 // the server.
 func (b *Writer) Close() error {
+	// Give the asynchronous Open() a bounded, non-fatal moment to finish before we
+	// flush. Without this a sub-second step races ahead of the open and flush() drops
+	// its buffered logs (they would only reach the blob upload, not the live stream).
+	b.waitForOpen(openWaitTimeout)
 	if b.skipClosingStream {
 		return b.writeWithoutClose()
 	}
