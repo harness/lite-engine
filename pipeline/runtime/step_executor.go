@@ -781,10 +781,10 @@ func logServiceStatsFrom(wr logstream.Writer) *api.LogServiceStats {
 		return nil
 	}
 	return &api.LogServiceStats{
-		Open:   api.LogServiceOpStats{Count: s.Open.Count, ErrorCount: s.Open.ErrorCount, LatencyMs: s.Open.LatencyMs, Bytes: s.Open.Bytes},
-		Write:  api.LogServiceOpStats{Count: s.Write.Count, ErrorCount: s.Write.ErrorCount, LatencyMs: s.Write.LatencyMs, Bytes: s.Write.Bytes},
-		Close:  api.LogServiceOpStats{Count: s.Close.Count, ErrorCount: s.Close.ErrorCount, LatencyMs: s.Close.LatencyMs, Bytes: s.Close.Bytes},
-		Upload: api.LogServiceOpStats{Count: s.Upload.Count, ErrorCount: s.Upload.ErrorCount, LatencyMs: s.Upload.LatencyMs, Bytes: s.Upload.Bytes},
+		Open:   api.LogServiceOpStats{Count: s.Open.Count, ErrorCount: s.Open.ErrorCount, LatencyMs: s.Open.LatencyMs},
+		Write:  api.LogServiceOpStats{Count: s.Write.Count, ErrorCount: s.Write.ErrorCount, LatencyMs: s.Write.LatencyMs},
+		Close:  api.LogServiceOpStats{Count: s.Close.Count, ErrorCount: s.Close.ErrorCount, LatencyMs: s.Close.LatencyMs},
+		Upload: api.LogServiceOpStats{Count: s.Upload.Count, ErrorCount: s.Upload.ErrorCount, LatencyMs: s.Upload.LatencyMs},
 	}
 }
 

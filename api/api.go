@@ -216,7 +216,6 @@ type (
 		Count      int64 `json:"count"`
 		ErrorCount int64 `json:"error_count"`
 		LatencyMs  int64 `json:"latency_ms"`
-		Bytes      int64 `json:"bytes"`
 	}
 
 	StreamOutputRequest struct {

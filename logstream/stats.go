@@ -8,8 +8,9 @@ package logstream
 type OpStats struct {
 	Count      int64 `json:"count"`
 	ErrorCount int64 `json:"error_count"`
-	LatencyMs  int64 `json:"latency_ms"`
-	Bytes      int64 `json:"bytes"`
+	// LatencyMs is the sum of truncated millisecond durations of successful
+	// RPCs only. Failed calls increment ErrorCount and do not add here.
+	LatencyMs int64 `json:"latency_ms"`
 }
 
 // Stats aggregates open/write/close/upload RPCs for one log stream.

@@ -6,13 +6,17 @@ package livelog
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/drone/runner-go/client"
+	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/logstream"
 )
 
@@ -99,28 +103,32 @@ func compare(a, b []*logstream.Line) error {
 
 type mockClient struct {
 	client.Client
-	lines    []*logstream.Line
-	uploaded []*logstream.Line
+	lines     []*logstream.Line
+	uploaded  []*logstream.Line
+	openErr   error
+	writeErr  error
+	closeErr  error
+	uploadErr error
 }
 
 func (m *mockClient) Upload(ctx context.Context, key string, lines []*logstream.Line) error {
 	m.uploaded = lines
-	return nil
+	return m.uploadErr
 }
 
 func (m *mockClient) Open(ctx context.Context, key string) error {
-	return nil
+	return m.openErr
 }
 
 // Close closes the data stream.
 func (m *mockClient) Close(ctx context.Context, key string, force bool) error {
-	return nil
+	return m.closeErr
 }
 
 // Write writes logs to the data stream.
 func (m *mockClient) Write(ctx context.Context, key string, lines []*logstream.Line) error {
 	m.lines = append(m.lines, lines...)
-	return nil
+	return m.writeErr
 }
 
 // concurrentMockClient is a thread-safe mock used by the race-detector tests.
@@ -295,5 +303,114 @@ func TestWriter_ConcurrentSettersAndWrite(t *testing.T) {
 
 	if err := w.Close(); err != nil {
 		t.Fatalf("close: %v", err)
+	}
+}
+
+func TestRecordOp_FailedRPCDoesNotAddLatency(t *testing.T) {
+	ops := []string{"open", "write", "close", "upload"}
+	for _, op := range ops {
+		w := &Writer{}
+		w.recordOp(op, errors.New("boom"), 50*time.Millisecond)
+		s := statsFor(w, op)
+		if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
+			t.Fatalf("%s failed RPC: got count=%d errorCount=%d latencyMs=%d", op, s.Count, s.ErrorCount, s.LatencyMs)
+		}
+	}
+}
+
+func TestRecordOp_SuccessOnlyLatencyMix(t *testing.T) {
+	w := &Writer{}
+	w.recordOp("write", nil, 20*time.Millisecond)
+	w.recordOp("write", errors.New("boom"), 50*time.Millisecond)
+	w.recordOp("write", nil, 10*time.Millisecond)
+	s := w.stats.Write
+	if s.Count != 3 || s.ErrorCount != 1 || s.LatencyMs != 30 {
+		t.Fatalf("got count=%d errorCount=%d latencyMs=%d want 3/1/30", s.Count, s.ErrorCount, s.LatencyMs)
+	}
+}
+
+func TestLogServiceOpStatsJSONHasNoBytes(t *testing.T) {
+	raw, err := json.Marshal(api.LogServiceOpStats{Count: 1, ErrorCount: 1, LatencyMs: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "bytes") {
+		t.Fatalf("json must not include bytes: %s", raw)
+	}
+}
+
+func TestOpenWriteCloseUpload_FailedRPCCounts(t *testing.T) {
+	t.Run("open", func(t *testing.T) {
+		mc := &mockClient{openErr: errors.New("boom")}
+		w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+		if err := w.Open(); err == nil {
+			t.Fatal("expected open error")
+		}
+		s := w.LogServiceStats().Open
+		if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
+			t.Fatalf("open stats count=%d errorCount=%d latencyMs=%d", s.Count, s.ErrorCount, s.LatencyMs)
+		}
+	})
+	t.Run("write", func(t *testing.T) {
+		mc := &mockClient{writeErr: errors.New("boom")}
+		w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+		w.SetInterval(time.Hour)
+		if err := w.Open(); err != nil {
+			t.Fatalf("open: %v", err)
+		}
+		if _, err := w.Write([]byte("line\n")); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		if err := w.Flush(); err == nil {
+			t.Fatal("expected flush error")
+		}
+		s := w.LogServiceStats().Write
+		if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
+			t.Fatalf("write stats count=%d errorCount=%d latencyMs=%d", s.Count, s.ErrorCount, s.LatencyMs)
+		}
+		_ = w.Close()
+	})
+	t.Run("close", func(t *testing.T) {
+		mc := &mockClient{closeErr: errors.New("boom")}
+		w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+		w.SetInterval(time.Hour)
+		if err := w.Open(); err != nil {
+			t.Fatalf("open: %v", err)
+		}
+		_ = w.Close()
+		s := w.LogServiceStats().Close
+		if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
+			t.Fatalf("close stats count=%d errorCount=%d latencyMs=%d", s.Count, s.ErrorCount, s.LatencyMs)
+		}
+	})
+	t.Run("upload", func(t *testing.T) {
+		mc := &mockClient{uploadErr: errors.New("boom")}
+		w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+		w.SetInterval(time.Hour)
+		if err := w.Open(); err != nil {
+			t.Fatalf("open: %v", err)
+		}
+		if err := w.Close(); err == nil {
+			t.Fatal("expected upload error from Close")
+		}
+		s := w.LogServiceStats().Upload
+		if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
+			t.Fatalf("upload stats count=%d errorCount=%d latencyMs=%d", s.Count, s.ErrorCount, s.LatencyMs)
+		}
+	})
+}
+
+func statsFor(w *Writer, op string) logstream.OpStats {
+	switch op {
+	case "open":
+		return w.stats.Open
+	case "write":
+		return w.stats.Write
+	case "close":
+		return w.stats.Close
+	case "upload":
+		return w.stats.Upload
+	default:
+		return logstream.OpStats{}
 	}
 }
