@@ -184,6 +184,16 @@ func TestParse(t *testing.T) { //nolint:funlen
 	}
 }
 
+func TestDecodeTrxOutput(t *testing.T) {
+	const trxXML = `<UnitTestResult xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">` +
+		`<Output><ErrorInfo><Message>Test skipped by Harness Test Intelligence.</Message></ErrorInfo></Output>` +
+		`</UnitTestResult>`
+	var result unitTestResult
+
+	require.NoError(t, xml.Unmarshal([]byte(trxXML), &result))
+	assert.Equal(t, "Test skipped by Harness Test Intelligence.", result.Message)
+}
+
 func TestExtract(t *testing.T) {
 	tests := []struct {
 		title    string

@@ -199,32 +199,43 @@ func Test_getPreCmd(t *testing.T) {
 }
 
 func Test_createJavaConfigFile(t *testing.T) {
-	type args struct {
-		tmpDir         string
-		fs             filesystem.FileSystem
-		filterFilePath string
-		outDir         string
-		log            *logrus.Logger
-		splitIdx       int
-	}
+	// The agent only emits the git-relative file paths the enhanced flow matches on when
+	// sourceFilesNonNative and ignoreMethodLevel are set, so they must appear under the flag
+	// and stay absent without it.
 	tests := []struct {
-		name    string
-		args    args
-		want    string
-		want1   string
-		wantErr bool
+		name        string
+		envs        map[string]string
+		wantEnhance bool
 	}{
-		// TODO: Add test cases.
+		{
+			name:        "EnhancedFFDisabled",
+			envs:        map[string]string{},
+			wantEnhance: false,
+		},
+		{
+			name:        "EnhancedFFEnabled",
+			envs:        map[string]string{"CI_TI_V2_ENHANCED_FF": "true"},
+			wantEnhance: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := createJavaConfigFile(tt.args.tmpDir, tt.args.fs, tt.args.log, tt.args.filterFilePath, tt.args.outDir, tt.args.splitIdx)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("createJavaConfigFile() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got != tt.want {
-				t.Errorf("createJavaConfigFile() got = %v, want %v", got, tt.want)
+			tmpDir := t.TempDir()
+			iniFile, err := createJavaConfigFile(tmpDir, filesystem.New(), logrus.New(), "/filter/filter_0", "/out/", 0, tt.envs)
+			assert.Nil(t, err)
+
+			contents, err := os.ReadFile(iniFile)
+			assert.Nil(t, err)
+			config := string(contents)
+
+			assert.Contains(t, config, "packageInference: true")
+			assert.Contains(t, config, "filterFile: /filter/filter_0")
+			if tt.wantEnhance {
+				assert.Contains(t, config, "sourceFilesNonNative: true")
+				assert.Contains(t, config, "ignoreMethodLevel: true")
+			} else {
+				assert.NotContains(t, config, "sourceFilesNonNative")
+				assert.NotContains(t, config, "ignoreMethodLevel")
 			}
 		})
 	}
