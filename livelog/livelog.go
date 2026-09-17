@@ -254,11 +254,22 @@ func (b *Writer) signalOpenDone() {
 // before the "log_stream_open" goroutine has returned, and without this wait the
 // final flush would see !opened and drop the step's buffered lines from the live
 // (ClickHouse) stream. The wait is non-fatal and self-limiting: a normal step
-// returns instantly (opened already true), a fast step waits only until the quick
-// open RPC lands, and a down/slow log-service hits the timer and proceeds as before.
+// returns instantly (openDone already closed), a fast step waits only until the
+// quick open RPC lands, and a down/slow log-service hits the timer and proceeds.
+//
+// It keys off the openDone channel rather than reading b.opened directly: Open()
+// mutates b.opened without holding b.mu, so an unsynchronized read here would race
+// (go test -race). Channel close/receive gives the necessary happens-before edge.
 func (b *Writer) waitForOpen(timeout time.Duration) {
-	if b.opened || b.openDone == nil {
+	if b.openDone == nil {
 		return
+	}
+	// Fast path: open already finished (channel closed) — return immediately, so a
+	// normal step pays nothing.
+	select {
+	case <-b.openDone:
+		return
+	default:
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
