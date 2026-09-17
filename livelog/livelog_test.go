@@ -297,3 +297,77 @@ func TestWriter_ConcurrentSettersAndWrite(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 }
+
+// slowOpenMockClient simulates a log-service whose Open() RPC takes time to
+// return, reproducing the fast-step race that CI-24072 fixes: Close() can be
+// reached before the asynchronously launched Open() completes.
+type slowOpenMockClient struct {
+	client.Client
+	openDelay time.Duration
+	mu        sync.Mutex
+	lines     []*logstream.Line
+	uploaded  []*logstream.Line
+}
+
+func (m *slowOpenMockClient) Open(ctx context.Context, key string) error {
+	time.Sleep(m.openDelay)
+	return nil
+}
+
+func (m *slowOpenMockClient) Close(ctx context.Context, key string, force bool) error { return nil }
+
+func (m *slowOpenMockClient) Write(ctx context.Context, key string, lines []*logstream.Line) error {
+	m.mu.Lock()
+	m.lines = append(m.lines, lines...)
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *slowOpenMockClient) Upload(ctx context.Context, key string, lines []*logstream.Line) error {
+	m.mu.Lock()
+	m.uploaded = append(m.uploaded, lines...)
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *slowOpenMockClient) writtenLines() []*logstream.Line {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]*logstream.Line(nil), m.lines...)
+}
+
+// TestWriter_CloseWaitsForAsyncOpen is the CI-24072 regression test.
+//
+// Open() is launched asynchronously (as pipeline/runtime does via safego
+// "log_stream_open") and takes 200ms; a "fast step" writes a line and closes
+// immediately, before Open() returns. Without waitForOpen, Close()'s final flush
+// sees !opened and drops the line from the live stream. With the fix, Close()
+// waits for the open to land and the line is streamed via client.Write.
+func TestWriter_CloseWaitsForAsyncOpen(t *testing.T) {
+	mc := &slowOpenMockClient{openDelay: 200 * time.Millisecond}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+
+	go w.Open() //nolint:errcheck
+
+	if _, err := w.Write([]byte("fast step line\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	lines := mc.writtenLines()
+	if len(lines) == 0 {
+		t.Fatalf("expected buffered line flushed to stream after waiting for open, got 0 (fast-step race not fixed)")
+	}
+	found := false
+	for _, l := range lines {
+		if l.Message == "fast step line\n" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("streamed lines %v do not contain the fast step line", lines)
+	}
+}
