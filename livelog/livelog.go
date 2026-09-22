@@ -39,8 +39,9 @@ const (
 	// !opened and drops the step's buffered lines from the live stream (they survive
 	// only in the blob upload, which pure-ClickHouse reads never consult). Normal
 	// steps never wait (open is already done); on timeout we proceed exactly as
-	// before, so a slow/down log-service never blocks or fails a build.
-	openWaitTimeout = 3 * time.Second
+	// before, so a slow/down log-service never blocks or fails a build. Kept below
+	// Open()'s own RPC timeout so a down log-service never blocks a build for long.
+	openWaitTimeout = 2 * time.Second
 )
 
 // Writer is an io.Writer that sends logs to the server.
@@ -290,13 +291,19 @@ func (b *Writer) Close() error {
 	if b.skipClosingStream {
 		return b.writeWithoutClose()
 	}
+	// Drain the trailing, newline-less line into pending BEFORE stopping the stream.
+	// Write() only appends to pending/history while the stream is open (!closed); if
+	// we stop first, this final line — frequently the most important one, e.g. an
+	// error or exit summary emitted with printf/echo -n and no trailing newline —
+	// reaches neither the live stream nor the blob and is silently lost. Under pure
+	// ClickHouse there is no blob fallback, so it must be streamed here.
+	b.mu.Lock()
+	hasPrev := len(b.prev) > 0
+	b.mu.Unlock()
+	if hasPrev {
+		b.Write([]byte("\n")) //nolint:errcheck
+	}
 	if b.stop() {
-		b.mu.Lock()
-		hasPrev := len(b.prev) > 0
-		b.mu.Unlock()
-		if hasPrev {
-			b.Write([]byte("\n")) //nolint:errcheck
-		}
 		b.flush()
 	}
 
