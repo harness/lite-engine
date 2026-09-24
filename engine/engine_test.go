@@ -10,6 +10,7 @@ import (
 
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRun(t *testing.T) {
@@ -112,6 +113,91 @@ func newRaceTestEngine() *Engine {
 			EnableDockerSetup: &disabled,
 			Envs:              map[string]string{},
 		},
+	}
+}
+
+// hostNoOpStep returns a host-exec step that succeeds with no stdout so tests
+// can drive Engine.Run / RunStep and assert only on the printed preamble.
+func hostNoOpStep() (entrypoint, command []string) {
+	if runtime.GOOS == "windows" {
+		return []string{"cmd", "/c"}, []string{"exit 0"}
+	}
+	return []string{"sh", "-c"}, []string{"true"}
+}
+
+func boolPtr(v bool) *bool { return &v }
+
+// TestShowScriptInExecutionLogs_PreambleGating drives Engine.Run and checks that
+// the production gate emits the preamble when ShowScriptInExecutionLogs is nil
+// or true, and suppresses it when false.
+func TestShowScriptInExecutionLogs_PreambleGating(t *testing.T) {
+	e := newRaceTestEngine()
+	entrypoint, command := hostNoOpStep()
+
+	cases := []struct {
+		name         string
+		flag         *bool
+		wantPreamble bool
+	}{
+		{"nil (old manager / absent field) → show", nil, true},
+		{"explicit true → show", boolPtr(true), true},
+		{"explicit false → hide preamble", boolPtr(false), false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			step := &spec.Step{
+				Entrypoint:                entrypoint,
+				Command:                   command,
+				ShowScriptInExecutionLogs: tc.flag,
+			}
+			var buf bytes.Buffer
+			_, err := e.Run(context.Background(), step, &buf, false, false)
+			require.NoError(t, err)
+			hasPreamble := strings.Contains(buf.String(), "Executing the following")
+			assert.Equal(t, tc.wantPreamble, hasPreamble,
+				"preamble presence mismatch for flag=%v; output=%q", tc.flag, buf.String())
+		})
+	}
+}
+
+// TestRunStep_ShowScriptInExecutionLogs_PreambleGating drives RunStep (HostedVm /
+// Cloud VM path) and checks the production gate: nil or true → show; false →
+// suppress. isDrone=true always skips the preamble regardless of the flag.
+func TestRunStep_ShowScriptInExecutionLogs_PreambleGating(t *testing.T) {
+	entrypoint, command := hostNoOpStep()
+	disabled := false
+	cfg := &spec.PipelineConfig{
+		EnableDockerSetup: &disabled,
+		Envs:              map[string]string{},
+	}
+
+	cases := []struct {
+		name         string
+		flag         *bool
+		isDrone      bool
+		wantPreamble bool
+	}{
+		{"nil (old manager / absent field) → show", nil, false, true},
+		{"explicit true → show", boolPtr(true), false, true},
+		{"explicit false → hide preamble", boolPtr(false), false, false},
+		{"drone mode → always suppress", nil, true, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			step := &spec.Step{
+				Entrypoint:                entrypoint,
+				Command:                   command,
+				ShowScriptInExecutionLogs: tc.flag,
+			}
+			var buf bytes.Buffer
+			_, err := RunStep(context.Background(), Opts{}, step, &buf, cfg, tc.isDrone, false)
+			require.NoError(t, err)
+			hasPreamble := strings.Contains(buf.String(), "Executing the following")
+			assert.Equal(t, tc.wantPreamble, hasPreamble,
+				"preamble presence mismatch for flag=%v isDrone=%v; output=%q", tc.flag, tc.isDrone, buf.String())
+		})
 	}
 }
 
