@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const windowsOS = "windows"
+
 func TestRun(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -119,7 +121,7 @@ func newRaceTestEngine() *Engine {
 // hostNoOpStep returns a host-exec step that succeeds with no stdout so tests
 // can drive Engine.Run / RunStep and assert only on the printed preamble.
 func hostNoOpStep() (entrypoint, command []string) {
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == windowsOS {
 		return []string{"cmd", "/c"}, []string{"exit 0"}
 	}
 	return []string{"sh", "-c"}, []string{"true"}
