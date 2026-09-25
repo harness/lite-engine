@@ -8,6 +8,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -262,4 +264,26 @@ func TestExecuteStepHelper_WriterErrorAppendsRunError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "command exited with code 1")
 	assert.NotContains(t, err.Error(), "nudge: possible error on line 42")
+}
+
+func TestReadNativeArtifactURLUsesVersionAndProcessEnv(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HARNESS_WORKDIR", dir)
+	shared := filepath.Join(dir, "tmp", "engine")
+	require.NoError(t, os.MkdirAll(shared, 0o755))
+	payload := `{"artifactName":"first-k8","version":"v409","registry":"harness-native-registry-abc","fileCount":1,"totalBytes":10}`
+	require.NoError(t, os.WriteFile(filepath.Join(shared, "step1-artifact.json"), []byte(payload), 0o600))
+
+	// Account id is a stage env var, not always present on the step request map.
+	t.Setenv("HARNESS_ACCOUNT_ID", "acc")
+	envs := map[string]string{
+		"HARNESS_ORG_ID":     "org",
+		"HARNESS_PROJECT_ID": "proj",
+		"HARNESS_HAR_URL":    "https://app.harness.io/",
+	}
+	_, vars := readNativeArtifact("step1", envs)
+	require.NotNil(t, vars)
+	assert.Equal(t,
+		"https://app.harness.io/ng/account/acc/module/har/orgs/org/projects/proj/registries/harness-native-registry-abc/artifacts/first-k8/versions/v409/artifact_details",
+		vars["ARTIFACT_URLS"])
 }
