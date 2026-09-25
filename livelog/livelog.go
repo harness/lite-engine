@@ -225,7 +225,11 @@ func (b *Writer) Open() error {
 	defer b.signalOpenDone()
 	if b.skipOpeningStream {
 		// Do nothing in case the stream has been already opened before.
+		// Guard under mu: flush() checks b.opened under mu, so this write
+		// must also be guarded to avoid a data race with the Start() flusher.
+		b.mu.Lock()
 		b.opened = true
+		b.mu.Unlock()
 		return nil
 	}
 	err := b.client.Open(b.ctx, b.key)
@@ -235,8 +239,13 @@ func (b *Writer) Open() error {
 		b.stop() // stop trying to stream if we could not open the stream
 		return err
 	}
-	logrus.WithField("name", b.name).Infoln("successfully opened log stream")
+	// Set opened under mu before signaling openDone: flush() reads b.opened
+	// under mu (see flush()), and the Start() flusher runs concurrently with
+	// Open(), so an unguarded write here is a data race caught by -race.
+	b.mu.Lock()
 	b.opened = true
+	b.mu.Unlock()
+	logrus.WithField("name", b.name).Infoln("successfully opened log stream")
 	return nil
 }
 
@@ -367,21 +376,15 @@ func (b *Writer) Flush() error {
 }
 
 // flush batch uploads all buffered logs to the server.
-//
-// Locking discipline: b.mu is only held while snapshotting buffered state.
-// All network I/O and any operations that may log (which can re-enter the
-// writer via the logrus StreamHook) happen AFTER the lock is released.
-// Holding the mutex across client.Write previously caused two deadlocks:
-//  1. self-reentrant: a logrus call under the lock fires the StreamHook,
-//     which calls Writer.Write → b.mu.Lock again (sync.Mutex is not reentrant).
-//  2. liveness: a slow log-service request pinned every producer (container
-//     log pump, StreamHook, Close) on b.mu for the duration of the call.
+
 func (b *Writer) flush() error {
+	// Check b.opened under mu: Open() sets it under mu and Start()'s flush
+	// loop runs concurrently with Open(), so an unguarded read is a data race.
+	b.mu.Lock()
 	if !b.opened {
+		b.mu.Unlock()
 		return nil
 	}
-
-	b.mu.Lock()
 	lines := b.copy()
 	b.clear()
 
