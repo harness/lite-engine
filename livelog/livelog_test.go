@@ -297,3 +297,152 @@ func TestWriter_ConcurrentSettersAndWrite(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 }
+
+// slowOpenMockClient simulates a log-service whose Open() RPC takes time to
+// return, reproducing the fast-step race that CI-24072 fixes: Close() can be
+// reached before the asynchronously launched Open() completes.
+type slowOpenMockClient struct {
+	client.Client
+	openDelay time.Duration
+	mu        sync.Mutex
+	lines     []*logstream.Line
+	uploaded  []*logstream.Line
+}
+
+func (m *slowOpenMockClient) Open(ctx context.Context, key string) error {
+	time.Sleep(m.openDelay)
+	return nil
+}
+
+func (m *slowOpenMockClient) Close(ctx context.Context, key string, force bool) error { return nil }
+
+func (m *slowOpenMockClient) Write(ctx context.Context, key string, lines []*logstream.Line) error {
+	m.mu.Lock()
+	m.lines = append(m.lines, lines...)
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *slowOpenMockClient) Upload(ctx context.Context, key string, lines []*logstream.Line) error {
+	m.mu.Lock()
+	m.uploaded = append(m.uploaded, lines...)
+	m.mu.Unlock()
+	return nil
+}
+
+func (m *slowOpenMockClient) writtenLines() []*logstream.Line {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]*logstream.Line(nil), m.lines...)
+}
+
+// TestWriter_CloseWaitsForAsyncOpen is the CI-24072 regression test.
+//
+// Open() is launched asynchronously (as pipeline/runtime does via safego
+// "log_stream_open") and takes 200ms; a "fast step" writes a line and closes
+// immediately, before Open() returns. Without waitForOpen, Close()'s final flush
+// sees !opened and drops the line from the live stream. With the fix, Close()
+// waits for the open to land and the line is streamed via client.Write.
+func TestWriter_CloseWaitsForAsyncOpen(t *testing.T) {
+	mc := &slowOpenMockClient{openDelay: 200 * time.Millisecond}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+
+	go w.Open() //nolint:errcheck
+
+	if _, err := w.Write([]byte("fast step line\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	lines := mc.writtenLines()
+	if len(lines) == 0 {
+		t.Fatalf("expected buffered line flushed to stream after waiting for open, got 0 (fast-step race not fixed)")
+	}
+	found := false
+	for _, l := range lines {
+		if l.Message == "fast step line\n" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("streamed lines %v do not contain the fast step line", lines)
+	}
+}
+
+// TestWriter_CloseSkipClosingStreamWaitsForAsyncOpen covers the reviewer's point
+// that the skipClosingStream path (writeWithoutClose) needs the same wait: it also
+// ends in a flush gated on opened, so a fast step there loses logs unless
+// waitForOpen runs at the top of Close(), before the skipClosingStream branch.
+func TestWriter_CloseSkipClosingStreamWaitsForAsyncOpen(t *testing.T) {
+	mc := &slowOpenMockClient{openDelay: 200 * time.Millisecond}
+	// skipClosingStream = true => Close() routes through writeWithoutClose().
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, true)
+
+	go w.Open() //nolint:errcheck
+
+	if _, err := w.Write([]byte("skip fast line\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	lines := mc.writtenLines()
+	found := false
+	for _, l := range lines {
+		if l.Message == "skip fast line\n" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("skipClosingStream fast-step line not streamed; got %v", lines)
+	}
+}
+
+// TestWriter_CloseStreamsTrailingLineWithoutNewline guards the fix for the
+// trailing newline-less line: a step whose last output has no trailing newline
+// (an error/exit summary via printf or `echo -n`) must still be streamed.
+// Previously Close() stopped the stream before draining b.prev, so Write() skipped
+// pending/history and the final line was lost entirely — invisible under pure
+// ClickHouse where there is no blob fallback.
+func TestWriter_CloseStreamsTrailingLineWithoutNewline(t *testing.T) {
+	mc := &slowOpenMockClient{openDelay: 0}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	if err := w.Open(); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	// Park the periodic flusher so the only flush is Close()'s.
+	w.SetInterval(100 * time.Second)
+
+	if _, err := w.Write([]byte("line one\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	// Final line has NO trailing newline — it stays in b.prev until close.
+	if _, err := w.Write([]byte("final line no newline")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	lines := mc.writtenLines()
+	var gotOne, gotTail bool
+	for _, l := range lines {
+		if l.Message == "line one\n" {
+			gotOne = true
+		}
+		if l.Message == "final line no newline\n" {
+			gotTail = true
+		}
+	}
+	if !gotOne {
+		t.Fatalf("first line not streamed; got %v", lines)
+	}
+	if !gotTail {
+		t.Fatalf("trailing newline-less line not streamed on close; got %v", lines)
+	}
+}
