@@ -239,7 +239,7 @@ func (b *Writer) Open() error {
 		b.stop() // stop trying to stream if we could not open the stream
 		return err
 	}
-	// Set opened under mu before signalling openDone: flush() reads b.opened
+	// Set opened under mu before signaling openDone: flush() reads b.opened
 	// under mu (see flush()), and the Start() flusher runs concurrently with
 	// Open(), so an unguarded write here is a data race caught by -race.
 	b.mu.Lock()
