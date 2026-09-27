@@ -111,7 +111,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
-		nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, r.Envs)
+		nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, artifactLookupEnvs(e.engine.GetPipelineEnvs(), r.Envs))
 		outputs = mergeArtifactVars(outputs, artifactVars)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata,
@@ -198,7 +198,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 
 			wr = getLogStreamWriter(r)
 			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(r, wr)
-			nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, r.Envs)
+			nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, artifactLookupEnvs(e.engine.GetPipelineEnvs(), r.Envs))
 			outputs = mergeArtifactVars(outputs, artifactVars)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
@@ -727,12 +727,17 @@ func readNativeArtifact(stepID string, envs map[string]string) (rawJSON string, 
 		return rawJSON, nil
 	}
 
-	harURL := envs["HARNESS_HAR_URL"]
-	accountID := envs["HARNESS_ACCOUNT_ID"]
+	// Same URL as the Kubernetes addon: HARNESS_HAR_URL is the app base, and the
+	// version is the v-prefixed value hcli wrote to the artifact file.
+	baseURL := strings.TrimSuffix(artifactEnv(envs, "HARNESS_HAR_URL"), "/")
+	accountID := artifactEnv(envs, "HARNESS_ACCOUNT_ID")
+	orgID := artifactEnv(envs, "HARNESS_ORG_ID")
+	projectID := artifactEnv(envs, "HARNESS_PROJECT_ID")
 	artifactURL := ""
-	if harURL != "" && accountID != "" && out.Registry != "" && out.ArtifactName != "" && out.Version != "" {
-		artifactURL = fmt.Sprintf("%s/pkg/%s/%s/%s/%s",
-			strings.TrimSuffix(harURL, "/"), accountID, out.Registry, out.ArtifactName, out.Version)
+	if baseURL != "" && accountID != "" && orgID != "" && projectID != "" &&
+		out.Registry != "" && out.ArtifactName != "" && out.Version != "" {
+		artifactURL = fmt.Sprintf("%s/ng/account/%s/module/har/orgs/%s/projects/%s/registries/%s/artifacts/%s/versions/%s/artifact_details",
+			baseURL, accountID, orgID, projectID, out.Registry, out.ArtifactName, out.Version)
 	}
 
 	logrus.Infof("Native artifact output variables collected for step %s: fileCount=%d", stepID, out.FileCount)
@@ -803,4 +808,33 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 		ErrorDetails:           errorDetails,
 		NativeArtifactOutput:   r.NativeArtifactOutput,
 	}
+}
+
+// artifactLookupEnvs overlays step env on stage/pipeline env. Stage identity vars
+// (HARNESS_ACCOUNT_ID and friends) are injected on the VM, not copied onto every
+// step request, so the URL builder has to see both.
+func artifactLookupEnvs(pipelineEnvs, stepEnvs map[string]string) map[string]string {
+	if len(pipelineEnvs) == 0 {
+		return stepEnvs
+	}
+	merged := make(map[string]string, len(pipelineEnvs)+len(stepEnvs))
+	for k, v := range pipelineEnvs {
+		merged[k] = v
+	}
+	for k, v := range stepEnvs {
+		if strings.TrimSpace(v) != "" {
+			merged[k] = v
+		}
+	}
+	return merged
+}
+
+// artifactEnv reads a Harness identity var from the step/pipeline env map, then
+// from the process environment. On VM these live on the stage env and are not
+// always copied onto the step request.
+func artifactEnv(envs map[string]string, key string) string {
+	if v := strings.TrimSpace(envs[key]); v != "" {
+		return v
+	}
+	return strings.TrimSpace(os.Getenv(key))
 }
