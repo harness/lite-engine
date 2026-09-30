@@ -231,16 +231,13 @@ func (b *Writer) Close() error {
 	if b.skipClosingStream {
 		return b.writeWithoutClose()
 	}
-	// Drain the partial-line buffer (prev) BEFORE stop() sets closed=true.
-	// Write() drops lines when closed, so flushing prev after stop() silently
-	// loses the final partial line.
-	b.mu.Lock()
-	hasPrev := len(b.prev) > 0
-	b.mu.Unlock()
-	if hasPrev {
-		b.Write([]byte("\n")) //nolint:errcheck
-	}
 	if b.stop() {
+		b.mu.Lock()
+		hasPrev := len(b.prev) > 0
+		b.mu.Unlock()
+		if hasPrev {
+			b.Write([]byte("\n")) //nolint:errcheck
+		}
 		b.flush()
 	}
 

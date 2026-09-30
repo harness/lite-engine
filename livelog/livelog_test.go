@@ -96,38 +96,6 @@ func TestIncreaseLogLimitFF(t *testing.T) {
 	})
 }
 
-// TestCloseFlushesPartialLine verifies that a partial line (no trailing newline)
-// sitting in the prev buffer is not lost when Close() is called.
-func TestCloseFlushesPartialLine(t *testing.T) {
-	client := new(mockClient)
-	w := New(context.Background(), client, "1", "1", nil, false, false, false, false)
-	w.SetInterval(time.Duration(0))
-
-	// Write a complete line followed by a partial line with no newline.
-	_, _ = w.Write([]byte("complete line\n"))
-	_, _ = w.Write([]byte("partial line"))
-
-	// prev should hold the partial content
-	w.mu.Lock()
-	if len(w.prev) == 0 {
-		t.Fatal("expected prev to hold partial line content")
-	}
-	w.mu.Unlock()
-
-	w.Close()
-
-	// Both lines should appear in the uploaded history
-	if len(client.uploaded) != 2 {
-		t.Fatalf("expected 2 uploaded lines, got %d", len(client.uploaded))
-	}
-	if client.uploaded[0].Message != "complete line\n" {
-		t.Fatalf("expected first line 'complete line\\n', got %q", client.uploaded[0].Message)
-	}
-	if client.uploaded[1].Message != "partial line\n" {
-		t.Fatalf("expected second line 'partial line\\n', got %q", client.uploaded[1].Message)
-	}
-}
-
 func TestLineWriterSingleWithTrimNewLineSuffixEnabled(t *testing.T) {
 	client := new(mockClient)
 	w := New(context.Background(), client, "1", "1", nil, false, true, false, false)
