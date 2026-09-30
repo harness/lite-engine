@@ -55,6 +55,47 @@ func TestSetLimit(t *testing.T) {
 	w.Close()
 }
 
+func TestIncreaseLogLimitFF(t *testing.T) {
+	t.Run("default limit when env var is not set", func(t *testing.T) {
+		t.Setenv("HARNESS_CI_INCREASE_LOG_LIMIT", "")
+		client := new(mockClient)
+		w := New(context.Background(), client, "1", "1", nil, false, false, false, false)
+		w.mu.Lock()
+		got := w.limit
+		w.mu.Unlock()
+		if got != defaultLimit {
+			t.Fatalf("expected default limit %d, got %d", defaultLimit, got)
+		}
+		w.Close()
+	})
+
+	t.Run("increased limit when env var is true", func(t *testing.T) {
+		t.Setenv("HARNESS_CI_INCREASE_LOG_LIMIT", "true")
+		client := new(mockClient)
+		w := New(context.Background(), client, "1", "1", nil, false, false, false, false)
+		w.mu.Lock()
+		got := w.limit
+		w.mu.Unlock()
+		if got != increasedLimit {
+			t.Fatalf("expected increased limit %d, got %d", increasedLimit, got)
+		}
+		w.Close()
+	})
+
+	t.Run("default limit when env var is false", func(t *testing.T) {
+		t.Setenv("HARNESS_CI_INCREASE_LOG_LIMIT", "false")
+		client := new(mockClient)
+		w := New(context.Background(), client, "1", "1", nil, false, false, false, false)
+		w.mu.Lock()
+		got := w.limit
+		w.mu.Unlock()
+		if got != defaultLimit {
+			t.Fatalf("expected default limit %d, got %d", defaultLimit, got)
+		}
+		w.Close()
+	})
+}
+
 func TestLineWriterSingleWithTrimNewLineSuffixEnabled(t *testing.T) {
 	client := new(mockClient)
 	w := New(context.Background(), client, "1", "1", nil, false, true, false, false)

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -28,7 +29,8 @@ const (
 	defaultInterval     = 1 * time.Second
 	maxLineLimit        = 71680 // 70KB
 	defaultLevel        = "info"
-	defaultLimit        = 5242880 // 5MB
+	defaultLimit        = 5242880  // 5MB
+	increasedLimit      = 26214400 // 25MB
 	flushThresholdTime  = 10 * time.Minute
 	flushNetworkTimeout = 15 * time.Second
 
@@ -92,6 +94,10 @@ type Writer struct {
 
 // New returns a new writer
 func New(ctx context.Context, client logstream.Client, key, name string, nudges []logstream.Nudge, printToStdout, trimNewLineSuffix, skipOpeningStream, skipClosingStream bool) *Writer {
+	limit := defaultLimit
+	if os.Getenv("HARNESS_CI_INCREASE_LOG_LIMIT") == "true" {
+		limit = increasedLimit
+	}
 	b := &Writer{
 		client:            client,
 		key:               key,
@@ -100,7 +106,7 @@ func New(ctx context.Context, client logstream.Client, key, name string, nudges 
 		skipClosingStream: skipClosingStream,
 		now:               time.Now(),
 		printToStdout:     printToStdout,
-		limit:             defaultLimit,
+		limit:             limit,
 		nudges:            nudges,
 		close:             make(chan struct{}),
 		ready:             make(chan struct{}, 1),
