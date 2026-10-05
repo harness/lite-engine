@@ -727,9 +727,13 @@ func readNativeArtifact(stepID string, envs map[string]string) (rawJSON string, 
 		return rawJSON, nil
 	}
 
-	// Same URL as the Kubernetes addon: HARNESS_HAR_URL is the app base, and the
-	// version is the v-prefixed value hcli wrote to the artifact file.
-	baseURL := strings.TrimSuffix(artifactEnv(envs, "HARNESS_HAR_URL"), "/")
+	// Same URL as the Kubernetes addon: HARNESS_REGISTRY_API_URL is the app host.
+	// HARNESS_HAR_URL is the package host used for uploads and is only a fallback.
+	// Version is the v-prefixed value hcli wrote to the artifact file.
+	baseURL := strings.TrimSuffix(artifactEnv(envs, "HARNESS_REGISTRY_API_URL"), "/")
+	if baseURL == "" {
+		baseURL = strings.TrimSuffix(artifactEnv(envs, "HARNESS_HAR_URL"), "/")
+	}
 	accountID := artifactEnv(envs, "HARNESS_ACCOUNT_ID")
 	orgID := artifactEnv(envs, "HARNESS_ORG_ID")
 	projectID := artifactEnv(envs, "HARNESS_PROJECT_ID")
