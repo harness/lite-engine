@@ -277,9 +277,10 @@ func TestReadNativeArtifactURLUsesVersionAndProcessEnv(t *testing.T) {
 	// Account id is a stage env var, not always present on the step request map.
 	t.Setenv("HARNESS_ACCOUNT_ID", "acc")
 	envs := map[string]string{
-		"HARNESS_ORG_ID":     "org",
-		"HARNESS_PROJECT_ID": "proj",
-		"HARNESS_HAR_URL":    "https://app.harness.io/",
+		"HARNESS_ORG_ID":           "org",
+		"HARNESS_PROJECT_ID":       "proj",
+		"HARNESS_HAR_URL":          "https://pkg.harness.io/",
+		"HARNESS_REGISTRY_API_URL": "https://app.harness.io/",
 	}
 	_, vars := readNativeArtifact("step1", envs)
 	require.NotNil(t, vars)
