@@ -381,64 +381,67 @@ func TestLogServiceOpStatsJSONHasNoBytes(t *testing.T) {
 }
 
 func TestOpenWriteCloseUpload_FailedRPCCounts(t *testing.T) {
-	t.Run("open", func(t *testing.T) {
-		mc := &mockClient{openErr: errors.New("boom")}
-		w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
-		if err := w.Open(); err == nil {
-			t.Fatal("expected open error")
-		}
-		s := w.LogServiceStats().Open
-		if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
-			t.Fatalf("open stats count=%d errorCount=%d latencyMs=%d", s.Count, s.ErrorCount, s.LatencyMs)
-		}
-	})
-	t.Run("write", func(t *testing.T) {
-		mc := &mockClient{writeErr: errors.New("boom")}
-		w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
-		w.SetInterval(time.Hour)
-		if err := w.Open(); err != nil {
-			t.Fatalf("open: %v", err)
-		}
-		if _, err := w.Write([]byte("line\n")); err != nil {
-			t.Fatalf("write: %v", err)
-		}
-		if err := w.Flush(); err == nil {
-			t.Fatal("expected flush error")
-		}
-		s := w.LogServiceStats().Write
-		if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
-			t.Fatalf("write stats count=%d errorCount=%d latencyMs=%d", s.Count, s.ErrorCount, s.LatencyMs)
-		}
-		_ = w.Close()
-	})
-	t.Run("close", func(t *testing.T) {
-		mc := &mockClient{closeErr: errors.New("boom")}
-		w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
-		w.SetInterval(time.Hour)
-		if err := w.Open(); err != nil {
-			t.Fatalf("open: %v", err)
-		}
-		_ = w.Close()
-		s := w.LogServiceStats().Close
-		if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
-			t.Fatalf("close stats count=%d errorCount=%d latencyMs=%d", s.Count, s.ErrorCount, s.LatencyMs)
-		}
-	})
-	t.Run("upload", func(t *testing.T) {
-		mc := &mockClient{uploadErr: errors.New("boom")}
-		w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
-		w.SetInterval(time.Hour)
-		if err := w.Open(); err != nil {
-			t.Fatalf("open: %v", err)
-		}
-		if err := w.Close(); err == nil {
-			t.Fatal("expected upload error from Close")
-		}
-		s := w.LogServiceStats().Upload
-		if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
-			t.Fatalf("upload stats count=%d errorCount=%d latencyMs=%d", s.Count, s.ErrorCount, s.LatencyMs)
-		}
-	})
+	t.Run("open", testFailedOpenRPCCount)
+	t.Run("write", testFailedWriteRPCCount)
+	t.Run("close", testFailedCloseRPCCount)
+	t.Run("upload", testFailedUploadRPCCount)
+}
+
+func testFailedOpenRPCCount(t *testing.T) {
+	mc := &mockClient{openErr: errors.New("boom")}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	if err := w.Open(); err == nil {
+		t.Fatal("expected open error")
+	}
+	assertFailedOpStats(t, "open", w.LogServiceStats().Open)
+}
+
+func testFailedWriteRPCCount(t *testing.T) {
+	mc := &mockClient{writeErr: errors.New("boom")}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	w.SetInterval(time.Hour)
+	if err := w.Open(); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := w.Write([]byte("line\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := w.Flush(); err == nil {
+		t.Fatal("expected flush error")
+	}
+	assertFailedOpStats(t, "write", w.LogServiceStats().Write)
+	_ = w.Close()
+}
+
+func testFailedCloseRPCCount(t *testing.T) {
+	mc := &mockClient{closeErr: errors.New("boom")}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	w.SetInterval(time.Hour)
+	if err := w.Open(); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	_ = w.Close()
+	assertFailedOpStats(t, "close", w.LogServiceStats().Close)
+}
+
+func testFailedUploadRPCCount(t *testing.T) {
+	mc := &mockClient{uploadErr: errors.New("boom")}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	w.SetInterval(time.Hour)
+	if err := w.Open(); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := w.Close(); err == nil {
+		t.Fatal("expected upload error from Close")
+	}
+	assertFailedOpStats(t, "upload", w.LogServiceStats().Upload)
+}
+
+func assertFailedOpStats(t *testing.T, op string, s logstream.OpStats) {
+	t.Helper()
+	if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
+		t.Fatalf("%s stats count=%d errorCount=%d latencyMs=%d", op, s.Count, s.ErrorCount, s.LatencyMs)
+	}
 }
 
 func statsFor(w *Writer, op string) logstream.OpStats {

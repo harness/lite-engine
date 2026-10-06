@@ -22,7 +22,7 @@ type Stats struct {
 }
 
 // Empty reports whether any Log Service RPC was recorded.
-func (s Stats) Empty() bool {
+func (s *Stats) Empty() bool {
 	return s.Open.Count == 0 && s.Write.Count == 0 && s.Close.Count == 0 && s.Upload.Count == 0
 }
 
