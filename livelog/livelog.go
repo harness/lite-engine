@@ -75,9 +75,16 @@ type Writer struct {
 	history       []*logstream.Line
 	prev          []byte
 
-	closed            bool
-	close             chan struct{}
-	ready             chan struct{}
+	closed bool
+	close  chan struct{}
+	ready  chan struct{}
+	// closeOnce makes upload()+client.Close run exactly once. Timed-out Cloud
+	// steps call Close() from both the timeout branch and executeStepHelper;
+	// stop() only gates the flusher, so without this the two RPCs (and their
+	// log_service_stats counts/latency) would tally twice. closeErr is the
+	// first call's result, returned to every later caller (same as K8s RemoteWriter).
+	closeOnce         sync.Once
+	closeErr          error
 	trimNewLineSuffix bool
 	lastFlushTime     time.Time
 	ctx               context.Context
@@ -302,6 +309,13 @@ func (b *Writer) waitForOpen(timeout time.Duration) {
 
 // Close closes the writer and uploads the full contents to
 // the server.
+//
+// Close has two concurrent callers on a timed-out Cloud step: the timeout
+// branch in StartStepWithStatusUpdate and executeStepHelper after run()
+// returns. Without the sync.Once below each of them would re-run upload() and
+// client.Close for the same stream (stop() only gates the flusher). Every
+// caller gets the first call's error, and log_service_stats counts each RPC
+// once. skipClosingStream stays repeatable: there Close() is only a flush.
 func (b *Writer) Close() error {
 	// Give the asynchronous Open() a bounded, non-fatal moment to finish before we
 	// flush. Without this a sub-second step races ahead of the open and flush() drops
@@ -310,6 +324,15 @@ func (b *Writer) Close() error {
 	if b.skipClosingStream {
 		return b.writeWithoutClose()
 	}
+	b.closeOnce.Do(func() {
+		b.closeErr = b.closeStream()
+	})
+	return b.closeErr
+}
+
+// closeStream performs the one-time upload + client.Close. Called only through
+// Close's sync.Once. The closed flag (via stop()) still only gates the flusher.
+func (b *Writer) closeStream() error {
 	// Drain the trailing, newline-less line into pending BEFORE stopping the stream.
 	// Write() only appends to pending/history while the stream is open (!closed); if
 	// we stop first, this final line — frequently the most important one, e.g. an
