@@ -75,9 +75,16 @@ type Writer struct {
 	history       []*logstream.Line
 	prev          []byte
 
-	closed            bool
-	close             chan struct{}
-	ready             chan struct{}
+	closed bool
+	close  chan struct{}
+	ready  chan struct{}
+	// closeOnce makes upload()+client.Close run exactly once. Timed-out Cloud
+	// steps call Close() from both the timeout branch and executeStepHelper;
+	// stop() only gates the flusher, so without this the two RPCs (and their
+	// log_service_stats counts/latency) would tally twice. closeErr is the
+	// first call's result, returned to every later caller (same as K8s RemoteWriter).
+	closeOnce         sync.Once
+	closeErr          error
 	trimNewLineSuffix bool
 	lastFlushTime     time.Time
 	ctx               context.Context
@@ -90,6 +97,8 @@ type Writer struct {
 
 	dualLogMeta *duallog.Meta
 	dualLogType string
+
+	stats logstream.Stats
 }
 
 // New returns a new writer
@@ -238,7 +247,9 @@ func (b *Writer) Open() error {
 		b.mu.Unlock()
 		return nil
 	}
+	start := time.Now()
 	err := b.client.Open(b.ctx, b.key)
+	b.recordOp("open", err, time.Since(start))
 	if err != nil {
 		logrus.WithError(err).WithField("key", b.key).
 			Errorln("could not open the stream")
@@ -298,6 +309,13 @@ func (b *Writer) waitForOpen(timeout time.Duration) {
 
 // Close closes the writer and uploads the full contents to
 // the server.
+//
+// Close has two concurrent callers on a timed-out Cloud step: the timeout
+// branch in StartStepWithStatusUpdate and executeStepHelper after run()
+// returns. Without the sync.Once below each of them would re-run upload() and
+// client.Close for the same stream (stop() only gates the flusher). Every
+// caller gets the first call's error, and log_service_stats counts each RPC
+// once. skipClosingStream stays repeatable: there Close() is only a flush.
 func (b *Writer) Close() error {
 	// Give the asynchronous Open() a bounded, non-fatal moment to finish before we
 	// flush. Without this a sub-second step races ahead of the open and flush() drops
@@ -306,6 +324,15 @@ func (b *Writer) Close() error {
 	if b.skipClosingStream {
 		return b.writeWithoutClose()
 	}
+	b.closeOnce.Do(func() {
+		b.closeErr = b.closeStream()
+	})
+	return b.closeErr
+}
+
+// closeStream performs the one-time upload + client.Close. Called only through
+// Close's sync.Once. The closed flag (via stop()) still only gates the flusher.
+func (b *Writer) closeStream() error {
 	// Drain the trailing, newline-less line into pending BEFORE stopping the stream.
 	// Write() only appends to pending/history while the stream is open (!closed); if
 	// we stop first, this final line — frequently the most important one, e.g. an
@@ -340,9 +367,10 @@ func (b *Writer) Close() error {
 		}
 	}
 
-	// Close the log stream once upload has completed. Log in case of any error
-
-	if errc := b.client.Close(b.ctx, b.key, b.skipOpeningStream); errc != nil {
+	start := time.Now()
+	errc := b.client.Close(b.ctx, b.key, b.skipOpeningStream)
+	b.recordOp("close", errc, time.Since(start))
+	if errc != nil {
 		// In case skipOpeningStream is true, we call the stream-close endpoint passing
 		// `snapshot=true`, which will close the stream and snapshot its content into a blob.
 		// TODO: we can get rid of using `snapshot=true` here once we are able to append logs
@@ -372,7 +400,10 @@ func (b *Writer) writeWithoutClose() error {
 
 // upload uploads the full log history to the server.
 func (b *Writer) upload() error {
-	return b.client.Upload(b.ctx, b.key, b.history)
+	start := time.Now()
+	err := b.client.Upload(b.ctx, b.key, b.history)
+	b.recordOp("upload", err, time.Since(start))
+	return err
 }
 
 // Flush sends any buffered log lines to the stream. Call after writing the final
@@ -413,7 +444,9 @@ func (b *Writer) flush() error {
 
 	ctx, cancel := context.WithTimeout(b.ctx, flushNetworkTimeout)
 	defer cancel()
+	start := time.Now()
 	err := b.client.Write(ctx, b.key, lines)
+	b.recordOp("write", err, time.Since(start))
 	if err != nil {
 		log.Printf("failed to flush lines: key=%s num_lines=%d err=%v", b.key, len(lines), err)
 		return err
@@ -537,6 +570,44 @@ func split(p []byte) []string {
 func formatNudge(line *logstream.Line, nudge logstream.Nudge) error {
 	return fmt.Errorf("found possible error on line %d.\n Log: %s.\n Possible error: %s.\n Possible resolution: %s",
 		line.Number+1, line.Message, nudge.GetError(), nudge.GetResolution())
+}
+
+func (b *Writer) LogServiceStats() logstream.Stats {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.stats
+}
+
+func (b *Writer) recordOp(op string, rpcErr error, latency time.Duration) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	s := b.opStatsLocked(op)
+	if s == nil {
+		return
+	}
+	s.Count++
+	if rpcErr != nil {
+		s.ErrorCount++
+		return
+	}
+	if latency > 0 {
+		s.LatencyMs += latency.Milliseconds()
+	}
+}
+
+func (b *Writer) opStatsLocked(op string) *logstream.OpStats {
+	switch op {
+	case "open":
+		return &b.stats.Open
+	case "write":
+		return &b.stats.Write
+	case "close":
+		return &b.stats.Close
+	case "upload":
+		return &b.stats.Upload
+	default:
+		return nil
+	}
 }
 
 func max(a, b int) int { //nolint:gocritic,revive // builtinShadowDecl,redefines-builtin-id: intentional helper function name

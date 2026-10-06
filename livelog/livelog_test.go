@@ -6,13 +6,17 @@ package livelog
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/drone/runner-go/client"
+	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/logstream"
 )
 
@@ -140,28 +144,36 @@ func compare(a, b []*logstream.Line) error {
 
 type mockClient struct {
 	client.Client
-	lines    []*logstream.Line
-	uploaded []*logstream.Line
+	lines       []*logstream.Line
+	uploaded    []*logstream.Line
+	openErr     error
+	writeErr    error
+	closeErr    error
+	uploadErr   error
+	closeCalls  int32
+	uploadCalls int32
 }
 
 func (m *mockClient) Upload(ctx context.Context, key string, lines []*logstream.Line) error {
+	atomic.AddInt32(&m.uploadCalls, 1)
 	m.uploaded = lines
-	return nil
+	return m.uploadErr
 }
 
 func (m *mockClient) Open(ctx context.Context, key string) error {
-	return nil
+	return m.openErr
 }
 
 // Close closes the data stream.
 func (m *mockClient) Close(ctx context.Context, key string, force bool) error {
-	return nil
+	atomic.AddInt32(&m.closeCalls, 1)
+	return m.closeErr
 }
 
 // Write writes logs to the data stream.
 func (m *mockClient) Write(ctx context.Context, key string, lines []*logstream.Line) error {
 	m.lines = append(m.lines, lines...)
-	return nil
+	return m.writeErr
 }
 
 // concurrentMockClient is a thread-safe mock used by the race-detector tests.
@@ -339,6 +351,118 @@ func TestWriter_ConcurrentSettersAndWrite(t *testing.T) {
 	}
 }
 
+func TestRecordOp_FailedRPCDoesNotAddLatency(t *testing.T) {
+	ops := []string{"open", "write", "close", "upload"}
+	for _, op := range ops {
+		w := &Writer{}
+		w.recordOp(op, errors.New("boom"), 50*time.Millisecond)
+		s := statsFor(w, op)
+		if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
+			t.Fatalf("%s failed RPC: got count=%d errorCount=%d latencyMs=%d", op, s.Count, s.ErrorCount, s.LatencyMs)
+		}
+	}
+}
+
+func TestRecordOp_SuccessOnlyLatencyMix(t *testing.T) {
+	w := &Writer{}
+	w.recordOp("write", nil, 20*time.Millisecond)
+	w.recordOp("write", errors.New("boom"), 50*time.Millisecond)
+	w.recordOp("write", nil, 10*time.Millisecond)
+	s := w.stats.Write
+	if s.Count != 3 || s.ErrorCount != 1 || s.LatencyMs != 30 {
+		t.Fatalf("got count=%d errorCount=%d latencyMs=%d want 3/1/30", s.Count, s.ErrorCount, s.LatencyMs)
+	}
+}
+
+func TestLogServiceOpStatsJSONHasNoBytes(t *testing.T) {
+	raw, err := json.Marshal(api.LogServiceOpStats{Count: 1, ErrorCount: 1, LatencyMs: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "bytes") {
+		t.Fatalf("json must not include bytes: %s", raw)
+	}
+}
+
+func TestOpenWriteCloseUpload_FailedRPCCounts(t *testing.T) {
+	t.Run("open", testFailedOpenRPCCount)
+	t.Run("write", testFailedWriteRPCCount)
+	t.Run("close", testFailedCloseRPCCount)
+	t.Run("upload", testFailedUploadRPCCount)
+}
+
+func testFailedOpenRPCCount(t *testing.T) {
+	mc := &mockClient{openErr: errors.New("boom")}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	if err := w.Open(); err == nil {
+		t.Fatal("expected open error")
+	}
+	assertFailedOpStats(t, "open", w.LogServiceStats().Open)
+}
+
+func testFailedWriteRPCCount(t *testing.T) {
+	mc := &mockClient{writeErr: errors.New("boom")}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	w.SetInterval(time.Hour)
+	if err := w.Open(); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := w.Write([]byte("line\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := w.Flush(); err == nil {
+		t.Fatal("expected flush error")
+	}
+	assertFailedOpStats(t, "write", w.LogServiceStats().Write)
+	_ = w.Close()
+}
+
+func testFailedCloseRPCCount(t *testing.T) {
+	mc := &mockClient{closeErr: errors.New("boom")}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	w.SetInterval(time.Hour)
+	if err := w.Open(); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	_ = w.Close()
+	assertFailedOpStats(t, "close", w.LogServiceStats().Close)
+}
+
+func testFailedUploadRPCCount(t *testing.T) {
+	mc := &mockClient{uploadErr: errors.New("boom")}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	w.SetInterval(time.Hour)
+	if err := w.Open(); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := w.Close(); err == nil {
+		t.Fatal("expected upload error from Close")
+	}
+	assertFailedOpStats(t, "upload", w.LogServiceStats().Upload)
+}
+
+func assertFailedOpStats(t *testing.T, op string, s logstream.OpStats) {
+	t.Helper()
+	if s.Count != 1 || s.ErrorCount != 1 || s.LatencyMs != 0 {
+		t.Fatalf("%s stats count=%d errorCount=%d latencyMs=%d", op, s.Count, s.ErrorCount, s.LatencyMs)
+	}
+}
+
+func statsFor(w *Writer, op string) logstream.OpStats {
+	switch op {
+	case "open":
+		return w.stats.Open
+	case "write":
+		return w.stats.Write
+	case "close":
+		return w.stats.Close
+	case "upload":
+		return w.stats.Upload
+	default:
+		return logstream.OpStats{}
+	}
+}
+
 // slowOpenMockClient simulates a log-service whose Open() RPC takes time to
 // return, reproducing the fast-step race that CI-24072 fixes: Close() can be
 // reached before the asynchronously launched Open() completes.
@@ -485,5 +609,84 @@ func TestWriter_CloseStreamsTrailingLineWithoutNewline(t *testing.T) {
 	}
 	if !gotTail {
 		t.Fatalf("trailing newline-less line not streamed on close; got %v", lines)
+	}
+}
+
+// TestWriter_CloseIsIdempotent is the timeout-path regression: Cloud steps call
+// Close() from StartStepWithStatusUpdate's timeout branch and again from
+// executeStepHelper. upload()+client.Close (and their log_service_stats) must
+// run once; the second caller waits for the first and observes the same error.
+func TestWriter_CloseIsIdempotent(t *testing.T) {
+	uploadErr := errors.New("upload boom")
+	mc := &mockClient{uploadErr: uploadErr}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	w.SetInterval(time.Hour)
+	if err := w.Open(); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := w.Write([]byte("line\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	first := w.Close()
+	second := w.Close()
+	if first != uploadErr {
+		t.Fatalf("first Close: got %v want %v", first, uploadErr)
+	}
+	if second != first {
+		t.Fatalf("second Close: got %v want same as first %v", second, first)
+	}
+	if got := atomic.LoadInt32(&mc.uploadCalls); got != 1 {
+		t.Fatalf("upload RPCs: got %d want 1", got)
+	}
+	if got := atomic.LoadInt32(&mc.closeCalls); got != 1 {
+		t.Fatalf("close RPCs: got %d want 1", got)
+	}
+	s := w.LogServiceStats()
+	if s.Upload.Count != 1 || s.Upload.ErrorCount != 1 {
+		t.Fatalf("upload stats count=%d errorCount=%d want 1/1", s.Upload.Count, s.Upload.ErrorCount)
+	}
+	if s.Close.Count != 1 || s.Close.ErrorCount != 0 {
+		t.Fatalf("close stats count=%d errorCount=%d want 1/0", s.Close.Count, s.Close.ErrorCount)
+	}
+}
+
+func TestWriter_CloseConcurrentIsIdempotent(t *testing.T) {
+	mc := &mockClient{}
+	w := New(context.Background(), mc, "k", "n", nil, false, false, false, false)
+	w.SetInterval(time.Hour)
+	if err := w.Open(); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := w.Write([]byte("line\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	const n = 8
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			errs[i] = w.Close()
+		}(i)
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&mc.uploadCalls); got != 1 {
+		t.Fatalf("upload RPCs: got %d want 1", got)
+	}
+	if got := atomic.LoadInt32(&mc.closeCalls); got != 1 {
+		t.Fatalf("close RPCs: got %d want 1", got)
+	}
+	s := w.LogServiceStats()
+	if s.Upload.Count != 1 || s.Close.Count != 1 {
+		t.Fatalf("stats upload=%d close=%d want 1/1", s.Upload.Count, s.Close.Count)
+	}
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("closer %d: %v", i, err)
+		}
 	}
 }
