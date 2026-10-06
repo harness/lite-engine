@@ -154,6 +154,8 @@ type (
 		// HarnessID OIDC token-generate endpoint that lite-engine POSTs to when minting. Rides in the step
 		// contract from ci-manager (no VM-image/cloud-init config needed).
 		WITokenGenerateURL string `json:"wi_token_generate_url,omitempty"`
+
+		ShowScriptInExecutionLogs *bool `json:"show_script_in_execution_logs,omitempty"`
 	}
 
 	// WorkloadIdentity is a single registered workload identity delivered from ci-manager to lite-engine.

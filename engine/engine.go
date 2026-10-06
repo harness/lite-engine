@@ -219,7 +219,11 @@ func (e *Engine) Run(ctx context.Context, step *spec.Step, output io.Writer, isD
 	}
 
 	if !isDrone && len(step.Command) > 0 {
-		printCommand(step, output)
+		// Emit the preamble only when ShowScriptInExecutionLogs is nil (old callers, default show)
+		// or explicitly true. Skip only when explicitly set to false.
+		if step.ShowScriptInExecutionLogs == nil || *step.ShowScriptInExecutionLogs {
+			printCommand(step, output)
+		}
 	}
 
 	if step.Image != "" {

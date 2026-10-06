@@ -78,7 +78,9 @@ func RunStep(
 	}
 
 	if !isDrone && len(step.Command) > 0 {
-		printCommand(step, output)
+		if step.ShowScriptInExecutionLogs == nil || *step.ShowScriptInExecutionLogs {
+			printCommand(step, output)
+		}
 	}
 	if step.Image != "" {
 		return d.Run(ctx, cfg, step, output, isDrone, isHosted)
