@@ -87,7 +87,7 @@ func TestParseSavings_CloudVMStepEnvsFindsIsolatedReport(t *testing.T) {
 	t.Setenv("HARNESS_GO_CACHE_REPORT_PATH", "")
 
 	execID := "ci18519-go-savings-ut"
-	reportDir := filepath.Join("/tmp", "harness", execID)
+	reportDir := "/tmp/harness/" + execID
 	if err := os.MkdirAll(reportDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestIsolateSharedTmpWithEnvs_PrefersStepExecutionID(t *testing.T) {
 	got := isolateSharedTmpWithEnvs("/tmp/", map[string]string{
 		"HARNESS_EXECUTION_ID": "step-exec-id",
 	})
-	want := filepath.Join("/tmp", "harness", "step-exec-id")
+	want := "/tmp/harness/step-exec-id"
 	if got != want {
 		t.Fatalf("isolateSharedTmpWithEnvs = %q, want %q", got, want)
 	}

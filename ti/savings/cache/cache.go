@@ -28,7 +28,13 @@ func joinErrors(errs ...error) error {
 	return errors.New(strings.Join(messages, "; "))
 }
 
-func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64, telemetryData *types.TelemetryData, envs map[string]string) (types.IntelligenceExecutionState, int, types.SavingsRequest, error) {
+func ParseCacheSavings(
+	workspace string,
+	log *logrus.Logger,
+	cmdTimeTaken int64,
+	telemetryData *types.TelemetryData,
+	envs map[string]string,
+) (types.IntelligenceExecutionState, int, types.SavingsRequest, error) {
 	savingsRequest := types.SavingsRequest{}
 
 	cacheState := types.DISABLED

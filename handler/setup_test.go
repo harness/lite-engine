@@ -52,7 +52,6 @@ func TestSetHarnessEnvs_IncludesTmpPathForGoSavings(t *testing.T) {
 	require.Empty(t, os.Getenv("UNRELATED"))
 }
 
-
 func TestPrivateConnectivitySetupGuardRecognizesOnlyTheCompletedSetup(t *testing.T) {
 	guard := &privateConnectivitySetupGuard{}
 	cfg := pc.Config{Enabled: true, ClientID: "client", Hostname: "stage-1", Tag: "tag:ci-runner"}

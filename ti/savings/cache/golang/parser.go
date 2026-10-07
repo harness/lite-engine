@@ -131,10 +131,6 @@ func isHostSharedTmp(clean string) bool {
 	return clean == filepath.Clean(os.TempDir())
 }
 
-func executionScope() string {
-	return executionScopeWithEnvs(nil)
-}
-
 func executionScopeWithEnvs(envs map[string]string) string {
 	for _, key := range []string{"HARNESS_EXECUTION_ID", "HARNESS_STAGE_ID", "HARNESS_BUILD_ID"} {
 		if value := sanitizePathElement(envValue(envs, key)); value != "" {

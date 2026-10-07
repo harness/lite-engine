@@ -57,7 +57,7 @@ func TestParseCacheSavings_GoReportViaStepEnvs(t *testing.T) {
 	t.Setenv("HARNESS_GO_CACHE_REPORT_PATH", "")
 
 	execID := "ci18519-cache-parse-ut"
-	reportDir := filepath.Join("/tmp", "harness", execID)
+	reportDir := "/tmp/harness/" + execID
 	require.NoError(t, os.MkdirAll(reportDir, 0o755))
 	t.Cleanup(func() { _ = os.RemoveAll(reportDir) })
 
