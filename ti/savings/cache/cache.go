@@ -28,7 +28,13 @@ func joinErrors(errs ...error) error {
 	return errors.New(strings.Join(messages, "; "))
 }
 
-func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64, telemetryData *types.TelemetryData) (types.IntelligenceExecutionState, int, types.SavingsRequest, error) {
+func ParseCacheSavings(
+	workspace string,
+	log *logrus.Logger,
+	cmdTimeTaken int64,
+	telemetryData *types.TelemetryData,
+	envs map[string]string,
+) (types.IntelligenceExecutionState, int, types.SavingsRequest, error) {
 	savingsRequest := types.SavingsRequest{}
 
 	cacheState := types.DISABLED
@@ -47,7 +53,9 @@ func ParseCacheSavings(workspace string, log *logrus.Logger, cmdTimeTaken int64,
 	mavenCacheState, reports, mavenErr := maven.ParseSavings(workspace, log)
 	savingsRequest.MavenMetrics = mavenTypes.MavenMetrics{Reports: reports}
 
-	goCacheState, goReports, goDurationMs, goErr := golang.ParseSavings(workspace, log)
+	// Pass step envs so Cloud VM can resolve /tmp/harness/<exec>/go-cache-report.json
+	// even when the LE process itself does not have HARNESS_TMP_PATH set.
+	goCacheState, goReports, goDurationMs, goErr := golang.ParseSavings(workspace, log, envs)
 	savingsRequest.GoMetrics = golangTypes.Metrics{Reports: goReports}
 
 	// Bazel exports no cache reports (unlike gradle/maven above), so the BI

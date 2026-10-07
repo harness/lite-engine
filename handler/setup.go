@@ -403,7 +403,17 @@ func initializeOSStatsStreaming(setupReq *api.SetupRequest, state *pipeline.Stat
 }
 
 func setHarnessEnvs(environment map[string]string) {
-	harnessEnvs := []string{"HARNESS_EXECUTION_ID", "HARNESS_DELEGATE_TASK_ID"}
+	// HARNESS_TMP_PATH / STAGE_ID / BUILD_ID are required so Go build-cache
+	// savings can resolve go-cache-report.json written by GOCACHEPROG under
+	// /tmp/harness/<execution>/ on Cloud VM. Without these, the LE process
+	// never sees the step's tmp path and silently skips Go savings upload.
+	harnessEnvs := []string{
+		"HARNESS_EXECUTION_ID",
+		"HARNESS_DELEGATE_TASK_ID",
+		"HARNESS_TMP_PATH",
+		"HARNESS_STAGE_ID",
+		"HARNESS_BUILD_ID",
+	}
 	for _, v := range harnessEnvs {
 		if val, ok := environment[v]; ok && val != "" {
 			os.Setenv(v, val)

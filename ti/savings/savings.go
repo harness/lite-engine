@@ -23,7 +23,7 @@ const restoreCacheHarnessStepID = "restore-cache-harness"
 func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, stepSuccess bool, cmdTimeTaken int64,
 	tiConfig *tiCfg.Cfg, envs map[string]string, telemetryData *types.TelemetryData, stepType string) types.IntelligenceExecutionState {
 	states := make([]types.IntelligenceExecutionState, 0)
-	states = append(states, parseAndUploadCacheSavings(ctx, workspace, log, stepID, cmdTimeTaken, tiConfig, telemetryData, stepType)...)
+	states = append(states, parseAndUploadCacheSavings(ctx, workspace, log, stepID, cmdTimeTaken, tiConfig, telemetryData, stepType, envs)...)
 
 	// TI Savings
 	if tiState, err := tiConfig.GetFeatureState(stepID, types.TI); err == nil {
@@ -83,12 +83,12 @@ func ParseAndUploadSavings(ctx context.Context, workspace string, log *logrus.Lo
 }
 
 func parseAndUploadCacheSavings(ctx context.Context, workspace string, log *logrus.Logger, stepID string, cmdTimeTaken int64,
-	tiConfig *tiCfg.Cfg, telemetryData *types.TelemetryData, stepType string) []types.IntelligenceExecutionState {
+	tiConfig *tiCfg.Cfg, telemetryData *types.TelemetryData, stepType string, envs map[string]string) []types.IntelligenceExecutionState {
 	if stepType == common.StepTypePlugin {
 		return nil
 	}
 	start := time.Now()
-	cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log, cmdTimeTaken, telemetryData)
+	cacheState, timeTaken, savingsRequest, err := cache.ParseCacheSavings(workspace, log, cmdTimeTaken, telemetryData, envs)
 	if err != nil {
 		return nil
 	}
