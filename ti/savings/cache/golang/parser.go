@@ -16,12 +16,14 @@ import (
 const reportPathRegex = "**/.harness/go-cache-report.json"
 
 // ParseSavings finds and parses Go cache savings reports emitted by go-cache-proxy.
-func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecutionState, []golangTypes.Report, int, error) {
+// envs should be the step environment (preferred). Values fall back to os.Getenv
+// so setup-time setHarnessEnvs still works when envs is nil.
+func ParseSavings(workspace string, log *logrus.Logger, envs map[string]string) (types.IntelligenceExecutionState, []golangTypes.Report, int, error) {
 	cacheState := types.DISABLED
 	reports := make([]golangTypes.Report, 0)
 	totalDurationMs := 0
 
-	files := findReportFiles(workspace)
+	files := findReportFiles(workspace, envs)
 	if len(files) == 0 {
 		return cacheState, reports, totalDurationMs, fmt.Errorf("no go cache reports found")
 	}
@@ -53,7 +55,7 @@ func ParseSavings(workspace string, log *logrus.Logger) (types.IntelligenceExecu
 	return cacheState, reports, totalDurationMs, nil
 }
 
-func findReportFiles(workspace string) []string {
+func findReportFiles(workspace string, envs map[string]string) []string {
 	candidates := make([]string, 0)
 	seen := make(map[string]struct{})
 	add := func(path string) {
@@ -69,11 +71,11 @@ func findReportFiles(workspace string) []string {
 		}
 	}
 
-	if explicit := strings.TrimSpace(os.Getenv("HARNESS_GO_CACHE_REPORT_PATH")); explicit != "" {
+	if explicit := envValue(envs, "HARNESS_GO_CACHE_REPORT_PATH"); explicit != "" {
 		add(explicit)
 	}
-	if tmpPath := strings.TrimSpace(os.Getenv("HARNESS_TMP_PATH")); tmpPath != "" {
-		isolated := isolateSharedTmp(tmpPath)
+	if tmpPath := envValue(envs, "HARNESS_TMP_PATH"); tmpPath != "" {
+		isolated := isolateSharedTmpWithEnvs(tmpPath, envs)
 		add(filepath.Join(isolated, "go-cache-report.json"))
 		if isolated != filepath.Clean(tmpPath) {
 			_ = os.Remove(filepath.Join(filepath.Clean(tmpPath), "go-cache-report.json"))
@@ -89,7 +91,7 @@ func findReportFiles(workspace string) []string {
 			}
 		}
 	}
-	if workdir := strings.TrimSpace(os.Getenv("HARNESS_WORKDIR")); workdir != "" {
+	if workdir := envValue(envs, "HARNESS_WORKDIR"); workdir != "" {
 		add(filepath.Join(workdir, ".harness", "go-cache-report.json"))
 	}
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
@@ -98,12 +100,27 @@ func findReportFiles(workspace string) []string {
 	return candidates
 }
 
+// envValue prefers step envs (Cloud VM parse path) then the LE process env
+// (populated by setHarnessEnvs at setup).
+func envValue(envs map[string]string, key string) string {
+	if envs != nil {
+		if value := strings.TrimSpace(envs[key]); value != "" {
+			return value
+		}
+	}
+	return strings.TrimSpace(os.Getenv(key))
+}
+
 func isolateSharedTmp(tmpPath string) string {
+	return isolateSharedTmpWithEnvs(tmpPath, nil)
+}
+
+func isolateSharedTmpWithEnvs(tmpPath string, envs map[string]string) string {
 	clean := filepath.Clean(tmpPath)
 	if !isHostSharedTmp(clean) {
 		return clean
 	}
-	return filepath.Join(clean, "harness", executionScope())
+	return filepath.Join(clean, "harness", executionScopeWithEnvs(envs))
 }
 
 func isHostSharedTmp(clean string) bool {
@@ -115,8 +132,12 @@ func isHostSharedTmp(clean string) bool {
 }
 
 func executionScope() string {
+	return executionScopeWithEnvs(nil)
+}
+
+func executionScopeWithEnvs(envs map[string]string) string {
 	for _, key := range []string{"HARNESS_EXECUTION_ID", "HARNESS_STAGE_ID", "HARNESS_BUILD_ID"} {
-		if value := sanitizePathElement(os.Getenv(key)); value != "" {
+		if value := sanitizePathElement(envValue(envs, key)); value != "" {
 			return value
 		}
 	}
