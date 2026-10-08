@@ -50,13 +50,16 @@ func getNudges() []logstream.Nudge {
 	}
 }
 
-// Keep the capture temporary local so it cannot overwrite another output's source.
+// Use subshell positional parameters so customer variables and their attributes stay untouched.
+// Append each utility's status because set masks command-substitution failures.
 func getShellOutputVarCmd(key, source, outputFile string) string {
 	return fmt.Sprintf(`
 (
-    _harness_ci_output=$(printf '%%s' "$%s" | base64) || exit 1
-    _harness_ci_output=$(printf '%%s' "$_harness_ci_output" | tr -d '\n') || exit 1
-    printf '%%s=__B64__%%s\n' '%s' "$_harness_ci_output" >> %s
+    set -- "$(printf '%%s' "$%s" | base64; printf '.%%s' "$?")"
+    case "$1" in *.0) ;; *) exit 1 ;; esac
+    set -- "$(printf '%%s' "${1%%.0}" | tr -d '\n'; printf '.%%s' "$?")"
+    case "$1" in *.0) ;; *) exit 1 ;; esac
+    printf '%%s=__B64__%%s\n' '%s' "${1%%.0}" >> %s
 ) || exit 1
 `, source, key, outputFile)
 }

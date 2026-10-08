@@ -174,8 +174,9 @@ func TestShellOutputCaptureDoesNotOverwriteSource(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			shell := outputCaptureInterpreter(t, name)
 			file := filepath.Join(t.TempDir(), "output.env")
-			script := "set -eu\nexport SOURCE='first'\nexport _harness_ci_output='second'\n" +
-				getOutputsCmd([]string{"sh"}, []*api.OutputV2{{Key: "output-with-dash", Value: "SOURCE"}, {Key: "SECOND", Value: "_harness_ci_output"}}, file, true)
+			script := "set -eu\nset -- original 'two words'\nexport SOURCE='first'\nreadonly _harness_ci_output='second'\n" +
+				getOutputsCmd([]string{"sh"}, []*api.OutputV2{{Key: "output-with-dash", Value: "SOURCE"}, {Key: "SECOND", Value: "_harness_ci_output"}}, file, true) +
+				"\n[ \"$#\" = 2 ] && [ \"$1\" = original ] && [ \"$2\" = 'two words' ] || exit 1\n"
 			out, err := exec.CommandContext(context.Background(), shell, "-c", script).CombinedOutput()
 			require.NoError(t, err, "%s", out)
 			values, err := fetchExportedVarsFromEnvFile(file, io.Discard, true)
