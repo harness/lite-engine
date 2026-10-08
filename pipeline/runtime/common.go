@@ -50,6 +50,17 @@ func getNudges() []logstream.Nudge {
 	}
 }
 
+// Keep the capture temporary local so it cannot overwrite another output's source.
+func getShellOutputVarCmd(key, source, outputFile string) string {
+	return fmt.Sprintf(`
+(
+    _harness_ci_output=$(printf '%%s' "$%s" | base64) || exit 1
+    _harness_ci_output=$(printf '%%s' "$_harness_ci_output" | tr -d '\n') || exit 1
+    printf '%%s=__B64__%%s\n' '%s' "$_harness_ci_output" >> %s
+) || exit 1
+`, source, key, outputFile)
+}
+
 func getOutputVarCmd(entrypoint, outputVars []string, outputFile string, useNewGoDotEnv bool) string {
 	isPsh := IsPowershell(entrypoint)
 	isPython := isPython(entrypoint)
@@ -91,10 +102,7 @@ except Exception as e:
     sys.exit(1)
 `, outputFile, o, o)
 			} else {
-				cmd += fmt.Sprintf("\nprintf '%%s=__B64__%%s\\n' '%s' \"$(printf '%%s' \"$%s\" | base64 | tr -d '\\n')\" >> %s",
-					o,
-					o,
-					outputFile)
+				cmd += getShellOutputVarCmd(o, o, outputFile)
 			}
 		}
 	} else {
@@ -157,12 +165,9 @@ try:
 except Exception as e:
     print(f"Error: {e}")
     sys.exit(1)
-`, outputFile, o.Key, o.Value)
+`, outputFile, o.Value, o.Key)
 			} else {
-				cmd += fmt.Sprintf("\nprintf '%%s=__B64__%%s\\n' '%s' \"$(printf '%%s' \"$%s\" | base64 | tr -d '\\n')\" >> %s",
-					o.Key,
-					o.Value,
-					outputFile)
+				cmd += getShellOutputVarCmd(o.Key, o.Value, outputFile)
 			}
 		}
 	} else {
