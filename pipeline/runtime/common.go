@@ -50,18 +50,9 @@ func getNudges() []logstream.Nudge {
 	}
 }
 
-// Use subshell positional parameters so customer variables and their attributes stay untouched.
-// Append each utility's status because set masks command-substitution failures.
+// Preserve the original shell context for customer functions, traps and variables.
 func getShellOutputVarCmd(key, source, outputFile string) string {
-	return fmt.Sprintf(`
-(
-    set -- "$(printf '%%s' "$%s" | base64; printf '.%%s' "$?")"
-    case "$1" in *.0) ;; *) exit 1 ;; esac
-    set -- "$(printf '%%s' "${1%%.0}" | tr -d '\n'; printf '.%%s' "$?")"
-    case "$1" in *.0) ;; *) exit 1 ;; esac
-    printf '%%s=__B64__%%s\n' '%s' "${1%%.0}" >> %s
-) || exit 1
-`, source, key, outputFile)
+	return fmt.Sprintf("\nprintf '%%s=__B64__%%s\\n' '%s' \"$(printf '%%s' \"$%s\" | base64 | tr -d '\\n')\" >> %s", key, source, outputFile)
 }
 
 func getOutputVarCmd(entrypoint, outputVars []string, outputFile string, useNewGoDotEnv bool) string {
