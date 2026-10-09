@@ -50,6 +50,20 @@ func getNudges() []logstream.Nudge {
 	}
 }
 
+// Use subshell positional parameters so customer variables and their attributes stay untouched.
+// Append each utility's status because set masks command-substitution failures.
+func getShellOutputVarCmd(key, source, outputFile string) string {
+	return fmt.Sprintf(`
+(
+    set -- "$(printf '%%s' "$%s" | base64; printf '.%%s' "$?")"
+    case "$1" in *.0) ;; *) exit 1 ;; esac
+    set -- "$(printf '%%s' "${1%%.0}" | tr -d '\n'; printf '.%%s' "$?")"
+    case "$1" in *.0) ;; *) exit 1 ;; esac
+    printf '%%s=__B64__%%s\n' '%s' "${1%%.0}" >> %s
+) || exit 1
+`, source, key, outputFile)
+}
+
 func getOutputVarCmd(entrypoint, outputVars []string, outputFile string, useNewGoDotEnv bool) string {
 	isPsh := IsPowershell(entrypoint)
 	isPython := isPython(entrypoint)
@@ -91,10 +105,7 @@ except Exception as e:
     sys.exit(1)
 `, outputFile, o, o)
 			} else {
-				cmd += fmt.Sprintf("\nprintf '%%s=__B64__%%s\\n' '%s' \"$(printf '%%s' \"$%s\" | base64 | tr -d '\\n')\" >> %s",
-					o,
-					o,
-					outputFile)
+				cmd += getShellOutputVarCmd(o, o, outputFile)
 			}
 		}
 	} else {
@@ -157,12 +168,9 @@ try:
 except Exception as e:
     print(f"Error: {e}")
     sys.exit(1)
-`, outputFile, o.Key, o.Value)
+`, outputFile, o.Value, o.Key)
 			} else {
-				cmd += fmt.Sprintf("\nprintf '%%s=__B64__%%s\\n' '%s' \"$(printf '%%s' \"$%s\" | base64 | tr -d '\\n')\" >> %s",
-					o.Key,
-					o.Value,
-					outputFile)
+				cmd += getShellOutputVarCmd(o.Key, o.Value, outputFile)
 			}
 		}
 	} else {
