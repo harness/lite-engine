@@ -3,6 +3,7 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -98,12 +99,12 @@ func TestRunStepOutputCaptureEndToEnd(t *testing.T) {
 		{"python alias", "python3", "import os\nos.environ.pop('RESULT', None)\nos.environ['SOURCE'] = 'hello'", true, false},
 		{"python secret alias", "python3", "import os\nos.environ.pop('RESULT', None)\nos.environ['SOURCE'] = 'hello'", true, false},
 		{"shell capture", "sh", "export SOURCE=hello", true, false},
+		{"shell set function", "bash", "SOURCE=hello\nset() { :; }", true, false},
+		{"shell errexit wrapper", "bash", "SOURCE=hello\nset -e\nset -o posix\ntr() { command tr \"$@\"; false; printf QQ==; }", true, false},
 		{"python alias with decoy", "python3", "import os\nos.environ['RESULT'] = 'wrong'\nos.environ['SOURCE'] = 'hello'", true, false},
 		{"python missing source", "python3", "import os\nos.environ.pop('SOURCE', None)\nos.environ['RESULT'] = 'wrong'", true, true},
-		{"shell failing encoder", "sh", "base64() { printf aGVsbG8=; return 9; }\nexport SOURCE=hello", true, true},
-		{"shell missing tr", "sh", "base64() { printf aGVsbG8=; }\nexport SOURCE=hello\nPATH=" + shellCaptureQuote(t.TempDir()), true, true},
-		{"shell failing tr", "sh", "tr() { printf aGVsbG8=; return 9; }\nexport SOURCE=hello", true, true},
-		{"shell missing encoder", "sh", "export SOURCE=hello\nPATH=" + shellCaptureQuote(t.TempDir()), true, true},
+		{"shell failing encoder", "sh", "base64() { printf aGVsbG8=; return 9; }\nexport SOURCE=hello", true, false},
+		{"shell failing tr", "sh", "tr() { printf aGVsbG8=; return 9; }\nexport SOURCE=hello", true, false},
 		{"shell flag disabled without encoder", "sh", "export SOURCE=hello\nPATH=" + shellCaptureQuote(t.TempDir()), false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -189,10 +190,75 @@ func TestShellOutputCaptureDoesNotOverwriteSource(t *testing.T) {
 func TestShellOutputCaptureWriteFailure(t *testing.T) {
 	shell := outputCaptureInterpreter(t, "sh")
 	file := filepath.Join(t.TempDir(), "missing", "output.env")
-	script := "export SOURCE=hello\n" + getShellOutputVarCmd("RESULT", "SOURCE", file) + "\nprintf SHOULD_NOT_RUN\n"
+	script := "set -e\nexport SOURCE=hello\n" + getShellOutputVarCmd("RESULT", "SOURCE", file) + "\nprintf SHOULD_NOT_RUN\n"
 	out, err := exec.CommandContext(context.Background(), shell, "-c", script).CombinedOutput()
 	require.Error(t, err)
 	require.NotContains(t, string(out), "SHOULD_NOT_RUN")
 	_, err = os.Stat(file)
 	require.True(t, os.IsNotExist(err))
+}
+
+// Compare observable behavior with the original capture command, including customer
+// shell functions and error handling. Run each command in a fresh shell/directory.
+func TestShellOutputCaptureCompatibility(t *testing.T) {
+	for _, name := range []string{"sh", "bash"} {
+		shell := outputCaptureInterpreter(t, name)
+		for _, tc := range []struct {
+			name, setup, source string
+			bashOnly, badFile   bool
+		}{
+			{"literal", "SOURCE=hello\n", "SOURCE", false, false},
+			{"multiline", "SOURCE='first # café\nsecond\n\n'\n", "SOURCE", false, false},
+			{"set function", "SOURCE=hello\nset() { :; }\n", "SOURCE", true, false},
+			{"set alias", "SOURCE=hello\nshopt -s expand_aliases\nalias set=':'\n", "SOURCE", true, false},
+			{"disabled set", "SOURCE=hello\nenable -n set\n", "SOURCE", true, false},
+			{"error trap", "SOURCE=hello\nset -eE\ntrap 'printf ERR_HOOK' ERR\n", "SOURCE", true, true},
+			{"errexit wrapper", "SOURCE=hello\nset -e\nset -o posix\ntr() { command tr \"$@\"; false; printf QQ==; }\n", "SOURCE", true, false},
+			{"subshell depth", "", "BASH_SUBSHELL", true, false},
+			{"encoder failure", "SOURCE=hello\nbase64() { printf aGVsbG8=; return 9; }\n", "SOURCE", false, false},
+			{"tr failure", "SOURCE=hello\ntr() { printf aGVsbG8=; return 9; }\n", "SOURCE", false, false},
+			{"missing utilities", "SOURCE=hello\nPATH=\n", "SOURCE", false, false},
+			{"unset under nounset", "unset SOURCE\nset -u\n", "SOURCE", false, false},
+		} {
+			if tc.bashOnly && name != "bash" {
+				continue
+			}
+			t.Run(name+"/"+tc.name, func(t *testing.T) {
+				original := fmt.Sprintf("\nprintf '%%s=__B64__%%s\\n' 'RESULT' \"$(printf '%%s' \"$%s\" | base64 | tr -d '\\n')\" >> output.env", tc.source)
+				type result struct {
+					exit   int
+					output string
+					file   string
+				}
+				run := func(capture string) result {
+					dir := t.TempDir()
+					path := filepath.Join(dir, "output.env")
+					if tc.badFile {
+						if err := os.Mkdir(path, 0700); err != nil {
+							t.Fatal(err)
+						}
+					}
+					cmd := exec.CommandContext(context.Background(), shell, "-c", tc.setup+capture)
+					cmd.Dir = dir
+					out, err := cmd.Output()
+					if cmd.ProcessState == nil {
+						t.Fatalf("could not start shell: %v", err)
+					}
+					var data []byte
+					if !tc.badFile {
+						data, err = os.ReadFile(path)
+						if err != nil && !os.IsNotExist(err) {
+							t.Fatal(err)
+						}
+					}
+					return result{cmd.ProcessState.ExitCode(), string(out), string(data)}
+				}
+				want := run(original)
+				got := run(getShellOutputVarCmd("RESULT", tc.source, "output.env"))
+				if got != want {
+					t.Fatalf("capture changed behavior:\noriginal: %+v\ncurrent:  %+v", want, got)
+				}
+			})
+		}
+	}
 }
