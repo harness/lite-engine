@@ -1103,6 +1103,20 @@ func IsStageParallelismEnabledWithoutMatrix(envs map[string]string) bool {
 	return IsStageParallelismEnabled(envs) && !IsMatrixEnabledStage(envs)
 }
 
+// IsParallelismActive returns true when test splitting across parallel steps or stages is active.
+// A stage matrix without step parallelism runs independent legs per module/target (not split shards),
+// so test splitting is not active in that case.
+func IsParallelismActive(envs map[string]string) bool {
+	return IsStepParallelismEnabled(envs) || IsStageParallelismEnabledWithoutMatrix(envs)
+}
+
+// ShouldSkipAgentInfrastructure returns true when neither Test Intelligence nor parallelism is
+// active. In that case agent infrastructure (downloads, configs, and language-agent env vars)
+// must be skipped.
+func ShouldSkipAgentInfrastructure(intelligenceMode bool, envs map[string]string) bool {
+	return !intelligenceMode && !IsParallelismActive(envs)
+}
+
 // GetGitFileChecksums gets git file checksums from the specified repository
 // and returns them as a map of filepath to 64-bit checksum.
 func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger) (map[string]uint64, NonCodeConfig, error) {
