@@ -336,11 +336,11 @@ func Test_CreateSkipAndFailedTestsFiles_WhenIntelligenceModeOff(t *testing.T) {
 	log := logrus.New()
 
 	// Create test files in workspace
-	testFile1 := filepath.Join(workspace, "src/test/java/Test1.java")
-	testFile2 := filepath.Join(workspace, "src/test/java/Test2.java")
+	testFile1 := filepath.Join(workspace, "src", "test", "java", "Test1.java")
+	testFile2 := filepath.Join(workspace, "src", "test", "java", "Test2.java")
 	assert.Nil(t, fs.MkdirAll(filepath.Dir(testFile1), os.ModePerm))
-	assert.Nil(t, os.WriteFile(testFile1, []byte("class Test1 {}"), 0644))
-	assert.Nil(t, os.WriteFile(testFile2, []byte("class Test2 {}"), 0644))
+	assert.Nil(t, os.WriteFile(testFile1, []byte("class Test1 {}"), 0o600))
+	assert.Nil(t, os.WriteFile(testFile2, []byte("class Test2 {}"), 0o600))
 
 	config := &api.RunTestsV2Config{
 		IntelligenceMode: false,
@@ -352,8 +352,8 @@ func Test_CreateSkipAndFailedTestsFiles_WhenIntelligenceModeOff(t *testing.T) {
 		"", "", false, "", "")
 
 	tmpDir := t.TempDir()
-	skipFile0 := filepath.Join(tmpDir, "filter/skip_tests_0")
-	failedFile0 := filepath.Join(tmpDir, "filter/failed_tests_0")
+	skipFile0 := filepath.Join(tmpDir, "filter", "skip_tests_0")
+	failedFile0 := filepath.Join(tmpDir, "filter", "failed_tests_0")
 
 	envs0 := map[string]string{
 		"HARNESS_STEP_INDEX": "0",
@@ -368,8 +368,8 @@ func Test_CreateSkipAndFailedTestsFiles_WhenIntelligenceModeOff(t *testing.T) {
 	lines0 := strings.Split(strings.TrimSpace(string(content0)), "\n")
 	assert.Equal(t, 1, len(lines0), "Shard 0 should skip exactly 1 test file")
 
-	skipFile1 := filepath.Join(tmpDir, "filter/skip_tests_1")
-	failedFile1 := filepath.Join(tmpDir, "filter/failed_tests_1")
+	skipFile1 := filepath.Join(tmpDir, "filter", "skip_tests_1")
+	failedFile1 := filepath.Join(tmpDir, "filter", "failed_tests_1")
 	envs1 := map[string]string{
 		"HARNESS_STEP_INDEX": "1",
 		"HARNESS_STEP_TOTAL": "2",
