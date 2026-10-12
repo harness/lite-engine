@@ -3,6 +3,8 @@ package engine
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -316,4 +318,65 @@ func TestPrivateConnectivityDNSIsLimitedToConfiguredPCContainers(t *testing.T) {
 			assert.Equal(t, tt.expected, step.DNS)
 		})
 	}
+}
+
+func TestCreateFiles_ZeroModeFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "secret.txt")
+	err := createFiles([]*spec.File{{
+		Path: path,
+		Data: "hello",
+		Mode: 0,
+	}})
+	require.NoError(t, err)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(defaultFilePermissions), info.Mode().Perm())
+}
+
+func TestCreateFiles_ZeroModeDir(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "shared")
+	err := createFiles([]*spec.File{{
+		Path:  path,
+		IsDir: true,
+		Mode:  0,
+	}})
+	require.NoError(t, err)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(defaultDirPermissions), info.Mode().Perm())
+}
+
+func TestCreateFiles_ExplicitModeRespected(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "secret.txt")
+	const explicitMode = 0o640
+	err := createFiles([]*spec.File{{
+		Path: path,
+		Data: "hello",
+		Mode: explicitMode,
+	}})
+	require.NoError(t, err)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(explicitMode), info.Mode().Perm())
+}
+
+func TestCreateFiles_ZeroModeDirFixesExistingPerms(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "shared")
+	require.NoError(t, os.MkdirAll(path, 0o000))
+
+	err := createFiles([]*spec.File{{
+		Path:  path,
+		IsDir: true,
+		Mode:  0,
+	}})
+	require.NoError(t, err)
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(defaultDirPermissions), info.Mode().Perm())
 }

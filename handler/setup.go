@@ -96,7 +96,7 @@ func GetNetrcFile(env map[string]string) (*spec.File, error) {
 
 	return &spec.File{
 		Path:  path,
-		Mode:  777, //nolint:mnd
+		Mode:  0o600,
 		IsDir: false,
 		Data:  data,
 	}, nil
