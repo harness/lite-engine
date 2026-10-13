@@ -173,8 +173,25 @@ type (
 		AvgCPUUsagePct float64 `json:"avg_cpu_usage_pct"`
 		MaxMemUsagePct float64 `json:"max_mem_usage_pct"`
 		MaxCPUUsagePct float64 `json:"max_cpu_usage_pct"`
-		MemGraph       *Graph  `json:"mem_graph"` // downsampled memory statistics as a percentage
-		CPUGraph       *Graph  `json:"cpu_graph"` // downsampled cpu statistics as a percentage
+
+		// Percentile fields for CPU utilization
+		P50CPUUsagePct float64 `json:"p50_cpu_usage_pct"`
+		P90CPUUsagePct float64 `json:"p90_cpu_usage_pct"`
+		P95CPUUsagePct float64 `json:"p95_cpu_usage_pct"`
+		P99CPUUsagePct float64 `json:"p99_cpu_usage_pct"`
+
+		// Percentile fields for memory utilization
+		P50MemUsagePct float64 `json:"p50_mem_usage_pct"`
+		P90MemUsagePct float64 `json:"p90_mem_usage_pct"`
+		P95MemUsagePct float64 `json:"p95_mem_usage_pct"`
+		P99MemUsagePct float64 `json:"p99_mem_usage_pct"`
+
+		// Total disk I/O during the build (bytes converted to MB)
+		DiskTotalReadMB  float64 `json:"disk_total_read_mb"`
+		DiskTotalWriteMB float64 `json:"disk_total_write_mb"`
+
+		MemGraph *Graph `json:"mem_graph"` // downsampled memory statistics as a percentage
+		CPUGraph *Graph `json:"cpu_graph"` // downsampled cpu statistics as a percentage
 	}
 
 	Graph struct {

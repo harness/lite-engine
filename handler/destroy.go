@@ -79,6 +79,18 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			stats = collector.Stats()
 		}
 
+		// Wire disk I/O totals from the NDJSON streamer into OSStats.
+		// Must read before closing streams because closeOSStatsStream deletes entries.
+		for _, key := range state.GetAllOSStatsKeys() {
+			entry := state.GetOSStatsEntry(key)
+			if entry != nil && entry.GetSummaryData != nil {
+				_, _, diskTotals := entry.GetSummaryData()
+				stats.DiskTotalReadMB = float64(diskTotals.ReadBytes) / (1024 * 1024)
+				stats.DiskTotalWriteMB = float64(diskTotals.WriteBytes) / (1024 * 1024)
+				break // one stream per stage
+			}
+		}
+
 		// Stop OS stats live streaming and close the writer (which flushes and uploads).
 		// Close all OS stats streams so the P90 summary is always written before upload,
 		// even if destroy is called without MemoryMetricsLogKey or stream was closed elsewhere.

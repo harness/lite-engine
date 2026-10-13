@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"math"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -37,6 +39,10 @@ type StatsCollector struct {
 	cpuPctSum  float64
 	cpuTotal   int
 	memTotalMB float64
+
+	// Raw samples for percentile computation in Aggregate()
+	memSamples []float64
+	cpuSamples []float64
 }
 
 type osStat struct {
@@ -109,6 +115,19 @@ func (s *StatsCollector) Aggregate() {
 	}
 	s.stats.TotalMemMB = s.memTotalMB
 	s.stats.CPUCores = s.cpuTotal
+
+	// Compute CPU percentiles
+	s.stats.P50CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.50)
+	s.stats.P90CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.90)
+	s.stats.P95CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.95)
+	s.stats.P99CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.99)
+
+	// Compute memory percentiles
+	s.stats.P50MemUsagePct = percentileNearestRank(s.memSamples, 0.50)
+	s.stats.P90MemUsagePct = percentileNearestRank(s.memSamples, 0.90)
+	s.stats.P95MemUsagePct = percentileNearestRank(s.memSamples, 0.95)
+	s.stats.P99MemUsagePct = percentileNearestRank(s.memSamples, 0.99)
+
 	s.stats.MemGraph.Points = downsample(s.stats.MemGraph.Points, downsampleCount)
 	s.stats.CPUGraph.Points = downsample(s.stats.CPUGraph.Points, downsampleCount)
 }
@@ -238,6 +257,25 @@ func DumpProcessInfo() error {
 	return nil
 }
 
+// percentileNearestRank computes the given percentile (0..1) using
+// the nearest-rank method. Returns 0 for an empty slice.
+func percentileNearestRank(values []float64, p float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	cp := make([]float64, len(values))
+	copy(cp, values)
+	sort.Float64s(cp)
+	idx := int(math.Ceil(p*float64(len(cp)))) - 1
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(cp) {
+		idx = len(cp) - 1
+	}
+	return cp[idx]
+}
+
 func (s *StatsCollector) update(stat *osStat) {
 	elapsed := time.Since(s.st).Seconds()
 
@@ -254,6 +292,11 @@ func (s *StatsCollector) update(stat *osStat) {
 	s.cpuPctSum += stat.CPUPct
 	s.cpuTotal = stat.CPUTotal
 	s.memTotalMB = stat.MemTotalMB
+
+	// Track raw samples for percentile computation
+	s.memSamples = append(s.memSamples, stat.MemPct)
+	s.cpuSamples = append(s.cpuSamples, stat.CPUPct)
+
 	s.stats.MemGraph.Points = append(s.stats.MemGraph.Points, spec.Point{X: elapsed, Y: stat.MemPct})
 	s.stats.CPUGraph.Points = append(s.stats.CPUGraph.Points, spec.Point{X: elapsed, Y: stat.CPUPct})
 }
