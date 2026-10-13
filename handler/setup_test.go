@@ -52,6 +52,16 @@ func TestSetHarnessEnvs_IncludesTmpPathForGoSavings(t *testing.T) {
 	require.Empty(t, os.Getenv("UNRELATED"))
 }
 
+func TestGetNetrcFile_UsesOwnerReadWriteMode(t *testing.T) {
+	file, err := GetNetrcFile(map[string]string{
+		"DRONE_NETRC_MACHINE":  "github.com",
+		"DRONE_NETRC_USERNAME": "user",
+		"DRONE_NETRC_PASSWORD": "token",
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint32(0o600), file.Mode)
+}
+
 func TestPrivateConnectivitySetupGuardRecognizesOnlyTheCompletedSetup(t *testing.T) {
 	guard := &privateConnectivitySetupGuard{}
 	cfg := pc.Config{Enabled: true, ClientID: "client", Hostname: "stage-1", Tag: "tag:ci-runner"}

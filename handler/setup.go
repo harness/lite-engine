@@ -71,6 +71,7 @@ func (g *privateConnectivitySetupGuard) markCompleted(cfg pc.Config) {
 const (
 	OSWindows         = "windows"
 	dualLoggingEnvVar = "HARNESS_LOG_STREAMING_STDOUT_ENABLED"
+	netrcFileMode     = 0o600 // netrc holds credentials (rw-------)
 )
 
 func GetNetrc(os string) string {
@@ -96,7 +97,7 @@ func GetNetrcFile(env map[string]string) (*spec.File, error) {
 
 	return &spec.File{
 		Path:  path,
-		Mode:  777, //nolint:mnd
+		Mode:  netrcFileMode,
 		IsDir: false,
 		Data:  data,
 	}, nil

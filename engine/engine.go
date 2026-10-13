@@ -399,9 +399,13 @@ func createFiles(paths []*spec.File) error {
 		}
 
 		if f.IsDir {
-			// create a folder
-			if err := os.MkdirAll(path, fs.FileMode(f.Mode)); err != nil {
+			dirMode := fileModeFromSpec(f.Mode, true)
+			if err := os.MkdirAll(path, dirMode); err != nil {
 				return fmt.Errorf("failed to create directory for host path: %q: %w", path, err)
+			}
+			// MkdirAll does not update perms of an existing directory.
+			if err := os.Chmod(path, dirMode); err != nil {
+				return fmt.Errorf("failed to set permissions for directory on host path: %q: %w", path, err)
 			}
 			continue
 		}
@@ -427,11 +431,23 @@ func createFiles(paths []*spec.File) error {
 
 		_ = file.Close()
 
-		if err = os.Chmod(path, fs.FileMode(f.Mode)); err != nil {
+		if err = os.Chmod(path, fileModeFromSpec(f.Mode, false)); err != nil {
 			return fmt.Errorf("failed to change permissions for file on host path: %q: %w", path, err)
 		}
 	}
 	return nil
+}
+
+// fileModeFromSpec treats omitted mode (0) as unset so callers that skip the
+// JSON/proto field do not chmod created paths to 000.
+func fileModeFromSpec(mode uint32, isDir bool) fs.FileMode {
+	if mode == 0 {
+		if isDir {
+			return defaultDirPermissions
+		}
+		return defaultFilePermissions
+	}
+	return fs.FileMode(mode)
 }
 
 // PathConverter converts Unix-style paths to Windows format on Windows OS.
