@@ -107,6 +107,10 @@ func (s *StatsCollector) Stats() *spec.OSStats {
 func (s *StatsCollector) Aggregate() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	s.log.Infof("CI-24708 Aggregate: cpu_samples=%d mem_samples=%d graph_points=%d",
+		len(s.cpuSamples), len(s.memSamples), len(s.stats.MemGraph.Points))
+
 	if len(s.stats.MemGraph.Points) > 0 {
 		s.stats.AvgMemUsagePct = s.memPctSum / float64(len(s.stats.MemGraph.Points))
 	}
@@ -127,6 +131,12 @@ func (s *StatsCollector) Aggregate() {
 	s.stats.P90MemUsagePct = percentileNearestRank(s.memSamples, 0.90)
 	s.stats.P95MemUsagePct = percentileNearestRank(s.memSamples, 0.95)
 	s.stats.P99MemUsagePct = percentileNearestRank(s.memSamples, 0.99)
+
+	s.log.Infof("CI-24708 Aggregate: results avg_cpu=%.2f%% max_cpu=%.2f%% p50_cpu=%.2f%% p90_cpu=%.2f%% p95_cpu=%.2f%% p99_cpu=%.2f%% avg_mem=%.2f%% max_mem=%.2f%% p50_mem=%.2f%% p90_mem=%.2f%% p95_mem=%.2f%% p99_mem=%.2f%%",
+		s.stats.AvgCPUUsagePct, s.stats.MaxCPUUsagePct,
+		s.stats.P50CPUUsagePct, s.stats.P90CPUUsagePct, s.stats.P95CPUUsagePct, s.stats.P99CPUUsagePct,
+		s.stats.AvgMemUsagePct, s.stats.MaxMemUsagePct,
+		s.stats.P50MemUsagePct, s.stats.P90MemUsagePct, s.stats.P95MemUsagePct, s.stats.P99MemUsagePct)
 
 	s.stats.MemGraph.Points = downsample(s.stats.MemGraph.Points, downsampleCount)
 	s.stats.CPUGraph.Points = downsample(s.stats.CPUGraph.Points, downsampleCount)
@@ -296,6 +306,9 @@ func (s *StatsCollector) update(stat *osStat) {
 	// Track raw samples for percentile computation
 	s.memSamples = append(s.memSamples, stat.MemPct)
 	s.cpuSamples = append(s.cpuSamples, stat.CPUPct)
+
+	s.log.Infof("CI-24708 update: sample #%d cpu=%.2f%% mem=%.2f%% elapsed=%.1fs",
+		len(s.cpuSamples), stat.CPUPct, stat.MemPct, elapsed)
 
 	s.stats.MemGraph.Points = append(s.stats.MemGraph.Points, spec.Point{X: elapsed, Y: stat.MemPct})
 	s.stats.CPUGraph.Points = append(s.stats.CPUGraph.Points, spec.Point{X: elapsed, Y: stat.CPUPct})

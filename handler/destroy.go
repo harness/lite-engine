@@ -109,6 +109,25 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			return
 		}
 
+		logger.FromRequest(r).
+			WithField("cpu_cores", stats.CPUCores).
+			WithField("total_mem_mb", stats.TotalMemMB).
+			WithField("avg_cpu_pct", stats.AvgCPUUsagePct).
+			WithField("max_cpu_pct", stats.MaxCPUUsagePct).
+			WithField("avg_mem_pct", stats.AvgMemUsagePct).
+			WithField("max_mem_pct", stats.MaxMemUsagePct).
+			WithField("p50_cpu_pct", stats.P50CPUUsagePct).
+			WithField("p90_cpu_pct", stats.P90CPUUsagePct).
+			WithField("p95_cpu_pct", stats.P95CPUUsagePct).
+			WithField("p99_cpu_pct", stats.P99CPUUsagePct).
+			WithField("p50_mem_pct", stats.P50MemUsagePct).
+			WithField("p90_mem_pct", stats.P90MemUsagePct).
+			WithField("p95_mem_pct", stats.P95MemUsagePct).
+			WithField("p99_mem_pct", stats.P99MemUsagePct).
+			WithField("disk_read_mb", stats.DiskTotalReadMB).
+			WithField("disk_write_mb", stats.DiskTotalWriteMB).
+			Infoln("CI-24708 destroy: returning resource utilization stats")
+
 		WriteJSON(w, api.DestroyResponse{OSStats: stats}, http.StatusOK)
 
 		logger.FromRequest(r).
