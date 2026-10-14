@@ -115,33 +115,38 @@ func ParseAndUploadTests(
 	return tests, nil
 }
 
-func SaveReportSummaryToOutputs(ctx context.Context, tiConfig *tiCfg.Cfg, stepID string, outputs map[string]string, log *logrus.Logger, envs map[string]string) error {
+// SaveReportSummaryToOutputs computes the test summary from the test cases parsed from this
+// step's reports (the same rows that are uploaded to the TI service for the step) instead of
+// requesting it from the TI service.
+func SaveReportSummaryToOutputs(tests []*types.TestCase, outputs, envs map[string]string) error {
 	if !TestSummaryAsOutputEnabled(envs) {
 		return nil
 	}
-	tiClient := tiConfig.GetClient()
-	summaryRequest := types.SummaryRequest{
-		AllStages:  false,
-		OrgID:      tiConfig.GetOrgID(),
-		ProjectID:  tiConfig.GetProjectID(),
-		PipelineID: tiConfig.GetPipelineID(),
-		BuildID:    tiConfig.GetBuildID(),
-		StageID:    tiConfig.GetStageID(),
-		StepID:     stepID,
-		ReportType: "junit",
+	var total, passed, failed, skipped int
+	var durationMs int64
+	for _, t := range tests {
+		if t == nil {
+			continue
+		}
+		total++
+		durationMs += t.DurationMs
+		switch t.Result.Status {
+		case types.StatusPassed:
+			passed++
+		case types.StatusFailed, types.StatusError:
+			failed++
+		case types.StatusSkipped:
+			skipped++
+		}
 	}
-	response, err := tiClient.Summary(ctx, summaryRequest)
-	if err != nil {
-		return err
-	}
-	if response.TotalTests == 0 {
+	if total == 0 {
 		return errors.New("no tests found in the summary")
 	}
-	outputs["total_tests"] = fmt.Sprintf("%d", response.TotalTests)
-	outputs["successful_tests"] = fmt.Sprintf("%d", response.SuccessfulTests)
-	outputs["failed_tests"] = fmt.Sprintf("%d", response.FailedTests)
-	outputs["skipped_tests"] = fmt.Sprintf("%d", response.SkippedTests)
-	outputs["duration_ms"] = fmt.Sprintf("%d", response.TimeMs)
+	outputs["total_tests"] = fmt.Sprintf("%d", total)
+	outputs["successful_tests"] = fmt.Sprintf("%d", passed)
+	outputs["failed_tests"] = fmt.Sprintf("%d", failed)
+	outputs["skipped_tests"] = fmt.Sprintf("%d", skipped)
+	outputs["duration_ms"] = fmt.Sprintf("%d", durationMs)
 	return nil
 }
 
