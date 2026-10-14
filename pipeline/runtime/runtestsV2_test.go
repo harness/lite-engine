@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/harness/lite-engine/internal/filesystem"
 	"github.com/harness/lite-engine/ti/callgraph"
 	tiCfg "github.com/harness/lite-engine/ti/config"
+	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -239,6 +242,149 @@ func Test_createJavaConfigFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_MatrixParallelismShardPaths(t *testing.T) {
+	// In Group B (Stage matrix + step parallelism), the second matrix leg (e.g. Greeter, stageIdx=1)
+	// must evaluate splitIdx to 0 and 1, ensuring skip and filter file paths match the local step shard
+	// (skip_tests_0, config_0.ini) rather than a global index (skip_tests_2, config_2.ini).
+	tests := []struct {
+		name          string
+		envs          map[string]string
+		wantSplitIdx  int
+		wantSkipFile  string
+		wantFilter    string
+		wantFailed    string
+		wantConfigIni string
+	}{
+		{
+			name: "GroupB_Greeter_Shard0",
+			envs: map[string]string{
+				"HARNESS_MATRIX_AXIS": `{"project":"greeter"}`,
+				"HARNESS_STAGE_INDEX": "1",
+				"HARNESS_STAGE_TOTAL": "2",
+				"HARNESS_STEP_INDEX":  "0",
+				"HARNESS_STEP_TOTAL":  "2",
+			},
+			wantSplitIdx:  0,
+			wantSkipFile:  "skip_tests_0",
+			wantFilter:    "filter_0",
+			wantFailed:    "failed_tests_0",
+			wantConfigIni: "config_0.ini",
+		},
+		{
+			name: "GroupB_Greeter_Shard1",
+			envs: map[string]string{
+				"HARNESS_MATRIX_AXIS": `{"project":"greeter"}`,
+				"HARNESS_STAGE_INDEX": "1",
+				"HARNESS_STAGE_TOTAL": "2",
+				"HARNESS_STEP_INDEX":  "1",
+				"HARNESS_STEP_TOTAL":  "2",
+			},
+			wantSplitIdx:  1,
+			wantSkipFile:  "skip_tests_1",
+			wantFilter:    "filter_1",
+			wantFailed:    "failed_tests_1",
+			wantConfigIni: "config_1.ini",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			splitIdx := 0
+			if instrumentation.IsParallelismActive(tt.envs) {
+				splitIdx, _ = instrumentation.GetSplitIdxAndTotalWithMatrix(tt.envs)
+			}
+			assert.Equal(t, tt.wantSplitIdx, splitIdx)
+
+			tmpDir := t.TempDir()
+			filterPath := getFilterFilePath(tmpDir, splitIdx)
+			skipPath := getSkipTestsFilePath(tmpDir, splitIdx)
+			failedPath := getFailedTestsFilePath(tmpDir, splitIdx)
+			iniPath, err := createJavaConfigFile(tmpDir, filesystem.New(), logrus.New(), filterPath, "/out", splitIdx, tt.envs)
+			assert.Nil(t, err)
+
+			assert.True(t, strings.HasSuffix(filterPath, tt.wantFilter), "filterPath must end with %s, got %s", tt.wantFilter, filterPath)
+			assert.True(t, strings.HasSuffix(skipPath, tt.wantSkipFile), "skipPath must end with %s, got %s", tt.wantSkipFile, skipPath)
+			assert.True(t, strings.HasSuffix(failedPath, tt.wantFailed), "failedPath must end with %s, got %s", tt.wantFailed, failedPath)
+			assert.True(t, strings.HasSuffix(iniPath, tt.wantConfigIni), "iniPath must end with %s, got %s", tt.wantConfigIni, iniPath)
+		})
+	}
+}
+
+func Test_SetupRunTestV2_SkipsAgentWhenTIAndParallelismDisabled(t *testing.T) {
+	config := &api.RunTestsV2Config{
+		IntelligenceMode: false,
+	}
+	tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
+		"", "", "", "", "", "", "", "",
+		"", "", false, "", "")
+
+	envs := map[string]string{} // no parallelism
+	preCmd, selectedCounts, err := setupRunTestV2(
+		context.Background(), config, "step1", t.TempDir(), "unique1",
+		logrus.New(), envs, &tiConfig, &types.TestIntelligenceMetaData{},
+	)
+	assert.Nil(t, err)
+	assert.Empty(t, preCmd)
+	assert.True(t, selectedCounts)
+}
+
+func Test_CreateSkipAndFailedTestsFiles_WhenIntelligenceModeOff(t *testing.T) {
+	workspace := t.TempDir()
+	fs := filesystem.New()
+	log := logrus.New()
+
+	// Create test files in workspace
+	testFile1 := filepath.Join(workspace, "src", "test", "java", "Test1.java")
+	testFile2 := filepath.Join(workspace, "src", "test", "java", "Test2.java")
+	assert.Nil(t, fs.MkdirAll(filepath.Dir(testFile1), os.ModePerm))
+	assert.Nil(t, os.WriteFile(testFile1, []byte("class Test1 {}"), 0o600))
+	assert.Nil(t, os.WriteFile(testFile2, []byte("class Test2 {}"), 0o600))
+
+	config := &api.RunTestsV2Config{
+		IntelligenceMode: false,
+		TestGlobs:        []string{"**/*Test*.java"},
+	}
+
+	tiConfig := tiCfg.New("app.harness.io", "", "", "", "", "",
+		"", "", "", "", "", "", "", "",
+		"", "", false, "", "")
+
+	tmpDir := t.TempDir()
+	skipFile0 := filepath.Join(tmpDir, "filter", "skip_tests_0")
+	failedFile0 := filepath.Join(tmpDir, "filter", "failed_tests_0")
+
+	envs0 := map[string]string{
+		"HARNESS_STEP_INDEX": "0",
+		"HARNESS_STEP_TOTAL": "2",
+	}
+
+	err := createSkipAndFailedTestsFiles(context.Background(), fs, "step1", workspace, log, &tiConfig, skipFile0, failedFile0, envs0, config)
+	assert.Nil(t, err)
+
+	content0, err := os.ReadFile(skipFile0)
+	assert.Nil(t, err)
+	lines0 := strings.Split(strings.TrimSpace(string(content0)), "\n")
+	assert.Equal(t, 1, len(lines0), "Shard 0 should skip exactly 1 test file")
+
+	skipFile1 := filepath.Join(tmpDir, "filter", "skip_tests_1")
+	failedFile1 := filepath.Join(tmpDir, "filter", "failed_tests_1")
+	envs1 := map[string]string{
+		"HARNESS_STEP_INDEX": "1",
+		"HARNESS_STEP_TOTAL": "2",
+	}
+
+	err = createSkipAndFailedTestsFiles(context.Background(), fs, "step1", workspace, log, &tiConfig, skipFile1, failedFile1, envs1, config)
+	assert.Nil(t, err)
+
+	content1, err := os.ReadFile(skipFile1)
+	assert.Nil(t, err)
+	lines1 := strings.Split(strings.TrimSpace(string(content1)), "\n")
+	assert.Equal(t, 1, len(lines1), "Shard 1 should skip exactly 1 test file")
+
+	// Shard 0 and Shard 1 must skip different files (partitioning the tests)
+	assert.NotEqual(t, lines0[0], lines1[0], "Shards must skip complementary test files")
 }
 
 func Test_getTestsSelection(t *testing.T) {

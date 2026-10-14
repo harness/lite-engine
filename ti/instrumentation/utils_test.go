@@ -66,3 +66,245 @@ func TestGetV2AgentDownloadLinks(t *testing.T) {
 		})
 	}
 }
+
+type splitIdxMatrixCase struct {
+	name           string
+	envs           map[string]string
+	wantSplitIdx   int
+	wantSplitTotal int
+	wantActive     bool
+}
+
+var splitIdxAndTotalWithMatrixTestCases = []splitIdxMatrixCase{
+	{
+		name: "NoParallelism",
+		envs: map[string]string{
+			"HARNESS_STEP_INDEX":  "0",
+			"HARNESS_STEP_TOTAL":  "1",
+			"HARNESS_STAGE_INDEX": "0",
+			"HARNESS_STAGE_TOTAL": "1",
+		},
+		wantSplitIdx:   0,
+		wantSplitTotal: 1,
+		wantActive:     false,
+	},
+	{
+		name: "StepParallelismOnly_Shard0",
+		envs: map[string]string{
+			"HARNESS_STEP_INDEX":  "0",
+			"HARNESS_STEP_TOTAL":  "2",
+			"HARNESS_STAGE_INDEX": "0",
+			"HARNESS_STAGE_TOTAL": "1",
+		},
+		wantSplitIdx:   0,
+		wantSplitTotal: 2,
+		wantActive:     true,
+	},
+	{
+		name: "StepParallelismOnly_Shard1",
+		envs: map[string]string{
+			"HARNESS_STEP_INDEX":  "1",
+			"HARNESS_STEP_TOTAL":  "2",
+			"HARNESS_STAGE_INDEX": "0",
+			"HARNESS_STAGE_TOTAL": "1",
+		},
+		wantSplitIdx:   1,
+		wantSplitTotal: 2,
+		wantActive:     true,
+	},
+	{
+		name: "StageMatrixOnly_NoStepParallelism_Leg0",
+		envs: map[string]string{
+			"HARNESS_MATRIX_AXIS": `{"project":"calculator"}`,
+			"HARNESS_STAGE_INDEX": "0",
+			"HARNESS_STAGE_TOTAL": "2",
+			"HARNESS_STEP_INDEX":  "0",
+			"HARNESS_STEP_TOTAL":  "1",
+		},
+		wantSplitIdx:   0,
+		wantSplitTotal: 1,
+		wantActive:     false,
+	},
+	{
+		name: "StageMatrixOnly_NoStepParallelism_Leg1",
+		envs: map[string]string{
+			"HARNESS_MATRIX_AXIS": `{"project":"greeter"}`,
+			"HARNESS_STAGE_INDEX": "1",
+			"HARNESS_STAGE_TOTAL": "2",
+			"HARNESS_STEP_INDEX":  "0",
+			"HARNESS_STEP_TOTAL":  "1",
+		},
+		wantSplitIdx:   0,
+		wantSplitTotal: 1,
+		wantActive:     false,
+	},
+	{
+		name: "GroupB_MatrixWithStepParallelism_Calculator_Shard0",
+		envs: map[string]string{
+			"HARNESS_MATRIX_AXIS": `{"project":"calculator"}`,
+			"HARNESS_STAGE_INDEX": "0",
+			"HARNESS_STAGE_TOTAL": "2",
+			"HARNESS_STEP_INDEX":  "0",
+			"HARNESS_STEP_TOTAL":  "2",
+		},
+		wantSplitIdx:   0,
+		wantSplitTotal: 2,
+		wantActive:     true,
+	},
+	{
+		name: "GroupB_MatrixWithStepParallelism_Calculator_Shard1",
+		envs: map[string]string{
+			"HARNESS_MATRIX_AXIS": `{"project":"calculator"}`,
+			"HARNESS_STAGE_INDEX": "0",
+			"HARNESS_STAGE_TOTAL": "2",
+			"HARNESS_STEP_INDEX":  "1",
+			"HARNESS_STEP_TOTAL":  "2",
+		},
+		wantSplitIdx:   1,
+		wantSplitTotal: 2,
+		wantActive:     true,
+	},
+	{
+		name: "GroupB_MatrixWithStepParallelism_Greeter_Shard0",
+		envs: map[string]string{
+			"HARNESS_MATRIX_AXIS": `{"project":"greeter"}`,
+			"HARNESS_STAGE_INDEX": "1",
+			"HARNESS_STAGE_TOTAL": "2",
+			"HARNESS_STEP_INDEX":  "0",
+			"HARNESS_STEP_TOTAL":  "2",
+		},
+		// Shard index discrepancy fix: Must be 0 of 2, NOT 2 of 4!
+		wantSplitIdx:   0,
+		wantSplitTotal: 2,
+		wantActive:     true,
+	},
+	{
+		name: "GroupB_MatrixWithStepParallelism_Greeter_Shard1",
+		envs: map[string]string{
+			"HARNESS_MATRIX_AXIS": `{"project":"greeter"}`,
+			"HARNESS_STAGE_INDEX": "1",
+			"HARNESS_STAGE_TOTAL": "2",
+			"HARNESS_STEP_INDEX":  "1",
+			"HARNESS_STEP_TOTAL":  "2",
+		},
+		// Shard index discrepancy fix: Must be 1 of 2, NOT 3 of 4!
+		wantSplitIdx:   1,
+		wantSplitTotal: 2,
+		wantActive:     true,
+	},
+	{
+		name: "StageParallelismWithoutMatrix_Stage0",
+		envs: map[string]string{
+			"HARNESS_STAGE_INDEX": "0",
+			"HARNESS_STAGE_TOTAL": "2",
+			"HARNESS_STEP_INDEX":  "0",
+			"HARNESS_STEP_TOTAL":  "1",
+		},
+		wantSplitIdx:   0,
+		wantSplitTotal: 2,
+		wantActive:     true,
+	},
+	{
+		name: "StageParallelismWithoutMatrix_Stage1",
+		envs: map[string]string{
+			"HARNESS_STAGE_INDEX": "1",
+			"HARNESS_STAGE_TOTAL": "2",
+			"HARNESS_STEP_INDEX":  "0",
+			"HARNESS_STEP_TOTAL":  "1",
+		},
+		wantSplitIdx:   1,
+		wantSplitTotal: 2,
+		wantActive:     true,
+	},
+}
+
+func TestGetSplitIdxAndTotalWithMatrix(t *testing.T) {
+	for _, tt := range splitIdxAndTotalWithMatrixTestCases {
+		t.Run(tt.name, func(t *testing.T) {
+			gotIdx, gotTotal := GetSplitIdxAndTotalWithMatrix(tt.envs)
+			assert.Equal(t, tt.wantSplitIdx, gotIdx, "splitIdx mismatch")
+			assert.Equal(t, tt.wantSplitTotal, gotTotal, "splitTotal mismatch")
+
+			gotActive := IsParallelismActive(tt.envs)
+			assert.Equal(t, tt.wantActive, gotActive, "IsParallelismActive mismatch")
+		})
+	}
+}
+
+func TestShouldSkipAgentInfrastructure(t *testing.T) {
+	tests := []struct {
+		name             string
+		intelligenceMode bool
+		envs             map[string]string
+		wantSkip         bool
+	}{
+		{
+			name:             "TI_Off_No_Parallelism",
+			intelligenceMode: false,
+			envs:             map[string]string{},
+			wantSkip:         true,
+		},
+		{
+			name:             "TI_On_No_Parallelism",
+			intelligenceMode: true,
+			envs:             map[string]string{},
+			wantSkip:         false,
+		},
+		{
+			name:             "TI_Off_Step_Parallelism",
+			intelligenceMode: false,
+			envs: map[string]string{
+				"HARNESS_STEP_INDEX": "0",
+				"HARNESS_STEP_TOTAL": "2",
+			},
+			wantSkip: false, // parallelism alone requires agent infrastructure
+		},
+		{
+			name:             "TI_On_Step_Parallelism",
+			intelligenceMode: true,
+			envs: map[string]string{
+				"HARNESS_STEP_INDEX": "0",
+				"HARNESS_STEP_TOTAL": "2",
+			},
+			wantSkip: false,
+		},
+		{
+			name:             "TI_Off_StageMatrix_Without_StepParallelism",
+			intelligenceMode: false,
+			envs: map[string]string{
+				"HARNESS_STAGE_INDEX": "0",
+				"HARNESS_STAGE_TOTAL": "2",
+				"HARNESS_MATRIX_AXIS": `{"project":"calculator"}`,
+			},
+			wantSkip: true, // stage matrix legs without step parallelism do not split tests
+		},
+		{
+			name:             "TI_Off_StageMatrix_With_StepParallelism",
+			intelligenceMode: false,
+			envs: map[string]string{
+				"HARNESS_STAGE_INDEX": "0",
+				"HARNESS_STAGE_TOTAL": "2",
+				"HARNESS_STEP_INDEX":  "0",
+				"HARNESS_STEP_TOTAL":  "2",
+				"HARNESS_MATRIX_AXIS": `{"project":"calculator"}`,
+			},
+			wantSkip: false, // step parallelism inside matrix requires agents for test splitting
+		},
+		{
+			name:             "TI_Off_StageParallelism_WithoutMatrix",
+			intelligenceMode: false,
+			envs: map[string]string{
+				"HARNESS_STAGE_INDEX": "0",
+				"HARNESS_STAGE_TOTAL": "2",
+			},
+			wantSkip: false, // stage-level test splitting requires agents even when TI is off
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ShouldSkipAgentInfrastructure(tt.intelligenceMode, tt.envs)
+			assert.Equal(t, tt.wantSkip, got)
+		})
+	}
+}
