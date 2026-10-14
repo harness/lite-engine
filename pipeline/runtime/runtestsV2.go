@@ -251,69 +251,84 @@ func setupRunTestV2(
 	// report totals are the authoritative selected counts.
 	selectedCountsFromReports := true
 
-	if config.IntelligenceMode {
-		// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
-		// the agents, and would also help in diagnosing issues when needed. The value we look for is specific not a
-		// simple "true" to have something that is more unique and hard to guess.
-		qaEnvValue, ok := envs["HARNESS_TI_QA_ENV"]
-		useQAEnv := ok && qaEnvValue == "QA_ENV_ENABLED"
+	if instrumentation.ShouldSkipAgentInfrastructure(config.IntelligenceMode, envs) {
+		log.Infoln("Skipping agent download and attach: intelligence mode and parallelism are both disabled")
+		return preCmd, selectedCountsFromReports, nil
+	}
 
-		links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig, useQAEnv)
-		if err != nil {
-			return preCmd, selectedCountsFromReports, fmt.Errorf("failed to get AgentV2 URL from TI")
-		}
-		if len(links) < agentV2LinkLength {
-			return preCmd, selectedCountsFromReports, fmt.Errorf("error: Could not get agent V2 links from TI")
-		}
-		client := tiConfig.GetClient()
-		err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log, client)
-		if err != nil {
-			return preCmd, selectedCountsFromReports, fmt.Errorf("failed to download Java agent")
-		}
+	// This variable should use to pick up the qa version of the agents - this will allow a staging like option for
+	// the agents, and would also help in diagnosing issues when needed. The value we look for is specific not a
+	// simple "true" to have something that is more unique and hard to guess.
+	qaEnvValue, ok := envs["HARNESS_TI_QA_ENV"]
+	useQAEnv := ok && qaEnvValue == "QA_ENV_ENABLED"
 
-		rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log, client)
-		if err != nil || rubyArtifactDir == "" {
-			return preCmd, selectedCountsFromReports, fmt.Errorf("failed to download Ruby agent")
-		}
-		agentPaths["ruby"] = rubyArtifactDir
+	links, err := instrumentation.GetV2AgentDownloadLinks(ctx, tiConfig, useQAEnv)
+	if err != nil {
+		return preCmd, selectedCountsFromReports, fmt.Errorf("failed to get AgentV2 URL from TI")
+	}
+	if len(links) < agentV2LinkLength {
+		return preCmd, selectedCountsFromReports, fmt.Errorf("error: Could not get agent V2 links from TI")
+	}
+	client := tiConfig.GetClient()
+	err = downloadJavaAgent(ctx, tmpFilePath, links[0].URL, fs, log, client)
+	if err != nil {
+		return preCmd, selectedCountsFromReports, fmt.Errorf("failed to download Java agent")
+	}
 
-		pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log, client)
-		if err != nil {
-			return preCmd, selectedCountsFromReports, fmt.Errorf("failed to download Python agent")
-		}
-		agentPaths["python"] = pythonArtifactDir
+	rubyArtifactDir, err := downloadRubyAgent(ctx, tmpFilePath, links[2].URL, fs, log, client)
+	if err != nil || rubyArtifactDir == "" {
+		return preCmd, selectedCountsFromReports, fmt.Errorf("failed to download Ruby agent")
+	}
+	agentPaths["ruby"] = rubyArtifactDir
 
-		if len(links) > dotNetAgentLinkIndex {
-			var dotNetArtifactDir string
-			dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log, client)
-			if err == nil {
-				agentPaths["dotnet"] = dotNetArtifactDir
-			} else {
-				log.Warningln(".net agent installation failed. Continuing without .net support.")
-			}
-		}
-		isPsh := IsPowershell(config.Entrypoint)
-		preCmd, filterfilePath, skipTestsFilePath, failedTestsFilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
-		if err != nil || pythonArtifactDir == "" {
-			return preCmd, selectedCountsFromReports, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
-		}
+	pythonArtifactDir, err := downloadPythonAgent(ctx, tmpFilePath, links[1].URL, fs, log, client)
+	if err != nil {
+		return preCmd, selectedCountsFromReports, fmt.Errorf("failed to download Python agent")
+	}
+	agentPaths["python"] = pythonArtifactDir
 
-		if enhancedFFVal, ok := envs["CI_TI_V2_ENHANCED_FF"]; ok && enhancedFFVal == trueValue {
-			err = createSkipAndFailedTestsFiles(ctx, fs, stepID, workspace, log, tiConfig, skipTestsFilePath, failedTestsFilePath, envs, config)
-			if err != nil {
-				return preCmd, selectedCountsFromReports, fmt.Errorf("error while creating skip tests file %s", err)
-			}
+	if len(links) > dotNetAgentLinkIndex {
+		var dotNetArtifactDir string
+		dotNetArtifactDir, err = downloadDotNetAgent(ctx, tmpFilePath, links[dotNetAgentLinkIndex].URL, fs, log, client)
+		if err == nil {
+			agentPaths["dotnet"] = dotNetArtifactDir
 		} else {
-			selectedCountsFromReports, err = createSelectedTestFile(
-				ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs,
-				config, filterfilePath, testMetadata,
-			)
-			if err != nil {
-				return preCmd, selectedCountsFromReports, fmt.Errorf("error while creating filter file %s", err)
-			}
+			log.Warningln(".net agent installation failed. Continuing without .net support.")
+		}
+	}
+	isPsh := IsPowershell(config.Entrypoint)
+	preCmd, filterfilePath, skipTestsFilePath, failedTestsFilePath, err = getPreCmd(workspace, tmpFilePath, fs, log, envs, agentPaths, isPsh, tiConfig)
+	if err != nil || pythonArtifactDir == "" {
+		return preCmd, selectedCountsFromReports, fmt.Errorf("failed to set config file or env variable to inject agent, %s", err)
+	}
+
+	if enhancedFFVal, ok := envs["CI_TI_V2_ENHANCED_FF"]; ok && enhancedFFVal == trueValue {
+		err = createSkipAndFailedTestsFiles(ctx, fs, stepID, workspace, log, tiConfig, skipTestsFilePath, failedTestsFilePath, envs, config)
+		if err != nil {
+			return preCmd, selectedCountsFromReports, fmt.Errorf("error while creating skip tests file %s", err)
+		}
+	} else {
+		selectedCountsFromReports, err = createSelectedTestFile(
+			ctx, fs, stepID, workspace, log, tiConfig, tmpFilePath, envs,
+			config, filterfilePath, testMetadata,
+		)
+		if err != nil {
+			return preCmd, selectedCountsFromReports, fmt.Errorf("error while creating filter file %s", err)
 		}
 	}
 	return preCmd, selectedCountsFromReports, nil
+}
+
+// extractTestFiles filters out internal sentinel markers (e.g. NonCodeChainPath)
+// and returns only actual test file paths for user-facing log reporting.
+func extractTestFiles(paths []string) []string {
+	files := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if p != "" && p != instrumentation.NonCodeChainPath {
+			files = append(files, p)
+		}
+	}
+	return files
 }
 
 //nolint:funlen
@@ -327,6 +342,7 @@ func distributeSkipTestsForParallelism(
 	envs map[string]string,
 ) ([]string, error) {
 	splitIdx, splitTotal := instrumentation.GetSplitIdxAndTotalWithMatrix(envs)
+	log.Infof("Starting test splitting across parallel steps (step %d/%d)", splitIdx+1, splitTotal)
 
 	// STEP 1: Get all test files using simple glob search
 	allTestFilePaths, err := tiCommon.SimpleAutoDetectTestFiles(workspace, config.TestGlobs)
@@ -334,6 +350,8 @@ func distributeSkipTestsForParallelism(
 		log.WithError(err).Warnf("Failed to auto-detect test files for parallelism, using original skip list")
 		return skipTests, err
 	}
+	log.Infof("Auto-detected %d test file(s) for splitting matching globs %v", len(allTestFilePaths), config.TestGlobs)
+	log.Debugf("Auto-detected test files: %v", allTestFilePaths)
 
 	// STEP 2: Remove TI skip files from discovered files
 	skipSet := make(map[string]bool)
@@ -349,9 +367,13 @@ func distributeSkipTestsForParallelism(
 	}
 
 	if len(remainingFiles) == 0 {
-		log.Infof("No remaining tests after TI skips for parallel distribution")
+		tiSkipFilesCount := len(extractTestFiles(skipTests))
+		log.Infof("No remaining runnable tests after TI skips for parallel distribution (%d discovered, %d ti-skipped test file(s))",
+			len(allTestFilePaths), tiSkipFilesCount)
 		return skipTests, nil
 	}
+	log.Infof("Discovered %d runnable test file(s) to distribute across parallel steps", len(remainingFiles))
+	log.Debugf("Discovered runnable test files: %v", remainingFiles)
 
 	// STEP 3: Get file timing data for balanced splitting (with fallback to equal distribution)
 	fileTimes := make(map[string]float64)
@@ -363,22 +385,21 @@ func distributeSkipTestsForParallelism(
 		IncludeFilename: true, // We want file-based timing for our file paths
 	}
 
-	log.Infof("Calling GetTestTimes for step: %s", stepID)
+	log.Debugf("Calling GetTestTimes for step: %s", stepID)
 	if res, err := client.GetTestTimes(ctx, stepID, &req, 0, false); err == nil {
 		// Convert the timing data to our format
 		for filename, timing := range res.FileTimeMap {
 			fileTimes[filename] = float64(timing)
 		}
-		log.Infof("Retrieved timing data for %d files from TI service", len(res.FileTimeMap))
-		// Log each file with its timing
-		for filename, timing := range fileTimes {
-			log.Infof("  Test file: %s, Time: %.2f seconds", filename, timing)
+		if len(res.FileTimeMap) > 0 {
+			log.Infof("Retrieved timing data for %d file(s) from TI service", len(res.FileTimeMap))
+			log.Debugf("Historical test timings map: %v", fileTimes)
 		}
 	} else {
 		log.WithError(err).Warnf("Failed to get timing data from TI service, using default timing")
 	}
 
-	// Assign default timing for files without timing data (assume 30 seconds per test file)
+	// Assign default timing for files without timing data (assume 0.1 seconds per test file)
 	const defaultTestTime = 0.1
 	for _, file := range remainingFiles {
 		if _, exists := fileTimes[file]; !exists {
@@ -413,12 +434,13 @@ func distributeSkipTestsForParallelism(
 		bucketTimes[minBucket] += fileTime
 	}
 
-	// Log bucket distribution for debugging
+	// Log bucket distribution at INFO level so it is visible in pipeline execution logs
 	for i, bucket := range buckets {
-		log.Debugf("Bucket %d: %d files, estimated time: %.1f seconds", i, len(bucket), bucketTimes[i])
+		log.Infof("Parallel step %d/%d bucket allocation: %d test file(s)", i+1, splitTotal, len(bucket))
+		log.Debugf("Parallel step %d/%d assigned test file(s) (estimated %.2fs): %v", i+1, splitTotal, bucketTimes[i], bucket)
 	}
 
-	// STEP 4: Create skip file = (original skip list + all buckets except current one)
+	// STEP 5: Create skip file = (original skip list + all buckets except current one)
 	newSkipTests := make([]string, 0)
 
 	// Add original TI skip recommendations
@@ -432,31 +454,35 @@ func distributeSkipTestsForParallelism(
 	}
 
 	currentBucketSize := 0
+	var currentAssignedTests []string
 	if splitIdx < len(buckets) {
 		currentBucketSize = len(buckets[splitIdx])
+		currentAssignedTests = buckets[splitIdx]
 	}
 
-	log.Infof("Parallelism enabled: Step %d/%d will run %d tests and skip %d tests",
-		splitIdx+1, splitTotal, currentBucketSize, len(newSkipTests))
+	newSkipFilesCount := len(extractTestFiles(newSkipTests))
+	log.Infof("Parallel test splitting complete for step %d/%d: running %d test file(s), skipping %d test file(s)",
+		splitIdx+1, splitTotal, currentBucketSize, newSkipFilesCount)
+	log.Debugf("Step %d/%d test file(s) to run: %v, test file(s) to skip: %v",
+		splitIdx+1, splitTotal, currentAssignedTests, extractTestFiles(newSkipTests))
 
 	return newSkipTests, nil
 }
 
 func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
 	log *logrus.Logger, tiConfig *tiCfg.Cfg, skipTestsFilePath, failedTestsFilePath string, envs map[string]string, config *api.RunTestsV2Config) error {
-	// Debug logging for the file path
-	log.Infof("Creating skip tests file at path: %s", skipTestsFilePath)
+	log.Debugf("Creating skip tests file at path: %s", skipTestsFilePath)
 
 	// Ensure the directory exists before creating the file - use the same approach as createSelectedTestFile
 	skipTestsFileDir := filepath.Dir(skipTestsFilePath)
-	log.Infof("Extracted directory path: %s", skipTestsFileDir)
+	log.Debugf("Extracted directory path: %s", skipTestsFileDir)
 
 	// Check if directory already exists
 	var err error
 	if _, err = os.Stat(skipTestsFileDir); os.IsNotExist(err) {
-		log.Infof("Directory does not exist, creating: %s", skipTestsFileDir)
+		log.Debugf("Directory does not exist, creating: %s", skipTestsFileDir)
 	} else {
-		log.Infof("Directory already exists: %s", skipTestsFileDir)
+		log.Debugf("Directory already exists: %s", skipTestsFileDir)
 	}
 
 	err = fs.MkdirAll(skipTestsFileDir, os.ModePerm)
@@ -471,23 +497,49 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 		return fmt.Errorf("directory creation verification failed: %s", skipTestsFileDir)
 	}
 
-	log.Infof("Successfully created/verified directory: %s", skipTestsFileDir)
+	log.Debugf("Successfully created/verified directory: %s", skipTestsFileDir)
 
-	// Get file checksums from git repository using workspace
-	fileChecksums, _, err := instrumentation.GetGitFileChecksums(ctx, workspace, log)
-	if err != nil {
-		return fmt.Errorf("failed to get git file checksums: %w", err)
-	}
-
-	log.Infof("Sending git file checksums from %s to ti-service", workspace)
-	skipTests, failedTests, err := sendFileChecksumsToTI(ctx, stepID, workspace, log, tiConfig, fileChecksums, envs)
-	if err != nil {
-		log.WithError(err).Warnf("Failed to send file checksums to ti-service, continuing...")
+	if instrumentation.ShouldSkipAgentInfrastructure(config.IntelligenceMode, envs) {
 		return nil
 	}
-	stageMatrixCase := instrumentation.IsMatrixEnabledStage(envs) && !instrumentation.IsStepParallelismEnabled(envs)
 
-	if instrumentation.IsParallelismEnabled(envs) && !stageMatrixCase {
+	var skipTests, failedTests []string
+	if config.IntelligenceMode {
+		if instrumentation.IsParallelismActive(envs) {
+			log.Infoln("Starting skip file and test splitting generation for TI enhanced mode")
+		} else {
+			log.Infoln("Starting skip file generation for TI enhanced mode")
+		}
+
+		// Get file checksums from git repository using workspace
+		fileChecksums, _, err := instrumentation.GetGitFileChecksums(ctx, workspace, log)
+		if err != nil {
+			return fmt.Errorf("failed to get git file checksums: %w", err)
+		}
+
+		log.Infof("Sending %d git file checksums from %s to ti-service for skip analysis", len(fileChecksums), workspace)
+		skipTests, failedTests, err = sendFileChecksumsToTI(ctx, stepID, workspace, log, tiConfig, fileChecksums, envs)
+		if err != nil {
+			log.WithError(err).Warnf("Failed to send file checksums to ti-service, continuing...")
+			return nil
+		}
+
+		skipFilesCount := len(extractTestFiles(skipTests))
+		failedFilesCount := len(extractTestFiles(failedTests))
+		if skipFilesCount == 0 && failedFilesCount == 0 {
+			log.Infoln("Test Intelligence determined to run all tests (no test files recommended to skip)")
+		} else {
+			log.Infof("Test Intelligence skip recommendations received: %d test file(s) to skip, %d failed test file(s)",
+				skipFilesCount, failedFilesCount)
+			log.Debugf("Test Intelligence test files to skip: %v, failed test files: %v", extractTestFiles(skipTests), extractTestFiles(failedTests))
+		}
+	} else if instrumentation.IsParallelismActive(envs) {
+		log.Infoln("Starting test splitting generation for parallelism (intelligence mode is off)")
+		skipTests = []string{}
+		failedTests = []string{}
+	}
+
+	if instrumentation.IsParallelismActive(envs) {
 		newSkipTests, err := distributeSkipTestsForParallelism(
 			ctx, skipTests, config, stepID, workspace, log, tiConfig, envs)
 		if err != nil {
@@ -497,22 +549,23 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 		}
 	}
 
-	// Log the skip recommendations
-	if len(skipTests) > 0 {
-		log.Infof("TI service recommends skipping %d files: %v", len(skipTests), skipTests)
-	} else {
-		log.Infof("TI service recommends processing all files (no skips)")
-	}
-
 	// Write skipTests to a text file on disk
 	if err := writeSkipTestsToFile(fs, skipTests, skipTestsFilePath, log); err != nil {
 		return fmt.Errorf("failed to write skip tests file: %w", err)
 	}
+	skipFilesCount := len(extractTestFiles(skipTests))
+	log.Infof("Successfully generated skip file (%d test file(s) to skip)", skipFilesCount)
+	log.Debugf("Successfully wrote skip tests file (%s, count=%d test file(s))", skipTestsFilePath, skipFilesCount)
 
 	// Write failedTests to a text file on disk
 	if err := writeFailedTestsToFile(fs, failedTests, failedTestsFilePath, log); err != nil {
 		return fmt.Errorf("failed to write failed tests file: %w", err)
 	}
+	failedFilesCount := len(extractTestFiles(failedTests))
+	if failedFilesCount > 0 {
+		log.Infof("Successfully generated failed tests file (%d test file(s) to rerun)", failedFilesCount)
+	}
+	log.Debugf("Successfully wrote failed tests file (%s, count=%d test file(s))", failedTestsFilePath, failedFilesCount)
 
 	return nil
 }
@@ -545,7 +598,7 @@ func writeResultToFile(fs filesystem.FileSystem, results []string, resultFilePat
 			return fmt.Errorf("failed to write %s to file: %w", category, err)
 		}
 
-		log.Infof("Successfully wrote %d %s to file: %s", len(results), category, resultFilePath)
+		log.Debugf("Successfully wrote %d %s to file: %s", len(results), category, resultFilePath)
 	} else {
 		// Create empty file to indicate no tests to skip
 		file, err := fs.Create(resultFilePath)
@@ -555,7 +608,7 @@ func writeResultToFile(fs filesystem.FileSystem, results []string, resultFilePat
 		}
 		file.Close()
 
-		log.Infof("Created empty %s file (no results): %s", category, resultFilePath)
+		log.Debugf("Created empty %s file (no results): %s", category, resultFilePath)
 	}
 
 	return nil
@@ -576,7 +629,7 @@ func sendFileChecksumsToTI(ctx context.Context, stepID, workspace string,
 	// Get ti-service client
 	c := tiConfig.GetClient()
 
-	log.Infof("fileChecksums: %s", fmt.Sprintf("%#v", fileChecksums))
+	log.Debugf("fileChecksums: %s", fmt.Sprintf("%#v", fileChecksums))
 	log.Infof("Sending %d file checksums to ti-service for skip analysis", len(fileChecksums))
 
 	// Call tiClient.GetSkipTests method to get files to skip
@@ -636,8 +689,8 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 		}
 	}
 
-	// Test splitting: only when parallelism is enabled
-	if instrumentation.IsParallelismEnabled(envs) {
+	// Test splitting: only when parallelism is enabled (excludes stage matrix without step parallelism)
+	if instrumentation.IsParallelismActive(envs) {
 		log.Debugln("Parallelism is enabled!")
 		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, testGlobs, tiConfig, runOnlySelectedTests, fs)
 	}
@@ -688,7 +741,8 @@ func getTestsSelectionWithTiModeEnabled(ctx context.Context, fs filesystem.FileS
 		log.Infoln("Test Intelligence determined to run all the tests")
 		runOnlySelectedTests = false
 	} else {
-		log.Infoln(fmt.Sprintf("Running tests selected by Test Intelligence: %s", selection.Tests))
+		log.Infof("Running %d test(s) selected by Test Intelligence", len(selection.Tests))
+		log.Debugf("Tests selected by Test Intelligence: %s", selection.Tests)
 		runOnlySelectedTests = true
 	}
 	return selection, runOnlySelectedTests
@@ -759,7 +813,8 @@ func createJavaConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus.L
 	packageInference: true%s
 	filterFile: %s`, outDir, enhancedOpts, filterfilePath)
 
-	log.Infof("Writing to %s with config:\n%s", iniFile, data)
+	log.Infof("Writing Java agent config file to %s", iniFile)
+	log.Debugf("Java agent config (%s):\n%s", iniFile, data)
 	f, err := fs.Create(iniFile)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create config file %s", iniFile))
@@ -796,7 +851,8 @@ func createDotNetConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus
 		"filterFile": "%s"
 	}`, outDir, outDir, filterfilePath)
 
-	log.Infof("Writing to %s with config:\n%s", jsonFile, data)
+	log.Infof("Writing .NET agent config file to %s", jsonFile)
+	log.Debugf(".NET agent config (%s):\n%s", jsonFile, data)
 	f, err := fs.Create(jsonFile)
 	if err != nil {
 		log.WithError(err).Errorln(fmt.Sprintf("could not create config file %s", jsonFile))
@@ -818,9 +874,9 @@ func createDotNetConfigFile(tmpDir string, fs filesystem.FileSystem, log *logrus
 //nolint:funlen,gocyclo,lll,unparam
 func getPreCmd(workspace, tmpFilePath string, fs filesystem.FileSystem, log *logrus.Logger, envs, agentPaths map[string]string, isPsh bool, tiConfig *tiCfg.Cfg) (preCmd, filterFilePath, skipTestsFilePath, failedTestsFilePath string, err error) {
 	splitIdx := 0
-	if instrumentation.IsParallelismEnabled(envs) {
+	if instrumentation.IsParallelismActive(envs) {
 		log.Infoln("Initializing settings for test splitting and parallelism")
-		splitIdx, _ = instrumentation.GetSplitIdxAndTotal(envs)
+		splitIdx, _ = instrumentation.GetSplitIdxAndTotalWithMatrix(envs)
 	}
 
 	outDir, err := createOutDir(tmpFilePath, fs, log)

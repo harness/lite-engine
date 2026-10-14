@@ -145,7 +145,8 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 		// there are no tests to run
 		return runOnlySelectedTests
 	}
-	splitIdx, splitTotal := GetSplitIdxAndTotal(envs)
+	splitIdx, splitTotal := GetSplitIdxAndTotalWithMatrix(envs)
+	log.Infof("Splitting tests across parallel steps (filter mode, step %d/%d)", splitIdx+1, splitTotal)
 	tests := make([]ti.RunnableTest, 0)
 
 	// Autodetection
@@ -172,7 +173,8 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 			return runOnlySelectedTests
 		}
 		// Auto-detected tests successfully
-		log.Infoln(fmt.Sprintf("Autodetected tests: %s", formatTests(tests)))
+		log.Infof("Autodetected %d test(s) for splitting", len(tests))
+		log.Debugf("Autodetected tests: %s", formatTests(tests))
 	} else if len(selection.Tests) > 0 {
 		// In case of intelligent runs, split the tests from TI SelectTests API response
 		tests = selection.Tests
@@ -184,7 +186,8 @@ func ComputeSelectedTestsV2(ctx context.Context, runConfigV2 *api.RunTestsV2Conf
 		log.Errorln("Error occurred while splitting the tests by default split strategy. Splitting tests equally")
 		splitTests, _ = getSplitTests(ctx, log, tests, stepID, countTestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	}
-	log.Infoln(fmt.Sprintf("Test split for this run: %s", formatTests(splitTests)))
+	log.Infof("Assigned %d test(s) to this parallel step (%d/%d)", len(splitTests), splitIdx+1, splitTotal)
+	log.Debugf("Tests assigned to this parallel step (%d/%d): %s", splitIdx+1, splitTotal, formatTests(splitTests))
 
 	// Modify selections to run only selected tests
 	selection.Tests = splitTests
@@ -204,9 +207,8 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 		// there are no tests to run
 		return
 	}
-	log.Infoln("Splitting the tests as parallelism is enabled")
-
-	splitIdx, splitTotal := GetSplitIdxAndTotal(envs)
+	splitIdx, splitTotal := GetSplitIdxAndTotalWithMatrix(envs)
+	log.Infof("Splitting tests as parallelism is enabled (step %d/%d)", splitIdx+1, splitTotal)
 
 	tests := make([]ti.RunnableTest, 0)
 	if !config.RunOnlySelectedTests {
@@ -233,7 +235,8 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 			return
 		}
 		// Auto-detected tests successfully
-		log.Infoln(fmt.Sprintf("Autodetected tests: %s", formatTests(tests)))
+		log.Infof("Autodetected %d test(s) for splitting", len(tests))
+		log.Debugf("Autodetected tests: %s", formatTests(tests))
 	} else if len(selection.Tests) > 0 {
 		// In case of intelligent runs, split the tests from TI SelectTests API response
 		tests = selection.Tests
@@ -246,7 +249,8 @@ func computeSelectedTests(ctx context.Context, config *api.RunTestConfig, log *l
 		log.Errorln("Error occurred while splitting the tests by input strategy. Splitting tests equally")
 		splitTests, _ = getSplitTests(ctx, log, tests, stepID, countTestSplitStrategy, splitIdx, splitTotal, tiConfig)
 	}
-	log.Infoln(fmt.Sprintf("Test split for this run: %s", formatTests(splitTests)))
+	log.Infof("Assigned %d test(s) to this parallel step (%d/%d)", len(splitTests), splitIdx+1, splitTotal)
+	log.Debugf("Tests assigned to this parallel step (%d/%d): %s", splitIdx+1, splitTotal, formatTests(splitTests))
 
 	// Modify runner input to run selected tests
 	selection.Tests = splitTests
