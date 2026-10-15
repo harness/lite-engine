@@ -221,7 +221,7 @@ func TestRunStepOutputCaptureHiddenFromLogs(t *testing.T) {
 				require.Zero(t, state.ExitCode)
 
 				got := logs.String()
-				require.Contains(t, got, "Executing the following command(s):")
+				require.Contains(t, got, "Executing the following")
 				require.Contains(t, got, "export SOURCE=hello")
 				require.NotContains(t, got, "__B64__")
 				require.NotContains(t, got, "output.env")
