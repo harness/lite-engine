@@ -238,6 +238,9 @@ type (
 		Args       []string `json:"args,omitempty"`
 		Compressed bool     `json:"compressed,omitempty"`
 		Target     string   `json:"target,omitempty"`
+		// Checksum is the expected sha256 hex digest of the downloaded file.
+		// Empty means skip verification.
+		Checksum string `json:"checksum,omitempty"`
 	}
 
 	RunTestsV2Config struct {
