@@ -366,7 +366,11 @@ func maskCommandWithReplacer(command string, step *spec.Step) string {
 }
 
 func printCommand(step *spec.Step, output io.Writer) {
-	stepCommand := strings.TrimSpace(strings.Join(step.Command, ""))
+	command := step.Command
+	if len(step.DisplayCommand) > 0 {
+		command = step.DisplayCommand
+	}
+	stepCommand := strings.TrimSpace(strings.Join(command, ""))
 	if stepCommand != "" {
 		printCommand := ""
 		if val, ok := step.Envs["CI_ENABLE_EXTRA_CHARACTERS_SECRETS_MASKING"]; ok && val == trueValue {
