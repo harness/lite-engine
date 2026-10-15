@@ -126,7 +126,7 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			WithField("p99_mem_pct", stats.P99MemUsagePct).
 			WithField("disk_read_mb", stats.DiskTotalReadMB).
 			WithField("disk_write_mb", stats.DiskTotalWriteMB).
-			Infoln("CI-24708 destroy: returning resource utilization stats")
+			Infoln("destroy: returning resource utilization stats")
 
 		WriteJSON(w, api.DestroyResponse{OSStats: stats}, http.StatusOK)
 
