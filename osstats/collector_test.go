@@ -240,7 +240,7 @@ func TestAggregate_PercentilesComputed(t *testing.T) {
 	assertClose(t, "P99Mem", stats.P99MemUsagePct, 50)
 
 	// Existing fields should still work
-	assertClose(t, "AvgCPU", stats.AvgCPUUsagePct, 55)  // (10+20+...+100)/10
+	assertClose(t, "AvgCPU", stats.AvgCPUUsagePct, 55)   // (10+20+...+100)/10
 	assertClose(t, "AvgMem", stats.AvgMemUsagePct, 27.5) // (5+10+...+50)/10
 	assertClose(t, "MaxCPU", stats.MaxCPUUsagePct, 100)
 	assertClose(t, "MaxMem", stats.MaxMemUsagePct, 50)

@@ -118,16 +118,16 @@ func (s *StatsCollector) Aggregate() {
 	s.stats.CPUCores = s.cpuTotal
 
 	// Compute CPU percentiles
-	s.stats.P50CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.50)
-	s.stats.P90CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.90)
-	s.stats.P95CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.95)
-	s.stats.P99CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.99)
+	s.stats.P50CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.50) //nolint:mnd
+	s.stats.P90CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.90) //nolint:mnd
+	s.stats.P95CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.95) //nolint:mnd
+	s.stats.P99CPUUsagePct = percentileNearestRank(s.cpuSamples, 0.99) //nolint:mnd
 
 	// Compute memory percentiles
-	s.stats.P50MemUsagePct = percentileNearestRank(s.memSamples, 0.50)
-	s.stats.P90MemUsagePct = percentileNearestRank(s.memSamples, 0.90)
-	s.stats.P95MemUsagePct = percentileNearestRank(s.memSamples, 0.95)
-	s.stats.P99MemUsagePct = percentileNearestRank(s.memSamples, 0.99)
+	s.stats.P50MemUsagePct = percentileNearestRank(s.memSamples, 0.50) //nolint:mnd
+	s.stats.P90MemUsagePct = percentileNearestRank(s.memSamples, 0.90) //nolint:mnd
+	s.stats.P95MemUsagePct = percentileNearestRank(s.memSamples, 0.95) //nolint:mnd
+	s.stats.P99MemUsagePct = percentileNearestRank(s.memSamples, 0.99) //nolint:mnd
 
 	s.stats.MemGraph.Points = downsample(s.stats.MemGraph.Points, downsampleCount)
 	s.stats.CPUGraph.Points = downsample(s.stats.CPUGraph.Points, downsampleCount)

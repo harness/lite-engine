@@ -94,8 +94,8 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 					Warnln("api: failed to close os stats stream")
 			}
 			if diskTotals != nil {
-				stats.DiskTotalReadMB = float64(diskTotals.ReadBytes) / (1024 * 1024)
-				stats.DiskTotalWriteMB = float64(diskTotals.WriteBytes) / (1024 * 1024)
+				stats.DiskTotalReadMB = float64(diskTotals.ReadBytes) / (1024 * 1024)   //nolint:mnd
+				stats.DiskTotalWriteMB = float64(diskTotals.WriteBytes) / (1024 * 1024) //nolint:mnd
 			}
 		}
 
