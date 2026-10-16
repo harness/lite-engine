@@ -65,6 +65,33 @@ func TestRun(t *testing.T) {
 	}
 }
 
+func TestPrintCommandPrefersDisplayCommand(t *testing.T) {
+	internal := "\nprintf '%s=__B64__%s\\n' 'RESULT' \"$(printf '%s' \"$SOURCE\" | base64 | tr -d '\\n')\" >> /tmp/engine/step-output.env"
+	for _, tc := range []struct {
+		name     string
+		envs     map[string]string
+		preamble string
+	}{
+		{"plain", nil, "Executing the following command(s):"},
+		{"masked", map[string]string{"CI_ENABLE_EXTRA_CHARACTERS_SECRETS_MASKING": trueValue}, "Executing the following masked command(s):"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			step := &spec.Step{
+				Command:        []string{"export SOURCE=hello" + internal},
+				DisplayCommand: []string{"export SOURCE=hello"},
+				Envs:           tc.envs,
+			}
+			var buf bytes.Buffer
+			printCommand(step, &buf)
+			got := buf.String()
+			assert.Contains(t, got, tc.preamble)
+			assert.Contains(t, got, "export SOURCE=hello")
+			assert.NotContains(t, got, "__B64__")
+			assert.NotContains(t, got, "output.env")
+		})
+	}
+}
+
 func TestRunHelper(t *testing.T) {
 	cfg := &spec.PipelineConfig{
 		Envs: map[string]string{

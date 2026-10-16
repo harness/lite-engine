@@ -184,6 +184,22 @@ except Exception as e:
 	return cmd
 }
 
+// appendOutputCaptureCmd appends the output variable capture commands to the step command,
+// keeping the user's command in DisplayCommand so the capture commands are not echoed in the step logs.
+func appendOutputCaptureCmd(step *spec.Step, outputs []*api.OutputV2, outputVars []string, outputFile string, useNewGoDotEnv bool) {
+	var cmd string
+	if len(outputs) > 0 {
+		cmd = getOutputsCmd(step.Entrypoint, outputs, outputFile, useNewGoDotEnv)
+	} else if len(outputVars) > 0 {
+		cmd = getOutputVarCmd(step.Entrypoint, outputVars, outputFile, useNewGoDotEnv)
+	}
+	if cmd == "" || len(step.Command) == 0 {
+		return
+	}
+	step.DisplayCommand = append([]string(nil), step.Command...)
+	step.Command[0] += cmd
+}
+
 func IsPowershell(entrypoint []string) bool {
 	if len(entrypoint) > 0 && (entrypoint[0] == "powershell" || entrypoint[0] == "pwsh") {
 		return true

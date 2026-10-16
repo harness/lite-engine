@@ -74,6 +74,10 @@ type (
 		ProcessConfig  ProcessConfig     `json:"process_config,omitempty"`
 
 		ShowScriptInExecutionLogs *bool `json:"show_script_in_execution_logs,omitempty"`
+
+		// DisplayCommand, when set, is printed in the step logs instead of Command,
+		// which may carry internal commands (e.g. output variable capture) appended at runtime.
+		DisplayCommand []string `json:"-"`
 	}
 
 	// Secret represents a secret variable.

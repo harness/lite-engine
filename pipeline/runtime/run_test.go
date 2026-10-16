@@ -16,6 +16,7 @@ import (
 
 	runnerRuntime "github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
@@ -154,6 +155,93 @@ func TestRunStepOutputCaptureEndToEnd(t *testing.T) {
 			require.Zero(t, state.ExitCode)
 			require.Equal(t, "hello", consumed.String())
 		})
+	}
+}
+
+func TestAppendOutputCaptureCmd(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		entrypoint  []string
+		outputs     []*api.OutputV2
+		outputVars  []string
+		wantCapture bool
+	}{
+		{"outputs shell", []string{"sh", "-c"}, []*api.OutputV2{{Key: "RESULT", Value: "SOURCE"}}, nil, true},
+		{"output vars shell", []string{"sh", "-c"}, nil, []string{"SOURCE"}, true},
+		{"outputs powershell", []string{"pwsh", "-Command"}, []*api.OutputV2{{Key: "RESULT", Value: "SOURCE"}}, nil, true},
+		{"output vars python", []string{"python3", "-c"}, nil, []string{"SOURCE"}, true},
+		{"no outputs", []string{"sh", "-c"}, nil, nil, false},
+	} {
+		for _, useNewGoDotEnv := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/godotenv=%v", tc.name, useNewGoDotEnv), func(t *testing.T) {
+				userCommand := []string{"export SOURCE=hello"}
+				step := &spec.Step{Entrypoint: tc.entrypoint, Command: userCommand}
+				appendOutputCaptureCmd(step, tc.outputs, tc.outputVars, "/tmp/engine/step-output.env", useNewGoDotEnv)
+				if !tc.wantCapture {
+					require.Nil(t, step.DisplayCommand)
+					require.Equal(t, []string{"export SOURCE=hello"}, step.Command)
+					return
+				}
+				require.Contains(t, step.Command[0], "/tmp/engine/step-output.env")
+				require.Equal(t, []string{"export SOURCE=hello"}, step.DisplayCommand)
+			})
+		}
+	}
+}
+
+func TestAppendOutputCaptureCmdEmptyCommand(t *testing.T) {
+	step := &spec.Step{Entrypoint: []string{"sh", "-c"}}
+	appendOutputCaptureCmd(step, []*api.OutputV2{{Key: "RESULT", Value: "SOURCE"}}, nil, "/tmp/engine/step-output.env", true)
+	require.Empty(t, step.Command)
+	require.Nil(t, step.DisplayCommand)
+}
+
+func TestRunStepOutputCaptureHiddenFromLogs(t *testing.T) {
+	outputCaptureInterpreter(t, "sh")
+	disabled := false
+	cfg := &spec.PipelineConfig{EnableDockerSetup: &disabled, Envs: map[string]string{}}
+	run := func(ctx context.Context, step *spec.Step, out io.Writer, isDrone, isHosted bool) (*runnerRuntime.State, error) {
+		return engine.RunStep(ctx, engine.Opts{}, step, out, cfg, isDrone, isHosted)
+	}
+	for _, tc := range []struct {
+		name       string
+		outputs    []*api.OutputV2
+		outputVars []string
+	}{
+		{"outputs", []*api.OutputV2{{Key: "RESULT", Value: "SOURCE", Type: api.OutputTypeString}}, nil},
+		{"output vars", nil, []string{"SOURCE"}},
+	} {
+		for _, useNewGoDotEnv := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/godotenv=%v", tc.name, useNewGoDotEnv), func(t *testing.T) {
+				workDir := t.TempDir()
+				t.Setenv("HARNESS_WORKDIR", workDir)
+				require.NoError(t, os.MkdirAll(pipeline.GetSharedVolPath(), 0700))
+				tiConfig := tiCfg.New("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", false, "", "")
+				request := &api.StartStepRequest{ID: "capture", WorkingDir: workDir,
+					Envs:       map[string]string{ciNewVersionGodotEnv: strconv.FormatBool(useNewGoDotEnv)},
+					Run:        api.RunConfig{Entrypoint: []string{"sh", "-c"}, Command: []string{"export SOURCE=hello"}},
+					Outputs:    tc.outputs,
+					OutputVars: tc.outputVars}
+				var logs bytes.Buffer
+				state, outputVars, _, _, outputs, _, _, err := executeRunStep(context.Background(), run, request, &logs, &tiConfig) //nolint:dogsled
+				require.NoError(t, err)
+				require.Zero(t, state.ExitCode)
+
+				got := logs.String()
+				require.Contains(t, got, "Executing the following")
+				require.Contains(t, got, "export SOURCE=hello")
+				require.NotContains(t, got, "__B64__")
+				require.NotContains(t, got, "output.env")
+
+				if len(tc.outputs) > 0 {
+					require.Len(t, outputs, 1)
+					require.Equal(t, "RESULT", outputs[0].Key)
+					require.Equal(t, "hello", outputs[0].Value)
+				} else {
+					require.Equal(t, map[string]string{"SOURCE": "hello"}, outputVars)
+				}
+			})
+		}
 	}
 }
 
