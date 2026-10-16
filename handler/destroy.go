@@ -82,13 +82,20 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		// Stop OS stats live streaming and close the writer (which flushes and uploads).
 		// Close all OS stats streams so the P90 summary is always written before upload,
 		// even if destroy is called without MemoryMetricsLogKey or stream was closed elsewhere.
+		// Disk I/O totals are captured safely inside closeOSStatsStream (after Cancel+Wait
+		// guarantees the sampling goroutine has exited).
 		for _, key := range state.GetAllOSStatsKeys() {
-			if err := closeOSStatsStream(state, key); err != nil {
+			diskTotals, err := closeOSStatsStream(state, key)
+			if err != nil {
 				logger.FromRequest(r).
 					WithField("time", time.Now().Format(time.RFC3339)).
 					WithField("memory_metrics_log_key", key).
 					WithError(err).
 					Warnln("api: failed to close os stats stream")
+			}
+			if diskTotals != nil {
+				stats.DiskTotalReadMB = float64(diskTotals.ReadBytes) / (1024 * 1024)   //nolint:mnd
+				stats.DiskTotalWriteMB = float64(diskTotals.WriteBytes) / (1024 * 1024) //nolint:mnd
 			}
 		}
 
@@ -96,6 +103,25 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			WriteError(w, fmt.Errorf("destroy error: %w", destroyErr))
 			return
 		}
+
+		logger.FromRequest(r).
+			WithField("cpu_cores", stats.CPUCores).
+			WithField("total_mem_mb", stats.TotalMemMB).
+			WithField("avg_cpu_pct", stats.AvgCPUUsagePct).
+			WithField("max_cpu_pct", stats.MaxCPUUsagePct).
+			WithField("avg_mem_pct", stats.AvgMemUsagePct).
+			WithField("max_mem_pct", stats.MaxMemUsagePct).
+			WithField("p50_cpu_pct", stats.P50CPUUsagePct).
+			WithField("p90_cpu_pct", stats.P90CPUUsagePct).
+			WithField("p95_cpu_pct", stats.P95CPUUsagePct).
+			WithField("p99_cpu_pct", stats.P99CPUUsagePct).
+			WithField("p50_mem_pct", stats.P50MemUsagePct).
+			WithField("p90_mem_pct", stats.P90MemUsagePct).
+			WithField("p95_mem_pct", stats.P95MemUsagePct).
+			WithField("p99_mem_pct", stats.P99MemUsagePct).
+			WithField("disk_read_mb", stats.DiskTotalReadMB).
+			WithField("disk_write_mb", stats.DiskTotalWriteMB).
+			Infoln("destroy: returning resource utilization stats")
 
 		WriteJSON(w, api.DestroyResponse{OSStats: stats}, http.StatusOK)
 
@@ -130,13 +156,17 @@ func closeLELogStream(_ context.Context, state *pipeline.State) error {
 
 // closeOSStatsStream stops the OS stats collection, writes the P90 summary to the stream,
 // then closes the writer so the memory_metrics file always ends with the summary line.
-func closeOSStatsStream(state *pipeline.State, key string) error {
+// Returns the disk I/O totals captured after the sampling goroutine has fully exited
+// (Cancel calls wg.Wait), so the read is free from data races.
+func closeOSStatsStream(state *pipeline.State, key string) (*osstats.DiskIOTotals, error) {
 	entry := state.GetOSStatsEntry(key)
 	if entry == nil {
-		return nil
+		return nil, nil
 	}
 
-	// 1. Stop the stats collection goroutine (no more per-second lines)
+	// 1. Stop the stats collection goroutine (no more per-second lines).
+	//    Cancel() closes the done channel and calls wg.Wait(), so after this
+	//    returns the goroutine is fully stopped and ioState is safe to read.
 	if entry.Cancel != nil {
 		entry.Cancel()
 	}
@@ -145,9 +175,12 @@ func closeOSStatsStream(state *pipeline.State, key string) error {
 		WithField("os_stats_key", key).
 		Infoln("api: writing P90 summary to memory_metrics stream")
 
-	// 2. Write the P90 summary to the stream before closing, so it is included in memory_metrics
+	// 2. Write the P90 summary to the stream before closing, so it is included in memory_metrics.
+	//    GetSummaryData is now safe because the goroutine has exited above.
+	var totals *osstats.DiskIOTotals
 	if entry.Writer != nil && entry.GetSummaryData != nil {
 		cpuSamples, lastPayload, diskTotals := entry.GetSummaryData()
+		totals = &diskTotals
 		osstats.WriteP90SummaryToStream(entry.Writer, cpuSamples, lastPayload, diskTotals, logger.L)
 		// Flush so the summary is sent to the stream before Close() runs (upload + stream close)
 		if lw, ok := entry.Writer.(*livelog.Writer); ok {
@@ -158,11 +191,11 @@ func closeOSStatsStream(state *pipeline.State, key string) error {
 	// 3. Only then close the writer (flush and upload)
 	if entry.Writer != nil {
 		if err := entry.Writer.Close(); err != nil {
-			return fmt.Errorf("failed to close os stats log writer: %w", err)
+			return totals, fmt.Errorf("failed to close os stats log writer: %w", err)
 		}
 	}
 
 	// Remove the entry from state
 	state.DeleteOSStatsEntry(key)
-	return nil
+	return totals, nil
 }
