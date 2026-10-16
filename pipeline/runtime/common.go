@@ -193,7 +193,7 @@ func appendOutputCaptureCmd(step *spec.Step, outputs []*api.OutputV2, outputVars
 	} else if len(outputVars) > 0 {
 		cmd = getOutputVarCmd(step.Entrypoint, outputVars, outputFile, useNewGoDotEnv)
 	}
-	if cmd == "" {
+	if cmd == "" || len(step.Command) == 0 {
 		return
 	}
 	step.DisplayCommand = append([]string(nil), step.Command...)

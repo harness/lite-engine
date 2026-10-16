@@ -189,6 +189,13 @@ func TestAppendOutputCaptureCmd(t *testing.T) {
 	}
 }
 
+func TestAppendOutputCaptureCmdEmptyCommand(t *testing.T) {
+	step := &spec.Step{Entrypoint: []string{"sh", "-c"}}
+	appendOutputCaptureCmd(step, []*api.OutputV2{{Key: "RESULT", Value: "SOURCE"}}, nil, "/tmp/engine/step-output.env", true)
+	require.Empty(t, step.Command)
+	require.Nil(t, step.DisplayCommand)
+}
+
 func TestRunStepOutputCaptureHiddenFromLogs(t *testing.T) {
 	outputCaptureInterpreter(t, "sh")
 	disabled := false
