@@ -1,7 +1,7 @@
 # ---------------------------------------------------------#
 #                   Build Lite Engine Binaries             #
 # ---------------------------------------------------------#
-FROM golang:1.26.10-alpine3.24 as builder
+FROM docker pull harness0.harness.io/l7b_kbseqd2wjrm7pshm5w/acct-docker-hub-proxy/library/golang:1.26.10-alpine3.24 as builder
 
 RUN apk add --no-cache git ca-certificates
 
