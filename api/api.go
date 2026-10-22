@@ -95,6 +95,11 @@ type (
 		// Configuration for annotations posting (e.g., dedicated token)
 		AnnotationsConfig AnnotationsConfig `json:"annotations_config,omitempty"`
 
+		// Harness Artifact Registry configuration for uploading the test attachments of this step. CI Manager
+		// sends it only for steps that upload (a JUnit report and PLUGIN_UPLOAD_ARTIFACTS), never in the setup
+		// request and never in the step environment, so the token reaches no other step.
+		HarConfig HarConfig `json:"har_config,omitempty"`
+
 		OutputVars        []string    `json:"output_vars,omitempty"`
 		TestReport        TestReport  `json:"test_report,omitempty"`
 		Timeout           int         `json:"timeout,omitempty"` // step timeout in seconds
@@ -283,6 +288,17 @@ type (
 		SkipOpeningStream  bool `json:"skip_opening_stream,omitempty"`
 		SkipClosingStream  bool `json:"skip_closing_stream,omitempty"`
 		DualLoggingEnabled bool `json:"dual_logging_enabled,omitempty"`
+	}
+
+	// HarConfig is the Harness Artifact Registry configuration used to upload test attachments.
+	HarConfig struct {
+		URL              string `json:"url,omitempty"`
+		AccountID        string `json:"account_id,omitempty"`
+		Registry         string `json:"registry,omitempty"`
+		PipelineUniqueID string `json:"pipeline_unique_id,omitempty"`
+		BuildID          string `json:"build_id,omitempty"`
+		Token            string `json:"token,omitempty"`
+		Workspace        string `json:"workspace,omitempty"`
 	}
 
 	TIConfig struct {

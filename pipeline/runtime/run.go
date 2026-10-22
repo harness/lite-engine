@@ -147,11 +147,23 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	timeTakenMs := time.Since(start).Milliseconds()
 
 	reportStart := time.Now()
-	tests, rerr := report.ParseAndUploadTests(ctx, r.TestReport, r.WorkingDir, step.Name, log, reportStart, tiConfig, &telemetryData.TestIntelligenceMetaData, r.Envs)
+	// Select the test attachments first, so that the test report links the files before they are uploaded.
+	attachmentPlan := planTestAttachments(ctx, r, out)
+	tests, rerr := report.ParseAndUploadTestsWithAnnotator(ctx, r.TestReport, r.WorkingDir, step.Name, log, reportStart, tiConfig,
+		&telemetryData.TestIntelligenceMetaData, r.Envs, attachmentAnnotator(attachmentPlan))
 	if rerr != nil {
 		logrus.WithContext(ctx).WithError(rerr).WithField("step", step.Name).Errorln("failed to upload report")
 		log.Errorf("Failed to upload report. Time taken: %s", time.Since(reportStart))
 	}
+	// Upload last, before the log stream is closed so that the result shows up in the step log: it can take until
+	// shortly before the step timeout, which would leave the quarantine and savings calls below without time. Like in
+	// Kubernetes, nothing is uploaded when the step panics on the way.
+	defer func() {
+		if rec := recover(); rec != nil {
+			panic(rec)
+		}
+		uploadTestAttachments(ctx, attachmentPlan, rerr, out)
+	}()
 
 	// Check if all failed tests are quarantined and update exit code accordingly
 	if exited != nil {

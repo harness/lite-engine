@@ -48,6 +48,7 @@ func (e *StepExecutorStateless) Run(
 		return api.VMTaskExecutionResponse{}, &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 
+	maskHarToken(r)
 	e.stepStatus = StepStatus{Status: Running}
 
 	state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(ctx, r, cfg, dockerClient, writer)

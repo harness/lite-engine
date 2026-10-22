@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/harness/lite-engine/ti/report/parser/junit/gojunit"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -574,4 +577,51 @@ func getEmptyTestNameShouldBeIgnored() struct {
 			Unknown:     0,
 		},
 	}
+}
+
+const annotatedReport = `<testsuites><testsuite name="s">
+<testcase name="a" classname="c"><system-out>first
+[[ATTACHMENT|results/a/trace.zip]]</system-out></testcase>
+<testcase name="b" classname="c"><system-out>plain</system-out></testcase>
+</testsuite></testsuites>`
+
+func TestParseTestsWithAnnotator(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "report.xml")
+	require.NoError(t, os.WriteFile(file, []byte(annotatedReport), 0o600))
+
+	var seen []string
+	tests := ParseTestsWithAnnotator([]string{file}, logrus.New(), nil, func(junitFile, systemOut string, tc *ti.TestCase) {
+		assert.Equal(t, file, junitFile)
+		seen = append(seen, tc.Name)
+		if strings.Contains(systemOut, "[[ATTACHMENT|") {
+			tc.Artifacts = []ti.TestArtifact{{Type: ti.TestArtifactTypeTrace, Path: "step/results/a/trace.zip", Size: 5}}
+		}
+	})
+
+	require.Len(t, tests, 2)
+	assert.Equal(t, []string{"a", "b"}, seen)
+	require.Len(t, tests[0].Artifacts, 1)
+	assert.Equal(t, "step/results/a/trace.zip", tests[0].Artifacts[0].Path)
+	assert.Empty(t, tests[1].Artifacts)
+}
+
+func TestParseTestsWithAnnotatorPanicKeepsTheTest(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "report.xml")
+	require.NoError(t, os.WriteFile(file, []byte(annotatedReport), 0o600))
+
+	tests := ParseTestsWithAnnotator([]string{file}, logrus.New(), nil, func(_, _ string, tc *ti.TestCase) {
+		tc.Artifacts = []ti.TestArtifact{{Path: "half"}}
+		panic("boom")
+	})
+
+	require.Len(t, tests, 2, "a failing annotation does not lose the report")
+	assert.Empty(t, tests[0].Artifacts)
+}
+
+func TestParseTestsWithoutAnnotatorIsUnchanged(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "report.xml")
+	require.NoError(t, os.WriteFile(file, []byte(annotatedReport), 0o600))
+	tests := ParseTests([]string{file}, logrus.New(), nil)
+	require.Len(t, tests, 2)
+	assert.Empty(t, tests[0].Artifacts)
 }
