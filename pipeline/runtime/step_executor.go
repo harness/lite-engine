@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -86,6 +87,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	if r.ID == "" {
 		return &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
+	maskHarToken(r)
 
 	e.mu.Lock()
 	_, ok := e.stepStatus[r.ID]
@@ -163,6 +165,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 	if r.ID == "" {
 		return &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
+	maskHarToken(r)
 
 	// Idempotency: if a step with this ID is already running (or has already
 	// completed) we silently return success. The runner-side retry loop and
@@ -537,7 +540,7 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 		return nil
 	}
 	pipelineState := pipeline.GetState()
-	secrets := append(pipelineState.GetSecrets(), r.Secrets...)
+	secrets := slices.Concat(pipelineState.GetSecrets(), r.Secrets)
 
 	// Create a log stream for step logs
 	client := pipelineState.GetLogStreamClient()

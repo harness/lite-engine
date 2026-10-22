@@ -31,8 +31,20 @@ func getRootSuiteName(envs map[string]string) string {
 	return defaultRootSuiteName
 }
 
-// ParseTests parses XMLs and writes relevant data to the channel
+// TestAnnotator completes a test case from the untruncated data of its JUnit file, for example with references to
+// files that belong to the test. It gets the path of the JUnit file and the full <system-out> of the test case,
+// since TestCase.SystemOut keeps only the last strMaxSize characters. It is called sequentially.
+type TestAnnotator func(junitFile, systemOut string, tc *ti.TestCase)
+
+// ParseTests parses XMLs and returns the test cases
 func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*ti.TestCase {
+	return ParseTestsWithAnnotator(paths, log, envs, nil)
+}
+
+// ParseTestsWithAnnotator parses XMLs and returns the test cases. It calls annotate, when it is not nil, for every
+// test case before the case is returned.
+func ParseTestsWithAnnotator(paths []string, log *logrus.Logger, envs map[string]string,
+	annotate TestAnnotator) []*ti.TestCase {
 	files := getFiles(paths, log)
 
 	log.Debugln(fmt.Sprintf("list of files to collect test reports from: %s", files))
@@ -49,7 +61,7 @@ func ParseTests(paths []string, log *logrus.Logger, envs map[string]string) []*t
 				Errorln(fmt.Sprintf("could not parse file %s", file))
 			continue
 		}
-		fileCounts := processTestSuites(&tests, suites)
+		fileCounts := processTestSuitesWithAnnotator(&tests, suites, file, annotate, log)
 		overallCounts.Total += fileCounts.Total
 		overallCounts.Passed += fileCounts.Passed
 		overallCounts.Failed += fileCounts.Failed
@@ -80,11 +92,21 @@ type TestCounts struct {
 // processTestSuites recusively writes the test data from parsed data to the
 // input channel and returns the total number of tests written to the channel
 func processTestSuites(tests *[]*ti.TestCase, suites []gojunit.Suite) TestCounts {
+	return processTestSuitesWithAnnotator(tests, suites, "", nil, nil)
+}
+
+// processTestSuitesWithAnnotator is processTestSuites for the suites of the report file. annotate, when set, is
+// called for every test case before it is added. A test case whose annotation panics is added without artifacts.
+func processTestSuitesWithAnnotator(tests *[]*ti.TestCase, suites []gojunit.Suite, file string, annotate TestAnnotator,
+	log *logrus.Logger) TestCounts {
 	counts := TestCounts{}
 	for _, suite := range suites { //nolint:gocritic
 		for _, test := range suite.Tests { //nolint:gocritic
 			ct := convert(test, suite)
 			if ct.Name != "" {
+				if annotate != nil {
+					annotateTest(annotate, file, test.SystemOut, ct, log)
+				}
 				*tests = append(*tests, ct)
 				counts.Total++
 				// Count by status
@@ -107,7 +129,7 @@ func processTestSuites(tests *[]*ti.TestCase, suites []gojunit.Suite) TestCounts
 				}
 			}
 		}
-		nestedCounts := processTestSuites(tests, suite.Suites)
+		nestedCounts := processTestSuitesWithAnnotator(tests, suite.Suites, file, annotate, log)
 		counts.Total += nestedCounts.Total
 		counts.Passed += nestedCounts.Passed
 		counts.Failed += nestedCounts.Failed
@@ -117,6 +139,20 @@ func processTestSuites(tests *[]*ti.TestCase, suites []gojunit.Suite) TestCounts
 		counts.Unknown += nestedCounts.Unknown
 	}
 	return counts
+}
+
+// annotateTest runs annotate for one test case. A panic leaves the test case without artifacts, since the report must
+// not be lost because of its attachments.
+func annotateTest(annotate TestAnnotator, file, systemOut string, ct *ti.TestCase, log *logrus.Logger) {
+	defer func() {
+		if r := recover(); r != nil {
+			ct.Artifacts = nil
+			if log != nil {
+				log.Warnf("Test annotation failed for %s: %v. It is reported without attachments.", ct.Name, r)
+			}
+		}
+	}()
+	annotate(file, systemOut, ct)
 }
 
 // getFiles returns uniques file paths provided in the input after expanding the input paths

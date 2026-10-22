@@ -18,7 +18,7 @@ require (
 	github.com/harness/godotenv/v2 v2.0.0
 	github.com/harness/godotenv/v3 v3.0.1
 	github.com/harness/godotenv/v4 v4.0.2
-	github.com/harness/ti-client v0.0.0-20261006201020-dfac3dc8c35b
+	github.com/harness/ti-client v0.0.0-20261027203846-4638611a07fd
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/klauspost/compress v1.18.0
