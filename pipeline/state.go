@@ -189,23 +189,6 @@ func (s *State) GetAllOSStatsKeys() []string {
 	return keys
 }
 
-// NewTestState creates a fresh State for use in unit tests.
-// Unlike GetState() it is not guarded by sync.Once, so each call returns a new instance.
-func NewTestState() *State {
-	return &State{
-		mu:             sync.Mutex{},
-		logConfig:      api.LogConfig{},
-		tiConfig:       tiCfg.Cfg{},
-		statsCollector: &osstats.StatsCollector{},
-		secrets:        make([]string, 0),
-		logClient:      nil,
-		mtlsConfig:     spec.MtlsConfig{},
-		leLogWriter:    nil,
-		leLogKey:       "",
-		osStatsEntries: make(map[string]*OSStatsEntry),
-	}
-}
-
 func GetState() *State {
 	once.Do(func() {
 		state = &State{
