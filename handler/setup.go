@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"time"
 
@@ -170,8 +171,13 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			s.LogConfig.DualLoggingEnabled = true
 		}
 
+		if tok := s.HarConfig.Token; tok != "" && !slices.Contains(s.Secrets, tok) {
+			s.Secrets = append(s.Secrets, tok)
+		}
+
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs), s.MtlsConfig, collector)
+		state.SetHarConfig(&s.HarConfig)
 
 		// Initialize lite-engine log streaming if LELogKey is provided
 		if err := initializeLELogStreaming(&s, state); err != nil {

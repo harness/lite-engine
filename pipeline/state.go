@@ -42,6 +42,7 @@ type State struct {
 	mu         sync.Mutex
 	logConfig  api.LogConfig
 	tiConfig   tiCfg.Cfg
+	harConfig  api.HarConfig
 	mtlsConfig spec.MtlsConfig
 	secrets    []string
 
@@ -120,6 +121,18 @@ func (s *State) GetTIConfig() *tiCfg.Cfg {
 	return &s.tiConfig
 }
 
+func (s *State) SetHarConfig(c *api.HarConfig) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.harConfig = *c
+}
+
+func (s *State) GetHarConfig() api.HarConfig {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.harConfig
+}
+
 func (s *State) GetLogConfig() *api.LogConfig {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -195,6 +208,7 @@ func GetState() *State {
 			mu:             sync.Mutex{},
 			logConfig:      api.LogConfig{},
 			tiConfig:       tiCfg.Cfg{},
+			harConfig:      api.HarConfig{},
 			statsCollector: &osstats.StatsCollector{},
 			secrets:        make([]string, 0),
 			logClient:      nil,

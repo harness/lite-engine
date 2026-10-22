@@ -407,16 +407,19 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 
 	// First try to get TI Config from pipeline state, if empty then use the one from step request
 	var tiConfig *tiCfg.Cfg
+	var harCfg *api.HarConfig
 	state := pipeline.GetState()
 	if state != nil {
 		tiConfig = state.GetTIConfig()
+		cfg := state.GetHarConfig()
+		harCfg = &cfg
 	}
 	if (tiConfig == nil || tiConfig.GetURL() == "") && r.TIConfig.URL != "" {
 		tiConfig = getTiCfg(&r.TIConfig, &r.MtlsConfig, r.Envs)
 	}
 	ctx := context.Background()
 	logResilience := e.engine.GetPipelineEnvs()[logServiceResilienceFF] == trueValue
-	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig, false, logResilience)
+	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig, false, logResilience, harCfg)
 }
 
 // executeStepHelper is a helper function which is used both by this step executor as well as the
@@ -429,7 +432,8 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 	wr logstream.Writer,
 	tiCfg *tiCfg.Cfg,
 	enableDebugLogs bool,
-	logServiceResilience bool) (*runtime.State, map[string]string,
+	logServiceResilience bool,
+	harCfg *api.HarConfig) (*runtime.State, map[string]string,
 	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
@@ -457,6 +461,7 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 
 	exited, outputs, envs, artifact, outputV2, telemetryData, optimizationState, err :=
 		run(ctx, f, r, wr, tiCfg)
+	stepCtxErr := ctx.Err()
 
 	if enableDebugLogs {
 		fields := logrus.Fields{
@@ -474,8 +479,13 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 		logrus.WithFields(fields).Debugln("step execution completed")
 	}
 
+	uploaded := false
 	if err != nil {
 		result = multierror.Append(result, err)
+	} else if wr != nil && !r.Detach {
+		// Upload before the log stream is closed so that the result shows up in the step log. Failures only
+		// log: they never change the step result.
+		uploaded = uploadTestAttachments(ctx, r, harCfg, wr)
 	}
 
 	// if err is not nil or it's not a detach step then always close the stream
@@ -493,16 +503,21 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 	}
 
 	// if the context was canceled and returns a canceled or
-	// DeadlineExceeded error this indicates the step was timed out.
-	switch ctx.Err() {
+	// DeadlineExceeded error this indicates the step was timed out. The upload runs after the step, so its
+	// time is not counted: only the state at the end of the step is.
+	ctxErr := ctx.Err()
+	if uploaded {
+		ctxErr = stepCtxErr
+	}
+	switch ctxErr {
 	case context.Canceled, context.DeadlineExceeded:
 		if enableDebugLogs {
-			logrus.WithError(ctx.Err()).WithFields(logrus.Fields{
+			logrus.WithError(ctxErr).WithFields(logrus.Fields{
 				"step_id":   r.ID,
 				"step_name": r.Name,
 			}).Debugln("returning due to context error")
 		}
-		return nil, nil, nil, nil, nil, nil, "", ctx.Err()
+		return nil, nil, nil, nil, nil, nil, "", ctxErr
 	}
 
 	if exited != nil {

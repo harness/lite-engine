@@ -134,7 +134,7 @@ func newTestTiConfig() *tiCfg.Cfg {
 // error, which are the two values the log resilience tests assert on.
 func runStepHelper(ctx context.Context, r *api.StartStepRequest, f RunFunc, wr logstream.Writer,
 	logServiceResilience bool) (*runtime.State, error) {
-	state, _, _, _, _, _, _, err := executeStepHelper(ctx, r, f, wr, newTestTiConfig(), false, logServiceResilience) //nolint:dogsled
+	state, _, _, _, _, _, _, err := executeStepHelper(ctx, r, f, wr, newTestTiConfig(), false, logServiceResilience, nil) //nolint:dogsled
 	return state, err
 }
 

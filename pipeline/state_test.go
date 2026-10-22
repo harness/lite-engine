@@ -197,3 +197,12 @@ func TestState_ConcurrentLogStreamClient(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestState_HarConfig(t *testing.T) {
+	s := &State{}
+	assert.Equal(t, api.HarConfig{}, s.GetHarConfig())
+
+	cfg := api.HarConfig{URL: "https://pkg.example.com", AccountID: "acc", Registry: "reg", Token: "tok"}
+	s.SetHarConfig(&cfg)
+	assert.Equal(t, cfg, s.GetHarConfig())
+}

@@ -37,6 +37,7 @@ type (
 		Secrets             []string           `json:"secrets,omitempty"`
 		LogConfig           LogConfig          `json:"log_config,omitempty"`
 		TIConfig            TIConfig           `json:"ti_config,omitempty"`
+		HarConfig           HarConfig          `json:"har_config,omitempty"`
 		Files               []*spec.File       `json:"files,omitempty"`
 		MountDockerSocket   *bool              `json:"mount_docker_socket,omitempty"`
 		TTY                 bool               `json:"tty,omitempty" default:"false"`
@@ -280,6 +281,17 @@ type (
 		SkipOpeningStream  bool `json:"skip_opening_stream,omitempty"`
 		SkipClosingStream  bool `json:"skip_closing_stream,omitempty"`
 		DualLoggingEnabled bool `json:"dual_logging_enabled,omitempty"`
+	}
+
+	// HarConfig is the Harness Artifact Registry configuration used to upload test attachments.
+	HarConfig struct {
+		URL              string `json:"url,omitempty"`
+		AccountID        string `json:"account_id,omitempty"`
+		Registry         string `json:"registry,omitempty"`
+		PipelineUniqueID string `json:"pipeline_unique_id,omitempty"`
+		BuildID          string `json:"build_id,omitempty"`
+		Token            string `json:"token,omitempty"`
+		Workspace        string `json:"workspace,omitempty"`
 	}
 
 	TIConfig struct {
