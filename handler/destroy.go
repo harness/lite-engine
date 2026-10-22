@@ -73,18 +73,11 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		collector := state.GetStatsCollector()
 		if collector != nil {
 			collector.Stop()
-			collector.Aggregate()
-			collectorStats := collector.Stats()
-			log.WithField("collector_avg_cpu", collectorStats.AvgCPUUsagePct).
-				WithField("collector_avg_mem", collectorStats.AvgMemUsagePct).
-				Infoln("destroy: collector stats (kept for comparison, not used in response)")
 		}
 
 		stats := &spec.OSStats{}
 
 		// Stop OS stats live streaming and close the writer (which flushes and uploads).
-		// Build resource utilization stats from the streamer's 1s samples instead of
-		// the collector's 30s samples for better accuracy.
 		for _, key := range state.GetAllOSStatsKeys() {
 			summary, err := closeOSStatsStream(state, key)
 			if err != nil {
