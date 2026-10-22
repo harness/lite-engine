@@ -76,6 +76,7 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		stats := &spec.OSStats{}
+		streamerPopulated := false
 
 		// Stop OS stats live streaming and close the writer (which flushes and uploads).
 		for _, key := range state.GetAllOSStatsKeys() {
@@ -88,6 +89,8 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 					Warnln("api: failed to close os stats stream")
 			}
 			if summary != nil {
+				streamerPopulated = true
+
 				// CPU fields
 				stats.CPUCores = summary.LastPayload.TotalCPU
 				cpuPeak, cpuAvg := osstats.PeakAndAvg(summary.CPUSamples)
@@ -113,6 +116,13 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 				stats.DiskTotalReadMB = float64(summary.DiskTotals.ReadBytes) / (1024 * 1024)   //nolint:mnd
 				stats.DiskTotalWriteMB = float64(summary.DiskTotals.WriteBytes) / (1024 * 1024) //nolint:mnd
 			}
+		}
+
+		// Fall back to collector when no streamer summary is available
+		// (e.g. MemoryMetricsLogKey was not set, so the streamer was never started).
+		if !streamerPopulated && collector != nil {
+			collector.Aggregate()
+			stats = collector.Stats()
 		}
 
 		if destroyErr != nil {
