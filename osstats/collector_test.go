@@ -136,4 +136,3 @@ func TestStatsCollector_StopWhileReading(t *testing.T) {
 	close(stop)
 	wg.Wait()
 }
-

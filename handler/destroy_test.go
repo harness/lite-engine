@@ -71,10 +71,10 @@ func TestCloseOSStatsStream_WithSummaryData(t *testing.T) {
 	state := pipeline.GetState()
 	key := "test-os-stats"
 
-	cancelled := false
+	canceled := false
 	entry := &pipeline.OSStatsEntry{
 		Writer: logstream.NopWriter(),
-		Cancel: func() { cancelled = true },
+		Cancel: func() { canceled = true },
 		GetSummaryData: func() osstats.StreamerSummary {
 			return osstats.StreamerSummary{
 				CPUSamples:  []float64{10, 20, 30},
@@ -91,7 +91,7 @@ func TestCloseOSStatsStream_WithSummaryData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !cancelled {
+	if !canceled {
 		t.Fatal("expected cancel to be called")
 	}
 	if summary == nil {
