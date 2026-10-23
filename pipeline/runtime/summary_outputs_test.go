@@ -37,7 +37,7 @@ var wantSummary = map[string]string{
 	"total_tests": "4", "successful_tests": "1", "failed_tests": "2", "skipped_tests": "1", "duration_ms": "600",
 }
 
-func runSummaryStepKind(t *testing.T, kind string, flagOn bool, exitCode int, outputVars []string, fileOutputs string) (map[string]string, map[string]string) {
+func runSummaryStepKind(t *testing.T, kind string, flagOn bool, exitCode int, outputVars []string, fileOutputs string) (legacyOut, v2Out map[string]string) {
 	t.Helper()
 	workDir := t.TempDir()
 	t.Setenv("HARNESS_WORKDIR", workDir)
