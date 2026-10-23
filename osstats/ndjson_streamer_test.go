@@ -248,11 +248,11 @@ func TestMemoryUsedPercentFormula(t *testing.T) {
 		avail float64
 		want  float64
 	}{
-		{16.0, 8.0, 50.0},   // 50% used
-		{16.0, 0.0, 100.0},  // 100% used
-		{16.0, 16.0, 0.0},   // 0% used
-		{8.0, 2.0, 75.0},    // 75% used
-		{0.0, 0.0, 0.0},     // edge case: 0 total (should not compute)
+		{16.0, 8.0, 50.0},  // 50% used
+		{16.0, 0.0, 100.0}, // 100% used
+		{16.0, 16.0, 0.0},  // 0% used
+		{8.0, 2.0, 75.0},   // 75% used
+		{0.0, 0.0, 0.0},    // edge case: 0 total (should not compute)
 	}
 	for _, tc := range cases {
 		if tc.total == 0 {

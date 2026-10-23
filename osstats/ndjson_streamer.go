@@ -133,7 +133,7 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 	return cancel, getSummaryData
 }
 
-func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *logrus.Entry, cpuSamples *[]float64, memSamples *[]float64, lastPayload *Payload, ioState *diskIOState) {
+func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *logrus.Entry, cpuSamples, memSamples *[]float64, lastPayload *Payload, ioState *diskIOState) {
 	// Prime CPU percent calculation (gopsutil uses time delta between calls).
 	_, _ = cpu.Percent(0, false)
 
