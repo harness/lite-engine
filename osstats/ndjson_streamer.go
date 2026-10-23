@@ -67,12 +67,22 @@ type DiskIOTotals struct {
 	WriteBytes uint64
 }
 
+// StreamerSummary holds all the data collected by the streamer, returned via GetSummaryData
+// after the streaming goroutine has been stopped. The caller uses this to build the
+// resource utilization stats for the destroy response.
+type StreamerSummary struct {
+	CPUSamples  []float64
+	MemSamples  []float64
+	LastPayload Payload
+	DiskTotals  DiskIOTotals
+}
+
 // StartOSStatsStreaming starts a goroutine that collects OS stats once per second
 // and writes JSON lines to the provided io.Writer. Returns (1) a cancel function to
-// stop the collection and (2) getSummaryData to read the collected CPU samples,
-// last payload, and disk I/O totals after cancel. The caller must write the summary
-// to the stream (via WriteP90SummaryToStream) before closing the writer.
-func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) (cancel func(), getSummaryData func() (cpuSamples []float64, lastPayload Payload, diskTotals DiskIOTotals)) {
+// stop the collection and (2) getSummaryData to read the collected CPU and memory
+// samples, last payload, and disk I/O totals after cancel. The caller must write the
+// summary to the stream (via WriteP90SummaryToStream) before closing the writer.
+func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) (cancel func(), getSummaryData func() StreamerSummary) {
 	if log == nil {
 		log = logrus.NewEntry(logrus.StandardLogger())
 	}
@@ -82,13 +92,14 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 	var stopOnce sync.Once
 
 	var cpuUsedPctSamples []float64
+	var memUsedPctSamples []float64
 	var lastPayload Payload
 	var ioState diskIOState
 
 	wg.Add(1)
 	safego.SafeGo("os_stats_streaming", func() {
 		defer wg.Done()
-		runOSStatsLoop(ctx, done, w, log, &cpuUsedPctSamples, &lastPayload, &ioState)
+		runOSStatsLoop(ctx, done, w, log, &cpuUsedPctSamples, &memUsedPctSamples, &lastPayload, &ioState)
 	})
 
 	cancel = func() {
@@ -103,7 +114,7 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 		wg.Wait()
 	}
 
-	getSummaryData = func() ([]float64, Payload, DiskIOTotals) {
+	getSummaryData = func() StreamerSummary {
 		var totals DiskIOTotals
 		if ioState.initialized && ioState.lastReadBytes >= ioState.firstReadBytes {
 			totals.ReadBytes = ioState.lastReadBytes - ioState.firstReadBytes
@@ -111,13 +122,18 @@ func StartOSStatsStreaming(ctx context.Context, w io.Writer, log *logrus.Entry) 
 		if ioState.initialized && ioState.lastWriteBytes >= ioState.firstWriteBytes {
 			totals.WriteBytes = ioState.lastWriteBytes - ioState.firstWriteBytes
 		}
-		return cpuUsedPctSamples, lastPayload, totals
+		return StreamerSummary{
+			CPUSamples:  cpuUsedPctSamples,
+			MemSamples:  memUsedPctSamples,
+			LastPayload: lastPayload,
+			DiskTotals:  totals,
+		}
 	}
 
 	return cancel, getSummaryData
 }
 
-func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *logrus.Entry, cpuSamples *[]float64, lastPayload *Payload, ioState *diskIOState) {
+func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *logrus.Entry, cpuSamples *[]float64, memSamples *[]float64, lastPayload *Payload, ioState *diskIOState) {
 	// Prime CPU percent calculation (gopsutil uses time delta between calls).
 	_, _ = cpu.Percent(0, false)
 
@@ -140,6 +156,11 @@ func runOSStatsLoop(ctx context.Context, done chan struct{}, w io.Writer, log *l
 			if lastPayload != nil && len(rec) == 1 {
 				for _, p := range rec {
 					*lastPayload = p
+					// Compute memory used % from total and available, then track for percentiles
+					if memSamples != nil && p.TotalMemory > 0 {
+						memUsedPct := ((p.TotalMemory - p.AvaMemory) / p.TotalMemory) * maxCPUPercent
+						*memSamples = append(*memSamples, memUsedPct)
+					}
 					break
 				}
 			}
@@ -231,8 +252,8 @@ func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload Payl
 	if log == nil {
 		log = logrus.NewEntry(logrus.StandardLogger())
 	}
-	peak, avg := peakAndAvg(cpuSamples)
-	p90 := p90NearestRank(cpuSamples)
+	peak, avg := PeakAndAvg(cpuSamples)
+	p90 := PercentileNearestRank(cpuSamples, 0.90) //nolint:mnd
 	summary := SummaryPayload{
 		OSStatsSummary:      true,
 		PeakCPUUsagePct:     peak,
@@ -253,8 +274,8 @@ func WriteP90SummaryToStream(w io.Writer, cpuSamples []float64, lastPayload Payl
 	_, _ = w.Write(append(b, '\n'))
 }
 
-// peakAndAvg returns the max (peak) and average of the given CPU usage samples.
-func peakAndAvg(values []float64) (peak, avg float64) {
+// PeakAndAvg returns the max (peak) and average of the given usage samples.
+func PeakAndAvg(values []float64) (peak, avg float64) {
 	if len(values) == 0 {
 		return 0, 0
 	}
@@ -268,15 +289,16 @@ func peakAndAvg(values []float64) (peak, avg float64) {
 	return peak, sum / float64(len(values))
 }
 
-// p90NearestRank computes the 90th percentile (nearest-rank) of the given samples.
-func p90NearestRank(values []float64) float64 {
+// PercentileNearestRank computes the given percentile (0..1) using the nearest-rank
+// method. Returns 0 for an empty slice.
+func PercentileNearestRank(values []float64, p float64) float64 {
 	if len(values) == 0 {
 		return 0
 	}
 	cp := make([]float64, len(values))
 	copy(cp, values)
 	sort.Float64s(cp)
-	idx := int(math.Ceil(0.90*float64(len(cp)))) - 1 //nolint:mnd
+	idx := int(math.Ceil(p*float64(len(cp)))) - 1
 	if idx < 0 {
 		idx = 0
 	}

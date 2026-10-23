@@ -20,6 +20,7 @@ import (
 	"github.com/harness/lite-engine/pc"
 	"github.com/harness/lite-engine/pipeline"
 	pruntime "github.com/harness/lite-engine/pipeline/runtime"
+	"github.com/sirupsen/logrus"
 )
 
 // HandleDestroy returns an http.HandlerFunc that destroy the stage resources
@@ -70,34 +71,12 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			pipeline.GetEnvState().Delete(d.StageRuntimeID)
 		}
 
-		stats := &spec.OSStats{}
-
 		collector := state.GetStatsCollector()
 		if collector != nil {
 			collector.Stop()
-			collector.Aggregate()
-			stats = collector.Stats()
 		}
 
-		// Stop OS stats live streaming and close the writer (which flushes and uploads).
-		// Close all OS stats streams so the P90 summary is always written before upload,
-		// even if destroy is called without MemoryMetricsLogKey or stream was closed elsewhere.
-		// Disk I/O totals are captured safely inside closeOSStatsStream (after Cancel+Wait
-		// guarantees the sampling goroutine has exited).
-		for _, key := range state.GetAllOSStatsKeys() {
-			diskTotals, err := closeOSStatsStream(state, key)
-			if err != nil {
-				logger.FromRequest(r).
-					WithField("time", time.Now().Format(time.RFC3339)).
-					WithField("memory_metrics_log_key", key).
-					WithError(err).
-					Warnln("api: failed to close os stats stream")
-			}
-			if diskTotals != nil {
-				stats.DiskTotalReadMB = float64(diskTotals.ReadBytes) / (1024 * 1024)   //nolint:mnd
-				stats.DiskTotalWriteMB = float64(diskTotals.WriteBytes) / (1024 * 1024) //nolint:mnd
-			}
-		}
+		stats := buildResourceStats(state, collector, logger.FromRequest(r))
 
 		if destroyErr != nil {
 			WriteError(w, fmt.Errorf("destroy error: %w", destroyErr))
@@ -156,9 +135,10 @@ func closeLELogStream(_ context.Context, state *pipeline.State) error {
 
 // closeOSStatsStream stops the OS stats collection, writes the P90 summary to the stream,
 // then closes the writer so the memory_metrics file always ends with the summary line.
-// Returns the disk I/O totals captured after the sampling goroutine has fully exited
-// (Cancel calls wg.Wait), so the read is free from data races.
-func closeOSStatsStream(state *pipeline.State, key string) (*osstats.DiskIOTotals, error) {
+// Returns the full StreamerSummary (CPU samples, memory samples, last payload, disk totals)
+// captured after the sampling goroutine has fully exited (Cancel calls wg.Wait), so all
+// reads are free from data races.
+func closeOSStatsStream(state *pipeline.State, key string) (*osstats.StreamerSummary, error) {
 	entry := state.GetOSStatsEntry(key)
 	if entry == nil {
 		return nil, nil
@@ -166,7 +146,7 @@ func closeOSStatsStream(state *pipeline.State, key string) (*osstats.DiskIOTotal
 
 	// 1. Stop the stats collection goroutine (no more per-second lines).
 	//    Cancel() closes the done channel and calls wg.Wait(), so after this
-	//    returns the goroutine is fully stopped and ioState is safe to read.
+	//    returns the goroutine is fully stopped and all state is safe to read.
 	if entry.Cancel != nil {
 		entry.Cancel()
 	}
@@ -177,11 +157,11 @@ func closeOSStatsStream(state *pipeline.State, key string) (*osstats.DiskIOTotal
 
 	// 2. Write the P90 summary to the stream before closing, so it is included in memory_metrics.
 	//    GetSummaryData is now safe because the goroutine has exited above.
-	var totals *osstats.DiskIOTotals
+	var summary *osstats.StreamerSummary
 	if entry.Writer != nil && entry.GetSummaryData != nil {
-		cpuSamples, lastPayload, diskTotals := entry.GetSummaryData()
-		totals = &diskTotals
-		osstats.WriteP90SummaryToStream(entry.Writer, cpuSamples, lastPayload, diskTotals, logger.L)
+		s := entry.GetSummaryData()
+		summary = &s
+		osstats.WriteP90SummaryToStream(entry.Writer, s.CPUSamples, s.LastPayload, s.DiskTotals, logger.L)
 		// Flush so the summary is sent to the stream before Close() runs (upload + stream close)
 		if lw, ok := entry.Writer.(*livelog.Writer); ok {
 			_ = lw.Flush()
@@ -191,11 +171,67 @@ func closeOSStatsStream(state *pipeline.State, key string) (*osstats.DiskIOTotal
 	// 3. Only then close the writer (flush and upload)
 	if entry.Writer != nil {
 		if err := entry.Writer.Close(); err != nil {
-			return totals, fmt.Errorf("failed to close os stats log writer: %w", err)
+			return summary, fmt.Errorf("failed to close os stats log writer: %w", err)
 		}
 	}
 
 	// Remove the entry from state
 	state.DeleteOSStatsEntry(key)
-	return totals, nil
+	return summary, nil
+}
+
+// buildResourceStats closes all OS stats streams and builds the resource utilization stats.
+// It uses the streamer summary as the primary source. If no streamer produced samples
+// (e.g. MemoryMetricsLogKey was not set), it falls back to the collector.
+func buildResourceStats(state *pipeline.State, collector *osstats.StatsCollector, log *logrus.Entry) *spec.OSStats {
+	stats := &spec.OSStats{}
+	streamerPopulated := false
+
+	// Stop OS stats live streaming and close the writer (which flushes and uploads).
+	for _, key := range state.GetAllOSStatsKeys() {
+		summary, err := closeOSStatsStream(state, key)
+		if err != nil {
+			log.WithField("time", time.Now().Format(time.RFC3339)).
+				WithField("memory_metrics_log_key", key).
+				WithError(err).
+				Warnln("api: failed to close os stats stream")
+		}
+		if summary != nil && len(summary.CPUSamples) > 0 {
+			streamerPopulated = true
+
+			// CPU fields
+			stats.CPUCores = summary.LastPayload.TotalCPU
+			cpuPeak, cpuAvg := osstats.PeakAndAvg(summary.CPUSamples)
+			stats.MaxCPUUsagePct = cpuPeak
+			stats.AvgCPUUsagePct = cpuAvg
+			stats.P50CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.50) //nolint:mnd
+			stats.P90CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.90) //nolint:mnd
+			stats.P95CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.95) //nolint:mnd
+			stats.P99CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.99) //nolint:mnd
+
+			// Memory fields (streamer stores memory in GB, convert to MB)
+			gbToMB := 1024.0 //nolint:mnd
+			stats.TotalMemMB = summary.LastPayload.TotalMemory * gbToMB
+			memPeak, memAvg := osstats.PeakAndAvg(summary.MemSamples)
+			stats.MaxMemUsagePct = memPeak
+			stats.AvgMemUsagePct = memAvg
+			stats.P50MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.50) //nolint:mnd
+			stats.P90MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.90) //nolint:mnd
+			stats.P95MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.95) //nolint:mnd
+			stats.P99MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.99) //nolint:mnd
+
+			// Disk I/O (already from streamer)
+			stats.DiskTotalReadMB = float64(summary.DiskTotals.ReadBytes) / (1024 * 1024)   //nolint:mnd
+			stats.DiskTotalWriteMB = float64(summary.DiskTotals.WriteBytes) / (1024 * 1024) //nolint:mnd
+		}
+	}
+
+	// Fall back to collector when no streamer summary is available
+	// (e.g. MemoryMetricsLogKey was not set, so the streamer was never started).
+	if !streamerPopulated && collector != nil {
+		collector.Aggregate()
+		stats = collector.Stats()
+	}
+
+	return stats
 }
