@@ -1,46 +1,40 @@
 module github.com/harness/lite-engine
 
-go 1.25.0
-
-toolchain go1.25.9
+go 1.26.10
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/bmatcuk/doublestar v1.3.4 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/cespare/xxhash/v2 v2.3.0
+	github.com/containerd/errdefs v1.0.0
+	github.com/dgryski/go-lttb v0.0.0-20230207170358-f8fc36cdbff1
 	github.com/docker/distribution v2.8.2+incompatible
 	github.com/docker/go-connections v0.7.0
 	github.com/drone/drone-go v1.7.1
 	github.com/drone/runner-go v1.13.0
 	github.com/go-chi/chi/v5 v5.2.4
-	github.com/harness/ti-client v0.0.0-20261006201020-dfac3dc8c35b
-	github.com/hashicorp/go-multierror v1.1.1
-	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/linkedin/goavro/v2 v2.12.0
-	github.com/mattn/go-zglob v0.0.4
-	github.com/mholt/archives v0.1.5
-	github.com/sirupsen/logrus v1.9.4
-	github.com/stretchr/testify v1.11.1
-	github.com/t-tomalak/logrus-easy-formatter v0.0.0-20190827215021-c074f06c5816
-	golang.org/x/sync v0.20.0
-)
-
-require (
-	github.com/bmatcuk/doublestar/v4 v4.10.0
-	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/containerd/errdefs v1.0.0
-	github.com/dgryski/go-lttb v0.0.0-20230207170358-f8fc36cdbff1
 	github.com/google/uuid v1.6.0
 	github.com/harness/godotenv/v2 v2.0.0
 	github.com/harness/godotenv/v3 v3.0.1
 	github.com/harness/godotenv/v4 v4.0.2
+	github.com/harness/ti-client v0.0.0-20261006201020-dfac3dc8c35b
+	github.com/hashicorp/go-multierror v1.1.1
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/klauspost/compress v1.18.0
+	github.com/linkedin/goavro/v2 v2.12.0
+	github.com/mattn/go-zglob v0.0.4
+	github.com/mholt/archives v0.1.5
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
 	github.com/shirou/gopsutil/v3 v3.23.5
+	github.com/sirupsen/logrus v1.9.4
+	github.com/stretchr/testify v1.11.1
+	github.com/t-tomalak/logrus-easy-formatter v0.0.0-20190827215021-c074f06c5816
 	github.com/wings-software/dlite v1.0.0-rc.15
 	go.uber.org/mock v0.6.0
 	golang.org/x/net v0.52.0
+	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.42.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -51,6 +45,7 @@ require (
 	github.com/STARRY-S/zip v0.2.3 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
+	github.com/bmatcuk/doublestar v1.3.4 // indirect
 	github.com/bodgit/plumbing v1.3.0 // indirect
 	github.com/bodgit/sevenzip v1.6.1 // indirect
 	github.com/bodgit/windows v1.0.1 // indirect

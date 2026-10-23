@@ -20,6 +20,7 @@ import (
 	"github.com/harness/lite-engine/pc"
 	"github.com/harness/lite-engine/pipeline"
 	pruntime "github.com/harness/lite-engine/pipeline/runtime"
+	"github.com/sirupsen/logrus"
 )
 
 // HandleDestroy returns an http.HandlerFunc that destroy the stage resources
@@ -75,45 +76,7 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 			collector.Stop()
 		}
 
-		stats := &spec.OSStats{}
-
-		// Stop OS stats live streaming and close the writer (which flushes and uploads).
-		for _, key := range state.GetAllOSStatsKeys() {
-			summary, err := closeOSStatsStream(state, key)
-			if err != nil {
-				logger.FromRequest(r).
-					WithField("time", time.Now().Format(time.RFC3339)).
-					WithField("memory_metrics_log_key", key).
-					WithError(err).
-					Warnln("api: failed to close os stats stream")
-			}
-			if summary != nil {
-				// CPU fields
-				stats.CPUCores = summary.LastPayload.TotalCPU
-				cpuPeak, cpuAvg := osstats.PeakAndAvg(summary.CPUSamples)
-				stats.MaxCPUUsagePct = cpuPeak
-				stats.AvgCPUUsagePct = cpuAvg
-				stats.P50CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.50) //nolint:mnd
-				stats.P90CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.90) //nolint:mnd
-				stats.P95CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.95) //nolint:mnd
-				stats.P99CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.99) //nolint:mnd
-
-				// Memory fields (streamer stores memory in GB, convert to MB)
-				gbToMB := 1024.0 //nolint:mnd
-				stats.TotalMemMB = summary.LastPayload.TotalMemory * gbToMB
-				memPeak, memAvg := osstats.PeakAndAvg(summary.MemSamples)
-				stats.MaxMemUsagePct = memPeak
-				stats.AvgMemUsagePct = memAvg
-				stats.P50MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.50) //nolint:mnd
-				stats.P90MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.90) //nolint:mnd
-				stats.P95MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.95) //nolint:mnd
-				stats.P99MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.99) //nolint:mnd
-
-				// Disk I/O (already from streamer)
-				stats.DiskTotalReadMB = float64(summary.DiskTotals.ReadBytes) / (1024 * 1024)   //nolint:mnd
-				stats.DiskTotalWriteMB = float64(summary.DiskTotals.WriteBytes) / (1024 * 1024) //nolint:mnd
-			}
-		}
+		stats := buildResourceStats(state, collector, logger.FromRequest(r))
 
 		if destroyErr != nil {
 			WriteError(w, fmt.Errorf("destroy error: %w", destroyErr))
@@ -215,4 +178,60 @@ func closeOSStatsStream(state *pipeline.State, key string) (*osstats.StreamerSum
 	// Remove the entry from state
 	state.DeleteOSStatsEntry(key)
 	return summary, nil
+}
+
+// buildResourceStats closes all OS stats streams and builds the resource utilization stats.
+// It uses the streamer summary as the primary source. If no streamer produced samples
+// (e.g. MemoryMetricsLogKey was not set), it falls back to the collector.
+func buildResourceStats(state *pipeline.State, collector *osstats.StatsCollector, log *logrus.Entry) *spec.OSStats {
+	stats := &spec.OSStats{}
+	streamerPopulated := false
+
+	// Stop OS stats live streaming and close the writer (which flushes and uploads).
+	for _, key := range state.GetAllOSStatsKeys() {
+		summary, err := closeOSStatsStream(state, key)
+		if err != nil {
+			log.WithField("time", time.Now().Format(time.RFC3339)).
+				WithField("memory_metrics_log_key", key).
+				WithError(err).
+				Warnln("api: failed to close os stats stream")
+		}
+		if summary != nil && len(summary.CPUSamples) > 0 {
+			streamerPopulated = true
+
+			// CPU fields
+			stats.CPUCores = summary.LastPayload.TotalCPU
+			cpuPeak, cpuAvg := osstats.PeakAndAvg(summary.CPUSamples)
+			stats.MaxCPUUsagePct = cpuPeak
+			stats.AvgCPUUsagePct = cpuAvg
+			stats.P50CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.50) //nolint:mnd
+			stats.P90CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.90) //nolint:mnd
+			stats.P95CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.95) //nolint:mnd
+			stats.P99CPUUsagePct = osstats.PercentileNearestRank(summary.CPUSamples, 0.99) //nolint:mnd
+
+			// Memory fields (streamer stores memory in GB, convert to MB)
+			gbToMB := 1024.0 //nolint:mnd
+			stats.TotalMemMB = summary.LastPayload.TotalMemory * gbToMB
+			memPeak, memAvg := osstats.PeakAndAvg(summary.MemSamples)
+			stats.MaxMemUsagePct = memPeak
+			stats.AvgMemUsagePct = memAvg
+			stats.P50MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.50) //nolint:mnd
+			stats.P90MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.90) //nolint:mnd
+			stats.P95MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.95) //nolint:mnd
+			stats.P99MemUsagePct = osstats.PercentileNearestRank(summary.MemSamples, 0.99) //nolint:mnd
+
+			// Disk I/O (already from streamer)
+			stats.DiskTotalReadMB = float64(summary.DiskTotals.ReadBytes) / (1024 * 1024)   //nolint:mnd
+			stats.DiskTotalWriteMB = float64(summary.DiskTotals.WriteBytes) / (1024 * 1024) //nolint:mnd
+		}
+	}
+
+	// Fall back to collector when no streamer summary is available
+	// (e.g. MemoryMetricsLogKey was not set, so the streamer was never started).
+	if !streamerPopulated && collector != nil {
+		collector.Aggregate()
+		stats = collector.Stats()
+	}
+
+	return stats
 }
