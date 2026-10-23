@@ -178,7 +178,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	summaryOutputs := make(map[string]string)
 
 	if r.TestReport.Junit.Paths != nil && len(r.TestReport.Junit.Paths) > 0 {
-		reportSaveErr := report.SaveReportSummaryToOutputs(ctx, tiConfig, step.Name, summaryOutputs, log, r.Envs)
+		reportSaveErr := report.SaveReportSummaryToOutputs(tests, summaryOutputs, r.Envs)
 
 		if reportSaveErr == nil && report.TestSummaryAsOutputEnabled(r.Envs) {
 			log.Infof("Test summary set as output variables")
