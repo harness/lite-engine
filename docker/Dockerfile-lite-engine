@@ -1,9 +1,7 @@
 # ---------------------------------------------------------#
 #                   Build Lite Engine Binaries             #
 # ---------------------------------------------------------#
-FROM harness0.harness.io/oci/docker_artifacts/golang:1.26.10-alpine@sha256:27f2d3b83cfc5803c8078f8e730af0f7c431bf067afaec8f60a36fb763187cba as builder
-
-RUN apk add --no-cache git 'ca-certificates>=20261020-r0'
+FROM harness0.harness.io/oci/docker_artifacts/hhi/go:1.27.3-dev@sha256:58aeee00b259a403aaef3fcfd36ede300e519ae794c15f6ed2a759d94bbeced7 as builder
 
 WORKDIR /app
 

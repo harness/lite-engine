@@ -4,9 +4,10 @@ name: unit tests
 
 steps:
   - name: go vet and unit tests
-    image: golang:1.26.10@sha256:672c944cfd07599b5f1bb179869270cdc94c6254e41db4d431259693cb286b82
+    image: harness0.harness.io/oci/docker_artifacts/hhi/go:1.27.3-dev@sha256:58aeee00b259a403aaef3fcfd36ede300e519ae794c15f6ed2a759d94bbeced7
     commands:
       - go vet ./...
+      - apk add --no-cache bash python3
       - go test -cover ./...
       - go build -o release/linux/amd64/lite-engine
     volumes:
@@ -38,7 +39,7 @@ pool:
 
 steps:
   - name: build
-    image: golang:1.26.10@sha256:672c944cfd07599b5f1bb179869270cdc94c6254e41db4d431259693cb286b82
+    image: harness0.harness.io/oci/docker_artifacts/hhi/go:1.27.3-dev@sha256:58aeee00b259a403aaef3fcfd36ede300e519ae794c15f6ed2a759d94bbeced7
     commands:
       - go build -o lite-engine
   - name: server
@@ -108,7 +109,7 @@ pool:
 
 steps:
   - name: build
-    image: golang:1.26.10@sha256:672c944cfd07599b5f1bb179869270cdc94c6254e41db4d431259693cb286b82
+    image: harness0.harness.io/oci/docker_artifacts/hhi/go:1.27.3-dev@sha256:58aeee00b259a403aaef3fcfd36ede300e519ae794c15f6ed2a759d94bbeced7
     commands:
       - go build -o lite-engine
   - name: server
@@ -143,7 +144,7 @@ pool:
 
 steps:
   - name: build
-    image: golang:1.26.10@sha256:672c944cfd07599b5f1bb179869270cdc94c6254e41db4d431259693cb286b82
+    image: harness0.harness.io/oci/docker_artifacts/hhi/go:1.27.3-dev@sha256:58aeee00b259a403aaef3fcfd36ede300e519ae794c15f6ed2a759d94bbeced7
     commands:
       - go build -o lite-engine.exe
   - name: server
@@ -174,7 +175,7 @@ name: release artifacts
 
 steps:
   - name: build
-    image: golang:1.26.10@sha256:672c944cfd07599b5f1bb179869270cdc94c6254e41db4d431259693cb286b82
+    image: harness0.harness.io/oci/docker_artifacts/hhi/go:1.27.3-dev@sha256:58aeee00b259a403aaef3fcfd36ede300e519ae794c15f6ed2a759d94bbeced7
     commands:
       - GOOS=linux   GOARCH=amd64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-amd64
       - GOOS=linux   GOARCH=arm64   go build -ldflags "-s -w -X main.version=${DRONE_TAG##v}" -o release/lite-engine-linux-arm64
