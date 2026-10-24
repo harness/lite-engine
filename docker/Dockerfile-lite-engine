@@ -1,16 +1,9 @@
-FROM harness0.harness.io/oci/docker_artifacts/hhi/harnessos-alpine:1 AS incident-ca
-RUN apk add --no-cache 'ca-certificates>=20261020-r0'
-
 # ---------------------------------------------------------#
 #                   Build Lite Engine Binaries             #
 # ---------------------------------------------------------#
-FROM harness0.harness.io/oci/docker_artifacts/golang:1.26.10-alpine as builder
+FROM harness0.harness.io/oci/docker_artifacts/golang:1.26.10-alpine@sha256:27f2d3b83cfc5803c8078f8e730af0f7c431bf067afaec8f60a36fb763187cba as builder
 
-RUN apk add --no-cache git ca-certificates
-
-COPY --from=incident-ca /usr/share/ca-certificates/ /usr/share/ca-certificates/
-COPY --from=incident-ca /etc/ca-certificates.conf /etc/ca-certificates.conf
-RUN update-ca-certificates --fresh
+RUN apk add --no-cache git 'ca-certificates>=20261020-r0'
 
 WORKDIR /app
 
