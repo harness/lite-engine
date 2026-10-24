@@ -145,7 +145,7 @@ pool:
 steps:
   - name: build
     commands:
-      - . ./scripts/setup-go-windows.ps1
+      - $env:GOTOOLCHAIN = "go1.26.10"
       - go build -o lite-engine.exe
   - name: server
     detach: true
