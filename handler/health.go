@@ -37,6 +37,7 @@ func HandleHealth() http.HandlerFunc {
 			checkDuration := getConnectivityCheckDuration(r.URL.Query())
 			err := checkInternetConnectivity(checkDuration)
 			if err != nil {
+				attemptNetworkRecovery()
 				WriteError(w, err)
 				return
 			}
