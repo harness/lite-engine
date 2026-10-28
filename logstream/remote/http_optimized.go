@@ -82,6 +82,8 @@ type OptimizedHTTPClient struct {
 	endpoint       string // e.g. http://localhost:port
 	token          string
 	accountID      string
+	orgID          string
+	projectID      string
 	indirectUpload bool
 }
 
@@ -91,6 +93,11 @@ type OptimizedHTTPClient struct {
 // connection pooling. A dedicated http.Client is created only when skipverify
 // or mTLS is enabled.
 func NewOptimizedHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string) *OptimizedHTTPClient {
+	return NewOptimizedHTTPClientWithLogScope(endpoint, accountID, "", "", token, indirectUpload, skipverify, base64MtlsClientCert, base64MtlsClientCertKey)
+}
+
+// NewOptimizedHTTPClientWithLogScope returns a new OptimizedHTTPClient with optional org and project scope for stream writes.
+func NewOptimizedHTTPClientWithLogScope(endpoint, accountID, orgID, projectID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string) *OptimizedHTTPClient {
 	endpoint = strings.TrimSuffix(endpoint, "/")
 
 	c := &OptimizedHTTPClient{
@@ -98,6 +105,8 @@ func NewOptimizedHTTPClient(endpoint, accountID, token string, indirectUpload, s
 		endpoint:       endpoint,
 		token:          token,
 		accountID:      accountID,
+		orgID:          orgID,
+		projectID:      projectID,
 		indirectUpload: indirectUpload,
 	}
 
@@ -173,6 +182,7 @@ func (c *OptimizedHTTPClient) Close(ctx context.Context, key string, snapshot bo
 // Write writes logs to the data stream.
 func (c *OptimizedHTTPClient) Write(ctx context.Context, key string, lines []*logstream.Line) error {
 	path := fmt.Sprintf(streamEndpoint, c.accountID, key)
+	path = appendLogScope(path, c.orgID, c.projectID)
 	l := convertLines(lines)
 	ctx, cancel := context.WithTimeout(ctx, writeTimeout)
 	defer cancel()
