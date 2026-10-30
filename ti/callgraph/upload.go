@@ -94,7 +94,9 @@ func Upload(
 			"cg_raw_dir_bytes": rawDirBytes,
 			"step_id":          stepID,
 		}).Infof("Callgraph size before upload: cg_payload_bytes=%d cg_raw_dir_bytes=%d", len(jsonPayload), rawDirBytes)
+		uploadStart := time.Now()
 		err = cfg.GetClient().UploadCgV2(ctx, *uploadPayload, stepID, timeMs, cfg.GetSourceBranch(), cfg.GetTargetBranch())
+		observeCallgraphUpload(ctx, err, uploadStart)
 		if err != nil {
 			return nil, fmt.Errorf("failed to upload callgraph: %w", err)
 		}
@@ -109,7 +111,10 @@ func Upload(
 
 		// Size already logged in encodeCg (including empty CG). Skip upload only.
 		if !cgIsEmpty {
-			if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched); cgErr != nil {
+			uploadStart := time.Now()
+			cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched)
+			observeCallgraphUpload(ctx, cgErr, uploadStart)
+			if cgErr != nil {
 				log.Warnln("Failed to upload callgraph with latest version, trying with older version", cgErr)
 				// try with version ""
 				encCg, cgIsEmpty, matched, avroErr := encodeCg(dataDir, log, tests, "", rerunFailedTests)
@@ -117,7 +122,10 @@ func Upload(
 					return nil, fmt.Errorf("failed to get avro encoded callgraph: %w", avroErr)
 				}
 				if !cgIsEmpty {
-					if cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched); cgErr != nil {
+					retryStart := time.Now()
+					cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched)
+					observeCallgraphUpload(ctx, cgErr, retryStart)
+					if cgErr != nil {
 						return nil, cgErr
 					}
 				}
@@ -127,6 +135,12 @@ func Upload(
 
 	log.Infoln(fmt.Sprintf("Successfully uploaded callgraph in %s time", time.Since(start)))
 	return nil, nil
+}
+
+func observeCallgraphUpload(ctx context.Context, err error, start time.Time) {
+	if obs := api.ObservationsFromContext(ctx); obs != nil {
+		obs.RecordCallgraphUpload(err, time.Since(start))
+	}
 }
 
 // parseCallgraphFiles parses callgraph files from the specified data directory

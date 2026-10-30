@@ -85,6 +85,7 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	stopGoroutineDumpSignals := startGoroutineDumpSignalHandler(ctx, "")
+	startProcessMetricsServer()
 	s := make(chan os.Signal, 1)
 	signal.Notify(s, os.Interrupt)
 	defer func() {

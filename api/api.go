@@ -70,6 +70,9 @@ type (
 	}
 
 	StartStepRequest struct {
+		// Observations collects TI upload tallies while the step runs. Not serialized.
+		Observations *StepObservations `json:"-"`
+
 		ID             string            `json:"id,omitempty"` // Unique identifier of step
 		StageRuntimeID string            `json:"stage_runtime_id,omitempty"`
 		Detach         bool              `json:"detach,omitempty"`
@@ -205,6 +208,8 @@ type (
 		TelemetryData        *types.TelemetryData `json:"telemetry_data,omitempty"`
 		NativeArtifactOutput string               `json:"native_artifact_output,omitempty"`
 		LogServiceStats      *LogServiceStats     `json:"log_service_stats,omitempty"`
+		TIServiceStats       *TIServiceStats      `json:"ti_service_stats,omitempty"`
+		AuxiliaryStatus      *AuxiliaryStatus     `json:"auxiliary_status,omitempty"`
 	}
 
 	LogServiceStats struct {
@@ -351,6 +356,8 @@ type (
 		NativeArtifactOutput         string                 `json:"native_artifact_output,omitempty"`
 		TaskExecutionStartedAtMillis int64                  `json:"task_execution_started_at_millis,omitempty"`
 		LogServiceStats              *LogServiceStats       `json:"log_service_stats,omitempty"`
+		TIServiceStats               *TIServiceStats        `json:"ti_service_stats,omitempty"`
+		AuxiliaryStatus              *AuxiliaryStatus       `json:"auxiliary_status,omitempty"`
 	}
 )
 

@@ -57,10 +57,18 @@ func Handler(config *config.Config, engine *engine.Engine, stepExecutor *runtime
 		return sr
 	}())
 
-	// Health check
+	// Health check. Liveness only: version and ok. Process gauges are /metrics.
 	r.Mount("/healthz", func() http.Handler {
 		sr := chi.NewRouter()
 		sr.Get("/", HandleHealth())
+		return sr
+	}())
+
+	// Process gauges. The runner copies these onto its own /metrics.
+	// pprof stays on the loopback debug server and is not mounted here.
+	r.Mount("/metrics", func() http.Handler {
+		sr := chi.NewRouter()
+		sr.Get("/", HandleProcessMetrics())
 		return sr
 	}())
 

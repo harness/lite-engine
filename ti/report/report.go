@@ -76,7 +76,11 @@ func UploadTests(
 	startTime := time.Now()
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Starting TI service request to write report for step %s", stepID))
 	c := tiConfig.GetClient()
-	if err := c.Write(ctx, stepID, strings.ToLower(reportKind.String()), tests); err != nil {
+	err := c.Write(ctx, stepID, strings.ToLower(reportKind.String()), tests)
+	if obs := api.ObservationsFromContext(ctx); obs != nil {
+		obs.RecordReportUpload(err, time.Since(startTime))
+	}
+	if err != nil {
 		return err
 	}
 	logrus.WithContext(ctx).Infoln(fmt.Sprintf("Completed TI service request to write report for step %s, took %.2f seconds", stepID, time.Since(startTime).Seconds()))
