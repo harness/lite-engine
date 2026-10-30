@@ -27,6 +27,7 @@ import (
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
+	"github.com/harness/lite-engine/procmetrics"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/ti-client/types"
@@ -52,6 +53,7 @@ type StepStatus struct {
 	TelemetryData        *types.TelemetryData
 	NativeArtifactOutput string
 	LogServiceStats      *api.LogServiceStats
+	TIServiceStats       *api.TIServiceStats
 }
 
 const (
@@ -98,6 +100,8 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 	e.mu.Unlock()
 
 	safego.WithContext(ctx, "step_executor", func(ctx context.Context) {
+		procmetrics.EnterStep()
+		defer procmetrics.LeaveStep()
 		// Workload Identity: register declared identities (inject handle + mint URL; tokens held in
 		// lite-engine, never exposed to the step) and evict on completion. Detached steps are cleared at
 		// stage teardown (ClearWorkloadIdentities in Destroy). No-op when none are declared.
@@ -116,7 +120,8 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		outputs = mergeArtifactVars(outputs, artifactVars)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata,
-			NativeArtifactOutput: nativeArtifactRaw, LogServiceStats: logServiceStatsFrom(wr)}
+			NativeArtifactOutput: nativeArtifactRaw, LogServiceStats: logServiceStatsFrom(wr),
+			TIServiceStats: tiStatsFrom(r)}
 
 		if stepErr == nil && state.ExitCode == 0 && ffEnabled {
 			logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
@@ -180,6 +185,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 	e.mu.Unlock()
 
 	safego.SafeGo("vm_task_executor", func() {
+		procmetrics.EnterStep()
+		defer procmetrics.LeaveStep()
 		done := make(chan api.VMTaskExecutionResponse, 1)
 		var resp api.VMTaskExecutionResponse
 		var wr logstream.Writer
@@ -203,7 +210,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			outputs = mergeArtifactVars(outputs, artifactVars)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
-				NativeArtifactOutput: nativeArtifactRaw, LogServiceStats: logServiceStatsFrom(wr)}
+				NativeArtifactOutput: nativeArtifactRaw, LogServiceStats: logServiceStatsFrom(wr),
+				TIServiceStats: tiStatsFrom(r)}
 			pollResponse := convertStatus(status)
 			if stepErr == nil && state.ExitCode == 0 && ffEnabled {
 				logrus.WithContext(ctx).WithField("id", r.ID).Infoln("ANNOTATIONS: scheduling annotations post")
@@ -246,7 +254,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				wr.Close()
 			}
 			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out",
-				LogServiceStats: logServiceStatsFrom(wr)}
+				LogServiceStats: logServiceStatsFrom(wr), TIServiceStats: tiStatsFrom(r)}
 			e.sendStepStatus(r, &resp)
 			return
 		}
@@ -431,6 +439,11 @@ func executeStepHelper( //nolint:gocritic,gocyclo
 	enableDebugLogs bool,
 	logServiceResilience bool) (*runtime.State, map[string]string,
 	map[string]string, []byte, []*api.OutputV2, *types.TelemetryData, string, error) {
+	if r.Observations == nil {
+		r.Observations = &api.StepObservations{}
+	}
+	ctx = api.ContextWithObservations(ctx, r.Observations)
+
 	// if the step is configured as a daemon, it is detached
 	// from the main process and executed separately.
 	// We do here only for non-container step.
@@ -676,6 +689,8 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 		TelemetryData:        status.TelemetryData,
 		NativeArtifactOutput: status.NativeArtifactOutput,
 		LogServiceStats:      status.LogServiceStats,
+		TIServiceStats:       status.TIServiceStats,
+		AuxiliaryStatus:      api.AuxiliaryFrom(stepSucceeded(status), status.LogServiceStats, status.TIServiceStats),
 	}
 
 	stepErr := status.StepErr
@@ -808,6 +823,8 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 			TelemetryData:          r.TelemetryData,
 			NativeArtifactOutput:   r.NativeArtifactOutput,
 			LogServiceStats:        r.LogServiceStats,
+			TIServiceStats:         r.TIServiceStats,
+			AuxiliaryStatus:        r.AuxiliaryStatus,
 		}
 	}
 	if report.TestSummaryAsOutputEnabled(envs) {
@@ -821,6 +838,7 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 			ErrorDetails:           errorDetails,
 			NativeArtifactOutput:   r.NativeArtifactOutput,
 			LogServiceStats:        r.LogServiceStats,
+			TIServiceStats:         r.TIServiceStats,
 		}
 	}
 	return api.VMTaskExecutionResponse{
@@ -830,7 +848,25 @@ func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[strin
 		ErrorDetails:           errorDetails,
 		NativeArtifactOutput:   r.NativeArtifactOutput,
 		LogServiceStats:        r.LogServiceStats,
+		TIServiceStats:         r.TIServiceStats,
 	}
+}
+
+func tiStatsFrom(r *api.StartStepRequest) *api.TIServiceStats {
+	if r == nil || r.Observations == nil {
+		return nil
+	}
+	return r.Observations.TIStats()
+}
+
+func stepSucceeded(status StepStatus) bool {
+	if status.StepErr != nil {
+		return false
+	}
+	if status.State == nil {
+		return true
+	}
+	return status.State.ExitCode == 0 && !status.State.OOMKilled
 }
 
 // artifactLookupEnvs overlays step env on stage/pipeline env. Stage identity vars

@@ -15,6 +15,7 @@ import (
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/pipeline"
+	"github.com/harness/lite-engine/procmetrics"
 	"github.com/harness/ti-client/types"
 	"github.com/moby/moby/client"
 	"github.com/sirupsen/logrus"
@@ -49,10 +50,13 @@ func (e *StepExecutorStateless) Run(
 	}
 
 	e.stepStatus = StepStatus{Status: Running}
+	procmetrics.EnterStep()
+	defer procmetrics.LeaveStep()
 
 	state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(ctx, r, cfg, dockerClient, writer)
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
-		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
+		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
+		LogServiceStats: logServiceStatsFrom(writer), TIServiceStats: tiStatsFrom(r)}
 
 	// Post annotations if step succeeded and feature is enabled
 	// Posting is done synchronously since we're returning the final result immediately.
