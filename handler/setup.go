@@ -169,6 +169,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		if val, ok := s.Envs[dualLoggingEnvVar]; ok && val == "true" {
 			s.LogConfig.DualLoggingEnabled = true
 		}
+		setLogScopeFromTI(&s.LogConfig, &s.TIConfig)
 
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs), s.MtlsConfig, collector)
@@ -300,6 +301,15 @@ func setProxyEnvs(environment map[string]string) {
 		if val, ok := environment[v]; ok {
 			os.Setenv(v, val)
 		}
+	}
+}
+
+func setLogScopeFromTI(logConfig *api.LogConfig, tiConfig *api.TIConfig) {
+	if logConfig.OrgID == "" {
+		logConfig.OrgID = tiConfig.OrgID
+	}
+	if logConfig.ProjectID == "" {
+		logConfig.ProjectID = tiConfig.ProjectID
 	}
 }
 

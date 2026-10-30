@@ -306,9 +306,11 @@ func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 func getLogServiceClient(cfg *api.LogConfig, useOptimizedClient bool) logstream.Client {
 	if cfg.URL != "" {
 		if useOptimizedClient {
-			return remote.NewOptimizedHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "")
+			return remote.NewOptimizedHTTPClientWithLogScope(
+				cfg.URL, cfg.AccountID, cfg.OrgID, cfg.ProjectID, cfg.Token, cfg.IndirectUpload, false, "", "")
 		}
-		return remote.NewHTTPClient(cfg.URL, cfg.AccountID, cfg.Token, cfg.IndirectUpload, false, "", "")
+		return remote.NewHTTPClientWithLogScope(
+			cfg.URL, cfg.AccountID, cfg.OrgID, cfg.ProjectID, cfg.Token, cfg.IndirectUpload, false, "", "")
 	}
 	return stdout.New()
 }
