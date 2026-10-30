@@ -97,7 +97,11 @@ func NewOptimizedHTTPClient(endpoint, accountID, token string, indirectUpload, s
 }
 
 // NewOptimizedHTTPClientWithLogScope returns a new OptimizedHTTPClient with optional org and project scope for stream writes.
-func NewOptimizedHTTPClientWithLogScope(endpoint, accountID, orgID, projectID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string) *OptimizedHTTPClient {
+func NewOptimizedHTTPClientWithLogScope(
+	endpoint, accountID, orgID, projectID, token string,
+	indirectUpload, skipverify bool,
+	base64MtlsClientCert, base64MtlsClientCertKey string,
+) *OptimizedHTTPClient {
 	endpoint = strings.TrimSuffix(endpoint, "/")
 
 	c := &OptimizedHTTPClient{

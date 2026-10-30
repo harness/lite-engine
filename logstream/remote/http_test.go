@@ -55,10 +55,8 @@ func TestWriteAddsOnlyNonBlankLogScope(t *testing.T) {
 	}
 
 	for _, factory := range scopedClientFactories {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			for _, test := range tests {
-				test := test
 				t.Run(test.name, func(t *testing.T) {
 					requests := make(chan observedRequest, 1)
 					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +96,6 @@ func TestWriteAddsOnlyNonBlankLogScope(t *testing.T) {
 
 func TestLogScopeIsNotAddedToOpenOrClose(t *testing.T) {
 	for _, factory := range scopedClientFactories {
-		factory := factory
 		t.Run(factory.name, func(t *testing.T) {
 			requests := make(chan observedRequest, 2)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
