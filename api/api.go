@@ -205,6 +205,7 @@ type (
 		TelemetryData        *types.TelemetryData `json:"telemetry_data,omitempty"`
 		NativeArtifactOutput string               `json:"native_artifact_output,omitempty"`
 		LogServiceStats      *LogServiceStats     `json:"log_service_stats,omitempty"`
+		ErrorDetails         *ErrorDetails        `json:"error_details,omitempty"`
 	}
 
 	LogServiceStats struct {
@@ -358,6 +359,20 @@ const (
 	Failure CommandExecutionStatus = "FAILURE"
 	Timeout CommandExecutionStatus = "TIMEOUT"
 )
+
+
+const FailureTypeTimeout = "TIMEOUT_FAILURE"
+
+const StepTimeoutMessage = "Please Check the timeout configuration on the step to extend the duration of the step"
+
+
+func TimeoutErrorDetails() *ErrorDetails {
+	return &ErrorDetails{
+		FailureType: FailureTypeTimeout,
+		Message:     StepTimeoutMessage,
+		TimedOut:    true,
+	}
+}
 
 type OutputType string
 
