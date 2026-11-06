@@ -113,28 +113,44 @@ func Upload(
 		if !cgIsEmpty {
 			uploadStart := time.Now()
 			cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched)
-			observeCallgraphUpload(ctx, cgErr, uploadStart)
 			if cgErr != nil {
 				log.Warnln("Failed to upload callgraph with latest version, trying with older version", cgErr)
 				// try with version ""
 				encCg, cgIsEmpty, matched, avroErr := encodeCg(dataDir, log, tests, "", rerunFailedTests)
 				if avroErr != nil {
+					recordCallgraphUpload(ctx, cgErr, uploadStart, false, nil, time.Time{})
 					return nil, fmt.Errorf("failed to get avro encoded callgraph: %w", avroErr)
 				}
 				if !cgIsEmpty {
 					retryStart := time.Now()
-					cgErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched)
-					observeCallgraphUpload(ctx, cgErr, retryStart)
-					if cgErr != nil {
-						return nil, cgErr
+					retryErr := c.UploadCg(ctx, stepID, cfg.GetSourceBranch(), cfg.GetTargetBranch(), timeMs, encCg, rerunFailedTests && matched)
+					// The retry replaces the failed attempt. Recording both would
+					// leave an error count on an upload that succeeded.
+					recordCallgraphUpload(ctx, cgErr, uploadStart, true, retryErr, retryStart)
+					if retryErr != nil {
+						return nil, retryErr
 					}
+				} else {
+					recordCallgraphUpload(ctx, cgErr, uploadStart, false, nil, time.Time{})
 				}
+			} else {
+				recordCallgraphUpload(ctx, nil, uploadStart, false, nil, time.Time{})
 			}
 		}
 	}
 
 	log.Infoln(fmt.Sprintf("Successfully uploaded callgraph in %s time", time.Since(start)))
 	return nil, nil
+}
+
+// recordCallgraphUpload records the attempt that decided the result. When
+// retried is set, the first attempt is discarded and only the retry is kept.
+func recordCallgraphUpload(ctx context.Context, first error, firstStart time.Time, retried bool, retry error, retryStart time.Time) {
+	if retried {
+		observeCallgraphUpload(ctx, retry, retryStart)
+		return
+	}
+	observeCallgraphUpload(ctx, first, firstStart)
 }
 
 func observeCallgraphUpload(ctx context.Context, err error, start time.Time) {

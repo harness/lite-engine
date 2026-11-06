@@ -1,13 +1,48 @@
 package callgraph
 
 import (
+	"context"
+	"errors"
 	"testing"
+	"time"
 
+	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/ti/avro"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestRecordCallgraphUpload_RetrySuccessDropsTheFailedAttempt(t *testing.T) {
+	obs := &api.StepObservations{}
+	ctx := api.ContextWithObservations(context.Background(), obs)
+	start := time.Now().Add(-2 * time.Second)
+	retryStart := time.Now().Add(-time.Second)
+
+	recordCallgraphUpload(ctx, errors.New("latest version rejected"), start, true, nil, retryStart)
+
+	stats := obs.TIStats()
+	require.NotNil(t, stats)
+	assert.Equal(t, int64(1), stats.CallgraphUpload.Count)
+	assert.Equal(t, int64(0), stats.CallgraphUpload.ErrorCount)
+	assert.Nil(t, api.AuxiliaryFrom(true, nil, stats))
+}
+
+func TestRecordCallgraphUpload_UnretriedFailureIsKept(t *testing.T) {
+	obs := &api.StepObservations{}
+	ctx := api.ContextWithObservations(context.Background(), obs)
+
+	recordCallgraphUpload(ctx, errors.New("upload failed"), time.Now().Add(-time.Second), false, nil, time.Time{})
+
+	stats := obs.TIStats()
+	require.NotNil(t, stats)
+	assert.Equal(t, int64(1), stats.CallgraphUpload.Count)
+	assert.Equal(t, int64(1), stats.CallgraphUpload.ErrorCount)
+	aux := api.AuxiliaryFrom(true, nil, stats)
+	require.NotNil(t, aux)
+	assert.Equal(t, []string{"ti_callgraph_upload"}, aux.Reasons)
+}
 
 func TestCallGraphParser_EncodeCg(t *testing.T) {
 	log := logrus.New()

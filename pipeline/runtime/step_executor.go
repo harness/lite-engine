@@ -185,14 +185,21 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 	e.mu.Unlock()
 
 	safego.SafeGo("vm_task_executor", func() {
-		procmetrics.EnterStep()
-		defer procmetrics.LeaveStep()
 		done := make(chan api.VMTaskExecutionResponse, 1)
 		var resp api.VMTaskExecutionResponse
 		var wr logstream.Writer
 		timeout := getStepTimeout(r.Timeout)
+		// The timeout path below reads r.Observations from this goroutine.
+		// Create it before step_execution starts so that read does not race
+		// the assignment in executeStepHelper.
+		if r.Observations == nil {
+			r.Observations = &api.StepObservations{}
+		}
 
 		safego.SafeGo("step_execution", func() {
+			// This goroutine keeps running after a timeout returns above.
+			procmetrics.EnterStep()
+			defer procmetrics.LeaveStep()
 			if r.StageRuntimeID != "" && r.Image == "" {
 				setPrevStepExportEnvs(r)
 			}
