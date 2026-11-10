@@ -5,6 +5,9 @@
 package runtime
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -41,6 +44,70 @@ func TestToStep_NilEnvsStaysNil(t *testing.T) {
 	step := toStep(&api.StartStepRequest{ID: "step-1"})
 	if step.Envs != nil {
 		t.Fatalf("expected nil Envs to stay nil, got %v", step.Envs)
+	}
+}
+
+// TestConvertStatus_TagsStepTimeout verifies that a step killed by its own
+// configured timeout (context.DeadlineExceeded) is tagged with timeout error
+// details, so manager-side failure strategies keyed on errors:[timeout] match
+// even when lite-engine reports before the orchestration engine's own timeout
+// watcher. A manual abort surfaces as context.Canceled and must NOT be tagged.
+func TestConvertStatus_TagsStepTimeout(t *testing.T) {
+	tests := []struct {
+		name       string
+		stepErr    error
+		wantTagged bool
+	}{
+		{"deadline exceeded", context.DeadlineExceeded, true},
+		{"wrapped deadline exceeded", fmt.Errorf("step execution: %w", context.DeadlineExceeded), true},
+		{"manual abort (context canceled)", context.Canceled, false},
+		{"generic error", errors.New("boom"), false},
+		{"no error", nil, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := convertStatus(StepStatus{StepErr: tc.stepErr})
+			if !tc.wantTagged {
+				if resp.ErrorDetails != nil {
+					t.Fatalf("expected no error details, got %+v", resp.ErrorDetails)
+				}
+				return
+			}
+			if resp.ErrorDetails == nil {
+				t.Fatal("expected timeout error details, got nil")
+			}
+			if resp.ErrorDetails.FailureType != api.FailureTypeTimeout {
+				t.Fatalf("failure type: got %q, want %q", resp.ErrorDetails.FailureType, api.FailureTypeTimeout)
+			}
+			if resp.ErrorDetails.Message != api.StepTimeoutMessage {
+				t.Fatalf("message: got %q, want %q", resp.ErrorDetails.Message, api.StepTimeoutMessage)
+			}
+			if !resp.ErrorDetails.TimedOut {
+				t.Fatal("expected TimedOut to be true")
+			}
+		})
+	}
+}
+
+
+func TestConvertPollResponse_CarriesErrorDetails(t *testing.T) {
+	pollResp := &api.PollStepResponse{
+		Error:        "context deadline exceeded",
+		ErrorDetails: api.TimeoutErrorDetails(),
+	}
+	resp := convertPollResponse(pollResp, map[string]string{})
+	if resp.ErrorDetails == nil {
+		t.Fatal("expected error details to be carried through, got nil")
+	}
+	if resp.ErrorDetails.FailureType != api.FailureTypeTimeout {
+		t.Fatalf("failure type: got %q, want %q", resp.ErrorDetails.FailureType, api.FailureTypeTimeout)
+	}
+
+	// A plain failure without details must stay without details.
+	resp = convertPollResponse(&api.PollStepResponse{Error: "boom"}, map[string]string{})
+	if resp.ErrorDetails != nil {
+		t.Fatalf("expected nil error details, got %+v", resp.ErrorDetails)
 	}
 }
 
