@@ -26,6 +26,7 @@ import (
 	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/livelog"
 	"github.com/harness/lite-engine/logstream"
+	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
@@ -547,7 +548,9 @@ func getLogStreamWriter(r *api.StartStepRequest) logstream.Writer {
 	// SkipOpeningStream and SkipClosingStream from pipelineState.LogConfig are not being set during setup (init) time.
 	// Consuming SkipOpeningStream and SkipClosingStream params during execution time through StartStepRequest.
 	// For local infra we are not going through this flow, everything is handled from runner side.
-	wc := livelog.New(context.Background(), client, r.LogKey, r.Name, getNudges(), false,
+	// The topic is taken per step: steps in the same stage can route to different topics.
+	logCtx := remote.WithCustomKafkaTopic(context.Background(), remote.CustomKafkaTopicFromEnvs(r.Envs))
+	wc := livelog.New(logCtx, client, r.LogKey, r.Name, getNudges(), false,
 		pipelineState.GetLogConfig().TrimNewLineSuffix,
 		r.LogConfig.SkipOpeningStream,
 		r.LogConfig.SkipClosingStream)
