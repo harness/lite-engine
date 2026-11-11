@@ -372,9 +372,11 @@ const (
 	Timeout CommandExecutionStatus = "TIMEOUT"
 )
 
+
 const FailureTypeTimeout = "TIMEOUT_FAILURE"
 
 const StepTimeoutMessage = "Please Check the timeout configuration on the step to extend the duration of the step"
+
 
 func TimeoutErrorDetails() *ErrorDetails {
 	return &ErrorDetails{
