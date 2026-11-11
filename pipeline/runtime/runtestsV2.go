@@ -157,7 +157,7 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	artifact, _ := fetchArtifactDataFromArtifactFile(artifactFile, out)
 
 	summaryOutputs := make(map[string]string)
-	reportSaveErr := report.SaveReportSummaryToOutputs(ctx, tiConfig, step.Name, summaryOutputs, log, r.Envs)
+	reportSaveErr := report.SaveReportSummaryToOutputs(tests, summaryOutputs, r.Envs)
 	if reportSaveErr != nil {
 		log.Errorf("Error while saving report summary to outputs %s", reportSaveErr.Error())
 	}
@@ -543,6 +543,8 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 		} else {
 			skipTests = newSkipTests
 		}
+	} else if instrumentation.IsMatrixEnabledStage(envs) && !instrumentation.IsStepParallelismEnabled(envs) {
+		log.Infoln("Stage matrix without step parallelism detected; skipping step-level test distribution")
 	}
 
 	// Write skipTests to a text file on disk
@@ -689,6 +691,8 @@ func getTestsSelection(ctx context.Context, fs filesystem.FileSystem, stepID, wo
 	if instrumentation.IsParallelismActive(envs) {
 		log.Debugln("Parallelism is enabled!")
 		runOnlySelectedTests = instrumentation.ComputeSelectedTestsV2(ctx, runV2Config, log, &selection, stepID, workspace, envs, testGlobs, tiConfig, runOnlySelectedTests, fs)
+	} else if instrumentation.IsMatrixEnabledStage(envs) && !instrumentation.IsStepParallelismEnabled(envs) {
+		log.Infoln("Stage matrix without step parallelism detected; skipping test splitting")
 	}
 
 	return selection, runOnlySelectedTests
@@ -1157,6 +1161,7 @@ func downloadDotNetAgent(ctx context.Context, path, dotNetAgentV2Url string, fs 
 // This is nothing but filterfile where all the tests selected will be stored
 func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string, log *logrus.Logger,
 	tiConfig *tiCfg.Cfg, tmpFilepath string, envs map[string]string, runV2Config *api.RunTestsV2Config, filterFilePath string, testMetadata *types.TestIntelligenceMetaData) (bool, error) {
+	log.Infof("Starting filter file generation for legacy TI mode (filterFilePath: %s)", filterFilePath)
 	isManualExecution := instrumentation.IsManualExecution(tiConfig)
 	resp, isFilterFilePresent := getTestsSelection(ctx, fs, stepID, workspace, log, isManualExecution, tiConfig, envs, runV2Config)
 	if runV2Config.IntelligenceMode {
@@ -1182,6 +1187,8 @@ func createSelectedTestFile(ctx context.Context, fs filesystem.FileSystem, stepI
 		log.WithError(err).Errorln("failed to populate items in filterfile")
 		return !isFilterFilePresent, err
 	}
+	log.Infof("Successfully wrote filter file (path: %s, selectedTestsCount: %d, isFilterFilePresent: %t)",
+		filterFilePath, len(resp.Tests), isFilterFilePresent)
 	testMetadata.TotalSelectedTests = resp.SelectedTests
 	testMetadata.TotalSelectedTestClass = telemetryutils.CountDistinctSelectedClasses(resp.Tests)
 	testMetadata.IsRunTestV2 = true

@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/pc"
 	"github.com/stretchr/testify/require"
 )
@@ -50,6 +51,38 @@ func TestSetHarnessEnvs_IncludesTmpPathForGoSavings(t *testing.T) {
 	require.Equal(t, "stage-1", os.Getenv("HARNESS_STAGE_ID"))
 	require.Equal(t, "42", os.Getenv("HARNESS_BUILD_ID"))
 	require.Empty(t, os.Getenv("UNRELATED"))
+}
+
+func TestSetLogScopeFromTI(t *testing.T) {
+	t.Run("fills missing scope", func(t *testing.T) {
+		logConfig := api.LogConfig{}
+		tiConfig := api.TIConfig{OrgID: "ti-org", ProjectID: "ti-project"}
+
+		setLogScopeFromTI(&logConfig, &tiConfig)
+
+		require.Equal(t, "ti-org", logConfig.OrgID)
+		require.Equal(t, "ti-project", logConfig.ProjectID)
+	})
+
+	t.Run("fills fields independently", func(t *testing.T) {
+		logConfig := api.LogConfig{OrgID: "log-org"}
+		tiConfig := api.TIConfig{OrgID: "ti-org", ProjectID: "ti-project"}
+
+		setLogScopeFromTI(&logConfig, &tiConfig)
+
+		require.Equal(t, "log-org", logConfig.OrgID)
+		require.Equal(t, "ti-project", logConfig.ProjectID)
+	})
+
+	t.Run("preserves explicit scope", func(t *testing.T) {
+		logConfig := api.LogConfig{OrgID: "log-org", ProjectID: "log-project"}
+		tiConfig := api.TIConfig{OrgID: "ti-org", ProjectID: "ti-project"}
+
+		setLogScopeFromTI(&logConfig, &tiConfig)
+
+		require.Equal(t, "log-org", logConfig.OrgID)
+		require.Equal(t, "log-project", logConfig.ProjectID)
+	})
 }
 
 func TestGetNetrcFile_UsesOwnerReadWriteMode(t *testing.T) {

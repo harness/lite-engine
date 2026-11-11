@@ -15,6 +15,7 @@ import (
 	"io"
 	stdlog "log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -60,10 +61,17 @@ var defaultClient = &http.Client{
 
 // NewHTTPClient returns a new HTTPClient.
 func NewHTTPClient(endpoint, accountID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string) *HTTPClient {
+	return NewHTTPClientWithLogScope(endpoint, accountID, "", "", token, indirectUpload, skipverify, base64MtlsClientCert, base64MtlsClientCertKey)
+}
+
+// NewHTTPClientWithLogScope returns a new HTTPClient with optional org and project scope for stream writes.
+func NewHTTPClientWithLogScope(endpoint, accountID, orgID, projectID, token string, indirectUpload, skipverify bool, base64MtlsClientCert, base64MtlsClientCertKey string) *HTTPClient {
 	endpoint = strings.TrimSuffix(endpoint, "/")
 	client := &HTTPClient{
 		Endpoint:       endpoint,
 		AccountID:      accountID,
+		OrgID:          orgID,
+		ProjectID:      projectID,
 		Token:          token,
 		SkipVerify:     skipverify,
 		IndirectUpload: indirectUpload,
@@ -135,6 +143,8 @@ type HTTPClient struct {
 	Endpoint       string // Example: http://localhost:port
 	Token          string // Per account token to validate against
 	AccountID      string
+	OrgID          string
+	ProjectID      string
 	SkipVerify     bool
 	IndirectUpload bool
 }
@@ -254,9 +264,20 @@ func (c *HTTPClient) Close(ctx context.Context, key string, snapshot bool) error
 // Write writes logs to the data stream.
 func (c *HTTPClient) Write(ctx context.Context, key string, lines []*logstream.Line) error {
 	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
+	path = appendLogScope(path, c.OrgID, c.ProjectID)
 	l := convertLines(lines)
 	_, err := c.do(ctx, c.Endpoint+path, "PUT", &l, nil) //nolint:bodyclose
 	return err
+}
+
+func appendLogScope(path, orgID, projectID string) string {
+	if orgID != "" {
+		path += "&orgId=" + url.QueryEscape(orgID)
+	}
+	if projectID != "" {
+		path += "&projectId=" + url.QueryEscape(projectID)
+	}
+	return path
 }
 
 func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out interface{}, isOpen bool, b backoff.BackOff) (*http.Response, error) {

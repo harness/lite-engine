@@ -100,3 +100,23 @@ func TestVMTaskExecutionResponse_TaskExecutionStartedAtMillisRoundtrip(t *testin
 		t.Fatalf("timestamp mismatch: %d vs %d", out.TaskExecutionStartedAtMillis, in.TaskExecutionStartedAtMillis)
 	}
 }
+
+
+func TestTimeoutErrorDetails(t *testing.T) {
+	d := TimeoutErrorDetails()
+	if d == nil {
+		t.Fatal("expected non-nil ErrorDetails")
+	}
+	if FailureTypeTimeout != "TIMEOUT_FAILURE" {
+		t.Fatalf("FailureTypeTimeout must match the platform FailureType proto enum, got %q", FailureTypeTimeout)
+	}
+	if d.FailureType != FailureTypeTimeout {
+		t.Fatalf("failure type: got %q, want %q", d.FailureType, FailureTypeTimeout)
+	}
+	if d.Message != StepTimeoutMessage {
+		t.Fatalf("message: got %q, want %q", d.Message, StepTimeoutMessage)
+	}
+	if !d.TimedOut {
+		t.Fatal("expected TimedOut to be true")
+	}
+}

@@ -7,6 +7,7 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"log"
@@ -229,7 +230,10 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 				pipeline.GetEnvState().Add(r.StageRuntimeID, pollResponse.Envs)
 			}
 
-			errorDetails := e.categorizeStepError(r, state, pollResponse)
+			errorDetails := pollResponse.ErrorDetails
+			if errorDetails == nil {
+				errorDetails = e.categorizeStepError(r, state, pollResponse)
+			}
 			logutil.CleanupLogFiles(r.ID)
 
 			if errorDetails != nil {
@@ -260,8 +264,8 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			if wr != nil {
 				wr.Close()
 			}
-			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: "step timed out",
-				LogServiceStats: logServiceStatsFrom(wr), TIServiceStats: tiStatsFrom(r)}
+			resp = api.VMTaskExecutionResponse{CommandExecutionStatus: api.Timeout, ErrorMessage: api.StepTimeoutMessage,
+				LogServiceStats: logServiceStatsFrom(wr), TIServiceStats: tiStatsFrom(r), ErrorDetails: api.TimeoutErrorDetails()}
 			e.sendStepStatus(r, &resp)
 			return
 		}
@@ -720,11 +724,19 @@ func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 	if stepErr != nil {
 		r.Error = stepErr.Error()
 	}
+
+	// If the step was killed because its own configured timeout elapsed, tag the
+	// failure as a timeout so manager-side failure strategies keyed on timeout
+	// match regardless of which timeout watcher reports first. A manual abort
+	// surfaces as context.Canceled and is deliberately not tagged.
+	if stderrors.Is(status.StepErr, context.DeadlineExceeded) {
+		r.ErrorDetails = api.TimeoutErrorDetails()
+	}
 	return r
 }
 
 func convertPollResponse(r *api.PollStepResponse, envs map[string]string) api.VMTaskExecutionResponse {
-	return convertPollResponseWithErrorDetails(r, envs, nil)
+	return convertPollResponseWithErrorDetails(r, envs, r.ErrorDetails)
 }
 
 // readNativeArtifact reads the hcli artifact JSON written to

@@ -307,14 +307,21 @@ func readMatrixAxisString(matrixAxesEnv string) string {
 		return ""
 	}
 
-	var stageMap map[string]string
-	if err := json.Unmarshal([]byte(matrixAxesEnv), &stageMap); err != nil || len(stageMap) == 0 {
+	// Axis values may be arbitrary JSON (objects, arrays, numbers, booleans), not only strings.
+	var matrixMap map[string]interface{}
+	decoder := json.NewDecoder(strings.NewReader(matrixAxesEnv))
+	decoder.UseNumber()
+	// Reject trailing data so this agrees with json.Unmarshal in IsMatrixEnabledStage.
+	if err := decoder.Decode(&matrixMap); err != nil || decoder.More() {
+		return ""
+	}
+	if len(matrixMap) == 0 {
 		return ""
 	}
 
 	// Sort keys for consistent output
-	keys := make([]string, 0, len(stageMap))
-	for key := range stageMap {
+	keys := make([]string, 0, len(matrixMap))
+	for key := range matrixMap {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
@@ -322,10 +329,29 @@ func readMatrixAxisString(matrixAxesEnv string) string {
 	// Build key=value pairs
 	pairs := make([]string, 0, len(keys))
 	for _, key := range keys {
-		pairs = append(pairs, fmt.Sprintf("%s=%s", key, stageMap[key]))
+		value, err := formatMatrixAxisValue(matrixMap[key])
+		if err != nil {
+			return ""
+		}
+		pairs = append(pairs, fmt.Sprintf("%s=%s", key, value))
 	}
 
 	return strings.Join(pairs, ",")
+}
+
+// formatMatrixAxisValue keeps string values verbatim so existing execution context keys stay stable,
+// and renders any other value as compact JSON with sorted object keys so the result is deterministic.
+func formatMatrixAxisValue(value interface{}) (string, error) {
+	if s, ok := value.(string); ok {
+		return s, nil
+	}
+	var buf strings.Builder
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(buf.String(), "\n"), nil
 }
 
 func getTiRunner(language, buildTool string, log *logrus.Logger, fs filesystem.FileSystem, testGlobs []string, envs map[string]string) (TestRunner, bool, error) {
@@ -1091,7 +1117,7 @@ func GetSplitIdxAndTotalWithMatrix(envs map[string]string) (splitIdx, splitTotal
 
 func IsMatrixEnabledStage(envs map[string]string) bool {
 	if matrixEnvVar, exists := envs[envHarnessMatrixAxis]; exists {
-		var stageMap map[string]string
+		var stageMap map[string]json.RawMessage
 		if err := json.Unmarshal([]byte(matrixEnvVar), &stageMap); err == nil && len(stageMap) > 0 {
 			return true
 		}

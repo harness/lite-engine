@@ -210,6 +210,7 @@ type (
 		LogServiceStats      *LogServiceStats     `json:"log_service_stats,omitempty"`
 		TIServiceStats       *TIServiceStats      `json:"ti_service_stats,omitempty"`
 		AuxiliaryStatus      *AuxiliaryStatus     `json:"auxiliary_status,omitempty"`
+		ErrorDetails         *ErrorDetails        `json:"error_details,omitempty"`
 	}
 
 	LogServiceStats struct {
@@ -272,6 +273,8 @@ type (
 
 	LogConfig struct {
 		AccountID         string              `json:"account_id,omitempty"`
+		OrgID             string              `json:"org_id,omitempty"`
+		ProjectID         string              `json:"project_id,omitempty"`
 		IndirectUpload    bool                `json:"indirect_upload,omitempty"` // Whether to directly upload via signed link or using log service
 		URL               string              `json:"url,omitempty"`
 		Token             string              `json:"token,omitempty"`
@@ -368,6 +371,18 @@ const (
 	Failure CommandExecutionStatus = "FAILURE"
 	Timeout CommandExecutionStatus = "TIMEOUT"
 )
+
+const FailureTypeTimeout = "TIMEOUT_FAILURE"
+
+const StepTimeoutMessage = "Please Check the timeout configuration on the step to extend the duration of the step"
+
+func TimeoutErrorDetails() *ErrorDetails {
+	return &ErrorDetails{
+		FailureType: FailureTypeTimeout,
+		Message:     StepTimeoutMessage,
+		TimedOut:    true,
+	}
+}
 
 type OutputType string
 

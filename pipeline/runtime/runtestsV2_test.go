@@ -287,6 +287,36 @@ func Test_MatrixParallelismShardPaths(t *testing.T) {
 			wantFailed:    "failed_tests_1",
 			wantConfigIni: "config_1.ini",
 		},
+		{
+			name: "NestedMatrixAxis_StageMatrixOnly_Leg1",
+			envs: map[string]string{
+				"HARNESS_MATRIX_AXIS": `{"container":{"module":"string-service:test","dockerfile":"","name":"string-service","source_path":"string-service"}}`,
+				"HARNESS_STAGE_INDEX": "1",
+				"HARNESS_STAGE_TOTAL": "2",
+				"HARNESS_STEP_INDEX":  "0",
+				"HARNESS_STEP_TOTAL":  "1",
+			},
+			wantSplitIdx:  0,
+			wantSkipFile:  "skip_tests_0",
+			wantFilter:    "filter_0",
+			wantFailed:    "failed_tests_0",
+			wantConfigIni: "config_0.ini",
+		},
+		{
+			name: "NestedMatrixAxis_WithStepParallelism_Shard1",
+			envs: map[string]string{
+				"HARNESS_MATRIX_AXIS": `{"container":{"module":"string-service:test","dockerfile":"","name":"string-service","source_path":"string-service"}}`,
+				"HARNESS_STAGE_INDEX": "1",
+				"HARNESS_STAGE_TOTAL": "2",
+				"HARNESS_STEP_INDEX":  "1",
+				"HARNESS_STEP_TOTAL":  "2",
+			},
+			wantSplitIdx:  1,
+			wantSkipFile:  "skip_tests_1",
+			wantFilter:    "filter_1",
+			wantFailed:    "failed_tests_1",
+			wantConfigIni: "config_1.ini",
+		},
 	}
 
 	for _, tt := range tests {
