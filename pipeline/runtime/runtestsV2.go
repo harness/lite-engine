@@ -509,22 +509,23 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 
 		// Get file checksums from git repository using workspace
 		fileChecksums, _, err := instrumentation.GetGitFileChecksums(ctx, workspace, log)
-		if err != nil {
-			return fmt.Errorf("failed to get git file checksums: %w", err)
-		}
-
-		log.Infof("Sending %d git file checksums from %s to ti-service for skip analysis", len(fileChecksums), workspace)
-		skipTests, failedTests, err = sendFileChecksumsToTI(ctx, stepID, workspace, log, tiConfig, fileChecksums, envs)
-		if err != nil {
-			log.WithError(err).Warnf("Failed to send file checksums to ti-service, continuing...")
-			return nil
+		if err == nil {
+			log.Infof("Sending %d git file checksums from %s to ti-service for skip analysis", len(fileChecksums), workspace)
+			skipTests, failedTests, err = sendFileChecksumsToTI(ctx, stepID, workspace, log, tiConfig, fileChecksums, envs)
 		}
 
 		skipFilesCount := len(extractTestFiles(skipTests))
 		failedFilesCount := len(extractTestFiles(failedTests))
-		if skipFilesCount == 0 && failedFilesCount == 0 {
+		switch {
+		case err != nil:
+			// Do not fail the step on a Test Intelligence error: fall back to a full run
+			// (empty skip and failed lists), consistent with the legacy filter-file path.
+			log.WithError(err).Errorln("Unable to get skip recommendations from Test Intelligence. Running all the tests.")
+			skipTests = []string{}
+			failedTests = []string{}
+		case skipFilesCount == 0 && failedFilesCount == 0:
 			log.Infoln("Test Intelligence determined to run all tests (no test files recommended to skip)")
-		} else {
+		default:
 			log.Infof("Test Intelligence skip recommendations received: %d test file(s) to skip, %d failed test file(s)",
 				skipFilesCount, failedFilesCount)
 			log.Debugf("Test Intelligence test files to skip: %v, failed test files: %v", extractTestFiles(skipTests), extractTestFiles(failedTests))

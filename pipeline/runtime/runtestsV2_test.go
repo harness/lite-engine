@@ -3,7 +3,10 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -415,6 +418,155 @@ func Test_CreateSkipAndFailedTestsFiles_WhenIntelligenceModeOff(t *testing.T) {
 
 	// Shard 0 and Shard 1 must skip different files (partitioning the tests)
 	assert.NotEqual(t, lines0[0], lines1[0], "Shards must skip complementary test files")
+}
+
+// initGitRepo creates a git repository in dir containing a single committed file.
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	assert.Nil(t, os.WriteFile(filepath.Join(dir, "Test1.java"), []byte("class Test1 {}"), 0o600))
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"add", "."},
+		{"-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		out, err := cmd.CombinedOutput()
+		assert.Nil(t, err, string(out))
+	}
+}
+
+// newSkipTestsTiConfig returns a TI config pointing at a stub ti-service whose skip-tests endpoint
+// replies with the given status and body. All other endpoints reply with an empty 200.
+func newSkipTestsTiConfig(t *testing.T, status int, body string) *tiCfg.Cfg {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/select" { // only the skip-tests endpoint is configurable
+			_, _ = w.Write([]byte(`{}`))
+			return
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	cfg := tiCfg.New(srv.URL, "token", "acc", "org", "proj", "pipe", "build", "stage", "repo", "sha", "",
+		"", "", "", "", "", false, "", "")
+	return &cfg
+}
+
+func readTrimmed(t *testing.T, path string) string {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	assert.Nil(t, err, "expected %s to exist", path)
+	return strings.TrimSpace(string(content))
+}
+
+// With enhanced TI, any failure while computing skip recommendations must fall back to a
+// full run (empty skip and failed files) instead of failing the step.
+func Test_CreateSkipAndFailedTestsFiles_EnhancedTI_ErrorsFallBackToFullRun(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T) (workspace string, tiConfig *tiCfg.Cfg)
+	}{
+		{
+			name: "not a git repository",
+			setup: func(t *testing.T) (string, *tiCfg.Cfg) {
+				return t.TempDir(), newSkipTestsTiConfig(t, http.StatusOK, `{}`)
+			},
+		},
+		{
+			name: "malformed ticonfig",
+			setup: func(t *testing.T) (string, *tiCfg.Cfg) {
+				ws := t.TempDir()
+				initGitRepo(t, ws)
+				assert.Nil(t, os.WriteFile(filepath.Join(ws, ".ticonfig.yaml"), []byte("config: [unclosed"), 0o600))
+				return ws, newSkipTestsTiConfig(t, http.StatusOK, `{}`)
+			},
+		},
+		{
+			name: "ti-service returns an error",
+			setup: func(t *testing.T) (string, *tiCfg.Cfg) {
+				ws := t.TempDir()
+				initGitRepo(t, ws)
+				return ws, newSkipTestsTiConfig(t, http.StatusInternalServerError, `boom`)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			workspace, tiConfig := tt.setup(t)
+			filterDir := filepath.Join(t.TempDir(), "filter")
+			skipFile := filepath.Join(filterDir, "skip_tests_0")
+			failedFile := filepath.Join(filterDir, "failed_tests_0")
+
+			err := createSkipAndFailedTestsFiles(context.Background(), filesystem.New(), "step1", workspace,
+				logrus.New(), tiConfig, skipFile, failedFile, map[string]string{}, &api.RunTestsV2Config{IntelligenceMode: true})
+
+			assert.Nil(t, err)
+			assert.Empty(t, readTrimmed(t, skipFile))
+			assert.Empty(t, readTrimmed(t, failedFile))
+		})
+	}
+}
+
+// Control: when ti-service answers, its skip recommendations are still written.
+func Test_CreateSkipAndFailedTestsFiles_EnhancedTI_WritesTISkipRecommendations(t *testing.T) {
+	workspace := t.TempDir()
+	initGitRepo(t, workspace)
+	body := fmt.Sprintf(`{"skipTests":[%q,"src/test/Skipped.java"],"failedTests":["src/test/Failed.java"]}`,
+		instrumentation.NonCodeChainPath)
+	tiConfig := newSkipTestsTiConfig(t, http.StatusOK, body)
+	filterDir := filepath.Join(t.TempDir(), "filter")
+	skipFile := filepath.Join(filterDir, "skip_tests_0")
+	failedFile := filepath.Join(filterDir, "failed_tests_0")
+
+	err := createSkipAndFailedTestsFiles(context.Background(), filesystem.New(), "step1", workspace,
+		logrus.New(), tiConfig, skipFile, failedFile, map[string]string{}, &api.RunTestsV2Config{IntelligenceMode: true})
+
+	assert.Nil(t, err)
+	assert.Contains(t, readTrimmed(t, skipFile), "src/test/Skipped.java")
+	assert.Equal(t, "src/test/Failed.java", readTrimmed(t, failedFile))
+}
+
+// A TI failure must not disable parallelism: each shard still skips the other shard's tests.
+func Test_CreateSkipAndFailedTestsFiles_EnhancedTI_ErrorStillSplitsForParallelism(t *testing.T) {
+	workspace := t.TempDir() // not a git repository, so TI skip analysis fails
+	fs := filesystem.New()
+	testDir := filepath.Join(workspace, "src", "test", "java")
+	assert.Nil(t, fs.MkdirAll(testDir, os.ModePerm))
+	assert.Nil(t, os.WriteFile(filepath.Join(testDir, "Test1.java"), []byte("class Test1 {}"), 0o600))
+	assert.Nil(t, os.WriteFile(filepath.Join(testDir, "Test2.java"), []byte("class Test2 {}"), 0o600))
+	tiConfig := newSkipTestsTiConfig(t, http.StatusInternalServerError, `boom`)
+	config := &api.RunTestsV2Config{IntelligenceMode: true, TestGlobs: []string{"**/*Test*.java"}}
+	tmpDir := t.TempDir()
+
+	skipped := make([]string, 2)
+	for idx := range skipped {
+		skipFile := filepath.Join(tmpDir, "filter", fmt.Sprintf("skip_tests_%d", idx))
+		failedFile := filepath.Join(tmpDir, "filter", fmt.Sprintf("failed_tests_%d", idx))
+		envs := map[string]string{"HARNESS_STEP_INDEX": fmt.Sprint(idx), "HARNESS_STEP_TOTAL": "2"}
+
+		err := createSkipAndFailedTestsFiles(context.Background(), fs, "step1", workspace,
+			logrus.New(), tiConfig, skipFile, failedFile, envs, config)
+
+		assert.Nil(t, err)
+		skipped[idx] = readTrimmed(t, skipFile)
+		assert.NotEmpty(t, skipped[idx], "shard %d should skip the other shard's test file", idx)
+	}
+	assert.NotEqual(t, skipped[0], skipped[1])
+}
+
+// Local filesystem problems are still hard errors.
+func Test_CreateSkipAndFailedTestsFiles_EnhancedTI_FilesystemErrorStillFails(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	assert.Nil(t, os.WriteFile(blocker, []byte("x"), 0o600)) // a file where a directory is needed
+
+	err := createSkipAndFailedTestsFiles(context.Background(), filesystem.New(), "step1", t.TempDir(),
+		logrus.New(), newSkipTestsTiConfig(t, http.StatusOK, `{}`),
+		filepath.Join(blocker, "filter", "skip"), filepath.Join(blocker, "filter", "failed"),
+		map[string]string{}, &api.RunTestsV2Config{IntelligenceMode: true})
+
+	assert.NotNil(t, err)
 }
 
 func Test_getTestsSelection(t *testing.T) {
