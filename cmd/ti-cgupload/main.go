@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -68,6 +69,11 @@ func run() error {
 	source := env("DRONE_SOURCE_BRANCH", "DRONE_COMMIT_BRANCH")
 	target := env("DRONE_TARGET_BRANCH", "DRONE_COMMIT_BRANCH")
 	parentUniqueID := env("HARNESS_PARENT_UNIQUE_ID")
+	// timeMs is the step duration; ti-service stores it in an int4 column.
+	var timeMs int64
+	if start, err := strconv.ParseInt(env("TI_STEP_START_MS"), 10, 64); err == nil && start > 0 {
+		timeMs = time.Now().UnixMilli() - start
+	}
 
 	required := map[string]string{
 		"TI_OUTPUT_PATH": cgDir, "HARNESS_TI_SERVICE_ENDPOINT": endpoint, "HARNESS_TI_SERVICE_TOKEN": token,
@@ -113,7 +119,7 @@ func run() error {
 	for k, v := range map[string]string{
 		"accountId": accountID, "orgId": orgID, "projectId": projectID, "repo": repo,
 		"pipelineId": pipelineID, "buildId": buildID, "stageId": stageID, "stepId": stepID,
-		"timeMs": fmt.Sprint(time.Now().UnixMilli()), "sourceBranch": source, "targetBranch": target,
+		"timeMs": fmt.Sprint(timeMs), "sourceBranch": source, "targetBranch": target,
 		"parentUniqueId": parentUniqueID,
 	} {
 		q.Set(k, v)
