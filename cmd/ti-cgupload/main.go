@@ -106,10 +106,27 @@ func run() error {
 
 	cfg := tiCfg.New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, "",
 		source, target, source, "", parentUniqueID, false, "", "")
-	payload, err := callgraph.CreateUploadPayload(cg, fileChecksums, nonCodeConfig, repo, &cfg, sha, nil, log, map[string]string{})
+	failedFile := env("TI_FAILED_TESTS_FILE_PATH")
+	payload, err := callgraph.CreateUploadPayload(cg, fileChecksums, nonCodeConfig, repo, &cfg, sha, nil, log,
+		map[string]string{"TI_FAILED_TESTS_FILE_PATH": failedFile})
 	if err != nil {
 		return fmt.Errorf("create payload: %w", err)
 	}
+	// Without report tests every path weighs 1 in ti-service's selected count, so the
+	// total must also count test files: those that ran plus those TI skipped.
+	testFiles := map[string]bool{}
+	for _, t := range payload.Tests {
+		testFiles[t.Path] = true
+	}
+	failed := readTestList(failedFile)
+	for p := range readTestList(env("TI_SKIP_FILE_PATH")) {
+		if !failed[p] {
+			testFiles[p] = true
+		}
+	}
+	delete(testFiles, instrumentation.NonCodeChainPath)
+	payload.TotalTests = len(testFiles)
+
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -140,10 +157,26 @@ func run() error {
 	}
 	defer res.Body.Close()
 	resBody, _ := io.ReadAll(res.Body)
-	fmt.Printf("ti-cgupload: %d tests, %d chains, %d bytes -> HTTP %d %s\n",
-		len(payload.Tests), len(payload.Chains), len(body), res.StatusCode, strings.TrimSpace(string(resBody)))
+	fmt.Printf("ti-cgupload: %d tests, %d chains, totalTests=%d, %d bytes -> HTTP %d %s\n",
+		len(payload.Tests), len(payload.Chains), payload.TotalTests, len(body), res.StatusCode, strings.TrimSpace(string(resBody)))
 	if res.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("upload failed with HTTP %d", res.StatusCode)
 	}
 	return nil
+}
+
+// readTestList parses a lite-engine skip or failed-tests file the same way the JS
+// agent does: whitespace-separated paths, ignoring "file,method" partial entries.
+func readTestList(path string) map[string]bool {
+	tests := map[string]bool{}
+	data, err := os.ReadFile(path)
+	if path == "" || err != nil {
+		return tests
+	}
+	for _, entry := range strings.Fields(string(data)) {
+		if !strings.Contains(entry, ",") {
+			tests[strings.ReplaceAll(entry, `\`, "/")] = true
+		}
+	}
+	return tests
 }
