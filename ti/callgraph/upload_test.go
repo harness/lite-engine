@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/harness/lite-engine/ti/avro"
+	"github.com/harness/lite-engine/ti/config"
+	"github.com/harness/lite-engine/ti/instrumentation"
+	chrysalisTypes "github.com/harness/ti-client/chrysalis/types"
 	"github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -71,6 +74,67 @@ func TestCallGraphParser_EncodeCg(t *testing.T) {
 	assert.Nil(t, err)
 	assert.NotEmpty(t, cg.Nodes)
 	assert.NotEmpty(t, cg.TestRelations)
+}
+
+func TestCreateUploadPayloadChainState(t *testing.T) {
+	cg, err := parseCg([]string{
+		`{"test":{"id":1,"file":"src/failed.test.js","hasFailed":true},"source":{"id":10,"file":"src/a.js"}}`,
+		`{"test":{"id":2,"file":"src/reported.test.js"},"source":{"id":10,"file":"src/a.js"}}`,
+		`{"test":{"id":3,"file":"src/passed.test.js"},"source":{"id":10,"file":"src/a.js"}}`,
+	})
+	assert.Nil(t, err)
+	fileChecksums := map[string]uint64{
+		"src/a.js":                         1,
+		"src/failed.test.js":               2,
+		"src/reported.test.js":             3,
+		"src/passed.test.js":               4,
+		instrumentation.NonCodeChainPath:   5,
+		instrumentation.NonCodeDefaultPath: 6,
+	}
+	reportTests := []*types.TestCase{
+		{Name: "t", FileName: "src/reported.test.js", Result: types.Result{Status: types.StatusFailed}},
+	}
+	cfg := config.New("", "", "acct", "org", "proj", "", "", "", "", "", "", "", "", "", "", "", false, "", "")
+
+	payload, err := CreateUploadPayload(cg, fileChecksums, instrumentation.NonCodeConfig{}, "repo", &cfg, "sha", reportTests, logrus.New(), nil)
+	assert.Nil(t, err)
+
+	states := map[string]chrysalisTypes.TestState{}
+	for _, chain := range payload.Chains {
+		states[chain.Path] = chain.State
+	}
+	assert.Equal(t, chrysalisTypes.FAILURE, states["src/failed.test.js"], "hasFailed marks the chain failed without a matching report test")
+	assert.Equal(t, chrysalisTypes.FAILURE, states["src/reported.test.js"], "a failed report test still marks the chain failed")
+	assert.Equal(t, chrysalisTypes.SUCCESS, states["src/passed.test.js"])
+}
+
+func TestCreateUploadPayloadNumTests(t *testing.T) {
+	cg, err := parseCg([]string{
+		`{"test":{"id":1,"file":"src/counted.test.js","numTests":5},"source":{"id":10,"file":"src/a.js"}}`,
+		`{"test":{"id":2,"file":"src/reported.test.js"},"source":{"id":10,"file":"src/a.js"}}`,
+		`{"test":{"id":3,"file":"src/unmatched.test.js"},"source":{"id":10,"file":"src/a.js"}}`,
+	})
+	assert.Nil(t, err)
+	fileChecksums := map[string]uint64{
+		"src/a.js":                         1,
+		"src/counted.test.js":              2,
+		"src/reported.test.js":             3,
+		"src/unmatched.test.js":            4,
+		instrumentation.NonCodeChainPath:   5,
+		instrumentation.NonCodeDefaultPath: 6,
+	}
+	reportTests := []*types.TestCase{
+		{Name: "t1", FileName: "src/reported.test.js", Result: types.Result{Status: types.StatusPassed}},
+		{Name: "t2", FileName: "src/reported.test.js", Result: types.Result{Status: types.StatusPassed}},
+	}
+	cfg := config.New("", "", "acct", "org", "proj", "", "", "", "", "", "", "", "", "", "", "", false, "", "")
+
+	payload, err := CreateUploadPayload(cg, fileChecksums, instrumentation.NonCodeConfig{}, "repo", &cfg, "sha", reportTests, logrus.New(), nil)
+	assert.Nil(t, err)
+
+	assert.Equal(t, 5, payload.PathToTestNumMap["src/counted.test.js"], "numTests is used without a matching report test")
+	assert.Equal(t, 2, payload.PathToTestNumMap["src/reported.test.js"], "without numTests the report is counted")
+	assert.Equal(t, 1, payload.PathToTestNumMap["src/unmatched.test.js"])
 }
 
 // Helper function to create test callgraph with file extensions

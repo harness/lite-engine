@@ -312,11 +312,16 @@ func matchFilesToTests(filteredTests []*tiClientTypes.TestCase, node *Node, numT
 	if _, exists := numTestsMap[filePath]; exists {
 		return
 	}
-	if len(filteredTests) == 0 {
+	switch {
+	// Agents that see test results set this directly; it doesn't depend on the
+	// JUnit report being found or matching the node.
+	case node.NumTests > 0:
+		numTestsMap[filePath] = node.NumTests
+	case len(filteredTests) == 0:
 		numTestsMap[filePath] = 1
-		return
+	default:
+		numTestsMap[filePath] = len(filteredTests)
 	}
-	numTestsMap[filePath] = len(filteredTests)
 }
 
 func getTestStatus(filteredTests []*tiClientTypes.TestCase) types.TestState {
@@ -492,11 +497,17 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, nonCode
 
 				nodeCopy := node
 				filteredTests := findTestsForNode(reportTests, &nodeCopy)
+				state := getTestStatus(filteredTests)
+				// Agents that see test results set this directly; it doesn't depend on the
+				// JUnit report being found or matching the node.
+				if node.HasFailed {
+					state = types.FAILURE
+				}
 				chain := types.Chain{
 					Path:         testPath,
 					TestChecksum: strconv.FormatUint(testChecksum, 10),
 					Checksum:     strconv.FormatUint(tiClientUtils.ChainChecksum(sourcePaths, fileChecksums), 10),
-					State:        getTestStatus(filteredTests),
+					State:        state,
 				}
 				chains = append(chains, chain)
 				matchFilesToTests(filteredTests, &nodeCopy, numTestsMap)

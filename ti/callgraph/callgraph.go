@@ -180,6 +180,7 @@ type Node struct {
 	AlwaysRun       bool
 	File            string
 	HasFailed       bool
+	NumTests        int
 }
 
 // Input is the go representation of each line in callgraph file
