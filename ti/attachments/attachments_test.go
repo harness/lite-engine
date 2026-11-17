@@ -103,6 +103,12 @@ func newServer(t *testing.T, status func(path string, attempt int) int) (*httpte
 	return srv, rec
 }
 
+func (r *recorder) get(path string) (body, auth string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.requests[path], r.auth[path]
+}
+
 func (r *recorder) paths() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -163,8 +169,9 @@ func TestUploadAll(t *testing.T) {
 		prefix + "test-results/login-chromium-retry1/video.webm",
 		prefix + "test-results/login-chromium/trace.zip",
 	}, rec.paths())
-	assert.Equal(t, "trace", rec.requests[prefix+"test-results/login-chromium/trace.zip"])
-	assert.Equal(t, "CIManager secret-token", rec.auth[prefix+"test-results/login-chromium/trace.zip"])
+	body, auth := rec.get(prefix + "test-results/login-chromium/trace.zip")
+	assert.Equal(t, "trace", body)
+	assert.Equal(t, "CIManager secret-token", auth)
 	assert.Contains(t, out, "3 uploaded, 0 not confirmed as uploaded")
 	assert.NotContains(t, out, "secret-token")
 }
@@ -291,7 +298,10 @@ func TestUploadDoesNotRetryClientErrors(t *testing.T) {
 		return http.StatusForbidden
 	})
 	out := runUpload(t, testConfig(srv.URL, newWorkspace(t)), &Params{Mode: modeAll})
-	assert.Equal(t, 3, calls, "one attempt per file")
+	mu.Lock()
+	got := calls
+	mu.Unlock()
+	assert.Equal(t, 3, got, "one attempt per file")
 	assert.Contains(t, out, "0 uploaded, 3 not confirmed as uploaded")
 	assert.Contains(t, out, "403")
 }
@@ -566,6 +576,18 @@ func TestJunitFilesResolvesPathsLikeTheReportParser(t *testing.T) {
 		ws)
 	assert.ElementsMatch(t, []string{filepath.Join(ws, "report.xml"), filepath.Join(ws, "sub", "a.xml"),
 		filepath.Join(home, "h.xml"), filepath.Join(other, "abs.xml")}, got)
+}
+
+func TestJunitFilesKeepsAPathThatStartsWithTheWorkingDir(t *testing.T) {
+	// The report parser joins the working directory only to a path that does not start with it, so a relative
+	// working directory that is already part of the path is not added twice.
+	base := t.TempDir()
+	t.Chdir(base)
+	require.NoError(t, os.MkdirAll(filepath.Join(base, "ws"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(base, "ws", "report.xml"), []byte("<testsuites/>"), 0o600))
+
+	got := junitFiles([]string{filepath.Join("ws", "report.xml")}, "ws")
+	assert.Equal(t, []string{filepath.Join("ws", "report.xml")}, got)
 }
 
 func TestUploadAllSurvivesAPanickingUpload(t *testing.T) {

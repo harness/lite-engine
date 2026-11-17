@@ -290,7 +290,10 @@ type (
 		DualLoggingEnabled bool `json:"dual_logging_enabled,omitempty"`
 	}
 
-	// HarConfig is the Harness Artifact Registry configuration used to upload test attachments.
+	// HarConfig is the Harness Artifact Registry configuration used to upload test attachments. Registry is the
+	// project's Playwright registry (harness-playwright-registry-<project unique id>), not the native artifact registry,
+	// and Token is scoped to that registry only. CI Manager sends it with the step request; the JSON keys below
+	// are the contract with it.
 	HarConfig struct {
 		URL              string `json:"url,omitempty"`
 		AccountID        string `json:"account_id,omitempty"`

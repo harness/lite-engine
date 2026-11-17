@@ -364,15 +364,16 @@ func checkProjectRoot(root, workspace string) error {
 	return nil
 }
 
-// junitFiles expands the report paths: relative to the working directory unless absolute or in the home directory.
-// Paths that cannot be expanded are skipped without a log line: the report parser reports them.
+// junitFiles expands the report paths like the report parser does (ti/report): relative to the working directory
+// unless in the home directory, rooted at a separator, or already starting with the working directory. Paths that
+// cannot be expanded are skipped without a log line: the report parser reports them.
 func junitFiles(reportPaths []string, workingDir string) []string {
 	paths := make([]string, 0, len(reportPaths))
 	for _, p := range reportPaths {
 		if p == "" {
 			continue
 		}
-		if p[0] != '~' && p[0] != '/' && p[0] != '\\' && !filepath.IsAbs(p) {
+		if p[0] != '~' && p[0] != '/' && p[0] != '\\' && !strings.HasPrefix(p, workingDir) {
 			p = filepath.Join(workingDir, p)
 		}
 		paths = append(paths, p)

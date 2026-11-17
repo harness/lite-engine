@@ -130,7 +130,8 @@ func TestUploadTestAttachments(t *testing.T) { //nolint:funlen
 		require.NoError(t, os.WriteFile(filepath.Join(hostDir, "host.txt"), []byte("host"), 0o600))
 		r := attachmentStep(t, map[string]string{
 			attachments.UploadArtifactsEnv: modeAll,
-			"HARNESS_HAR_URL":              evil.URL, "HARNESS_HAR_TOKEN": "stolen", "CI_NATIVE_HAR_REGISTRY": otherValue,
+			"HARNESS_HAR_URL":              evil.URL,
+			"CI_PLAYWRIGHT_HAR_TOKEN":      "stolen", "CI_PLAYWRIGHT_HAR_REGISTRY": otherValue,
 			"HARNESS_WORKSPACE": "/", "DRONE_WORKSPACE": hostDir, "HARNESS_PIPELINE_UNIQUE_ID": otherValue,
 			"HARNESS_ACCOUNT_ID": otherValue, "HARNESS_BUILD_ID": "99",
 		})

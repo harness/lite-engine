@@ -120,3 +120,38 @@ func TestTimeoutErrorDetails(t *testing.T) {
 		t.Fatal("expected TimedOut to be true")
 	}
 }
+
+// TestStartStepRequest_HarConfigWireKeys pins the JSON keys of har_config, which CI Manager has to send exactly
+// like this. A renamed key would not fail: the lite engine would see no config and skip the upload.
+func TestStartStepRequest_HarConfigWireKeys(t *testing.T) {
+	const wire = `{"id":"step1","har_config":{"url":"https://pkg.example.com","account_id":"acc",` +
+		`"registry":"harness-playwright-registry-proj","pipeline_unique_id":"pipe","build_id":"7",` +
+		`"token":"tok","workspace":"/harness"}}`
+
+	var in StartStepRequest
+	if err := json.Unmarshal([]byte(wire), &in); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	want := HarConfig{URL: "https://pkg.example.com", AccountID: "acc", Registry: "harness-playwright-registry-proj",
+		PipelineUniqueID: "pipe", BuildID: "7", Token: "tok", Workspace: "/harness"}
+	if in.HarConfig != want {
+		t.Fatalf("har_config = %+v, want %+v", in.HarConfig, want)
+	}
+
+	b, err := json.Marshal(want)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var keys map[string]string
+	if err := json.Unmarshal(b, &keys); err != nil {
+		t.Fatalf("unmarshal keys: %v", err)
+	}
+	for _, k := range []string{"url", "account_id", "registry", "pipeline_unique_id", "build_id", "token", "workspace"} {
+		if keys[k] == "" {
+			t.Errorf("key %q missing from %s", k, b)
+		}
+	}
+	if len(keys) != 7 {
+		t.Errorf("unexpected keys in %s", b)
+	}
+}

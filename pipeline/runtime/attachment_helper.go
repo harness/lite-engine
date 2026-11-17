@@ -19,8 +19,8 @@ import (
 
 // maskHarToken adds the token of the step's registry config, trimmed like the copy that is sent, to the secrets of
 // the step, so that it never shows up in the step log or the output of the step. CI Manager sends the config only
-// with steps that upload test attachments. The stateless executor gets its log writer from the caller, which masks
-// the secrets of the step request itself, so there the token is covered only through the masks CI Manager sends.
+// with steps that upload test attachments. The stateless executor and LogDrone steps get their log writer from the
+// caller, so there the token is covered only through the masks CI Manager sends.
 func maskHarToken(r *api.StartStepRequest) {
 	if tok := strings.TrimSpace(r.HarConfig.Token); tok != "" {
 		r.Secrets = append(r.Secrets, tok)
