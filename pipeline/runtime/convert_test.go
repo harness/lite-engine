@@ -90,7 +90,6 @@ func TestConvertStatus_TagsStepTimeout(t *testing.T) {
 	}
 }
 
-
 func TestConvertPollResponse_CarriesErrorDetails(t *testing.T) {
 	pollResp := &api.PollStepResponse{
 		Error:        "context deadline exceeded",
@@ -121,7 +120,7 @@ func TestConvertPollResponse_CarriesErrorDetails(t *testing.T) {
 func TestToStep_NoRaceBetweenRequestReadAndStepWrite(t *testing.T) {
 	r := &api.StartStepRequest{
 		ID:   "step-1",
-		Envs: map[string]string{annotationsFFEnv: "true", "K": "V"},
+		Envs: map[string]string{pipeAnnotationsFFEnv: "true", "K": "V"},
 	}
 	step := toStep(r)
 

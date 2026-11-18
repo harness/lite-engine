@@ -19,7 +19,7 @@ import (
 )
 
 // Feature flag to enable/disable pipeline annotations end-to-end
-const annotationsFFEnv = "CI_ENABLE_HARNESS_ANNOTATIONS"
+const pipeAnnotationsFFEnv = "PIPE_HARNESS_ANNOTATIONS"
 
 // Per-file and per-annotation limits
 const (
@@ -41,10 +41,10 @@ const (
 	postAnnotationsMaxRetries = 1
 )
 
-// isAnnotationsEnabled returns true if CI_ENABLE_HARNESS_ANNOTATIONS is set to a truthy value
+// isAnnotationsEnabled returns true if PIPE_HARNESS_ANNOTATIONS is set to a truthy value
 // in the process environment.
 func isAnnotationsEnabled(envs map[string]string) bool {
-	v := envs[annotationsFFEnv]
+	v := envs[pipeAnnotationsFFEnv]
 	return v == "true"
 }
 

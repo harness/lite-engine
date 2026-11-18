@@ -26,7 +26,6 @@ import (
 
 const (
 	buildCacheStepName = "harness-build-cache"
-	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
 	hcliPath           = "/usr/bin/hcli"               // Standard Linux location and container target path
 	hcliMacOSFallback  = "/tmp/harness/bin/hcli-linux" // macOS fallback path for hcli binary
 )

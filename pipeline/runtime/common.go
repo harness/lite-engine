@@ -402,5 +402,5 @@ func shouldInjectHcliPath(step *spec.Step) bool {
 	if step.Image == "" || len(step.Command) == 0 {
 		return false
 	}
-	return step.Envs[annotationsFFEnv] == trueValue
+	return step.Envs[pipeAnnotationsFFEnv] == trueValue
 }
