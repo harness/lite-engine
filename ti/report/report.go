@@ -27,6 +27,18 @@ func ParseTests(
 	log *logrus.Logger,
 	envs map[string]string,
 ) ([]*types.TestCase, error) {
+	return ParseTestsWithAnnotator(report, workDir, log, envs, nil)
+}
+
+// ParseTestsWithAnnotator is ParseTests that calls annotate, when it is not nil, for every test case, for example
+// to link the files of the test.
+func ParseTestsWithAnnotator(
+	report api.TestReport,
+	workDir string,
+	log *logrus.Logger,
+	envs map[string]string,
+	annotate junit.TestAnnotator,
+) ([]*types.TestCase, error) {
 	if report.Kind != api.Junit {
 		return nil, fmt.Errorf("unknown report type: %s", report.Kind)
 	}
@@ -57,7 +69,7 @@ func ParseTests(
 		}
 	}
 
-	tests := junit.ParseTests(report.Junit.Paths, log, envs)
+	tests := junit.ParseTestsWithAnnotator(report.Junit.Paths, log, envs, annotate)
 	return tests, nil
 }
 
@@ -93,8 +105,24 @@ func ParseAndUploadTests(
 	testMetadata *types.TestIntelligenceMetaData,
 	envs map[string]string,
 ) ([]*types.TestCase, error) {
+	return ParseAndUploadTestsWithAnnotator(ctx, report, workDir, stepID, log, start, tiConfig, testMetadata, envs, nil)
+}
+
+// ParseAndUploadTestsWithAnnotator is ParseAndUploadTests that calls annotate, when it is not nil, for every test
+// case before the tests are sent to the TI service.
+func ParseAndUploadTestsWithAnnotator(
+	ctx context.Context,
+	report api.TestReport,
+	workDir, stepID string,
+	log *logrus.Logger,
+	start time.Time,
+	tiConfig *tiCfg.Cfg,
+	testMetadata *types.TestIntelligenceMetaData,
+	envs map[string]string,
+	annotate junit.TestAnnotator,
+) ([]*types.TestCase, error) {
 	// Parse tests from report files
-	tests, err := ParseTests(report, workDir, log, envs)
+	tests, err := ParseTestsWithAnnotator(report, workDir, log, envs, annotate)
 	if err != nil {
 		return nil, err
 	}
