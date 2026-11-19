@@ -90,7 +90,6 @@ func TestConvertStatus_TagsStepTimeout(t *testing.T) {
 	}
 }
 
-
 func TestConvertPollResponse_CarriesErrorDetails(t *testing.T) {
 	pollResp := &api.PollStepResponse{
 		Error:        "context deadline exceeded",

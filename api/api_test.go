@@ -101,7 +101,6 @@ func TestVMTaskExecutionResponse_TaskExecutionStartedAtMillisRoundtrip(t *testin
 	}
 }
 
-
 func TestTimeoutErrorDetails(t *testing.T) {
 	d := TimeoutErrorDetails()
 	if d == nil {
