@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -34,7 +33,6 @@ const (
 const (
 	readyTimeout = 5 * time.Second
 	readyPoll    = 100 * time.Millisecond
-	readyDial    = 200 * time.Millisecond
 )
 
 // Proxy is the fleet proxy for one stage. The credential is the username and
@@ -51,7 +49,6 @@ type execFunc func(ctx context.Context, args ...string) error
 type installer struct {
 	run     execFunc
 	lookup  func(name string) (*user.User, error)
-	ownIPs  func() ([]string, error)
 	resolve func(host string) ([]string, error)
 	start   func(host string, port, uid, gid int) error
 	ready   func(ctx context.Context) error
@@ -64,7 +61,6 @@ func production() installer {
 	return installer{
 		run:     runCommand,
 		lookup:  user.Lookup,
-		ownIPs:  localIPv4,
 		resolve: resolveIPv4,
 		start:   startSidecar,
 		ready:   waitListening,
@@ -120,20 +116,25 @@ func (i installer) install(ctx context.Context, proxy Proxy) error {
 		return err
 	}
 	i.stop()
+	if err := i.apply(ctx, &plan, content, host, port, uid, gid); err != nil {
+		// Do not leave a half-installed redirect, or the rules of an earlier
+		// stage pointing at a sidecar that is gone, behind a failed stage.
+		_ = i.remove(context.WithoutCancel(ctx))
+		return err
+	}
+	scrubProcessProxy(host, port)
+	setActive(host, port)
+	return nil
+}
+
+func (i installer) apply(ctx context.Context, plan *Plan, content, host string, port, uid, gid int) error {
 	if err := i.write(content, gid); err != nil {
 		return err
 	}
 	if err := i.launch(ctx, host, port, uid, gid); err != nil {
 		return err
 	}
-	if err := runAll(ctx, plan.installCommands(), i.run); err != nil {
-		// Do not leave a half-installed redirect behind a failed stage.
-		_ = i.remove(context.WithoutCancel(ctx))
-		return err
-	}
-	unsetProcessProxy(host, port)
-	setActive(host, port)
-	return nil
+	return runAll(ctx, plan.installCommands(), i.run)
 }
 
 // launch starts the sidecar and waits until it accepts connections.
@@ -141,19 +142,11 @@ func (i installer) launch(ctx context.Context, host string, port, uid, gid int) 
 	if err := i.start(host, port, uid, gid); err != nil {
 		return err
 	}
-	if err := i.ready(ctx); err != nil {
-		i.stop()
-		return err
-	}
-	return nil
+	return i.ready(ctx)
 }
 
 func (i installer) plan(host string, port int, noProxy string) (Plan, error) {
 	ips, err := i.resolve(host)
-	if err != nil {
-		return Plan{}, err
-	}
-	own, err := i.ownIPs()
 	if err != nil {
 		return Plan{}, err
 	}
@@ -170,7 +163,7 @@ func (i installer) plan(host string, port int, noProxy string) (Plan, error) {
 		logrus.WithField("entries", strings.Join(skipped, ",")).
 			Infoln("egress redirect: NO_PROXY entries that cannot be matched on an address are redirected")
 	}
-	return Plan{ProxyIPs: ips, ProxyPort: port, OwnIPs: own, Exempt: exempt, ExternalIface: iface}, nil
+	return Plan{ProxyIPs: ips, ProxyPort: port, Exempt: exempt, ExternalIface: iface}, nil
 }
 
 func (i installer) ensureUser(ctx context.Context) (uid, gid int, err error) {
@@ -248,17 +241,16 @@ func runCommand(ctx context.Context, args ...string) error {
 	return nil
 }
 
-// waitListening returns once the sidecar accepts a connection on loopback. The
-// sidecar refuses a connection that was not redirected, so the probe is closed
-// without a request.
+// waitListening returns once the sidecar this Install started holds the
+// sidecar port. It fails at once if the sidecar has exited.
 func waitListening(ctx context.Context) error {
 	deadline := time.Now().Add(readyTimeout)
-	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(sidecarPort))
 	for {
-		conn, err := net.DialTimeout("tcp", addr, readyDial)
-		if err == nil {
-			_ = conn.Close()
+		if sidecarListening() {
 			return nil
+		}
+		if !sidecarAlive() {
+			return fmt.Errorf("egress sidecar exited; see %s", logPath)
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("egress sidecar is not listening; see %s", logPath)

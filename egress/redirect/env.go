@@ -6,8 +6,10 @@
 package redirect
 
 import (
+	"net"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -17,10 +19,9 @@ const envEnabled = "CI_EGRESS_SIDECAR"
 // hostOS is runtime.GOOS. A test sets it to run the Linux paths elsewhere.
 var hostOS = runtime.GOOS
 
-// proxyURLEnvNames hold a proxy URL. They are removed from a step when they
-// point at the fleet proxy: with the redirect on, a step that also had that URL
-// would send an explicit proxy request and carry the credential in its
-// environment. A proxy that is not the fleet proxy, such as a customer's, stays.
+// proxyURLEnvNames hold a proxy URL. One that points at the fleet proxy loses
+// its credential, so the step does not carry it in its environment. A proxy that
+// is not the fleet proxy, such as a customer's, is left alone.
 var proxyURLEnvNames = []string{
 	"http_proxy", "https_proxy", "all_proxy",
 	"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
@@ -81,31 +82,40 @@ func activeProxy() (host string, port int, ok bool) {
 	return active.host, active.port, active.on
 }
 
-// Strip removes the fleet proxy from env while the redirect is installed. env is
-// the map that will be copied into a step.
-func Strip(env map[string]string) {
+// Scrub rewrites the fleet proxy in env to its address without the credential,
+// while the redirect is installed. env is the map that will be copied into a
+// step.
+func Scrub(env map[string]string) {
 	if host, port, ok := activeProxy(); ok {
-		stripProxy(env, host, port)
+		scrubProxy(env, host, port)
 	}
 }
 
-// StripFor removes the proxy at proxyURL from env before the redirect is
-// installed, when this stage will use it.
-func StripFor(env map[string]string, proxyURL string, privateConnectivity bool) {
+// ScrubFor does the same before the redirect is installed, for the proxy at
+// proxyURL, when this stage will use the redirect.
+func ScrubFor(env map[string]string, proxyURL string, privateConnectivity bool) {
 	if !Applies(proxyURL, privateConnectivity) {
 		return
 	}
 	if host, port, err := parseProxy(proxyURL); err == nil {
-		stripProxy(env, host, port)
+		scrubProxy(env, host, port)
 	}
 }
 
-func stripProxy(env map[string]string, host string, port int) {
+// scrubProxy keeps a tool that honors a proxy variable on the proxy, so ports
+// the redirect does not cover are still proxied, and drops the credential. The
+// request goes to the proxy address, which the redirect sends to the sidecar,
+// and the sidecar adds the credential.
+func scrubProxy(env map[string]string, host string, port int) {
 	for _, name := range proxyURLEnvNames {
 		if isFleetProxy(env[name], host, port) {
-			delete(env, name)
+			env[name] = proxyAddress(host, port)
 		}
 	}
+}
+
+func proxyAddress(host string, port int) string {
+	return "http://" + net.JoinHostPort(host, strconv.Itoa(port))
 }
 
 func isFleetProxy(value, host string, port int) bool {
@@ -116,12 +126,12 @@ func isFleetProxy(value, host string, port int) bool {
 	return err == nil && strings.EqualFold(h, host) && p == port
 }
 
-// unsetProcessProxy removes the fleet proxy from this process, so programs that
-// lite-engine starts do not use it as well as the redirect.
-func unsetProcessProxy(host string, port int) {
+// scrubProcessProxy removes the credential from the fleet proxy in this
+// process's environment, so programs that lite-engine starts do not carry it.
+func scrubProcessProxy(host string, port int) {
 	for _, name := range proxyURLEnvNames {
 		if isFleetProxy(os.Getenv(name), host, port) {
-			_ = os.Unsetenv(name)
+			_ = os.Setenv(name, proxyAddress(host, port))
 		}
 	}
 }

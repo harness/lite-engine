@@ -12,14 +12,14 @@ import (
 )
 
 func TestInstallCommandsRedirectAndExempt(t *testing.T) {
-	plan := &Plan{ProxyIPs: []string{"172.16.0.11"}, ProxyPort: 3128, OwnIPs: []string{"10.1.0.4"}, ExternalIface: "eth0"}
+	plan := &Plan{ProxyIPs: []string{"172.16.0.11"}, ProxyPort: 3128, ExternalIface: "eth0"}
 	joined := joinCommands(plan.installCommands())
 
 	for _, want := range []string{
 		"owner --uid-owner harness-egress -j RETURN",
 		"mark --mark 18501 -j RETURN",
 		"-d 127.0.0.0/8 -j RETURN",
-		"-d 10.1.0.4 -j RETURN",
+		"-m addrtype --dst-type LOCAL -j RETURN",
 		"-d 172.16.0.11 --dport 3128 -j REDIRECT --to-ports 15001",
 		"--dports 80,443 -j REDIRECT --to-ports 15001",
 		"-I OUTPUT -p tcp -j HARNESS_EGRESS",
@@ -166,4 +166,16 @@ func contains(list []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func TestListenerInodes(t *testing.T) {
+	table := "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n" +
+		"   0: 00000000:3A99 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 11111 1 0 100 0 0 10 0\n" +
+		"   1: 0100007F:3A99 0100007F:C0A4 01 00000000:00000000 00:00000000 00000000     0        0 22222 1 0 100 0 0 10 0\n" +
+		"   2: 00000000:01BB 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 33333 1 0 100 0 0 10 0\n" +
+		"   3: 00000000000000000000000000000000:3A99 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 44444 1 0 100 0 0 10 0\n"
+	got := listenerInodes(table, 15001) // 0x3A99
+	if strings.Join(got, ",") != "11111,44444" {
+		t.Fatalf("listenerInodes = %v, want the two LISTEN sockets on port 15001", got)
+	}
 }
