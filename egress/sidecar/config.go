@@ -1,19 +1,16 @@
+// Copyright 2026 Harness Inc. All rights reserved.
+// Use of this source code is governed by the PolyForm Free Trial 1.0.0 license
+// that can be found in the licenses directory at the root of this repository, also available at
+// https://polyformproject.org/wp-content/uploads/2020/05/PolyForm-Free-Trial-1.0.0.txt.
+
 package sidecar
 
 import (
 	"errors"
 	"log"
-	"net"
 	"os"
 	"strconv"
 	"time"
-)
-
-var (
-	errProxyHostRequired  = errors.New("UPSTREAM_PROXY_HOST is required")
-	errProxyPortInvalid   = errors.New("UPSTREAM_PROXY_PORT is invalid")
-	errListenPortInvalid  = errors.New("LISTEN_PORT is invalid")
-	errIdleTimeoutInvalid = errors.New("IDLE_TIMEOUT is invalid")
 )
 
 const (
@@ -22,10 +19,10 @@ const (
 	DefaultListenAddr = ":15001"
 	// DefaultProxyPort is the fleet proxy's HTTP listener.
 	DefaultProxyPort = 3128
-	// DefaultIdleTimeout closes a connection that has had no bytes in either
-	// direction. The POC used 30s. Five minutes covers a quiet keep-alive
-	// without holding a dead connection open. A transfer blocked on a slow
-	// reader is not cut off by this timer.
+	// DefaultIdleTimeout closes a relay when no bytes move in either direction
+	// for this long. The POC used 30s. Five minutes covers a quiet keep-alive
+	// without holding a dead connection open. A peer that reads slowly but
+	// steadily is not cut off by it.
 	DefaultIdleTimeout = 5 * time.Minute
 	// DefaultDialTimeout bounds the connection to the fleet proxy.
 	DefaultDialTimeout = 8 * time.Second
@@ -34,6 +31,23 @@ const (
 	// DefaultHeaderTimeout bounds the wait for a CONNECT response. It is not
 	// applied to a request body.
 	DefaultHeaderTimeout = 8 * time.Second
+
+	maxPort = 65535
+
+	envProxyAuth     = "PROXY_AUTH"
+	envProxyAuthFile = "PROXY_AUTH_FILE"
+	envProxyHost     = "UPSTREAM_PROXY_HOST"
+	envProxyPort     = "UPSTREAM_PROXY_PORT"
+	envListenAddr    = "LISTEN_ADDR"
+	envListenPort    = "LISTEN_PORT"
+	envIdleTimeout   = "IDLE_TIMEOUT"
+)
+
+var (
+	errProxyHostRequired  = errors.New(envProxyHost + " is required")
+	errProxyPortInvalid   = errors.New(envProxyPort + " is invalid")
+	errListenPortInvalid  = errors.New(envListenPort + " is invalid")
+	errIdleTimeoutInvalid = errors.New(envIdleTimeout + " is invalid")
 )
 
 // Config is everything the process needs. The credential is read once, before
@@ -50,7 +64,7 @@ type Config struct {
 	Log           *log.Logger
 }
 
-func (c Config) withDefaults() Config {
+func (c *Config) applyDefaults() {
 	if c.ListenAddr == "" {
 		c.ListenAddr = DefaultListenAddr
 	}
@@ -72,59 +86,31 @@ func (c Config) withDefaults() Config {
 	if c.Log == nil {
 		c.Log = log.New(os.Stderr, "egress-sidecar: ", log.LstdFlags)
 	}
-	return c
 }
 
-// ConfigFromEnv reads the process environment. PROXY_AUTH wins over
-// PROXY_AUTH_FILE. A missing or incomplete credential returns
-// ErrCredentialIncomplete and the value is not included in the error.
+// ConfigFromEnv reads the process environment. A missing or incomplete
+// credential returns ErrCredentialIncomplete, and the value is never part of
+// an error.
 func ConfigFromEnv() (Config, error) {
-	var credential string
-	if raw := os.Getenv("PROXY_AUTH"); raw != "" {
-		parsed, err := ParseCredential(raw)
-		if err != nil {
-			return Config{}, err
-		}
-		credential = parsed
-	} else {
-		path := os.Getenv("PROXY_AUTH_FILE")
-		if path == "" {
-			return Config{}, ErrCredentialIncomplete
-		}
-		parsed, err := ReadCredentialFile(path)
-		if err != nil {
-			return Config{}, err
-		}
-		credential = parsed
+	credential, err := credentialFromEnv()
+	if err != nil {
+		return Config{}, err
 	}
-	host := os.Getenv("UPSTREAM_PROXY_HOST")
+	host := os.Getenv(envProxyHost)
 	if host == "" {
 		return Config{}, errProxyHostRequired
 	}
-	port := DefaultProxyPort
-	if raw := os.Getenv("UPSTREAM_PROXY_PORT"); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed <= 0 || parsed > 65535 {
-			return Config{}, errProxyPortInvalid
-		}
-		port = parsed
+	port, err := portFromEnv(envProxyPort, DefaultProxyPort, errProxyPortInvalid)
+	if err != nil {
+		return Config{}, err
 	}
-	listen := os.Getenv("LISTEN_ADDR")
-	if listen == "" {
-		if raw := os.Getenv("LISTEN_PORT"); raw != "" {
-			if _, err := strconv.Atoi(raw); err != nil {
-				return Config{}, errListenPortInvalid
-			}
-			listen = net.JoinHostPort("", raw)
-		}
+	listen, err := listenAddrFromEnv()
+	if err != nil {
+		return Config{}, err
 	}
-	idle := DefaultIdleTimeout
-	if raw := os.Getenv("IDLE_TIMEOUT"); raw != "" {
-		parsed, err := time.ParseDuration(raw)
-		if err != nil || parsed <= 0 {
-			return Config{}, errIdleTimeoutInvalid
-		}
-		idle = parsed
+	idle, err := idleTimeoutFromEnv()
+	if err != nil {
+		return Config{}, err
 	}
 	return Config{
 		ListenAddr:  listen,
@@ -133,4 +119,54 @@ func ConfigFromEnv() (Config, error) {
 		Credential:  credential,
 		IdleTimeout: idle,
 	}, nil
+}
+
+// credentialFromEnv reads PROXY_AUTH, or the file named by PROXY_AUTH_FILE. The
+// file is the production path. PROXY_AUTH exists for the POC and for tests.
+func credentialFromEnv() (string, error) {
+	if raw := os.Getenv(envProxyAuth); raw != "" {
+		return ParseCredential(raw)
+	}
+	path := os.Getenv(envProxyAuthFile)
+	if path == "" {
+		return "", ErrCredentialIncomplete
+	}
+	return readCredentialFile(path)
+}
+
+func portFromEnv(name string, fallback int, invalid error) (int, error) {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return fallback, nil
+	}
+	port, err := strconv.Atoi(raw)
+	if err != nil || port <= 0 || port > maxPort {
+		return 0, invalid
+	}
+	return port, nil
+}
+
+// listenAddrFromEnv returns LISTEN_ADDR, else ":" plus LISTEN_PORT, else "" so
+// the default applies.
+func listenAddrFromEnv() (string, error) {
+	if addr := os.Getenv(envListenAddr); addr != "" {
+		return addr, nil
+	}
+	port, err := portFromEnv(envListenPort, 0, errListenPortInvalid)
+	if err != nil || port == 0 {
+		return "", err
+	}
+	return ":" + strconv.Itoa(port), nil
+}
+
+func idleTimeoutFromEnv() (time.Duration, error) {
+	raw := os.Getenv(envIdleTimeout)
+	if raw == "" {
+		return DefaultIdleTimeout, nil
+	}
+	idle, err := time.ParseDuration(raw)
+	if err != nil || idle <= 0 {
+		return 0, errIdleTimeoutInvalid
+	}
+	return idle, nil
 }

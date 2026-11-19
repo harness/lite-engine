@@ -1,60 +1,59 @@
+// Copyright 2026 Harness Inc. All rights reserved.
+// Use of this source code is governed by the PolyForm Free Trial 1.0.0 license
+// that can be found in the licenses directory at the root of this repository, also available at
+// https://polyformproject.org/wp-content/uploads/2020/05/PolyForm-Free-Trial-1.0.0.txt.
+
 //go:build linux
 
 package sidecar
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"net"
 	"syscall"
-	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
 
-// soOriginalDst is SO_ORIGINAL_DST from linux/netfilter_ipv4.h. It is the
+var errNoSocket = errors.New("connection does not expose a socket")
+
+// soOriginalDst is SO_ORIGINAL_DST from linux/netfilter_ipv4.h. It returns the
 // address iptables REDIRECT rewrote, which is the address the client dialed.
 const soOriginalDst = 80
 
-// OriginalDst returns the IPv4 address and port the client connected to before
+// Offsets inside the sockaddr_in that SO_ORIGINAL_DST fills in: family (2),
+// port (2, network order), address (4).
+const (
+	sockaddrPortOffset = 2
+	sockaddrAddrOffset = 4
+)
+
+// originalDst returns the IPv4 address and port the client connected to before
 // the redirect. IPv6 is out of scope for this release.
-func OriginalDst(conn net.Conn) (string, int, error) {
+func originalDst(conn net.Conn) (ip string, port int, err error) {
 	sc, ok := conn.(syscall.Conn)
 	if !ok {
-		return "", 0, fmt.Errorf("connection does not expose a socket")
+		return "", 0, errNoSocket
 	}
 	raw, err := sc.SyscallConn()
 	if err != nil {
 		return "", 0, err
 	}
-	var ip string
-	var port int
-	var ctrlErr error
+	var mreq *unix.IPv6Mreq
+	var sockErr error
 	if err := raw.Control(func(fd uintptr) {
-		var buf [16]byte
-		optlen := uint32(len(buf))
-		_, _, errno := unix.Syscall6(
-			unix.SYS_GETSOCKOPT,
-			fd,
-			uintptr(unix.SOL_IP),
-			soOriginalDst,
-			uintptr(unsafe.Pointer(&buf[0])),
-			uintptr(unsafe.Pointer(&optlen)),
-			0,
-		)
-		if errno != 0 {
-			ctrlErr = errno
-			return
-		}
-		// sockaddr_in: family(2) port(2, network order) addr(4). Same layout the
-		// POC unpacked with !HHBBBB.
-		port = int(binary.BigEndian.Uint16(buf[2:4]))
-		ip = net.IPv4(buf[4], buf[5], buf[6], buf[7]).String()
+		// The 16-byte sockaddr_in fits in IPv6Mreq.Multiaddr. This is the
+		// usual way to call SO_ORIGINAL_DST without unsafe.
+		mreq, sockErr = unix.GetsockoptIPv6Mreq(int(fd), unix.SOL_IP, soOriginalDst)
 	}); err != nil {
 		return "", 0, err
 	}
-	if ctrlErr != nil {
-		return "", 0, ctrlErr
+	if sockErr != nil {
+		return "", 0, sockErr
 	}
+	m := mreq.Multiaddr
+	port = int(binary.BigEndian.Uint16(m[sockaddrPortOffset : sockaddrPortOffset+2]))
+	ip = net.IP(m[sockaddrAddrOffset : sockaddrAddrOffset+net.IPv4len]).String()
 	return ip, port, nil
 }

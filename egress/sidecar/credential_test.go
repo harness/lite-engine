@@ -1,3 +1,8 @@
+// Copyright 2026 Harness Inc. All rights reserved.
+// Use of this source code is governed by the PolyForm Free Trial 1.0.0 license
+// that can be found in the licenses directory at the root of this repository, also available at
+// https://polyformproject.org/wp-content/uploads/2020/05/PolyForm-Free-Trial-1.0.0.txt.
+
 package sidecar
 
 import (
@@ -10,35 +15,35 @@ import (
 
 func TestParseCredentialRefusesIncomplete(t *testing.T) {
 	cases := map[string]string{
-		"missing colon": "poc",
-		"empty user":    ":pass",
+		"missing colon": "justausername",
+		"empty user":    ":value",
 		"empty pass":    "user:",
 		"empty":         "",
 	}
 	for name, raw := range cases {
 		t.Run(name, func(t *testing.T) {
 			if _, err := ParseCredential(raw); !errors.Is(err, ErrCredentialIncomplete) {
-				t.Fatalf("ParseCredential(%q) error = %v, want ErrCredentialIncomplete", raw, err)
+				t.Fatalf("ParseCredential error = %v, want ErrCredentialIncomplete", err)
 			}
 		})
 	}
 }
 
-func TestParseCredentialAcceptsUserAndPassword(t *testing.T) {
-	got, err := ParseCredential("poc:pocpass")
-	if err != nil || got != "poc:pocpass" {
-		t.Fatalf("ParseCredential = %q, %v; want poc:pocpass, nil", got, err)
+func TestParseCredentialSplitsOnFirstColon(t *testing.T) {
+	got, err := ParseCredential("acct|org:part1:part2")
+	if err != nil || got != "acct|org:part1:part2" {
+		t.Fatalf("ParseCredential = %q, %v", got, err)
 	}
 }
 
 func TestReadCredentialFileTrimsWhitespace(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "proxy-auth")
-	if err := os.WriteFile(path, []byte("  acct|org:token\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("  acct|org:value\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, err := ReadCredentialFile(path)
-	if err != nil || got != "acct|org:token" {
-		t.Fatalf("ReadCredentialFile = %q, %v; want acct|org:token, nil", got, err)
+	got, err := readCredentialFile(path)
+	if err != nil || got != "acct|org:value" {
+		t.Fatalf("readCredentialFile = %q, %v", got, err)
 	}
 }
 
@@ -47,14 +52,14 @@ func TestReadCredentialFileRefusesEmpty(t *testing.T) {
 	if err := os.WriteFile(path, []byte("\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ReadCredentialFile(path); !errors.Is(err, ErrCredentialIncomplete) {
+	if _, err := readCredentialFile(path); !errors.Is(err, ErrCredentialIncomplete) {
 		t.Fatalf("error = %v, want ErrCredentialIncomplete", err)
 	}
 }
 
 func TestBasicAuthEncodesCredential(t *testing.T) {
-	want := "Basic " + base64.StdEncoding.EncodeToString([]byte("poc:pocpass"))
-	if got := BasicAuth("poc:pocpass"); got != want {
-		t.Fatalf("BasicAuth = %q, want %q", got, want)
+	want := "Basic " + base64.StdEncoding.EncodeToString([]byte("user:value"))
+	if got := basicAuth("user:value"); got != want {
+		t.Fatalf("basicAuth = %q, want %q", got, want)
 	}
 }

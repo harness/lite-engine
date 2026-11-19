@@ -1,6 +1,8 @@
-// Package sidecar is the production egress sidecar for hosted Linux build VMs
-// (CI-26162). It rewrites client traffic into credentialed requests for the
-// fleet proxy. Nothing starts it yet; the install story (CI-26163) does that.
+// Copyright 2026 Harness Inc. All rights reserved.
+// Use of this source code is governed by the PolyForm Free Trial 1.0.0 license
+// that can be found in the licenses directory at the root of this repository, also available at
+// https://polyformproject.org/wp-content/uploads/2020/05/PolyForm-Free-Trial-1.0.0.txt.
+
 package sidecar
 
 import (
@@ -25,8 +27,8 @@ func ParseCredential(raw string) (string, error) {
 	return raw, nil
 }
 
-// ReadCredentialFile reads the credential once, ignoring surrounding whitespace.
-func ReadCredentialFile(path string) (string, error) {
+// readCredentialFile reads the credential once, ignoring surrounding whitespace.
+func readCredentialFile(path string) (string, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -34,7 +36,7 @@ func ReadCredentialFile(path string) (string, error) {
 	return ParseCredential(string(bytes.TrimSpace(b)))
 }
 
-// BasicAuth returns the Proxy-Authorization value for a validated credential.
-func BasicAuth(credential string) string {
+// basicAuth returns the Proxy-Authorization value for a validated credential.
+func basicAuth(credential string) string {
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte(credential))
 }

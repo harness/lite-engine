@@ -1,3 +1,8 @@
+// Copyright 2026 Harness Inc. All rights reserved.
+// Use of this source code is governed by the PolyForm Free Trial 1.0.0 license
+// that can be found in the licenses directory at the root of this repository, also available at
+// https://polyformproject.org/wp-content/uploads/2020/05/PolyForm-Free-Trial-1.0.0.txt.
+
 package sidecar
 
 import (
@@ -5,61 +10,60 @@ import (
 	"errors"
 )
 
-var (
-	crlf     = []byte("\r\n")
-	crlfcrlf = []byte("\r\n\r\n")
+const minRequestLineParts = 2 // method and target
 
-	// ErrIncompleteHead means the request head has no blank line yet.
-	ErrIncompleteHead = errors.New("request head incomplete")
-	// ErrMalformedRequestLine means the first line is not "METHOD target [version]".
-	ErrMalformedRequestLine = errors.New("malformed request line")
-	// ErrNoHost means a plain HTTP request on port 80 has no Host header, so an
+var (
+	// errIncompleteHead means the request head has no blank line yet.
+	errIncompleteHead = errors.New("request head incomplete")
+	// errMalformedRequestLine means the first line is not "METHOD target [version]".
+	errMalformedRequestLine = errors.New("malformed request line")
+	// errNoHost means a plain HTTP request on port 80 has no Host header, so an
 	// absolute-URI cannot be built.
-	ErrNoHost = errors.New("request has no Host header")
+	errNoHost = errors.New("request has no Host header")
 )
 
-// RewriteExplicit prepares a request that already speaks proxy HTTP (port 3128)
+// rewriteExplicit prepares a request that already speaks proxy HTTP (port 3128)
 // for the fleet proxy. CONNECT headers are kept as the client sent them, apart
-// from the credential. A plain request gets Connection: close, because the
-// sockets are spliced after the first response, and a kept-alive second request
-// would otherwise reach the proxy with no credential and get 407.
+// from the credential. A plain request gets Connection: close, because only
+// one request is relayed per connection, and a kept-alive second request would
+// otherwise reach the proxy with no credential and get 407.
 //
-// It returns the rewritten request and whether the client sent its own
-// Proxy-Authorization. The credential itself is never returned in an error.
-func RewriteExplicit(first []byte, credential string) ([]byte, bool, error) {
+// clientAuth reports whether the client sent its own Proxy-Authorization. The
+// credential itself is never part of an error.
+func rewriteExplicit(first []byte, credential string) (out []byte, clientAuth bool, err error) {
 	head, rest, ok := bytes.Cut(first, crlfcrlf)
 	if !ok {
-		return nil, false, ErrIncompleteHead
+		return nil, false, errIncompleteHead
 	}
 	lines := bytes.Split(head, crlf)
 	method, _, _ := bytes.Cut(lines[0], []byte(" "))
 	isConnect := bytes.EqualFold(method, []byte("CONNECT"))
-	out, clientAuth := rewriteHead(lines, BasicAuth(credential), isConnect)
-	return joinHead(out, rest), clientAuth, nil
+	rewritten, clientAuth := rewriteHead(lines, basicAuth(credential), isConnect)
+	return joinHead(rewritten, rest), clientAuth, nil
 }
 
-// RewriteAbsolute prepares a plain HTTP request on port 80 as an absolute-URI
+// rewriteAbsolute prepares a plain HTTP request on port 80 as an absolute-URI
 // proxy request, which is what the fleet proxy accepts on that port. CONNECT is
 // not used: the fleet chart sends every CONNECT, including CONNECT host:80, to
 // its TLS intercept listener.
-func RewriteAbsolute(first []byte, credential string) ([]byte, bool, error) {
+func rewriteAbsolute(first []byte, credential string) (out []byte, clientAuth bool, err error) {
 	head, rest, ok := bytes.Cut(first, crlfcrlf)
 	if !ok {
-		return nil, false, ErrIncompleteHead
+		return nil, false, errIncompleteHead
 	}
 	lines := bytes.Split(head, crlf)
 	parts := bytes.Split(lines[0], []byte(" "))
-	if len(parts) < 2 {
-		return nil, false, ErrMalformedRequestLine
+	if len(parts) < minRequestLineParts {
+		return nil, false, errMalformedRequestLine
 	}
 	method, target := parts[0], parts[1]
 	version := []byte("HTTP/1.1")
-	if len(parts) > 2 {
+	if len(parts) > minRequestLineParts {
 		version = parts[2]
 	}
 	host := hostHeader(lines[1:])
 	if host == nil {
-		return nil, false, ErrNoHost
+		return nil, false, errNoHost
 	}
 	absolute := target
 	if !bytes.HasPrefix(target, []byte("http://")) && !bytes.HasPrefix(target, []byte("https://")) {
@@ -67,20 +71,19 @@ func RewriteAbsolute(first []byte, credential string) ([]byte, bool, error) {
 		if !bytes.HasPrefix(path, []byte("/")) {
 			path = append([]byte("/"), path...)
 		}
-		absolute = concat([]byte("http://"), host, path)
+		absolute = bytes.Join([][]byte{[]byte("http://"), host, path}, nil)
 	}
-	lines[0] = concat(method, []byte(" "), absolute, []byte(" "), version)
-	out, clientAuth := rewriteHead(lines, BasicAuth(credential), false)
-	return joinHead(out, rest), clientAuth, nil
+	lines[0] = bytes.Join([][]byte{method, absolute, version}, []byte(" "))
+	rewritten, clientAuth := rewriteHead(lines, basicAuth(credential), false)
+	return joinHead(rewritten, rest), clientAuth, nil
 }
 
 // rewriteHead applies the credential and Connection handling shared by both
 // ports. lines[0] is the request line. For CONNECT, the other headers are kept
 // as sent. For a plain request, Connection and Proxy-Connection become
 // Connection: close.
-func rewriteHead(lines [][]byte, auth string, isConnect bool) ([][]byte, bool) {
-	out := [][]byte{lines[0]}
-	clientAuth := false
+func rewriteHead(lines [][]byte, auth string, isConnect bool) (out [][]byte, clientAuth bool) {
+	out = [][]byte{lines[0]}
 	sawConnection := false
 	for _, line := range lines[1:] {
 		lower := bytes.ToLower(line)
@@ -121,8 +124,4 @@ func joinHead(lines [][]byte, rest []byte) []byte {
 	out := bytes.Join(lines, crlf)
 	out = append(out, crlfcrlf...)
 	return append(out, rest...)
-}
-
-func concat(parts ...[]byte) []byte {
-	return bytes.Join(parts, nil)
 }

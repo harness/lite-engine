@@ -1,70 +1,102 @@
+// Copyright 2026 Harness Inc. All rights reserved.
+// Use of this source code is governed by the PolyForm Free Trial 1.0.0 license
+// that can be found in the licenses directory at the root of this repository, also available at
+// https://polyformproject.org/wp-content/uploads/2020/05/PolyForm-Free-Trial-1.0.0.txt.
+
 package sidecar
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
 
-func TestConfigFromEnvReadsFile(t *testing.T) {
+// setEnv sets every variable the sidecar reads, so a test starts from a known
+// environment whatever the host has set.
+func setEnv(t *testing.T, overrides map[string]string) {
+	t.Helper()
+	for _, name := range []string{
+		envProxyAuth, envProxyAuthFile, envProxyHost, envProxyPort, envListenAddr, envListenPort, envIdleTimeout,
+	} {
+		t.Setenv(name, overrides[name])
+	}
+}
+
+func TestConfigFromEnvReadsCredentialFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "proxy-auth")
-	if err := os.WriteFile(path, []byte("acct|org:token\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("acct|org:value\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("PROXY_AUTH", "")
-	t.Setenv("PROXY_AUTH_FILE", path)
-	t.Setenv("UPSTREAM_PROXY_HOST", "172.16.0.11")
-	t.Setenv("UPSTREAM_PROXY_PORT", "")
-	t.Setenv("LISTEN_ADDR", "")
-	t.Setenv("LISTEN_PORT", "")
-	t.Setenv("IDLE_TIMEOUT", "90s")
-
+	setEnv(t, map[string]string{
+		envProxyAuthFile: path,
+		envProxyHost:     "172.16.0.11",
+		envListenPort:    "15001",
+		envIdleTimeout:   "90s",
+	})
 	cfg, err := ConfigFromEnv()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Credential != "acct|org:token" || cfg.ProxyHost != "172.16.0.11" || cfg.ProxyPort != 3128 {
+	if cfg.Credential != "acct|org:value" || cfg.ProxyHost != "172.16.0.11" || cfg.ProxyPort != DefaultProxyPort {
 		t.Fatalf("config = %+v", cfg)
 	}
-	if cfg.IdleTimeout != 90*time.Second {
-		t.Fatalf("idle = %s", cfg.IdleTimeout)
+	if cfg.ListenAddr != ":15001" || cfg.IdleTimeout != 90*time.Second {
+		t.Fatalf("listen=%q idle=%s", cfg.ListenAddr, cfg.IdleTimeout)
 	}
 }
 
-func TestConfigFromEnvPrefersProxyAuth(t *testing.T) {
-	t.Setenv("PROXY_AUTH", "user:pass")
-	t.Setenv("PROXY_AUTH_FILE", filepath.Join(t.TempDir(), "missing"))
-	t.Setenv("UPSTREAM_PROXY_HOST", "172.16.0.11")
-	t.Setenv("IDLE_TIMEOUT", "")
+func TestConfigFromEnvPrefersProxyAuthOverFile(t *testing.T) {
+	setEnv(t, map[string]string{
+		envProxyAuth:     "user:value",
+		envProxyAuthFile: filepath.Join(t.TempDir(), "missing"),
+		envProxyHost:     "172.16.0.11",
+	})
 	cfg, err := ConfigFromEnv()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.Credential != "user:pass" {
-		t.Fatalf("credential = %q", cfg.Credential)
+	if err != nil || cfg.Credential != "user:value" {
+		t.Fatalf("credential = %q, %v", cfg.Credential, err)
 	}
 }
 
-func TestConfigFromEnvRefusesIncompleteCredential(t *testing.T) {
-	t.Setenv("PROXY_AUTH", "no-colon")
-	t.Setenv("UPSTREAM_PROXY_HOST", "172.16.0.11")
-	if _, err := ConfigFromEnv(); err == nil {
-		t.Fatal("expected an error")
+func TestConfigFromEnvRefusals(t *testing.T) {
+	good := map[string]string{envProxyAuth: "user:value", envProxyHost: "172.16.0.11"}
+	with := func(k, v string) map[string]string {
+		m := map[string]string{}
+		for key, val := range good {
+			m[key] = val
+		}
+		m[k] = v
+		return m
+	}
+	for name, tc := range map[string]struct {
+		env  map[string]string
+		want error
+	}{
+		"no credential":       {map[string]string{envProxyHost: "h"}, ErrCredentialIncomplete},
+		"incomplete":          {with(envProxyAuth, "no-colon"), ErrCredentialIncomplete},
+		"no host":             {with(envProxyHost, ""), errProxyHostRequired},
+		"bad proxy port":      {with(envProxyPort, "70000"), errProxyPortInvalid},
+		"non-numeric port":    {with(envProxyPort, "abc"), errProxyPortInvalid},
+		"bad listen port":     {with(envListenPort, "0x10"), errListenPortInvalid},
+		"out-of-range listen": {with(envListenPort, "99999"), errListenPortInvalid},
+		"bad idle":            {with(envIdleTimeout, "soon"), errIdleTimeoutInvalid},
+		"zero idle":           {with(envIdleTimeout, "0s"), errIdleTimeoutInvalid},
+	} {
+		t.Run(name, func(t *testing.T) {
+			setEnv(t, tc.env)
+			if _, err := ConfigFromEnv(); !errors.Is(err, tc.want) {
+				t.Fatalf("error = %v, want %v", err, tc.want)
+			}
+		})
 	}
 }
 
-func TestConfigFromEnvRequiresHost(t *testing.T) {
-	t.Setenv("PROXY_AUTH", "user:pass")
-	t.Setenv("UPSTREAM_PROXY_HOST", "")
-	if _, err := ConfigFromEnv(); err == nil {
-		t.Fatal("expected an error")
+func TestNewRefusesIncompleteCredentialAndMissingHost(t *testing.T) {
+	if _, err := New(&Config{ProxyHost: "127.0.0.1", Credential: "user:"}); !errors.Is(err, ErrCredentialIncomplete) {
+		t.Fatalf("error = %v", err)
 	}
-}
-
-func TestNewRefusesIncompleteCredential(t *testing.T) {
-	_, err := New(Config{ProxyHost: "127.0.0.1", Credential: "user:"})
-	if err == nil {
-		t.Fatal("expected an error")
+	if _, err := New(&Config{Credential: "user:value"}); !errors.Is(err, errProxyHostRequired) {
+		t.Fatalf("error = %v", err)
 	}
 }

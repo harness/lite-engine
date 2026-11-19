@@ -1,3 +1,8 @@
+// Copyright 2026 Harness Inc. All rights reserved.
+// Use of this source code is governed by the PolyForm Free Trial 1.0.0 license
+// that can be found in the licenses directory at the root of this repository, also available at
+// https://polyformproject.org/wp-content/uploads/2020/05/PolyForm-Free-Trial-1.0.0.txt.
+
 package sidecar
 
 import (
@@ -8,10 +13,10 @@ import (
 	"time"
 )
 
+const acceptRetryDelay = 200 * time.Millisecond
+
 // Server is the egress sidecar. It listens for redirected connections and
-// speaks credentialed HTTP to the fleet proxy. Nothing in lite-engine starts
-// it; CI-26163 writes the credential, installs the redirect, and starts the
-// process. Until then a build is unchanged.
+// speaks credentialed HTTP to the fleet proxy.
 type Server struct {
 	listenAddr    string
 	proxyHost     string
@@ -29,25 +34,26 @@ type Server struct {
 
 // New refuses a missing proxy host or an incomplete credential. The error does
 // not contain the credential.
-func New(cfg Config) (*Server, error) {
-	cfg = cfg.withDefaults()
-	if cfg.ProxyHost == "" {
+func New(cfg *Config) (*Server, error) {
+	c := *cfg
+	c.applyDefaults()
+	if c.ProxyHost == "" {
 		return nil, errProxyHostRequired
 	}
-	credential, err := ParseCredential(cfg.Credential)
+	credential, err := ParseCredential(c.Credential)
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
-		listenAddr:    cfg.ListenAddr,
-		proxyHost:     cfg.ProxyHost,
-		proxyPort:     cfg.ProxyPort,
+		listenAddr:    c.ListenAddr,
+		proxyHost:     c.ProxyHost,
+		proxyPort:     c.ProxyPort,
 		credential:    credential,
-		idle:          cfg.IdleTimeout,
-		dialTimeout:   cfg.DialTimeout,
-		firstRead:     cfg.FirstRead,
-		headerTimeout: cfg.HeaderTimeout,
-		log:           cfg.Log,
+		idle:          c.IdleTimeout,
+		dialTimeout:   c.DialTimeout,
+		firstRead:     c.FirstRead,
+		headerTimeout: c.HeaderTimeout,
+		log:           c.Log,
 	}, nil
 }
 
@@ -60,8 +66,8 @@ func (s *Server) ListenAndServe() error {
 	return s.Serve(ln)
 }
 
-// Serve accepts on ln. An accept error is logged and retried. Closing ln
-// makes Serve return.
+// Serve accepts on ln. An accept error is logged and retried. Closing the
+// listener makes Serve return.
 func (s *Server) Serve(ln net.Listener) error {
 	s.mu.Lock()
 	s.ln = ln
@@ -74,7 +80,7 @@ func (s *Server) Serve(ln net.Listener) error {
 				return nil
 			}
 			s.logf("accept failed: %v", err)
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(acceptRetryDelay)
 			continue
 		}
 		go s.serveConn(conn)
@@ -83,6 +89,7 @@ func (s *Server) Serve(ln net.Listener) error {
 
 func (s *Server) serveConn(conn net.Conn) {
 	defer conn.Close()
+	defer s.recoverPanic()
 	ip, port, err := lookupOriginalDst(conn)
 	if err != nil {
 		s.logf("original destination: %v", err)
@@ -91,7 +98,15 @@ func (s *Server) serveConn(conn net.Conn) {
 	s.handle(conn, ip, port)
 }
 
-// Close stops the listener. In-flight connections are not cancelled.
+// recoverPanic keeps a bug in the handling of one connection from taking the
+// sidecar down for the whole VM. It must be deferred directly.
+func (s *Server) recoverPanic() {
+	if r := recover(); r != nil {
+		s.logf("connection handler panic: %v", r)
+	}
+}
+
+// Close stops the listener. In-flight connections are not canceled.
 func (s *Server) Close() error {
 	s.mu.Lock()
 	ln := s.ln
@@ -106,5 +121,6 @@ func (s *Server) logf(format string, args ...any) {
 	s.log.Printf(format, args...)
 }
 
-// lookupOriginalDst is replaced by tests that do not have an iptables redirect.
-var lookupOriginalDst = OriginalDst
+// lookupOriginalDst reads the pre-redirect destination of a connection. Tests
+// replace it, because they have no iptables redirect.
+var lookupOriginalDst = originalDst
