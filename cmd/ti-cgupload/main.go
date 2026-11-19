@@ -28,6 +28,7 @@ import (
 	"github.com/harness/lite-engine/ti/callgraph"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/instrumentation"
+	"github.com/harness/lite-engine/ti/report/parser/junit"
 )
 
 func main() {
@@ -106,26 +107,22 @@ func run() error {
 
 	cfg := tiCfg.New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, "",
 		source, target, source, "", parentUniqueID, false, "", "")
-	failedFile := env("TI_FAILED_TESTS_FILE_PATH")
-	payload, err := callgraph.CreateUploadPayload(cg, fileChecksums, nonCodeConfig, repo, &cfg, sha, nil, log,
-		map[string]string{"TI_FAILED_TESTS_FILE_PATH": failedFile})
+	envs := map[string]string{"TI_FAILED_TESTS_FILE_PATH": env("TI_FAILED_TESTS_FILE_PATH")}
+	reportPath := env("TI_JUNIT_PATH")
+	if reportPath == "" {
+		reportPath = "junit.xml"
+	}
+	reportTests := junit.ParseTests([]string{filepath.Join(workspace, reportPath)}, log, envs)
+	payload, err := callgraph.CreateUploadPayload(cg, fileChecksums, nonCodeConfig, repo, &cfg, sha, reportTests, log, envs)
 	if err != nil {
 		return fmt.Errorf("create payload: %w", err)
 	}
-	// Without report tests every path weighs 1 in ti-service's selected count, so the
-	// total must also count test files: those that ran plus those TI skipped.
-	testFiles := map[string]bool{}
-	for _, t := range payload.Tests {
-		testFiles[t.Path] = true
+	for path, n := range payload.PathToTestNumMap {
+		fmt.Printf("ti-cgupload: %s counts %d test(s)\n", path, n)
 	}
-	failed := readTestList(failedFile)
-	for p := range readTestList(env("TI_SKIP_FILE_PATH")) {
-		if !failed[p] {
-			testFiles[p] = true
-		}
+	for _, chain := range payload.Chains {
+		fmt.Printf("ti-cgupload: chain %s state=%s\n", chain.Path, chain.State)
 	}
-	delete(testFiles, instrumentation.NonCodeChainPath)
-	payload.TotalTests = len(testFiles)
 
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -163,20 +160,4 @@ func run() error {
 		return fmt.Errorf("upload failed with HTTP %d", res.StatusCode)
 	}
 	return nil
-}
-
-// readTestList parses a lite-engine skip or failed-tests file the same way the JS
-// agent does: whitespace-separated paths, ignoring "file,method" partial entries.
-func readTestList(path string) map[string]bool {
-	tests := map[string]bool{}
-	data, err := os.ReadFile(path)
-	if path == "" || err != nil {
-		return tests
-	}
-	for _, entry := range strings.Fields(string(data)) {
-		if !strings.Contains(entry, ",") {
-			tests[strings.ReplaceAll(entry, `\`, "/")] = true
-		}
-	}
-	return tests
 }

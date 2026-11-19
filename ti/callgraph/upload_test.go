@@ -108,35 +108,6 @@ func TestCreateUploadPayloadChainState(t *testing.T) {
 	assert.Equal(t, chrysalisTypes.SUCCESS, states["src/passed.test.js"])
 }
 
-func TestCreateUploadPayloadNumTests(t *testing.T) {
-	cg, err := parseCg([]string{
-		`{"test":{"id":1,"file":"src/counted.test.js","numTests":5},"source":{"id":10,"file":"src/a.js"}}`,
-		`{"test":{"id":2,"file":"src/reported.test.js"},"source":{"id":10,"file":"src/a.js"}}`,
-		`{"test":{"id":3,"file":"src/unmatched.test.js"},"source":{"id":10,"file":"src/a.js"}}`,
-	})
-	assert.Nil(t, err)
-	fileChecksums := map[string]uint64{
-		"src/a.js":                         1,
-		"src/counted.test.js":              2,
-		"src/reported.test.js":             3,
-		"src/unmatched.test.js":            4,
-		instrumentation.NonCodeChainPath:   5,
-		instrumentation.NonCodeDefaultPath: 6,
-	}
-	reportTests := []*types.TestCase{
-		{Name: "t1", FileName: "src/reported.test.js", Result: types.Result{Status: types.StatusPassed}},
-		{Name: "t2", FileName: "src/reported.test.js", Result: types.Result{Status: types.StatusPassed}},
-	}
-	cfg := config.New("", "", "acct", "org", "proj", "", "", "", "", "", "", "", "", "", "", "", false, "", "")
-
-	payload, err := CreateUploadPayload(cg, fileChecksums, instrumentation.NonCodeConfig{}, "repo", &cfg, "sha", reportTests, logrus.New(), nil)
-	assert.Nil(t, err)
-
-	assert.Equal(t, 5, payload.PathToTestNumMap["src/counted.test.js"], "numTests is used without a matching report test")
-	assert.Equal(t, 2, payload.PathToTestNumMap["src/reported.test.js"], "without numTests the report is counted")
-	assert.Equal(t, 1, payload.PathToTestNumMap["src/unmatched.test.js"])
-}
-
 // Helper function to create test callgraph with file extensions
 func createTestCg(fileExt string) *Callgraph {
 	return &Callgraph{

@@ -312,16 +312,11 @@ func matchFilesToTests(filteredTests []*tiClientTypes.TestCase, node *Node, numT
 	if _, exists := numTestsMap[filePath]; exists {
 		return
 	}
-	switch {
-	// Agents that see test results set this directly; it doesn't depend on the
-	// JUnit report being found or matching the node.
-	case node.NumTests > 0:
-		numTestsMap[filePath] = node.NumTests
-	case len(filteredTests) == 0:
+	if len(filteredTests) == 0 {
 		numTestsMap[filePath] = 1
-	default:
-		numTestsMap[filePath] = len(filteredTests)
+		return
 	}
+	numTestsMap[filePath] = len(filteredTests)
 }
 
 func getTestStatus(filteredTests []*tiClientTypes.TestCase) types.TestState {
