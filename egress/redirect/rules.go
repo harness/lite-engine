@@ -38,22 +38,29 @@ type Cmd struct {
 }
 
 // Plan is the redirect for one stage. ProxyIPs are the fleet proxy addresses.
-// OwnIPs are this machine's addresses, which are never redirected.
+// OwnIPs are this machine's addresses, which are never redirected. Exempt are
+// the NO_PROXY addresses: traffic that reached its destination directly before
+// the redirect still does. ExternalIface is the interface the sidecar port is
+// closed on. A redirected container connection reaches the sidecar on a bridge
+// interface, so the port must stay open there.
 type Plan struct {
-	ProxyIPs  []string
-	ProxyPort int
-	OwnIPs    []string
+	ProxyIPs      []string
+	ProxyPort     int
+	OwnIPs        []string
+	Exempt        []string
+	ExternalIface string
 }
 
-func (p Plan) installCommands() []Cmd {
+func (p *Plan) installCommands() []Cmd {
 	var cmds []Cmd
 	cmds = append(cmds, Cmd{Args: []string{"sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"}})
 	cmds = append(cmds, natChain(chainOut, "OUTPUT", p.outputRules())...)
 	cmds = append(cmds, natChain(chainPre, "PREROUTING", p.preroutingRules())...)
-	cmds = append(cmds, filterChain(chainIn, "INPUT", false, [][]string{
-		{"-i", "lo", "-j", "RETURN"},
-		{"-p", "tcp", "--dport", strconv.Itoa(sidecarPort), "-j", "DROP"},
-	})...)
+	if p.ExternalIface != "" {
+		cmds = append(cmds, filterChain(chainIn, "INPUT", false, [][]string{
+			{"-i", p.ExternalIface, "-p", "tcp", "--dport", strconv.Itoa(sidecarPort), "-j", "DROP"},
+		})...)
+	}
 	udp := [][]string{{"-p", "udp", "--dport", "443", "-j", "DROP"}}
 	cmds = append(cmds, filterChain(chainUDP, "OUTPUT", true, udp)...)
 	cmds = append(cmds, filterChain(chainFwd, "FORWARD", false, udp)...)
@@ -88,7 +95,7 @@ func removeCommands() []Cmd {
 
 // outputRules exempts the sidecar user and lite-engine's marked sockets, then
 // redirects the proxy port and ports 80 and 443.
-func (p Plan) outputRules() [][]string {
+func (p *Plan) outputRules() [][]string {
 	rules := [][]string{
 		{"-m", "owner", "--uid-owner", sidecarUser, "-j", "RETURN"},
 		{"-m", "mark", "--mark", strconv.Itoa(socketMark), "-j", "RETURN"},
@@ -98,11 +105,11 @@ func (p Plan) outputRules() [][]string {
 
 // preroutingRules is the container path. An owner match does not apply to
 // forwarded packets, so only addresses and ports are matched.
-func (p Plan) preroutingRules() [][]string {
+func (p *Plan) preroutingRules() [][]string {
 	return p.redirectRules()
 }
 
-func (p Plan) redirectRules() [][]string {
+func (p *Plan) redirectRules() [][]string {
 	rules := [][]string{{"-d", loopbackCIDR, "-j", "RETURN"}}
 	for _, ip := range p.OwnIPs {
 		rules = append(rules, []string{"-d", ip, "-j", "RETURN"})
@@ -111,6 +118,9 @@ func (p Plan) redirectRules() [][]string {
 	to := strconv.Itoa(sidecarPort)
 	for _, ip := range p.ProxyIPs {
 		rules = append(rules, []string{"-p", "tcp", "-d", ip, "--dport", port, "-j", "REDIRECT", "--to-ports", to})
+	}
+	for _, dst := range p.Exempt {
+		rules = append(rules, []string{"-d", dst, "-j", "RETURN"})
 	}
 	rules = append(rules, []string{"-p", "tcp", "-m", "multiport", "--dports", "80,443", "-j", "REDIRECT", "--to-ports", to})
 	return rules
@@ -122,7 +132,9 @@ func natChain(chain, hook string, rules [][]string) []Cmd {
 }
 
 // filterChain recreates chain. udpHook is true when the jump itself is limited
-// to udp port 443, matching the single rule in that chain.
+// to udp port 443, matching the single rule in that chain. The jump is inserted
+// at the top of the hook: Docker accepts forwarded container traffic in rules
+// of its own, and a jump appended after them is never reached.
 func filterChain(chain, hook string, udpHook bool, rules [][]string) []Cmd {
 	jump := []string{"-j", chain}
 	if udpHook {
@@ -140,7 +152,7 @@ func chainCmds(table, chain string, jump []string, hook string, rules [][]string
 	for _, rule := range rules {
 		cmds = append(cmds, Cmd{Args: ipt(table, append([]string{"-A", chain}, rule...)...)})
 	}
-	cmds = append(cmds, Cmd{Args: ipt(table, append([]string{"-A", hook}, jump...)...)})
+	cmds = append(cmds, Cmd{Args: ipt(table, append([]string{"-I", hook}, jump...)...)})
 	return cmds
 }
 
@@ -216,4 +228,63 @@ func localIPv4() ([]string, error) {
 		out = append(out, v4.String())
 	}
 	return out, nil
+}
+
+// exemptions turns a NO_PROXY list into addresses iptables can match: IPv4
+// addresses, IPv4 CIDRs, and the IPv4 addresses of plain host names. A suffix
+// such as ".example.com" or "*.example.com", and "*", cannot be matched on an
+// address and is returned in skipped.
+func exemptions(noProxy string, resolve func(host string) ([]string, error)) (addrs, skipped []string) {
+	seen := map[string]bool{}
+	add := func(dst string) {
+		if !seen[dst] {
+			seen[dst] = true
+			addrs = append(addrs, dst)
+		}
+	}
+	for _, entry := range strings.FieldsFunc(noProxy, func(r rune) bool { return r == ',' || r == ' ' }) {
+		switch {
+		case strings.HasPrefix(entry, ".") || strings.Contains(entry, "*"):
+			skipped = append(skipped, entry)
+		default:
+			if _, network, err := net.ParseCIDR(entry); err == nil {
+				if network.IP.To4() != nil {
+					add(network.String())
+				}
+				continue
+			}
+			host := entry
+			if h, _, err := net.SplitHostPort(entry); err == nil {
+				host = h
+			}
+			if ip := net.ParseIP(host); ip != nil {
+				if v4 := ip.To4(); v4 != nil {
+					add(v4.String())
+				}
+				continue
+			}
+			ips, err := resolve(host)
+			if err != nil {
+				skipped = append(skipped, entry)
+				continue
+			}
+			for _, ip := range ips {
+				add(ip)
+			}
+		}
+	}
+	return addrs, skipped
+}
+
+// parseDefaultRoute returns the interface of the IPv4 default route in the
+// format of /proc/net/route, or "" when there is none.
+func parseDefaultRoute(table string) string {
+	for _, line := range strings.Split(table, "\n") {
+		fields := strings.Fields(line)
+		const maskField = 7
+		if len(fields) > maskField && fields[1] == "00000000" && fields[maskField] == "00000000" {
+			return fields[0]
+		}
+	}
+	return ""
 }

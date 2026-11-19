@@ -6,12 +6,13 @@
 package redirect
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
 
 func TestInstallCommandsRedirectAndExempt(t *testing.T) {
-	plan := Plan{ProxyIPs: []string{"172.16.0.11"}, ProxyPort: 3128, OwnIPs: []string{"10.1.0.4"}}
+	plan := &Plan{ProxyIPs: []string{"172.16.0.11"}, ProxyPort: 3128, OwnIPs: []string{"10.1.0.4"}, ExternalIface: "eth0"}
 	joined := joinCommands(plan.installCommands())
 
 	for _, want := range []string{
@@ -21,9 +22,11 @@ func TestInstallCommandsRedirectAndExempt(t *testing.T) {
 		"-d 10.1.0.4 -j RETURN",
 		"-d 172.16.0.11 --dport 3128 -j REDIRECT --to-ports 15001",
 		"--dports 80,443 -j REDIRECT --to-ports 15001",
-		"-A OUTPUT -p tcp -j HARNESS_EGRESS",
-		"-A PREROUTING -p tcp -j HARNESS_EGRESS_PRE",
-		"--dport 15001 -j DROP",
+		"-I OUTPUT -p tcp -j HARNESS_EGRESS",
+		"-I PREROUTING -p tcp -j HARNESS_EGRESS_PRE",
+		"-i eth0 -p tcp --dport 15001 -j DROP",
+		"-I INPUT -j HARNESS_EGRESS_IN",
+		"-I FORWARD -j HARNESS_EGRESS_FWD",
 		"-p udp --dport 443 -j DROP",
 		"net.ipv6.conf.all.disable_ipv6=1",
 	} {
@@ -88,4 +91,79 @@ func between(s, start, end string) string {
 		return s
 	}
 	return s[i:j]
+}
+
+// A redirected container connection arrives on a bridge interface after the
+// REDIRECT. A drop on every interface but lo would refuse all container egress.
+func TestSidecarPortIsClosedOnTheExternalInterfaceOnly(t *testing.T) {
+	plan := &Plan{ProxyIPs: []string{"172.16.0.11"}, ProxyPort: 3128, ExternalIface: "ens4"}
+	in := between(joinCommands(plan.installCommands()), "-N HARNESS_EGRESS_IN", "-N HARNESS_EGRESS_UDP")
+	if !strings.Contains(in, "-A HARNESS_EGRESS_IN -i ens4 -p tcp --dport 15001 -j DROP") {
+		t.Fatalf("no drop on the external interface:\n%s", in)
+	}
+	if strings.Contains(in, "! -i") || strings.Contains(in, "-i lo") || strings.Count(in, "-A HARNESS_EGRESS_IN") != 1 {
+		t.Fatalf("the drop is not limited to the external interface:\n%s", in)
+	}
+
+	bare := Plan{ProxyIPs: []string{"172.16.0.11"}, ProxyPort: 3128}
+	none := joinCommands(bare.installCommands())
+	if strings.Contains(none, "HARNESS_EGRESS_IN") {
+		t.Fatalf("an INPUT chain without an interface:\n%s", none)
+	}
+}
+
+func TestExemptAddressesReturnBeforeThePortRedirect(t *testing.T) {
+	plan := &Plan{
+		ProxyIPs: []string{"172.16.0.11"}, ProxyPort: 3128,
+		Exempt: []string{"169.254.169.254", "10.0.0.0/8"},
+	}
+	out := between(joinCommands(plan.installCommands()), "-N HARNESS_EGRESS\n", "-N HARNESS_EGRESS_PRE")
+	iProxy := strings.Index(out, "--dport 3128 -j REDIRECT")
+	iExempt := strings.Index(out, "-d 169.254.169.254 -j RETURN")
+	iCIDR := strings.Index(out, "-d 10.0.0.0/8 -j RETURN")
+	iPorts := strings.Index(out, "--dports 80,443 -j REDIRECT")
+	if iProxy < 0 || iExempt < iProxy || iCIDR < iExempt || iPorts < iCIDR {
+		t.Fatalf("rule order wrong (proxy %d, exempt %d, cidr %d, ports %d):\n%s", iProxy, iExempt, iCIDR, iPorts, out)
+	}
+}
+
+func TestExemptionsFromNoProxy(t *testing.T) {
+	resolve := func(host string) ([]string, error) {
+		if host == "registry.internal" {
+			return []string{"10.2.0.5"}, nil
+		}
+		return nil, errors.New("no such host")
+	}
+	addrs, skipped := exemptions("localhost, 169.254.169.254,10.0.0.0/8 registry.internal:8443,.corp.example,*.svc,gone.example,10.0.0.0/8", resolve)
+	want := []string{"169.254.169.254", "10.0.0.0/8", "10.2.0.5"}
+	if strings.Join(addrs, ",") != strings.Join(want, ",") {
+		t.Fatalf("addrs = %v, want %v", addrs, want)
+	}
+	// "localhost" is not resolvable by the stub, and is covered by the loopback rule anyway.
+	for _, entry := range []string{".corp.example", "*.svc", "gone.example"} {
+		if !contains(skipped, entry) {
+			t.Fatalf("%s not reported as skipped: %v", entry, skipped)
+		}
+	}
+}
+
+func TestParseDefaultRoute(t *testing.T) {
+	table := "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n" +
+		"ens4\t00000000\t0100000A\t0003\t0\t0\t100\t00000000\t0\t0\t0\n" +
+		"ens4\t0100000A\t00000000\t0005\t0\t0\t100\tFFFFFFFF\t0\t0\t0\n"
+	if got := parseDefaultRoute(table); got != "ens4" {
+		t.Fatalf("parseDefaultRoute = %q", got)
+	}
+	if got := parseDefaultRoute("Iface\tDestination\n"); got != "" {
+		t.Fatalf("parseDefaultRoute without a route = %q", got)
+	}
+}
+
+func contains(list []string, want string) bool {
+	for _, s := range list {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }

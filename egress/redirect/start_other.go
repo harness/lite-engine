@@ -19,3 +19,9 @@ func DialControl(string, string, syscall.RawConn) error { return nil }
 func startSidecar(string, int, int, int) error {
 	return errors.New("egress sidecar redirect is only supported on linux")
 }
+
+func stopSidecar() {}
+
+func defaultInterface() (string, error) {
+	return "", errors.New("egress sidecar redirect is only supported on linux")
+}

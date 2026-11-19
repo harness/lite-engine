@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/harness/lite-engine/egress/redirect"
 	"github.com/harness/ti-client/client"
 	"github.com/harness/ti-client/types"
 )
@@ -34,6 +35,8 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 	sourceBranch, targetBranch, commitBranch, dataDir, parentUniqueID string, skipVerify bool, mtlsClientCert, mtlsClientCertKey string) Cfg {
 	tiClient := client.NewHTTPClient(
 		endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stageID, repo, sha, commitLink, skipVerify, "", mtlsClientCert, mtlsClientCertKey, parentUniqueID)
+	// The TI service is control plane: its calls are not sent through the egress proxy.
+	redirect.ApplyClient(tiClient.Client)
 	cfg := Cfg{
 		mu:              &sync.Mutex{},
 		ziplocked:       1,

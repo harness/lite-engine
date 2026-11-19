@@ -14,7 +14,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -67,13 +69,15 @@ func startSidecar(host string, port, uid, gid int) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Credential: cred,
 		Setpgid:    true,
-		Pdeathsig:  syscall.SIGTERM,
 	}
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
 		return err
 	}
 	_ = logFile.Close()
+	// Reap the sidecar when it exits, so it does not stay a zombie. It outlives a
+	// restart of lite-engine on purpose: the next Install stops it by pid.
+	go func() { _ = cmd.Wait() }()
 	return os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), pidMode) //nolint:gosec // pid file, not a credential
 }
 
@@ -82,7 +86,7 @@ func sidecarBinary() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join(filepath.Dir(exe), "egress-sidecar")
+	path := filepath.Join(filepath.Dir(exe), sidecarName)
 	info, err := os.Stat(path)
 	if err != nil {
 		return "", fmt.Errorf("egress-sidecar binary: %w", err)
@@ -91,4 +95,67 @@ func sidecarBinary() (string, error) {
 		return "", fmt.Errorf("egress-sidecar binary: %s is a directory", path)
 	}
 	return path, nil
+}
+
+const (
+	sidecarName = "egress-sidecar"
+	stopWait    = 3 * time.Second
+	stopPoll    = 50 * time.Millisecond
+)
+
+// stopSidecar stops the sidecar a previous Install started and waits for it to
+// go, so the next one can bind the port. The pid is trusted only when the
+// process still has the sidecar's name: a pid file can outlive its process.
+func stopSidecar() {
+	raw, err := os.ReadFile(pidPath)
+	if err != nil {
+		return
+	}
+	_ = os.Remove(pidPath)
+	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || pid <= 1 {
+		return
+	}
+	comm, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/comm")
+	if err != nil || strings.TrimSpace(string(comm)) != sidecarName {
+		return
+	}
+	_ = syscall.Kill(pid, syscall.SIGTERM)
+	deadline := time.Now().Add(stopWait)
+	for time.Now().Before(deadline) {
+		if processGone(pid) {
+			return
+		}
+		time.Sleep(stopPoll)
+	}
+	_ = syscall.Kill(pid, syscall.SIGKILL)
+}
+
+// processGone reports whether pid has exited. A zombie has exited: it holds no
+// port and waits only for its parent to reap it.
+func processGone(pid int) bool {
+	if syscall.Kill(pid, 0) != nil {
+		return true
+	}
+	stat, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return true
+	}
+	// The state is the first field after the command name, which is in
+	// parentheses and may itself contain spaces.
+	end := strings.LastIndexByte(string(stat), ')')
+	fields := strings.Fields(string(stat)[end+1:])
+	return end >= 0 && len(fields) > 0 && fields[0] == "Z"
+}
+
+// defaultInterface is the interface of the IPv4 default route.
+func defaultInterface() (string, error) {
+	table, err := os.ReadFile("/proc/net/route")
+	if err != nil {
+		return "", err
+	}
+	if iface := parseDefaultRoute(string(table)); iface != "" {
+		return iface, nil
+	}
+	return "", fmt.Errorf("no default route")
 }
