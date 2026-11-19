@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func TestParseCredentialRefusesIncomplete(t *testing.T) {
+func TestValidateCredentialRefusesIncomplete(t *testing.T) {
 	cases := map[string]string{
 		"missing colon": "justausername",
 		"empty user":    ":value",
@@ -22,17 +22,16 @@ func TestParseCredentialRefusesIncomplete(t *testing.T) {
 	}
 	for name, raw := range cases {
 		t.Run(name, func(t *testing.T) {
-			if _, err := ParseCredential(raw); !errors.Is(err, ErrCredentialIncomplete) {
-				t.Fatalf("ParseCredential error = %v, want ErrCredentialIncomplete", err)
+			if err := validateCredential(raw); !errors.Is(err, ErrCredentialIncomplete) {
+				t.Fatalf("validateCredential error = %v, want ErrCredentialIncomplete", err)
 			}
 		})
 	}
 }
 
-func TestParseCredentialSplitsOnFirstColon(t *testing.T) {
-	got, err := ParseCredential("acct|org:part1:part2")
-	if err != nil || got != "acct|org:part1:part2" {
-		t.Fatalf("ParseCredential = %q, %v", got, err)
+func TestValidateCredentialSplitsOnFirstColon(t *testing.T) {
+	if err := validateCredential("acct|org:part1:part2"); err != nil {
+		t.Fatalf("validateCredential = %v", err)
 	}
 }
 

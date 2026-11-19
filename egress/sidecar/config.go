@@ -48,6 +48,7 @@ var (
 	errProxyPortInvalid   = errors.New(envProxyPort + " is invalid")
 	errListenPortInvalid  = errors.New(envListenPort + " is invalid")
 	errIdleTimeoutInvalid = errors.New(envIdleTimeout + " is invalid")
+	errTimeoutInvalid     = errors.New("timeouts must not be negative")
 )
 
 // Config is everything the process needs. The credential is read once, before
@@ -88,6 +89,24 @@ func (c *Config) applyDefaults() {
 	}
 }
 
+func (c *Config) validate() error {
+	if c.ProxyHost == "" {
+		return errProxyHostRequired
+	}
+	if err := validateCredential(c.Credential); err != nil {
+		return err
+	}
+	if c.ProxyPort <= 0 || c.ProxyPort > maxPort {
+		return errProxyPortInvalid
+	}
+	for _, d := range []time.Duration{c.IdleTimeout, c.DialTimeout, c.FirstRead, c.HeaderTimeout} {
+		if d < 0 {
+			return errTimeoutInvalid
+		}
+	}
+	return nil
+}
+
 // ConfigFromEnv reads the process environment. A missing or incomplete
 // credential returns ErrCredentialIncomplete, and the value is never part of
 // an error.
@@ -125,7 +144,10 @@ func ConfigFromEnv() (Config, error) {
 // file is the production path. PROXY_AUTH exists for the POC and for tests.
 func credentialFromEnv() (string, error) {
 	if raw := os.Getenv(envProxyAuth); raw != "" {
-		return ParseCredential(raw)
+		if err := validateCredential(raw); err != nil {
+			return "", err
+		}
+		return raw, nil
 	}
 	path := os.Getenv(envProxyAuthFile)
 	if path == "" {

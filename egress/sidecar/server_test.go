@@ -42,10 +42,10 @@ func TestTunnelUsesSNIOn443(t *testing.T) {
 	if !bytes.Contains(got, []byte(proxyAuthH+basicAuth(testLogin()))) {
 		t.Fatalf("missing credential: %q", got)
 	}
-	if !strings.Contains(logs.String(), "credential source=sidecar") {
-		t.Fatalf("logs = %s", logs.String())
+	// The tunnel ends on the idle timeout, which is the only line expected.
+	if got := logs.String(); strings.Contains(got, "upstream") || strings.Contains(got, "credential") {
+		t.Fatalf("a successful tunnel logged %q", got)
 	}
-	assertNoCredential(t, logs)
 }
 
 func TestTunnelWithoutSNIUsesOriginalDestination(t *testing.T) {
@@ -178,32 +178,41 @@ func TestExplicitConnectAnswerReachesClientAndTunnelWorks(t *testing.T) {
 	if !bytes.Contains(got, []byte(proxyAuthH+basicAuth(testLogin()))) {
 		t.Fatalf("credential not added: %q", got)
 	}
-	if !strings.Contains(logs.String(), "credential source=sidecar") {
-		t.Fatalf("logs = %s", logs.String())
+	if got := logs.String(); got != "" {
+		t.Fatalf("a successful CONNECT logged %q", got)
 	}
-	assertNoCredential(t, logs)
 }
 
 func TestExplicitConnectRefusalReachesClient(t *testing.T) {
 	proxy := startProxy(t, func(c net.Conn, _ []byte) {
-		_, _ = c.Write([]byte("HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n"))
+		_, _ = c.Write([]byte("HTTP/1.1 403 Forbidden\r\nContent-Length: 10\r\n\r\nblock"))
+		time.Sleep(100 * time.Millisecond)
+		_, _ = c.Write([]byte(" page"))
+		// The proxy keeps the connection open; the sidecar must not wait for close.
+		time.Sleep(testDeadline)
 	})
 	logs := &lockedBuf{}
 	srv := newTestServer(t, proxy, logs)
 	runHandle(t, srv, "172.16.0.11", proxy.port(t), func(c net.Conn) {
 		_, _ = c.Write([]byte("CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n"))
-		if got := readAll(c); !strings.HasPrefix(got, "HTTP/1.1 407 ") {
+		start := time.Now()
+		if got := readAll(c); !strings.HasPrefix(got, "HTTP/1.1 403 ") || !strings.HasSuffix(got, "\r\n\r\nblock page") {
 			t.Fatalf("client received %q", got)
 		}
+		if waited := time.Since(start); waited > 2*time.Second {
+			t.Fatalf("the refusal took %s; the sidecar waited for the proxy to close", waited)
+		}
 	})
-	if !strings.Contains(logs.String(), "upstream rejected example.com:443: HTTP/1.1 407") {
+	if !strings.Contains(logs.String(), "upstream rejected example.com:443: HTTP/1.1 403 Forbidden (credential source=sidecar)") {
 		t.Fatalf("logs = %s", logs.String())
 	}
 	assertNoCredential(t, logs)
 }
 
 func TestExplicitProxyKeepsClientCredential(t *testing.T) {
-	proxy := startProxy(t, func(c net.Conn, _ []byte) { _, _ = c.Write([]byte(connectOK)) })
+	proxy := startProxy(t, func(c net.Conn, _ []byte) {
+		_, _ = c.Write([]byte("HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n"))
+	})
 	logs := &lockedBuf{}
 	srv := newTestServer(t, proxy, logs)
 	runHandle(t, srv, "172.16.0.11", proxy.port(t), func(c net.Conn) {
@@ -214,7 +223,7 @@ func TestExplicitProxyKeepsClientCredential(t *testing.T) {
 	if strings.Count(string(got), "Proxy-Authorization:") != 1 || !bytes.Contains(got, []byte("Proxy-Authorization: Basic Y2xpZW50")) {
 		t.Fatalf("client credential was replaced or duplicated: %q", got)
 	}
-	if !strings.Contains(logs.String(), "credential source=client") {
+	if !strings.Contains(logs.String(), "500 Internal Server Error (credential source=client)") {
 		t.Fatalf("logs = %s", logs.String())
 	}
 	assertNoCredential(t, logs)
@@ -532,9 +541,10 @@ func TestSlowReaderUnderIdleKeepsTransfer(t *testing.T) {
 	})
 }
 
-func newLoopbackServer(t *testing.T, proxy *fakeProxy, logs *lockedBuf) string {
+func newLoopbackServer(t *testing.T, proxy *fakeProxy, logs *lockedBuf, dst func(net.Conn) (string, int, error)) string {
 	t.Helper()
 	srv := newTestServer(t, proxy, logs)
+	srv.originalDst = dst
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -545,13 +555,9 @@ func newLoopbackServer(t *testing.T, proxy *fakeProxy, logs *lockedBuf) string {
 }
 
 func TestServeRelaysThroughOriginalDestination(t *testing.T) {
-	old := lookupOriginalDst
-	lookupOriginalDst = func(net.Conn) (string, int, error) { return "1.2.3.4", 80, nil }
-	t.Cleanup(func() { lookupOriginalDst = old })
-
 	proxy := startProxy(t, func(c net.Conn, _ []byte) { _, _ = c.Write([]byte(okResponse("hello"))) })
 	logs := &lockedBuf{}
-	addr := newLoopbackServer(t, proxy, logs)
+	addr := newLoopbackServer(t, proxy, logs, func(net.Conn) (string, int, error) { return "1.2.3.4", 80, nil })
 	client, err := net.Dial("tcp", addr)
 	if err != nil {
 		t.Fatal(err)
@@ -566,10 +572,9 @@ func TestServeRelaysThroughOriginalDestination(t *testing.T) {
 
 // One panicking connection must not stop the sidecar from serving the next.
 func TestPanicInOneConnectionDoesNotStopServer(t *testing.T) {
-	old := lookupOriginalDst
 	var calls int
 	var mu sync.Mutex
-	lookupOriginalDst = func(net.Conn) (string, int, error) {
+	dst := func(net.Conn) (string, int, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		calls++
@@ -578,11 +583,10 @@ func TestPanicInOneConnectionDoesNotStopServer(t *testing.T) {
 		}
 		return "1.2.3.4", 80, nil
 	}
-	t.Cleanup(func() { lookupOriginalDst = old })
 
 	proxy := startProxy(t, func(c net.Conn, _ []byte) { _, _ = c.Write([]byte(okResponse("alive"))) })
 	logs := &lockedBuf{}
-	addr := newLoopbackServer(t, proxy, logs)
+	addr := newLoopbackServer(t, proxy, logs, dst)
 
 	first, err := net.Dial("tcp", addr)
 	if err != nil {
@@ -658,4 +662,33 @@ func (f *failOnce) Accept() (net.Conn, error) {
 		return nil, errors.New("temporary")
 	}
 	return f.Listener.Accept()
+}
+
+// A connection made straight to the listener reports the listener as its
+// original destination. It must not be relayed with the customer's credential.
+func TestConnectionThatWasNotRedirectedIsRefused(t *testing.T) {
+	proxy := startProxy(t, func(c net.Conn, _ []byte) { _, _ = c.Write([]byte(connectOK)) })
+	logs := &lockedBuf{}
+	addr := newLoopbackServer(t, proxy, logs, func(c net.Conn) (string, int, error) {
+		la := c.LocalAddr().(*net.TCPAddr)
+		return la.IP.String(), la.Port, nil
+	})
+	client, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	_ = client.SetDeadline(time.Now().Add(testDeadline))
+	_, _ = client.Write(buildClientHello(t, "anything.attacker.example"))
+	if got := readAll(client); got != "" {
+		t.Fatalf("client received %q", got)
+	}
+	select {
+	case req := <-proxy.reqs:
+		t.Fatalf("the proxy received %q", req)
+	case <-time.After(200 * time.Millisecond):
+	}
+	if !strings.Contains(logs.String(), "that was not redirected") {
+		t.Fatalf("logs = %s", logs.String())
+	}
 }

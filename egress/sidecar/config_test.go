@@ -100,3 +100,22 @@ func TestNewRefusesIncompleteCredentialAndMissingHost(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestNewRefusesInvalidPortAndNegativeTimeouts(t *testing.T) {
+	base := Config{ProxyHost: "127.0.0.1", Credential: "user:value"}
+	for name, mutate := range map[string]func(*Config){
+		"port":       func(c *Config) { c.ProxyPort = 70000 },
+		"idle":       func(c *Config) { c.IdleTimeout = -time.Second },
+		"dial":       func(c *Config) { c.DialTimeout = -time.Second },
+		"first read": func(c *Config) { c.FirstRead = -time.Second },
+		"header":     func(c *Config) { c.HeaderTimeout = -time.Second },
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := base
+			mutate(&cfg)
+			if _, err := New(&cfg); err == nil {
+				t.Fatal("New accepted an invalid config")
+			}
+		})
+	}
+}

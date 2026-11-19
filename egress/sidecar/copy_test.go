@@ -13,7 +13,7 @@ import (
 
 func TestStatusLoggerSkipsInterimResponses(t *testing.T) {
 	logs := &lockedBuf{}
-	srv := &Server{log: log.New(logs, "", 0)}
+	srv := &session{Server: &Server{log: log.New(logs, "", 0)}, id: 7, source: "sidecar"}
 	l := &statusLogger{s: srv, where: "example.com"}
 	// The 100 and the 500 arrive split across reads.
 	for _, chunk := range []string{"HTTP/1.1 100 Cont", "inue\r\n\r\nHTTP/1.1 5", "00 Internal Server Error\r\n\r\n"} {
@@ -26,18 +26,34 @@ func TestStatusLoggerSkipsInterimResponses(t *testing.T) {
 	}
 }
 
-func TestStatusLoggerIsSilentOnSuccessAndReportsEmpty(t *testing.T) {
+func TestStatusLoggerIsSilentOnNonErrorsAndReportsEmpty(t *testing.T) {
 	logs := &lockedBuf{}
-	srv := &Server{log: log.New(logs, "", 0)}
+	srv := &session{Server: &Server{log: log.New(logs, "", 0)}, id: 7, source: "sidecar"}
 	ok := &statusLogger{s: srv, where: "a"}
 	ok.observe([]byte("HTTP/1.1 204 No Content\r\n\r\n"))
 	ok.finish()
+	redirect := &statusLogger{s: srv, where: "a"}
+	redirect.observe([]byte("HTTP/1.1 301 Moved Permanently\r\n\r\n"))
+	redirect.finish()
 	if logs.String() != "" {
-		t.Fatalf("a 2xx response was logged: %q", logs.String())
+		t.Fatalf("a non-error response was logged: %q", logs.String())
 	}
 	none := &statusLogger{s: srv, where: "b"}
 	none.finish()
-	if !strings.Contains(logs.String(), "upstream response b: empty") {
+	if !strings.Contains(logs.String(), "conn=7 upstream response b: empty") {
 		t.Fatalf("logs = %q", logs.String())
+	}
+}
+
+func TestStatusLoggerStopsOnOversizedInterimHead(t *testing.T) {
+	logs := &lockedBuf{}
+	l := &statusLogger{s: &session{Server: &Server{log: log.New(logs, "", 0)}}, where: "a"}
+	l.observe([]byte("HTTP/1.1 100 Continue\r\n"))
+	chunk := []byte(strings.Repeat("X-Pad: y\r\n", 1024))
+	for i := 0; i < 16 && !l.logged; i++ {
+		l.observe(chunk)
+	}
+	if !l.logged || l.pending != nil {
+		t.Fatalf("logged=%v, %d bytes still buffered", l.logged, len(l.pending))
 	}
 }

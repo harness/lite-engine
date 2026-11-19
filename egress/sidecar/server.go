@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -28,32 +29,34 @@ type Server struct {
 	headerTimeout time.Duration
 	log           *log.Logger
 
+	// originalDst reads the pre-redirect destination of a connection. Tests
+	// replace it, because they have no iptables redirect.
+	originalDst func(net.Conn) (ip string, port int, err error)
+	connID      atomic.Uint64
+
 	mu sync.Mutex
 	ln net.Listener
 }
 
-// New refuses a missing proxy host or an incomplete credential. The error does
-// not contain the credential.
+// New refuses a missing proxy host, an incomplete credential, or an invalid
+// port or timeout. The error does not contain the credential.
 func New(cfg *Config) (*Server, error) {
 	c := *cfg
 	c.applyDefaults()
-	if c.ProxyHost == "" {
-		return nil, errProxyHostRequired
-	}
-	credential, err := ParseCredential(c.Credential)
-	if err != nil {
+	if err := c.validate(); err != nil {
 		return nil, err
 	}
 	return &Server{
 		listenAddr:    c.ListenAddr,
 		proxyHost:     c.ProxyHost,
 		proxyPort:     c.ProxyPort,
-		credential:    credential,
+		credential:    c.Credential,
 		idle:          c.IdleTimeout,
 		dialTimeout:   c.DialTimeout,
 		firstRead:     c.FirstRead,
 		headerTimeout: c.HeaderTimeout,
 		log:           c.Log,
+		originalDst:   originalDst,
 	}, nil
 }
 
@@ -90,12 +93,24 @@ func (s *Server) Serve(ln net.Listener) error {
 func (s *Server) serveConn(conn net.Conn) {
 	defer conn.Close()
 	defer s.recoverPanic()
-	ip, port, err := lookupOriginalDst(conn)
+	ip, port, err := s.originalDst(conn)
 	if err != nil {
 		s.logf("original destination: %v", err)
 		return
 	}
+	// A connection made straight to the listener, not through the redirect,
+	// reports the listener as its original destination. Relaying it would
+	// hand the customer's credential to anyone who can reach this port.
+	if isLocalAddr(conn.LocalAddr(), ip, port) {
+		s.logf("refused connection from %s that was not redirected", conn.RemoteAddr())
+		return
+	}
 	s.handle(conn, ip, port)
+}
+
+func isLocalAddr(local net.Addr, ip string, port int) bool {
+	la, ok := local.(*net.TCPAddr)
+	return ok && la.Port == port && la.IP.Equal(net.ParseIP(ip))
 }
 
 // recoverPanic keeps a bug in the handling of one connection from taking the
@@ -120,7 +135,3 @@ func (s *Server) Close() error {
 func (s *Server) logf(format string, args ...any) {
 	s.log.Printf(format, args...)
 }
-
-// lookupOriginalDst reads the pre-redirect destination of a connection. Tests
-// replace it, because they have no iptables redirect.
-var lookupOriginalDst = originalDst

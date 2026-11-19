@@ -76,7 +76,7 @@ func (x *xfer) pipe(dst, src net.Conn, observe func([]byte)) error {
 }
 
 // splice copies both directions until either side ends, then closes both.
-func (s *Server) splice(a, b net.Conn, act *xfer) {
+func (s *session) splice(a, b net.Conn, act *xfer) {
 	done := make(chan error, 1)
 	go func() {
 		var err error
@@ -102,7 +102,7 @@ func closeBoth(a, b net.Conn) {
 
 // logIOError logs an error that ends a relay. EOF and a closed connection are
 // the normal ends and are not logged.
-func (s *Server) logIOError(what string, err error) {
+func (s *session) logIOError(what string, err error) {
 	switch {
 	case err == nil, errors.Is(err, io.EOF), errors.Is(err, net.ErrClosed):
 	case isTimeout(err):
@@ -119,11 +119,11 @@ func writeTimeout(conn net.Conn, p []byte, d time.Duration) error {
 	return err
 }
 
-// statusLogger logs the status line of a proxied response when it is not 2xx.
+// statusLogger logs the status line of a proxied response when it is an error.
 // An interim 1xx response, such as 100 Continue, is skipped so the final status
 // is the one logged.
 type statusLogger struct {
-	s       *Server
+	s       *session
 	where   string
 	pending []byte
 	logged  bool
@@ -146,6 +146,9 @@ func (l *statusLogger) observe(p []byte) {
 		}
 		_, after, headDone := bytes.Cut(l.pending, crlfcrlf)
 		if !headDone {
+			if len(l.pending) > maxResponseHead {
+				l.stop()
+			}
 			return
 		}
 		l.pending = after
@@ -156,9 +159,15 @@ func (l *statusLogger) observe(p []byte) {
 }
 
 func (l *statusLogger) log(status string) {
+	l.stop()
+	l.s.logStatus(l.where, status)
+}
+
+// stop ends observation without logging, for an interim head too large to
+// buffer.
+func (l *statusLogger) stop() {
 	l.logged = true
 	l.pending = nil
-	l.s.logStatus(l.where, status)
 }
 
 // finish logs an empty response when nothing was ever seen.
