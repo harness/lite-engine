@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/egress/redirect"
 	"github.com/harness/lite-engine/logger"
 	"github.com/klauspost/compress/zstd"
 )
@@ -102,17 +103,20 @@ func download(ctx context.Context, urls []string, dest string, compressed bool) 
 		return "", err
 	}
 
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   dialTimeout,
+			KeepAlive: dialKeepAlive,
+			Control:   redirect.DialControl,
+		}).DialContext,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		ResponseHeaderTimeout: responseHeaderTimeout,
+		ExpectContinueTimeout: expectContinueTimeout,
+	}
+	redirect.Apply(transport)
 	client := &http.Client{
-		Timeout: downloadTimeout, // overall budget for large binaries
-		Transport: &http.Transport{
-			DialContext: (&net.Dialer{
-				Timeout:   dialTimeout,
-				KeepAlive: dialKeepAlive,
-			}).DialContext,
-			TLSHandshakeTimeout:   tlsHandshakeTimeout,
-			ResponseHeaderTimeout: responseHeaderTimeout,
-			ExpectContinueTimeout: expectContinueTimeout,
-		},
+		Timeout:   downloadTimeout, // overall budget for large binaries
+		Transport: transport,
 	}
 	var lastErr error
 	for _, url := range urls {

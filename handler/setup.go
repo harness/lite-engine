@@ -19,6 +19,7 @@ import (
 
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/duallog"
+	"github.com/harness/lite-engine/egress/redirect"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/livelog"
@@ -163,6 +164,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		}
 		collector := osstats.New(context.Background(), statsInterval, logProcess)
 
+		redirect.Strip(s.Envs)
 		setProxyEnvs(s.Envs)
 		setHarnessEnvs(s.Envs)
 

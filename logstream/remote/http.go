@@ -22,8 +22,17 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/sirupsen/logrus"
 
+	"github.com/harness/lite-engine/egress/redirect"
 	"github.com/harness/lite-engine/logstream"
 )
+
+// MarkClient exempts the log client's transport. The server calls it after the
+// environment file is loaded.
+func MarkClient() {
+	if transport, ok := defaultClient.Transport.(*http.Transport); ok {
+		redirect.Apply(transport)
+	}
+}
 
 const (
 	streamEndpoint             = "/stream?accountID=%s&key=%s"
@@ -125,15 +134,17 @@ func clientWithTLSConfig(skipverify bool, mtlsEnabled bool, cert tls.Certificate
 	if mtlsEnabled {
 		config.Certificates = []tls.Certificate{cert}
 	}
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		TLSClientConfig:       config,
+		ResponseHeaderTimeout: responseHeaderTimeout,
+	}
+	redirect.Apply(transport)
 	return &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			TLSClientConfig:       config,
-			ResponseHeaderTimeout: responseHeaderTimeout,
-		},
+		Transport: transport,
 	}
 }
 
