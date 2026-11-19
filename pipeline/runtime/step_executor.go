@@ -603,6 +603,8 @@ func setPrevStepExportEnvs(r *api.StartStepRequest) {
 
 func (e *StepExecutor) sendStepStatus(r *api.StartStepRequest, response *api.VMTaskExecutionResponse) {
 	delegateClient := delegate.NewFromToken(r.StepStatus.Endpoint, r.StepStatus.AccountID, r.StepStatus.Token, true, "")
+	// The status call goes to the control plane, not through the egress proxy.
+	redirect.ApplyClient(delegateClient.Client)
 
 	if err := e.sendStatus(r, delegateClient, response); err != nil {
 		logrus.WithField("id", r.ID).WithError(err).Errorln("failed to send step status")

@@ -8,6 +8,7 @@ package redirect
 import (
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -20,10 +21,6 @@ const (
 // environment file is loaded and before the server accepts. Clients a package
 // created itself are marked by that package.
 func Arm() {
-	if !Enabled() {
-		return
-	}
-	UnsetProcessProxy()
 	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
 		Apply(transport)
 	}
@@ -35,14 +32,32 @@ func Dialer(timeout, keepAlive time.Duration) *net.Dialer {
 	return &net.Dialer{Timeout: timeout, KeepAlive: keepAlive, Control: DialControl}
 }
 
-// Apply makes transport dial directly, with the socket mark, when the redirect
-// is on. A dialer the transport already had is replaced: the default transport
-// is created with one, and leaving it in place would send unmarked sockets into
-// the redirect. With the redirect off it changes nothing.
+// Apply exempts transport from the redirect. Its sockets carry the mark, so the
+// nat rules leave them alone, and it ignores a proxy while the redirect is
+// installed. A dialer the transport already had is replaced: the default
+// transport is created with one, and leaving it in place would send unmarked
+// sockets into the redirect. With CI_EGRESS_SIDECAR unset it changes nothing.
 func Apply(transport *http.Transport) {
 	if transport == nil || !Enabled() {
 		return
 	}
-	transport.Proxy = nil
+	proxy := transport.Proxy
+	transport.Proxy = func(req *http.Request) (*url.URL, error) {
+		if proxy == nil || Active() {
+			return nil, nil //nolint:nilnil // a nil URL is how a transport is told to dial directly
+		}
+		return proxy(req)
+	}
 	transport.DialContext = Dialer(dialTimeout, dialAlive).DialContext
+}
+
+// ApplyClient exempts client's transport from the redirect, for a client that a
+// library built and that lite-engine cannot configure otherwise.
+func ApplyClient(client *http.Client) {
+	if client == nil {
+		return
+	}
+	if transport, ok := client.Transport.(*http.Transport); ok {
+		Apply(transport)
+	}
 }

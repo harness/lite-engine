@@ -164,7 +164,9 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		}
 		collector := osstats.New(context.Background(), statsInterval, logProcess)
 
-		redirect.Strip(s.Envs)
+		if s.EgressPolicy != nil {
+			redirect.StripFor(s.Envs, s.EgressPolicy.ProxyURL, pcCfg.Enabled)
+		}
 		setProxyEnvs(s.Envs)
 		setHarnessEnvs(s.Envs)
 

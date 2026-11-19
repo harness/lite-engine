@@ -166,12 +166,13 @@ func (e *Docker) configureEgress(ctx context.Context, pipelineConfig *spec.Pipel
 		return removeLinuxRedirect(ctx, goos)
 	}
 	policy := pipelineConfig.EgressProxy
-	if policy != nil && policy.ProxyURL != "" && goos == "linux" && redirect.Enabled() {
+	if policy != nil && goos == "linux" && redirect.Applies(policy.ProxyURL, false) {
 		logrus.Infoln("setup: installing egress sidecar redirect")
 		err := redirect.Install(ctx, redirect.Proxy{
 			URL:      policy.ProxyURL,
 			Username: policy.Username,
 			Password: policy.Password,
+			NoProxy:  policy.NoProxy,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to install egress sidecar: %w", err)

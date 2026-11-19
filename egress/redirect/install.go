@@ -9,12 +9,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -27,12 +31,19 @@ const (
 	logPath      = "/var/log/egress-sidecar.log"
 )
 
+const (
+	readyTimeout = 5 * time.Second
+	readyPoll    = 100 * time.Millisecond
+	readyDial    = 200 * time.Millisecond
+)
+
 // Proxy is the fleet proxy for one stage. The credential is the username and
-// password, not a URL.
+// password, not a URL. NoProxy is the policy's NO_PROXY list.
 type Proxy struct {
 	URL      string
 	Username string
 	Password string
+	NoProxy  string
 }
 
 type execFunc func(ctx context.Context, args ...string) error
@@ -43,8 +54,10 @@ type installer struct {
 	ownIPs  func() ([]string, error)
 	resolve func(host string) ([]string, error)
 	start   func(host string, port, uid, gid int) error
+	ready   func(ctx context.Context) error
 	stop    func()
 	write   func(content string, gid int) error
+	iface   func() (string, error)
 }
 
 func production() installer {
@@ -54,18 +67,21 @@ func production() installer {
 		ownIPs:  localIPv4,
 		resolve: resolveIPv4,
 		start:   startSidecar,
+		ready:   waitListening,
 		stop:    stopSidecar,
 		write:   writeCredential,
+		iface:   defaultInterface,
 	}
 }
 
-// Install writes the credential, installs the redirect, and starts the sidecar.
-// It does nothing when the redirect is off.
+// Install starts the sidecar, waits until it listens, then installs the
+// redirect. The redirect goes in last: with it in place and nothing listening,
+// every connection on ports 80 and 443 is refused. It does nothing when the
+// redirect is off, and it removes what it installed if it fails.
 func Install(ctx context.Context, proxy Proxy) error {
-	if !Enabled() {
+	if !Applies(proxy.URL, false) {
 		return nil
 	}
-	UnsetProcessProxy()
 	return production().install(ctx, proxy)
 }
 
@@ -75,9 +91,13 @@ func Remove(ctx context.Context) error {
 	if !Enabled() {
 		return nil
 	}
-	inst := production()
-	err := runAll(ctx, removeCommands(), inst.run)
-	inst.stop()
+	return production().remove(ctx)
+}
+
+func (i installer) remove(ctx context.Context) error {
+	clearActive()
+	err := runAll(ctx, removeCommands(), i.run)
+	i.stop()
 	_ = os.Remove(authFile)
 	return err
 }
@@ -91,11 +111,7 @@ func (i installer) install(ctx context.Context, proxy Proxy) error {
 	if err != nil {
 		return err
 	}
-	ips, err := i.resolve(host)
-	if err != nil {
-		return err
-	}
-	own, err := i.ownIPs()
+	plan, err := i.plan(host, port, proxy.NoProxy)
 	if err != nil {
 		return err
 	}
@@ -107,11 +123,54 @@ func (i installer) install(ctx context.Context, proxy Proxy) error {
 	if err := i.write(content, gid); err != nil {
 		return err
 	}
-	plan := Plan{ProxyIPs: ips, ProxyPort: port, OwnIPs: own}
-	if err := runAll(ctx, plan.installCommands(), i.run); err != nil {
+	if err := i.launch(ctx, host, port, uid, gid); err != nil {
 		return err
 	}
-	return i.start(host, port, uid, gid)
+	if err := runAll(ctx, plan.installCommands(), i.run); err != nil {
+		// Do not leave a half-installed redirect behind a failed stage.
+		_ = i.remove(context.WithoutCancel(ctx))
+		return err
+	}
+	unsetProcessProxy(host, port)
+	setActive(host, port)
+	return nil
+}
+
+// launch starts the sidecar and waits until it accepts connections.
+func (i installer) launch(ctx context.Context, host string, port, uid, gid int) error {
+	if err := i.start(host, port, uid, gid); err != nil {
+		return err
+	}
+	if err := i.ready(ctx); err != nil {
+		i.stop()
+		return err
+	}
+	return nil
+}
+
+func (i installer) plan(host string, port int, noProxy string) (Plan, error) {
+	ips, err := i.resolve(host)
+	if err != nil {
+		return Plan{}, err
+	}
+	own, err := i.ownIPs()
+	if err != nil {
+		return Plan{}, err
+	}
+	// Without a default route there is no external interface to close the
+	// sidecar port on. The sidecar refuses a connection that was not redirected,
+	// so the port is not left usable.
+	iface, err := i.iface()
+	if err != nil {
+		logrus.WithError(err).Warnln("egress redirect: no external interface, sidecar port is not closed")
+		iface = ""
+	}
+	exempt, skipped := exemptions(noProxy, i.resolve)
+	if len(skipped) > 0 {
+		logrus.WithField("entries", strings.Join(skipped, ",")).
+			Infoln("egress redirect: NO_PROXY entries that cannot be matched on an address are redirected")
+	}
+	return Plan{ProxyIPs: ips, ProxyPort: port, OwnIPs: own, Exempt: exempt, ExternalIface: iface}, nil
 }
 
 func (i installer) ensureUser(ctx context.Context) (uid, gid int, err error) {
@@ -189,19 +248,25 @@ func runCommand(ctx context.Context, args ...string) error {
 	return nil
 }
 
-func stopSidecar() {
-	raw, err := os.ReadFile(pidPath)
-	if err != nil {
-		return
+// waitListening returns once the sidecar accepts a connection on loopback. The
+// sidecar refuses a connection that was not redirected, so the probe is closed
+// without a request.
+func waitListening(ctx context.Context) error {
+	deadline := time.Now().Add(readyTimeout)
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(sidecarPort))
+	for {
+		conn, err := net.DialTimeout("tcp", addr, readyDial)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("egress sidecar is not listening; see %s", logPath)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(readyPoll):
+		}
 	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
-	if err != nil {
-		return
-	}
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return
-	}
-	_ = process.Signal(os.Interrupt)
-	_ = os.Remove(pidPath)
 }
