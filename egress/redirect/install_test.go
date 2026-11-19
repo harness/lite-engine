@@ -8,6 +8,7 @@ package redirect
 import (
 	"context"
 	"errors"
+	"os"
 	"os/user"
 	"strings"
 	"testing"
@@ -42,7 +43,6 @@ func newRecorder() *recorder {
 			return nil
 		},
 		lookup:  func(string) (*user.User, error) { return &user.User{Uid: "10", Gid: "20"}, nil },
-		ownIPs:  func() ([]string, error) { return []string{"10.1.0.4"}, nil },
 		resolve: func(string) ([]string, error) { return []string{"172.16.0.11"}, nil },
 		start: func(host string, port, uid, gid int) error {
 			if port != 3128 || uid != 10 || gid != 20 {
@@ -75,7 +75,9 @@ func (r *recorder) index(prefix string) int {
 	return -1
 }
 
-var testProxy = Proxy{URL: "http://172.16.0.11:3128", Username: "acct", Password: "secret"}
+const bareProxy = "http://172.16.0.11:3128"
+
+var testProxy = Proxy{URL: bareProxy, Username: "acct", Password: "secret"}
 
 func TestInstallDoesNotPassTheCredentialToCommands(t *testing.T) {
 	enable(t)
@@ -119,8 +121,13 @@ func TestInstallDoesNotInstallRulesWhenTheSidecarIsNotReady(t *testing.T) {
 	if err := r.inst.install(context.Background(), testProxy); err == nil {
 		t.Fatal("install succeeded")
 	}
-	if r.index("run ") >= 0 {
-		t.Fatalf("rules were installed: %v", r.events)
+	for _, e := range r.events {
+		if strings.Contains(e, " -A ") || strings.Contains(e, " -I ") {
+			t.Fatalf("a rule was installed: %s", e)
+		}
+	}
+	if r.index("run iptables -t nat -X HARNESS_EGRESS") < 0 {
+		t.Fatalf("a stale redirect was not removed: %v", r.events)
 	}
 	if Active() {
 		t.Fatal("redirect is active after a failed install")
@@ -146,6 +153,22 @@ func TestInstallRemovesAPartialRedirectOnFailure(t *testing.T) {
 	// Only the removal deletes a chain.
 	if r.index("run iptables -t nat -X HARNESS_EGRESS") < 0 || Active() {
 		t.Fatalf("partial redirect was not removed: %v", r.events)
+	}
+}
+
+// A failed credential write or sidecar start after the old sidecar was stopped
+// must not leave the earlier stage's redirect pointing at nothing, nor the
+// installed state set.
+func TestInstallFailureClearsAnEarlierInstall(t *testing.T) {
+	enable(t)
+	setActive("172.16.0.11", 3128)
+	r := newRecorder()
+	r.inst.write = func(string, int) error { return errors.New("disk full") }
+	if err := r.inst.install(context.Background(), testProxy); err == nil {
+		t.Fatal("install succeeded")
+	}
+	if Active() || r.index("run iptables -t nat -X HARNESS_EGRESS") < 0 {
+		t.Fatalf("earlier install was left behind: %v", r.events)
 	}
 }
 
@@ -193,7 +216,7 @@ func TestRunAllIgnoresOptionalFailures(t *testing.T) {
 	}
 }
 
-func TestStripRemovesOnlyTheFleetProxy(t *testing.T) {
+func TestScrubKeepsTheProxyAndDropsTheCredential(t *testing.T) {
 	enable(t)
 	fleet := map[string]string{
 		"HTTPS_PROXY": "http://acct:secret@172.16.0.11:3128",
@@ -203,46 +226,63 @@ func TestStripRemovesOnlyTheFleetProxy(t *testing.T) {
 	}
 	customer := map[string]string{"HTTPS_PROXY": "http://proxy.corp:8080", "FOO": "bar"}
 
-	// Nothing is installed yet, so a step keeps its proxy.
-	Strip(fleet)
-	if len(fleet) != 4 {
-		t.Fatalf("Strip changed the env before install: %v", fleet)
+	// Nothing is installed yet, so a step keeps what it was given.
+	Scrub(fleet)
+	if fleet["HTTPS_PROXY"] != "http://acct:secret@172.16.0.11:3128" {
+		t.Fatalf("Scrub changed the env before install: %v", fleet)
 	}
 
 	setActive("172.16.0.11", 3128)
-	Strip(fleet)
-	Strip(customer)
-	if _, ok := fleet["HTTPS_PROXY"]; ok || fleet["FOO"] != "bar" || fleet["NO_PROXY"] != "localhost" {
-		t.Fatalf("fleet env after Strip: %v", fleet)
+	Scrub(fleet)
+	Scrub(customer)
+	if fleet["HTTPS_PROXY"] != bareProxy || fleet["http_proxy"] != bareProxy {
+		t.Fatalf("fleet proxy was not rewritten to the bare address: %v", fleet)
 	}
-	if _, ok := fleet["http_proxy"]; ok {
-		t.Fatalf("bare host:port was not stripped: %v", fleet)
+	if fleet["FOO"] != "bar" || fleet["NO_PROXY"] != "localhost" {
+		t.Fatalf("unrelated variables changed: %v", fleet)
+	}
+	for _, v := range fleet {
+		if strings.Contains(v, "secret") || strings.Contains(v, "acct") {
+			t.Fatalf("the credential is still in the env: %v", fleet)
+		}
 	}
 	if customer["HTTPS_PROXY"] != "http://proxy.corp:8080" {
-		t.Fatalf("a customer proxy was stripped: %v", customer)
+		t.Fatalf("a customer proxy was changed: %v", customer)
 	}
 }
 
-func TestStripForOnlyWhenTheStageUsesTheRedirect(t *testing.T) {
-	const url = "http://172.16.0.11:3128"
+func TestScrubForOnlyWhenTheStageUsesTheRedirect(t *testing.T) {
+	const url = "http://acct:secret@172.16.0.11:3128"
 	env := func() map[string]string { return map[string]string{"HTTPS_PROXY": url} }
 
 	off := env()
-	StripFor(off, url, false)
-	if len(off) != 1 {
-		t.Fatal("StripFor changed the env while the redirect is off")
+	ScrubFor(off, url, false)
+	if off["HTTPS_PROXY"] != url {
+		t.Fatal("ScrubFor changed the env while the redirect is off")
 	}
 
 	enable(t)
 	on := env()
-	StripFor(on, url, false)
-	if len(on) != 0 {
-		t.Fatalf("StripFor kept the fleet proxy: %v", on)
+	ScrubFor(on, url, false)
+	if on["HTTPS_PROXY"] != bareProxy {
+		t.Fatalf("ScrubFor kept the credential: %v", on)
 	}
 	private := env()
-	StripFor(private, url, true)
-	if len(private) != 1 {
-		t.Fatal("StripFor changed a private-connectivity stage")
+	ScrubFor(private, url, true)
+	if private["HTTPS_PROXY"] != url {
+		t.Fatal("ScrubFor changed a private-connectivity stage")
+	}
+}
+
+func TestScrubProcessProxyKeepsTheAddress(t *testing.T) {
+	t.Setenv("HTTPS_PROXY", "http://acct:secret@172.16.0.11:3128")
+	t.Setenv("http_proxy", "http://proxy.corp:8080")
+	scrubProcessProxy("172.16.0.11", 3128)
+	if got := os.Getenv("HTTPS_PROXY"); got != bareProxy {
+		t.Fatalf("HTTPS_PROXY = %q", got)
+	}
+	if got := os.Getenv("http_proxy"); got != "http://proxy.corp:8080" {
+		t.Fatalf("a customer proxy was changed: %q", got)
 	}
 }
 

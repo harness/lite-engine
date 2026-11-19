@@ -38,7 +38,8 @@ type Cmd struct {
 }
 
 // Plan is the redirect for one stage. ProxyIPs are the fleet proxy addresses.
-// OwnIPs are this machine's addresses, which are never redirected. Exempt are
+// An address on this machine is never redirected, whichever network it belongs
+// to and whenever it was added. Exempt are
 // the NO_PROXY addresses: traffic that reached its destination directly before
 // the redirect still does. ExternalIface is the interface the sidecar port is
 // closed on. A redirected container connection reaches the sidecar on a bridge
@@ -46,7 +47,6 @@ type Cmd struct {
 type Plan struct {
 	ProxyIPs      []string
 	ProxyPort     int
-	OwnIPs        []string
 	Exempt        []string
 	ExternalIface string
 }
@@ -111,9 +111,7 @@ func (p *Plan) preroutingRules() [][]string {
 
 func (p *Plan) redirectRules() [][]string {
 	rules := [][]string{{"-d", loopbackCIDR, "-j", "RETURN"}}
-	for _, ip := range p.OwnIPs {
-		rules = append(rules, []string{"-d", ip, "-j", "RETURN"})
-	}
+	rules = append(rules, []string{"-m", "addrtype", "--dst-type", "LOCAL", "-j", "RETURN"})
 	port := strconv.Itoa(p.ProxyPort)
 	to := strconv.Itoa(sidecarPort)
 	for _, ip := range p.ProxyIPs {
@@ -206,26 +204,6 @@ func resolveIPv4(host string) ([]string, error) {
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("proxy host has no IPv4 address")
-	}
-	return out, nil
-}
-
-func localIPv4() ([]string, error) {
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return nil, err
-	}
-	var out []string
-	for _, addr := range addrs {
-		ipnet, ok := addr.(*net.IPNet)
-		if !ok {
-			continue
-		}
-		v4 := ipnet.IP.To4()
-		if v4 == nil || v4.IsLoopback() {
-			continue
-		}
-		out = append(out, v4.String())
 	}
 	return out, nil
 }

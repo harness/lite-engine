@@ -22,6 +22,10 @@ func startSidecar(string, int, int, int) error {
 
 func stopSidecar() {}
 
+func sidecarAlive() bool { return false }
+
+func sidecarListening() bool { return false }
+
 func defaultInterface() (string, error) {
 	return "", errors.New("egress sidecar redirect is only supported on linux")
 }

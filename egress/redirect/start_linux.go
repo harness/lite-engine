@@ -148,6 +148,61 @@ func processGone(pid int) bool {
 	return end >= 0 && len(fields) > 0 && fields[0] == "Z"
 }
 
+// sidecarPID is the pid of the sidecar in the pid file, or 0 when that process
+// is not a running sidecar.
+func sidecarPID() int {
+	raw, err := os.ReadFile(pidPath)
+	if err != nil {
+		return 0
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if err != nil || pid <= 1 {
+		return 0
+	}
+	comm, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/comm")
+	if err != nil || strings.TrimSpace(string(comm)) != sidecarName || processGone(pid) {
+		return 0
+	}
+	return pid
+}
+
+// sidecarAlive reports whether the sidecar this Install started is running.
+func sidecarAlive() bool { return sidecarPID() != 0 }
+
+// sidecarListening reports whether the sidecar itself holds the listening
+// socket on the sidecar port. A listener alone is not enough: a sidecar left by
+// an earlier run, or any other program, would answer while the one just started
+// failed to bind.
+func sidecarListening() bool {
+	pid := sidecarPID()
+	if pid == 0 {
+		return false
+	}
+	want := map[string]bool{}
+	for _, table := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+		raw, err := os.ReadFile(table)
+		if err != nil {
+			continue
+		}
+		for _, inode := range listenerInodes(string(raw), sidecarPort) {
+			want["socket:["+inode+"]"] = true
+		}
+	}
+	if len(want) == 0 {
+		return false
+	}
+	fds, err := os.ReadDir("/proc/" + strconv.Itoa(pid) + "/fd")
+	if err != nil {
+		return false
+	}
+	for _, fd := range fds {
+		if target, err := os.Readlink("/proc/" + strconv.Itoa(pid) + "/fd/" + fd.Name()); err == nil && want[target] {
+			return true
+		}
+	}
+	return false
+}
+
 // defaultInterface is the interface of the IPv4 default route.
 func defaultInterface() (string, error) {
 	table, err := os.ReadFile("/proc/net/route")
