@@ -20,6 +20,7 @@ import (
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
 	"github.com/harness/lite-engine/duallog"
+	"github.com/harness/lite-engine/egress/redirect"
 	"github.com/harness/lite-engine/engine"
 	errorcat "github.com/harness/lite-engine/engine/errors"
 	"github.com/harness/lite-engine/engine/logutil"
@@ -89,6 +90,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		return &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 	maskHarToken(r)
+	redirect.Strip(r.Envs)
 
 	e.mu.Lock()
 	_, ok := e.stepStatus[r.ID]
@@ -167,6 +169,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 		return &errors.BadRequestError{Msg: "ID needs to be set"}
 	}
 	maskHarToken(r)
+	redirect.Strip(r.Envs)
 
 	// Idempotency: if a step with this ID is already running (or has already
 	// completed) we silently return success. The runner-side retry loop and

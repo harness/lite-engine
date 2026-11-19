@@ -24,8 +24,17 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/egress/redirect"
 	"github.com/harness/lite-engine/internal/safego"
 )
+
+// MarkClient exempts the upload client's transport. The server calls it after
+// the environment file is loaded.
+func MarkClient() {
+	if transport, ok := httpClient.Transport.(*http.Transport); ok {
+		redirect.Apply(transport)
+	}
+}
 
 const (
 	destinationDir  = "test-attachments"
@@ -50,8 +59,10 @@ var (
 
 func newHTTPClient() *http.Client {
 	transport := &http.Transport{
-		Proxy:                 http.ProxyFromEnvironment,
-		DialContext:           (&net.Dialer{Timeout: dialTimeout, KeepAlive: dialTimeout}).DialContext,
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout: dialTimeout, KeepAlive: dialTimeout, Control: redirect.DialControl,
+		}).DialContext,
 		TLSHandshakeTimeout:   tlsTimeout,
 		ResponseHeaderTimeout: headerTimeout,
 		IdleConnTimeout:       idleTimeout,

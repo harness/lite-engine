@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/harness/lite-engine/egress/redirect"
 	dockerimage "github.com/harness/lite-engine/engine/docker/image"
 	"github.com/harness/lite-engine/engine/logutil"
 	"github.com/harness/lite-engine/engine/spec"
@@ -153,21 +154,61 @@ func clearProxyForPrivateConnectivity(ctx context.Context, goos string) error {
 	return nil
 }
 
+// configureEgress installs the sidecar redirect, or the explicit proxy, for
+// this stage. A stage that does not use the redirect removes one left behind
+// on a reused VM.
+func (e *Docker) configureEgress(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+	goos := pipelineConfig.Platform.OS
+	if pipelineConfig.PrivateConnectivity {
+		if err := clearProxyForPrivateConnectivity(ctx, goos); err != nil {
+			return fmt.Errorf("failed to clear inherited proxy before private connectivity setup: %w", err)
+		}
+		return removeLinuxRedirect(ctx, goos)
+	}
+	policy := pipelineConfig.EgressProxy
+	if policy != nil && policy.ProxyURL != "" && goos == "linux" && redirect.Enabled() {
+		logrus.Infoln("setup: installing egress sidecar redirect")
+		err := redirect.Install(ctx, redirect.Proxy{
+			URL:      policy.ProxyURL,
+			Username: policy.Username,
+			Password: policy.Password,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to install egress sidecar: %w", err)
+		}
+		return nil
+	}
+	if policy != nil && policy.ProxyURL != "" {
+		logrus.WithField("proxy_url", policy.ProxyURL).Infoln("setup: applying egress proxy config")
+		if err := setupEgressProxy(ctx, policy, goos); err != nil {
+			return fmt.Errorf("failed to configure docker proxy for egress: %w", err)
+		}
+		return nil
+	}
+	if _, ok := pipelineConfig.Envs[harnessHTTPSProxy]; ok {
+		e.setProxyInDockerDaemon(ctx, pipelineConfig)
+	}
+	return removeLinuxRedirect(ctx, goos)
+}
+
+// removeLinuxRedirect deletes a redirect left by an earlier stage on this VM.
+// With CI_EGRESS_SIDECAR unset it does nothing.
+func removeLinuxRedirect(ctx context.Context, goos string) error {
+	if goos != "linux" {
+		return nil
+	}
+	if err := redirect.Remove(ctx); err != nil {
+		return fmt.Errorf("failed to remove egress redirect: %w", err)
+	}
+	return nil
+}
+
 // Setup the pipeline environment.
 func (e *Docker) Setup(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
 	// creates the default temporary (local) volumes
 	// that are mounted into each container step.
-	if pipelineConfig.PrivateConnectivity {
-		if err := clearProxyForPrivateConnectivity(ctx, pipelineConfig.Platform.OS); err != nil {
-			return fmt.Errorf("failed to clear inherited proxy before private connectivity setup: %w", err)
-		}
-	} else if pipelineConfig.EgressProxy != nil && pipelineConfig.EgressProxy.ProxyURL != "" {
-		logrus.WithField("proxy_url", pipelineConfig.EgressProxy.ProxyURL).Infoln("setup: applying egress proxy config")
-		if err := setupEgressProxy(ctx, pipelineConfig.EgressProxy, pipelineConfig.Platform.OS); err != nil {
-			return fmt.Errorf("failed to configure docker proxy for egress: %w", err)
-		}
-	} else if _, ok := pipelineConfig.Envs[harnessHTTPSProxy]; ok {
-		e.setProxyInDockerDaemon(ctx, pipelineConfig)
+	if err := e.configureEgress(ctx, pipelineConfig); err != nil {
+		return err
 	}
 
 	for _, vol := range pipelineConfig.Volumes {

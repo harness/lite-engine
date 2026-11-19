@@ -21,6 +21,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/sirupsen/logrus"
 
+	"github.com/harness/lite-engine/egress/redirect"
 	"github.com/harness/lite-engine/logstream"
 )
 
@@ -137,23 +138,24 @@ func NewOptimizedHTTPClientWithLogScope(
 // intermittent network issues (e.g., MacOS VMs with sleep/wake cycles, load
 // balancers with idle timeouts).
 func newHTTPClientWithTransport(tlsConfig *tls.Config) *http.Client {
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		MaxIdleConnsPerHost:   maxIdleConnsPerHost,
+		IdleConnTimeout:       idleConnTimeout,
+		TLSHandshakeTimeout:   tlsHandshakeTimeout,
+		ResponseHeaderTimeout: responseHeaderTimeout,
+		ExpectContinueTimeout: expectContinueTimeout,
+		TLSClientConfig:       tlsConfig,
+	}
+	// Apply installs a 30s dialer. This client dials in 10s, so its dialer is set
+	// after Apply and still carries the mark.
+	redirect.Apply(transport)
+	transport.DialContext = redirect.Dialer(dialTimeout, dialKeepAlive).DialContext
 	return &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			MaxIdleConnsPerHost:   maxIdleConnsPerHost,
-			IdleConnTimeout:       idleConnTimeout,
-			TLSHandshakeTimeout:   tlsHandshakeTimeout,
-			ResponseHeaderTimeout: responseHeaderTimeout,
-			ExpectContinueTimeout: expectContinueTimeout,
-			DialContext: (&net.Dialer{
-				Timeout:   dialTimeout,
-				KeepAlive: dialKeepAlive,
-			}).DialContext,
-			TLSClientConfig: tlsConfig,
-		},
+		Transport: transport,
 	}
 }
 

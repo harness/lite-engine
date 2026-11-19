@@ -16,15 +16,18 @@ import (
 	"time"
 
 	"github.com/harness/lite-engine/config"
+	"github.com/harness/lite-engine/egress/redirect"
 	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/docker"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/handler"
 	"github.com/harness/lite-engine/internal/safego"
 	"github.com/harness/lite-engine/logger"
+	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/pipeline/runtime"
 	"github.com/harness/lite-engine/server"
 	"github.com/harness/lite-engine/setup"
+	"github.com/harness/lite-engine/ti/attachments"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/harness/godotenv/v3"
@@ -44,6 +47,12 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 				Errorln("cannot load env file")
 		}
 	}
+	// The environment file is loaded, so the redirect can exempt clients created
+	// at init. With CI_EGRESS_SIDECAR unset this changes nothing.
+	redirect.Arm()
+	remote.MarkClient()
+	attachments.MarkClient()
+
 	// load the system configuration from the environment.
 	loadedConfig, err := config.Load()
 	if err != nil {
