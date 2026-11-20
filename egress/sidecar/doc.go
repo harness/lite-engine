@@ -8,7 +8,7 @@
 // proxy into this process, which turns them into credentialed requests for the
 // fleet proxy.
 //
-// Nothing in lite-engine starts it. CI-26163 writes the credential, installs
-// the redirect, and starts the process, so merging this package does not
-// change a build.
+// It is a subcommand of the lite-engine binary. CI-26163 writes the credential,
+// installs the redirect, and starts "lite-engine egress-sidecar". With
+// CI_EGRESS_SIDECAR unset, nothing starts it.
 package sidecar

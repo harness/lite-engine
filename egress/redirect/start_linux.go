@@ -12,13 +12,14 @@ import (
 	"math"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/harness/lite-engine/egress/sidecar"
 )
 
 func syscallCredential(uid, gid int) (*syscall.Credential, error) {
@@ -44,7 +45,7 @@ func DialControl(_, _ string, raw syscall.RawConn) error {
 }
 
 func startSidecar(host string, port, uid, gid int) error {
-	binary, err := sidecarBinary()
+	binary, err := os.Executable()
 	if err != nil {
 		return err
 	}
@@ -52,7 +53,8 @@ func startSidecar(host string, port, uid, gid int) error {
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(binary) //nolint:gosec // binary is next to this executable, not user input
+	// The sidecar is this binary's subcommand, so the VM has one file to download.
+	cmd := exec.Command(binary, sidecar.ProcessName) //nolint:gosec // this executable, not user input
 	cmd.Env = []string{
 		"PROXY_AUTH_FILE=" + authFile,
 		"UPSTREAM_PROXY_HOST=" + host,
@@ -87,31 +89,14 @@ func startSidecar(host string, port, uid, gid int) error {
 	return nil
 }
 
-func sidecarBinary() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-	path := filepath.Join(filepath.Dir(exe), sidecarName)
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", fmt.Errorf("egress-sidecar binary: %w", err)
-	}
-	if info.IsDir() {
-		return "", fmt.Errorf("egress-sidecar binary: %s is a directory", path)
-	}
-	return path, nil
-}
-
 const (
-	sidecarName = "egress-sidecar"
-	stopWait    = 3 * time.Second
-	stopPoll    = 50 * time.Millisecond
+	stopWait = 3 * time.Second
+	stopPoll = 50 * time.Millisecond
 )
 
 // stopSidecar stops the sidecar a previous Install started and waits for it to
-// go, so the next one can bind the port. The pid is trusted only when the
-// process still has the sidecar's name: a pid file can outlive its process.
+// go, so the next one can bind the port. The pid is trusted only when that
+// process is the egress-sidecar command: a pid file can outlive its process.
 func stopSidecar() {
 	raw, err := os.ReadFile(pidPath)
 	if err != nil {
@@ -122,8 +107,7 @@ func stopSidecar() {
 	if err != nil || pid <= 1 {
 		return
 	}
-	comm, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/comm")
-	if err != nil || strings.TrimSpace(string(comm)) != sidecarName {
+	if !isSidecarProcess(pid) {
 		return
 	}
 	_ = syscall.Kill(pid, syscall.SIGTERM)
@@ -165,11 +149,21 @@ func sidecarPID() int {
 	if err != nil || pid <= 1 {
 		return 0
 	}
-	comm, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/comm")
-	if err != nil || strings.TrimSpace(string(comm)) != sidecarName || processGone(pid) {
+	if !isSidecarProcess(pid) {
 		return 0
 	}
 	return pid
+}
+
+// isSidecarProcess reports whether pid is a running egress sidecar. The command
+// line is the check: both this process and the sidecar are named lite-engine
+// until the sidecar renames itself.
+func isSidecarProcess(pid int) bool {
+	if pid <= 1 || processGone(pid) {
+		return false
+	}
+	raw, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/cmdline")
+	return err == nil && isSidecarArgs(raw)
 }
 
 // sidecarAlive reports whether the sidecar this Install started is running.
