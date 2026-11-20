@@ -106,9 +106,14 @@ func TestSidecarPortIsClosedOnTheExternalInterfaceOnly(t *testing.T) {
 	}
 
 	bare := Plan{ProxyIPs: []string{"172.16.0.11"}, ProxyPort: 3128}
-	none := joinCommands(bare.installCommands())
-	if strings.Contains(none, "HARNESS_EGRESS_IN") {
-		t.Fatalf("an INPUT chain without an interface:\n%s", none)
+	for _, cmd := range bare.installCommands() {
+		joined := strings.Join(cmd.Args, " ")
+		if strings.Contains(joined, "HARNESS_EGRESS_IN") && !cmd.Optional {
+			t.Fatalf("an INPUT rule without an interface: %s", joined)
+		}
+	}
+	if !strings.Contains(joinCommands(bare.installCommands()), "-X HARNESS_EGRESS_IN") {
+		t.Fatal("an earlier INPUT chain is not removed when there is no interface")
 	}
 }
 
