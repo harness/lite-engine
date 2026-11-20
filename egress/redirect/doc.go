@@ -6,8 +6,11 @@
 // Package redirect installs the hosted Linux egress redirect and starts the sidecar.
 //
 // It stays off unless CI_EGRESS_SIDECAR is true. While it is on, build traffic to
-// ports 80 and 443 is redirected to the sidecar, and proxy environment variables
-// are removed so a step does not also use the proxy explicitly. The credential is
-// written to a root-owned file and is never placed in an environment variable or a
-// log line. Private-connectivity stages call Remove and get no redirect.
+// ports 80 and 443 is redirected to the sidecar. A proxy environment variable
+// that points at the fleet proxy loses its credential but keeps the proxy
+// address, so ports the redirect does not cover are still proxied, and the
+// sidecar adds the credential. The credential is written to a root-owned file and
+// is never placed in an environment variable or a log line. The sidecar is
+// started, and confirmed to hold its port, before the rules go in.
+// Private-connectivity stages call Remove and get no redirect.
 package redirect

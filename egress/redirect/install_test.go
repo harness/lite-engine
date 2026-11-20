@@ -126,7 +126,7 @@ func TestInstallDoesNotInstallRulesWhenTheSidecarIsNotReady(t *testing.T) {
 			t.Fatalf("a rule was installed: %s", e)
 		}
 	}
-	if r.index("run iptables -t nat -X HARNESS_EGRESS") < 0 {
+	if r.index("run iptables -w 5 -t nat -X HARNESS_EGRESS") < 0 {
 		t.Fatalf("a stale redirect was not removed: %v", r.events)
 	}
 	if Active() {
@@ -151,7 +151,7 @@ func TestInstallRemovesAPartialRedirectOnFailure(t *testing.T) {
 		t.Fatal("install succeeded")
 	}
 	// Only the removal deletes a chain.
-	if r.index("run iptables -t nat -X HARNESS_EGRESS") < 0 || Active() {
+	if r.index("run iptables -w 5 -t nat -X HARNESS_EGRESS") < 0 || Active() {
 		t.Fatalf("partial redirect was not removed: %v", r.events)
 	}
 }
@@ -167,7 +167,7 @@ func TestInstallFailureClearsAnEarlierInstall(t *testing.T) {
 	if err := r.inst.install(context.Background(), testProxy); err == nil {
 		t.Fatal("install succeeded")
 	}
-	if Active() || r.index("run iptables -t nat -X HARNESS_EGRESS") < 0 {
+	if Active() || r.index("run iptables -w 5 -t nat -X HARNESS_EGRESS") < 0 {
 		t.Fatalf("earlier install was left behind: %v", r.events)
 	}
 }

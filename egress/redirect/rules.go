@@ -154,8 +154,12 @@ func chainCmds(table, chain string, jump []string, hook string, rules [][]string
 	return cmds
 }
 
+// lockWait is how long iptables waits for the xtables lock. Without -w it exits
+// at once when Docker or another program holds it.
+const lockWait = "5"
+
 func ipt(table string, args ...string) []string {
-	return append([]string{"iptables", "-t", table}, args...)
+	return append([]string{"iptables", "-w", lockWait, "-t", table}, args...)
 }
 
 // parseProxy returns the host and port of a proxy URL. The URL's userinfo is
