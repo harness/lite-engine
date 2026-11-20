@@ -60,6 +60,9 @@ func (p *Plan) installCommands() []Cmd {
 		cmds = append(cmds, filterChain(chainIn, "INPUT", false, [][]string{
 			{"-i", p.ExternalIface, "-p", "tcp", "--dport", strconv.Itoa(sidecarPort), "-j", "DROP"},
 		})...)
+	} else {
+		// An earlier stage's chain names an interface this machine may no longer use.
+		cmds = append(cmds, inputRemoveCommands()...)
 	}
 	udp := [][]string{{"-p", "udp", "--dport", "443", "-j", "DROP"}}
 	cmds = append(cmds, filterChain(chainUDP, "OUTPUT", true, udp)...)
@@ -79,10 +82,8 @@ func removeCommands() []Cmd {
 			Cmd{Args: ipt(c.table, "-X", c.chain), Optional: true},
 		)
 	}
+	cmds = append(cmds, inputRemoveCommands()...)
 	cmds = append(cmds,
-		Cmd{Args: ipt("filter", "-D", "INPUT", "-j", chainIn), Optional: true},
-		Cmd{Args: ipt("filter", "-F", chainIn), Optional: true},
-		Cmd{Args: ipt("filter", "-X", chainIn), Optional: true},
 		Cmd{Args: ipt("filter", "-D", "OUTPUT", "-p", "udp", "--dport", "443", "-j", chainUDP), Optional: true},
 		Cmd{Args: ipt("filter", "-F", chainUDP), Optional: true},
 		Cmd{Args: ipt("filter", "-X", chainUDP), Optional: true},
@@ -91,6 +92,14 @@ func removeCommands() []Cmd {
 		Cmd{Args: ipt("filter", "-X", chainFwd), Optional: true},
 	)
 	return cmds
+}
+
+func inputRemoveCommands() []Cmd {
+	return []Cmd{
+		{Args: ipt("filter", "-D", "INPUT", "-j", chainIn), Optional: true},
+		{Args: ipt("filter", "-F", chainIn), Optional: true},
+		{Args: ipt("filter", "-X", chainIn), Optional: true},
+	}
 }
 
 // outputRules exempts the sidecar user and lite-engine's marked sockets, then

@@ -78,7 +78,13 @@ func startSidecar(host string, port, uid, gid int) error {
 	// Reap the sidecar when it exits, so it does not stay a zombie. It outlives a
 	// restart of lite-engine on purpose: the next Install stops it by pid.
 	go func() { _ = cmd.Wait() }()
-	return os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)+"\n"), pidMode) //nolint:gosec // pid file, not a credential
+	pid := []byte(strconv.Itoa(cmd.Process.Pid) + "\n")
+	if err := os.WriteFile(pidPath, pid, pidMode); err != nil { //nolint:gosec // pid file, not a credential
+		// Without the pid file nothing could stop this sidecar later.
+		_ = cmd.Process.Kill()
+		return err
+	}
+	return nil
 }
 
 func sidecarBinary() (string, error) {

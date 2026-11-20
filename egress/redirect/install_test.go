@@ -203,8 +203,10 @@ func TestInstallKeepsGoingWithoutADefaultRoute(t *testing.T) {
 	if err := r.inst.install(context.Background(), testProxy); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(strings.Join(r.events, "\n"), "HARNESS_EGRESS_IN") {
-		t.Fatalf("an INPUT rule was installed without an interface: %v", r.events)
+	for _, e := range r.events {
+		if strings.Contains(e, "-A HARNESS_EGRESS_IN") || strings.Contains(e, "-I INPUT") {
+			t.Fatalf("an INPUT rule was installed without an interface: %s", e)
+		}
 	}
 }
 
