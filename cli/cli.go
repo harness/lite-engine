@@ -10,6 +10,7 @@ import (
 	"github.com/harness/lite-engine/cli/certs"
 	"github.com/harness/lite-engine/cli/client"
 	"github.com/harness/lite-engine/cli/server"
+	"github.com/harness/lite-engine/cli/sidecarcmd"
 	"github.com/harness/lite-engine/version"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -25,6 +26,7 @@ func Command() {
 	server.Register(app)
 	certs.Register(app)
 	client.Register(app)
+	sidecarcmd.Register(app)
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 }

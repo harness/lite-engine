@@ -10,8 +10,9 @@
 // that points at the fleet proxy loses its credential but keeps the proxy
 // address, so ports the redirect does not cover are still proxied, and the
 // sidecar adds the credential. The credential is written to a root-owned file and
-// is never placed in an environment variable or a log line. The sidecar is
-// started, and confirmed to hold its port, before the rules go in.
+// is never placed in an environment variable or a log line. The sidecar is this
+// binary's egress-sidecar command. It is started, and confirmed to hold its
+// port, before the rules go in.
 // IPv6 is disabled while the redirect is installed, because the rules are IPv4
 // only, and Remove puts the previous setting back.
 // Private-connectivity stages call Remove and get no redirect.
