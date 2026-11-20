@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -22,8 +23,11 @@ func enable(t *testing.T) {
 	prev := hostOS
 	hostOS = "linux"
 	clearActive()
+	prevSaved := ipv6Saved
+	ipv6Saved = filepath.Join(t.TempDir(), "ipv6")
 	t.Cleanup(func() {
 		hostOS = prev
+		ipv6Saved = prevSaved
 		clearActive()
 	})
 }
@@ -61,7 +65,8 @@ func newRecorder() *recorder {
 			r.events = append(r.events, "write")
 			return nil
 		},
-		iface: func() (string, error) { return "eth0", nil },
+		iface:  func() (string, error) { return "eth0", nil },
+		sysctl: func(string) (string, error) { return "0", nil },
 	}
 	return r
 }
@@ -184,8 +189,10 @@ func TestRemoveClearsTheActiveState(t *testing.T) {
 	if Active() {
 		t.Fatal("redirect is active after Remove")
 	}
-	if r.events[len(r.events)-1] != "stop" {
-		t.Fatalf("sidecar was not stopped last: %v", r.events)
+	// The sidecar is stopped once the rules are gone, and IPv6 is restored after
+	// that, so nothing is left redirecting when IPv6 comes back.
+	if r.events[len(r.events)-2] != "stop" || r.events[len(r.events)-1] != "run sysctl -w "+ipv6Sysctl+"=0" {
+		t.Fatalf("remove order: %v", r.events[len(r.events)-2:])
 	}
 }
 
@@ -285,6 +292,56 @@ func TestScrubProcessProxyKeepsTheAddress(t *testing.T) {
 	}
 	if got := os.Getenv("http_proxy"); got != "http://proxy.corp:8080" {
 		t.Fatalf("a customer proxy was changed: %q", got)
+	}
+}
+
+func TestIPv6IsRestoredToItsEarlierValue(t *testing.T) {
+	enable(t)
+	r := newRecorder()
+	if err := r.inst.install(context.Background(), testProxy); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := os.ReadFile(ipv6Saved)
+	if err != nil || string(saved) != "0\n" {
+		t.Fatalf("saved ipv6 setting = %q, %v", saved, err)
+	}
+
+	// A second stage must keep the original value, not record "disabled".
+	r.inst.sysctl = func(string) (string, error) {
+		t.Fatal("ipv6 was read again on a later install")
+		return "", nil
+	}
+	if err := r.inst.install(context.Background(), testProxy); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.inst.remove(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if r.index("run sysctl -w "+ipv6Sysctl+"=0") < 0 {
+		t.Fatalf("ipv6 was not restored: %v", r.events)
+	}
+	if _, err := os.Stat(ipv6Saved); !os.IsNotExist(err) {
+		t.Fatal("the saved ipv6 setting was left behind")
+	}
+}
+
+func TestRemoveLeavesIPv6AloneWhenItWasNeverChanged(t *testing.T) {
+	enable(t)
+	r := newRecorder()
+	if err := r.inst.remove(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if r.index("run sysctl -w "+ipv6Sysctl) >= 0 {
+		t.Fatalf("ipv6 was changed: %v", r.events)
+	}
+}
+
+func TestInstallRejectsAnUnexpectedIPv6Value(t *testing.T) {
+	enable(t)
+	r := newRecorder()
+	r.inst.sysctl = func(string) (string, error) { return "yes", nil }
+	if err := r.inst.install(context.Background(), testProxy); err == nil {
+		t.Fatal("install accepted an unexpected ipv6 setting")
 	}
 }
 
