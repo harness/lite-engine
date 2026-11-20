@@ -52,8 +52,10 @@ func (e *StepExecutorStateless) Run(
 	e.stepStatus = StepStatus{Status: Running}
 
 	state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(ctx, r, cfg, dockerClient, writer)
+	explicitGitCloneMetadata := readExplicitGitCloneMetadata(r.ID)
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
-		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData}
+		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
+		ExplicitGitCloneMetadata: explicitGitCloneMetadata}
 
 	// Post annotations if step succeeded and feature is enabled
 	// Posting is done synchronously since we're returning the final result immediately.

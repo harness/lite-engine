@@ -6,6 +6,7 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/logstream"
+	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -287,4 +289,106 @@ func TestReadNativeArtifactURLUsesVersionAndProcessEnv(t *testing.T) {
 	assert.Equal(t,
 		"https://app.harness.io/ng/account/acc/module/har/orgs/org/projects/proj/registries/harness-native-registry-abc/artifacts/first-k8/versions/v409/artifact_details",
 		vars["ARTIFACT_URLS"])
+}
+
+const sampleExplicitGitCloneReceipt = `{"repoUrl":"https://github.com/acme/repo.git","commitSha":"abc123","linesOfCode":42}`
+
+func explicitGitCloneReceiptPath(stepID string) string {
+	return fmt.Sprintf("%s/%s-explicit-git-clone-metadata.json", pipeline.GetSharedVolPath(), stepID)
+}
+
+func writeExplicitGitCloneReceipt(t *testing.T, stepID, content string) {
+	t.Helper()
+	path := explicitGitCloneReceiptPath(stepID)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	t.Cleanup(func() { _ = os.Remove(path) })
+}
+
+func TestReadExplicitGitCloneMetadata_FilePresent_ReturnsRawJSON(t *testing.T) {
+	writeExplicitGitCloneReceipt(t, "egc-present", sampleExplicitGitCloneReceipt)
+	assert.Equal(t, sampleExplicitGitCloneReceipt, readExplicitGitCloneMetadata("egc-present"))
+}
+
+func TestReadExplicitGitCloneMetadata_FileMissing_ReturnsEmpty(t *testing.T) {
+	assert.Empty(t, readExplicitGitCloneMetadata("egc-does-not-exist"))
+}
+
+func TestReadExplicitGitCloneMetadata_EmptyFile_ReturnsEmpty(t *testing.T) {
+	writeExplicitGitCloneReceipt(t, "egc-empty", "")
+	assert.Empty(t, readExplicitGitCloneMetadata("egc-empty"))
+}
+
+func TestReadExplicitGitCloneMetadata_IsolatedPerStep(t *testing.T) {
+	writeExplicitGitCloneReceipt(t, "egc-a", `{"commitSha":"aaa"}`)
+	writeExplicitGitCloneReceipt(t, "egc-b", `{"commitSha":"bbb"}`)
+	a := readExplicitGitCloneMetadata("egc-a")
+	b := readExplicitGitCloneMetadata("egc-b")
+	assert.Contains(t, a, "aaa")
+	assert.NotContains(t, a, "bbb")
+	assert.Contains(t, b, "bbb")
+	assert.NotContains(t, b, "aaa")
+}
+
+func TestReadExplicitGitCloneMetadata_DoesNotParse(t *testing.T) {
+	writeExplicitGitCloneReceipt(t, "egc-raw", "not json at all")
+	assert.Equal(t, "not json at all", readExplicitGitCloneMetadata("egc-raw"))
+}
+
+func TestConvertStatus_CarriesExplicitGitCloneMetadata(t *testing.T) {
+	resp := convertStatus(StepStatus{
+		Status:                   Complete,
+		State:                    &runtime.State{Exited: true, ExitCode: 0},
+		ExplicitGitCloneMetadata: sampleExplicitGitCloneReceipt,
+	})
+	assert.Equal(t, sampleExplicitGitCloneReceipt, resp.ExplicitGitCloneMetadata)
+}
+
+func TestConvertStatus_NoMetadata_LeavesFieldEmpty(t *testing.T) {
+	resp := convertStatus(StepStatus{Status: Complete, State: &runtime.State{Exited: true}})
+	assert.Empty(t, resp.ExplicitGitCloneMetadata)
+}
+
+func TestConvertPollResponse_SuccessCarriesMetadata(t *testing.T) {
+	poll := &api.PollStepResponse{ExplicitGitCloneMetadata: sampleExplicitGitCloneReceipt}
+	vm := convertPollResponse(poll, nil)
+	assert.Equal(t, api.Success, vm.CommandExecutionStatus)
+	assert.Equal(t, sampleExplicitGitCloneReceipt, vm.ExplicitGitCloneMetadata)
+}
+
+func TestConvertPollResponse_FailureCarriesMetadata(t *testing.T) {
+	// nil envs -> TestSummaryAsOutputEnabled false -> plain-failure branch
+	poll := &api.PollStepResponse{Error: "boom", ExplicitGitCloneMetadata: sampleExplicitGitCloneReceipt}
+	vm := convertPollResponse(poll, nil)
+	assert.Equal(t, api.Failure, vm.CommandExecutionStatus)
+	assert.Equal(t, sampleExplicitGitCloneReceipt, vm.ExplicitGitCloneMetadata)
+}
+
+func TestPollStepResponse_JSONKey_ExplicitGitCloneMetadata(t *testing.T) {
+	with, err := json.Marshal(&api.PollStepResponse{ExplicitGitCloneMetadata: sampleExplicitGitCloneReceipt})
+	require.NoError(t, err)
+	assert.Contains(t, string(with), `"explicit_git_clone_metadata"`)
+
+	without, err := json.Marshal(&api.PollStepResponse{})
+	require.NoError(t, err)
+	assert.NotContains(t, string(without), "explicit_git_clone_metadata")
+}
+
+func TestVMTaskExecutionResponse_JSONKey_ExplicitGitCloneMetadata(t *testing.T) {
+	// The delegate's VmTaskExecutionResponse bean binds to exactly this wire key.
+	with, err := json.Marshal(api.VMTaskExecutionResponse{ExplicitGitCloneMetadata: sampleExplicitGitCloneReceipt})
+	require.NoError(t, err)
+	assert.Contains(t, string(with), `"explicit_git_clone_metadata"`)
+
+	without, err := json.Marshal(api.VMTaskExecutionResponse{})
+	require.NoError(t, err)
+	assert.NotContains(t, string(without), "explicit_git_clone_metadata")
+}
+
+func TestConvertPollResponse_FailureWithTestSummaryCarriesMetadata(t *testing.T) {
+	envs := map[string]string{"HARNESS_CI_TEST_SUMMARY_OUTPUT_FF": "true"}
+	poll := &api.PollStepResponse{Error: "boom", ExplicitGitCloneMetadata: sampleExplicitGitCloneReceipt}
+	vm := convertPollResponse(poll, envs)
+	assert.Equal(t, api.Failure, vm.CommandExecutionStatus)
+	assert.Equal(t, sampleExplicitGitCloneReceipt, vm.ExplicitGitCloneMetadata)
 }
