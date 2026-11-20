@@ -191,7 +191,7 @@ func (c *OptimizedHTTPClient) Write(ctx context.Context, key string, lines []*lo
 	ctx, cancel := context.WithTimeout(ctx, writeTimeout)
 	defer cancel()
 	b := newContextBackoff(ctx)
-	return c.retry(ctx, c.endpoint+path, "PUT", &l, nil, b)
+	return c.retry(ctx, c.endpoint+path, "PUT", &l, nil, b, customKafkaTopicOpt(ctx))
 }
 
 // Upload uploads the full log history to the data store or via log service.
@@ -278,11 +278,11 @@ func (c *OptimizedHTTPClient) uploadUsingLink(ctx context.Context, link string, 
 // retry executes an HTTP request with retries on transient errors and 5xx
 // responses. Non-transient errors (4xx, encoding failures, etc.) are returned
 // immediately without retry.
-func (c *OptimizedHTTPClient) retry(ctx context.Context, url, method string, in, out interface{}, b backoff.BackOff) error {
+func (c *OptimizedHTTPClient) retry(ctx context.Context, url, method string, in, out interface{}, b backoff.BackOff, opts ...func(*http.Request)) error {
 	attempt := 0
 	for {
 		attempt++
-		res, err := c.do(ctx, url, method, in, out) //nolint:bodyclose
+		res, err := c.do(ctx, url, method, in, out, opts...) //nolint:bodyclose
 
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			logrus.WithError(ctxErr).WithField("url", url).
@@ -389,7 +389,7 @@ func (c *OptimizedHTTPClient) shouldRetry(res *http.Response, err error) bool {
 // ---------------------------------------------------------------------------
 
 // do executes an HTTP request with JSON encoding/decoding.
-func (c *OptimizedHTTPClient) do(ctx context.Context, url, method string, in, out interface{}) (*http.Response, error) {
+func (c *OptimizedHTTPClient) do(ctx context.Context, url, method string, in, out interface{}, opts ...func(*http.Request)) (*http.Response, error) {
 	var r io.Reader
 	if in != nil {
 		buf := new(bytes.Buffer)
@@ -405,6 +405,9 @@ func (c *OptimizedHTTPClient) do(ctx context.Context, url, method string, in, ou
 		return nil, err
 	}
 	req.Header.Set("X-Harness-Token", c.token)
+	for _, opt := range opts {
+		opt(req)
+	}
 
 	res, err := c.client.Do(req)
 	if res != nil {
