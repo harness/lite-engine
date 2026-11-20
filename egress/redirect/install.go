@@ -30,6 +30,10 @@ const (
 	logPath      = "/var/log/egress-sidecar.log"
 )
 
+// ipv6Saved holds the value of ipv6Sysctl from before the redirect changed it.
+// A test points it at a temporary file.
+var ipv6Saved = stateDir + "/ipv6"
+
 const (
 	readyTimeout = 5 * time.Second
 	readyPoll    = 100 * time.Millisecond
@@ -55,6 +59,7 @@ type installer struct {
 	stop    func()
 	write   func(content string, gid int) error
 	iface   func() (string, error)
+	sysctl  func(key string) (string, error)
 }
 
 func production() installer {
@@ -67,6 +72,7 @@ func production() installer {
 		stop:    stopSidecar,
 		write:   writeCredential,
 		iface:   defaultInterface,
+		sysctl:  readSysctl,
 	}
 }
 
@@ -95,7 +101,12 @@ func (i installer) remove(ctx context.Context) error {
 	err := runAll(ctx, removeCommands(), i.run)
 	i.stop()
 	_ = os.Remove(authFile)
-	return err
+	if err != nil {
+		// The redirect is still in place, so IPv6 stays off. The saved value
+		// remains for the next Remove.
+		return err
+	}
+	return i.restoreIPv6(ctx)
 }
 
 func (i installer) install(ctx context.Context, proxy Proxy) error {
@@ -134,7 +145,62 @@ func (i installer) apply(ctx context.Context, plan *Plan, content, host string, 
 	if err := i.launch(ctx, host, port, uid, gid); err != nil {
 		return err
 	}
+	// Read the current setting before the rules change it, and only the first
+	// time: a later stage must restore what the machine had, not "disabled".
+	if err := i.rememberIPv6(); err != nil {
+		return err
+	}
 	return runAll(ctx, plan.installCommands(), i.run)
+}
+
+// rememberIPv6 records the current IPv6 setting once. A second stage keeps the
+// recorded value, so Remove restores what the machine had before any redirect.
+func (i installer) rememberIPv6() error {
+	if _, err := os.Stat(ipv6Saved); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	value, err := i.sysctl(ipv6Sysctl)
+	if err != nil {
+		return err
+	}
+	value = strings.TrimSpace(value)
+	if value != "0" && value != "1" {
+		return fmt.Errorf("unexpected value for %s", ipv6Sysctl)
+	}
+	if err := os.MkdirAll(filepath.Dir(ipv6Saved), dirMode); err != nil {
+		return err
+	}
+	return os.WriteFile(ipv6Saved, []byte(value+"\n"), pidMode)
+}
+
+// restoreIPv6 puts back the setting rememberIPv6 recorded. With nothing
+// recorded, IPv6 was never changed and is left as it is.
+func (i installer) restoreIPv6(ctx context.Context) error {
+	raw, err := os.ReadFile(ipv6Saved)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	value := strings.TrimSpace(string(raw))
+	if value != "0" && value != "1" {
+		return fmt.Errorf("unexpected saved value for %s", ipv6Sysctl)
+	}
+	if err := i.run(ctx, "sysctl", "-w", ipv6Sysctl+"="+value); err != nil {
+		return err
+	}
+	return os.Remove(ipv6Saved)
+}
+
+func readSysctl(key string) (string, error) {
+	out, err := exec.Command("sysctl", "-n", key).Output() //nolint:gosec // key is the fixed sysctl name
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", key, err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // launch starts the sidecar and waits until it accepts connections.

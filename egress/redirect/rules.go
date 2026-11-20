@@ -28,6 +28,11 @@ const (
 	chainUDP    = "HARNESS_EGRESS_UDP"
 
 	loopbackCIDR = "127.0.0.0/8"
+
+	// ipv6Sysctl disables IPv6 while the redirect is installed. The rules are
+	// IPv4 only, so an IPv6 connection would otherwise leave without the proxy.
+	// The value it had before is saved and put back by Remove.
+	ipv6Sysctl = "net.ipv6.conf.all.disable_ipv6"
 )
 
 // Cmd is one command. A failure of an Optional command is ignored, which is how
@@ -53,7 +58,7 @@ type Plan struct {
 
 func (p *Plan) installCommands() []Cmd {
 	var cmds []Cmd
-	cmds = append(cmds, Cmd{Args: []string{"sysctl", "-w", "net.ipv6.conf.all.disable_ipv6=1"}})
+	cmds = append(cmds, Cmd{Args: []string{"sysctl", "-w", ipv6Sysctl + "=1"}})
 	cmds = append(cmds, natChain(chainOut, "OUTPUT", p.outputRules())...)
 	cmds = append(cmds, natChain(chainPre, "PREROUTING", p.preroutingRules())...)
 	if p.ExternalIface != "" {
