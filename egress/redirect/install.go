@@ -54,8 +54,8 @@ type installer struct {
 	run     execFunc
 	lookup  func(name string) (*user.User, error)
 	resolve func(host string) ([]string, error)
-	start   func(host string, port, uid, gid int) error
-	ready   func(ctx context.Context) error
+	start   func(host string, port, uid, gid int) (int, error)
+	ready   func(ctx context.Context, pid int) error
 	stop    func()
 	write   func(content string, gid int) error
 	iface   func() (string, error)
@@ -205,10 +205,11 @@ func readSysctl(key string) (string, error) {
 
 // launch starts the sidecar and waits until it accepts connections.
 func (i installer) launch(ctx context.Context, host string, port, uid, gid int) error {
-	if err := i.start(host, port, uid, gid); err != nil {
+	pid, err := i.start(host, port, uid, gid)
+	if err != nil {
 		return err
 	}
-	return i.ready(ctx)
+	return i.ready(ctx, pid)
 }
 
 func (i installer) plan(host string, port int, noProxy string) (Plan, error) {
@@ -307,15 +308,17 @@ func runCommand(ctx context.Context, args ...string) error {
 	return nil
 }
 
-// waitListening returns once the sidecar this Install started holds the
-// sidecar port. It fails at once if the sidecar has exited.
-func waitListening(ctx context.Context) error {
+// waitListening returns once the sidecar this Install started, pid, holds the
+// sidecar port. It fails at once if that process has exited. The pid comes from
+// the start, not the pid file: until exec has finished, the kernel can show the
+// new process with an empty command line, which the stop check does not accept.
+func waitListening(ctx context.Context, pid int) error {
 	deadline := time.Now().Add(readyTimeout)
 	for {
-		if sidecarListening() {
+		if sidecarListening(pid) {
 			return nil
 		}
-		if !sidecarAlive() {
+		if !sidecarAlive(pid) {
 			return fmt.Errorf("egress sidecar exited; see %s", logPath)
 		}
 		if time.Now().After(deadline) {

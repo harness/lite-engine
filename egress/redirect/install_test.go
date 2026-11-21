@@ -48,15 +48,21 @@ func newRecorder() *recorder {
 		},
 		lookup:  func(string) (*user.User, error) { return &user.User{Uid: "10", Gid: "20"}, nil },
 		resolve: func(string) ([]string, error) { return []string{"172.16.0.11"}, nil },
-		start: func(host string, port, uid, gid int) error {
+		start: func(host string, port, uid, gid int) (int, error) {
 			if port != 3128 || uid != 10 || gid != 20 {
-				return errors.New("unexpected start arguments")
+				return 0, errors.New("unexpected start arguments")
 			}
 			r.events = append(r.events, "start "+host)
+			return startedPID, nil
+		},
+		ready: func(_ context.Context, pid int) error {
+			if pid != startedPID {
+				return errors.New("ready was not given the started pid")
+			}
+			r.events = append(r.events, "ready")
 			return nil
 		},
-		ready: func(context.Context) error { r.events = append(r.events, "ready"); return nil },
-		stop:  func() { r.events = append(r.events, "stop") },
+		stop: func() { r.events = append(r.events, "stop") },
 		write: func(content string, gid int) error {
 			if gid != 20 {
 				return errors.New("unexpected gid")
@@ -80,7 +86,10 @@ func (r *recorder) index(prefix string) int {
 	return -1
 }
 
-const bareProxy = "http://172.16.0.11:3128"
+const (
+	bareProxy  = "http://172.16.0.11:3128"
+	startedPID = 4242
+)
 
 var testProxy = Proxy{URL: bareProxy, Username: "acct", Password: "secret"}
 
@@ -122,7 +131,7 @@ func TestInstallStartsAndWaitsForTheSidecarBeforeTheRules(t *testing.T) {
 func TestInstallDoesNotInstallRulesWhenTheSidecarIsNotReady(t *testing.T) {
 	enable(t)
 	r := newRecorder()
-	r.inst.ready = func(context.Context) error { return errors.New("not listening") }
+	r.inst.ready = func(context.Context, int) error { return errors.New("not listening") }
 	if err := r.inst.install(context.Background(), testProxy); err == nil {
 		t.Fatal("install succeeded")
 	}

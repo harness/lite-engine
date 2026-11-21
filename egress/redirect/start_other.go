@@ -16,15 +16,15 @@ import (
 // itself is not installed off Linux.
 func DialControl(string, string, syscall.RawConn) error { return nil }
 
-func startSidecar(string, int, int, int) error {
-	return errors.New("egress sidecar redirect is only supported on linux")
+func startSidecar(string, int, int, int) (int, error) {
+	return 0, errors.New("egress sidecar redirect is only supported on linux")
 }
 
 func stopSidecar() {}
 
-func sidecarAlive() bool { return false }
+func sidecarAlive(int) bool { return false }
 
-func sidecarListening() bool { return false }
+func sidecarListening(int) bool { return false }
 
 func defaultInterface() (string, error) {
 	return "", errors.New("egress sidecar redirect is only supported on linux")

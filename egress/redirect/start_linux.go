@@ -44,14 +44,14 @@ func DialControl(_, _ string, raw syscall.RawConn) error {
 	return sockErr
 }
 
-func startSidecar(host string, port, uid, gid int) error {
+func startSidecar(host string, port, uid, gid int) (int, error) {
 	binary, err := os.Executable()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, authFileMode)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// The sidecar is this binary's subcommand, so the VM has one file to download.
 	cmd := exec.Command(binary, sidecar.ProcessName) //nolint:gosec // this executable, not user input
@@ -66,7 +66,7 @@ func startSidecar(host string, port, uid, gid int) error {
 	cred, err := syscallCredential(uid, gid)
 	if err != nil {
 		_ = logFile.Close()
-		return err
+		return 0, err
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Credential: cred,
@@ -74,19 +74,19 @@ func startSidecar(host string, port, uid, gid int) error {
 	}
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
-		return err
+		return 0, err
 	}
 	_ = logFile.Close()
 	// Reap the sidecar when it exits, so it does not stay a zombie. It outlives a
 	// restart of lite-engine on purpose: the next Install stops it by pid.
 	go func() { _ = cmd.Wait() }()
-	pid := []byte(strconv.Itoa(cmd.Process.Pid) + "\n")
-	if err := os.WriteFile(pidPath, pid, pidMode); err != nil { //nolint:gosec // pid file, not a credential
+	pid := cmd.Process.Pid
+	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(pid)+"\n"), pidMode); err != nil { //nolint:gosec // pid file, not a credential
 		// Without the pid file nothing could stop this sidecar later.
 		_ = cmd.Process.Kill()
-		return err
+		return 0, err
 	}
-	return nil
+	return pid, nil
 }
 
 const (
@@ -138,23 +138,6 @@ func processGone(pid int) bool {
 	return end >= 0 && len(fields) > 0 && fields[0] == "Z"
 }
 
-// sidecarPID is the pid of the sidecar in the pid file, or 0 when that process
-// is not a running sidecar.
-func sidecarPID() int {
-	raw, err := os.ReadFile(pidPath)
-	if err != nil {
-		return 0
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
-	if err != nil || pid <= 1 {
-		return 0
-	}
-	if !isSidecarProcess(pid) {
-		return 0
-	}
-	return pid
-}
-
 // isSidecarProcess reports whether pid is a running egress sidecar. The command
 // line is the check: both this process and the sidecar are named lite-engine
 // until the sidecar renames itself.
@@ -166,16 +149,15 @@ func isSidecarProcess(pid int) bool {
 	return err == nil && isSidecarArgs(raw)
 }
 
-// sidecarAlive reports whether the sidecar this Install started is running.
-func sidecarAlive() bool { return sidecarPID() != 0 }
+// sidecarAlive reports whether the sidecar this Install started, pid, is running.
+func sidecarAlive(pid int) bool { return pid > 1 && !processGone(pid) }
 
-// sidecarListening reports whether the sidecar itself holds the listening
+// sidecarListening reports whether the sidecar itself, pid, holds the listening
 // socket on the sidecar port. A listener alone is not enough: a sidecar left by
 // an earlier run, or any other program, would answer while the one just started
 // failed to bind.
-func sidecarListening() bool {
-	pid := sidecarPID()
-	if pid == 0 {
+func sidecarListening(pid int) bool {
+	if !sidecarAlive(pid) {
 		return false
 	}
 	want := map[string]bool{}

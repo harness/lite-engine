@@ -30,7 +30,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestSetProcessName(t *testing.T) {
-	cmd := exec.Command(os.Args[0], "-test.run=^$")
+	cmd := exec.Command(os.Args[0], "-test.run=^$") //nolint:gosec // re-runs this test binary
 	cmd.Env = append(os.Environ(), "PROCNAME=1")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
