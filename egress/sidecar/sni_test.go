@@ -25,15 +25,26 @@ func buildClientHello(t testing.TB, name string) []byte {
 	t.Helper()
 	var exts []byte
 	if name != "" {
-		entry := binary.BigEndian.AppendUint16([]byte{0}, u16(t, len(name)))
-		entry = append(entry, name...)
-		list := binary.BigEndian.AppendUint16(nil, u16(t, len(entry)))
-		list = append(list, entry...)
-		exts = binary.BigEndian.AppendUint16(exts, 0) // server_name
-		exts = binary.BigEndian.AppendUint16(exts, u16(t, len(list)))
-		exts = append(exts, list...)
+		exts = serverNameExtension(t, name)
 	}
+	return helloWithExtensions(t, exts)
+}
 
+// serverNameExtension is the server_name extension for one host name.
+func serverNameExtension(t testing.TB, name string) []byte {
+	t.Helper()
+	entry := binary.BigEndian.AppendUint16([]byte{0}, u16(t, len(name)))
+	entry = append(entry, name...)
+	list := binary.BigEndian.AppendUint16(nil, u16(t, len(entry)))
+	list = append(list, entry...)
+	ext := binary.BigEndian.AppendUint16(nil, 0) // server_name
+	ext = binary.BigEndian.AppendUint16(ext, u16(t, len(list)))
+	return append(ext, list...)
+}
+
+// helloWithExtensions wraps raw extension bytes in a ClientHello record.
+func helloWithExtensions(t testing.TB, exts []byte) []byte {
+	t.Helper()
 	body := binary.BigEndian.AppendUint16(nil, 0x0303) // version
 	body = append(body, make([]byte, 32)...)           // random
 	body = append(body, 0)                             // session id length
