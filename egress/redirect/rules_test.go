@@ -153,6 +153,23 @@ func TestExemptionsFromNoProxy(t *testing.T) {
 	}
 }
 
+func TestIsIPv6Entry(t *testing.T) {
+	for entry, want := range map[string]bool{
+		"fd00::/8":          true,
+		"::1":               true,
+		"[fd00::5]:8443":    true,
+		"10.0.0.0/8":        false,
+		"169.254.169.254":   false,
+		"registry.internal": false,
+		".corp.example":     false,
+		"*.svc":             false,
+	} {
+		if got := isIPv6Entry(entry); got != want {
+			t.Fatalf("isIPv6Entry(%q) = %v, want %v", entry, got, want)
+		}
+	}
+}
+
 func TestParseDefaultRoute(t *testing.T) {
 	table := "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n" +
 		"ens4\t00000000\t0100000A\t0003\t0\t0\t100\t00000000\t0\t0\t0\n" +

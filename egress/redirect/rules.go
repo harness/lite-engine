@@ -276,6 +276,20 @@ func exemptions(noProxy string, resolve func(host string) ([]string, error)) (ad
 	return addrs, skipped
 }
 
+// isIPv6Entry reports whether a NO_PROXY entry is an IPv6 address or CIDR,
+// with or without a port, as exemptions returns them in skipped.
+func isIPv6Entry(entry string) bool {
+	if _, network, err := net.ParseCIDR(entry); err == nil {
+		return network.IP.To4() == nil
+	}
+	host := entry
+	if h, _, err := net.SplitHostPort(entry); err == nil {
+		host = h
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.To4() == nil
+}
+
 // parseDefaultRoute returns the interface of the IPv4 default route in the
 // format of /proc/net/route, or "" when there is none.
 func parseDefaultRoute(table string) string {

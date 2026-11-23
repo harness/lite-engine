@@ -226,9 +226,22 @@ func (i installer) plan(host string, port int, noProxy string) (Plan, error) {
 		iface = ""
 	}
 	exempt, skipped := exemptions(noProxy, i.resolve)
-	if len(skipped) > 0 {
-		logrus.WithField("entries", strings.Join(skipped, ",")).
+	var ipv6, other []string
+	for _, entry := range skipped {
+		if isIPv6Entry(entry) {
+			ipv6 = append(ipv6, entry)
+		} else {
+			other = append(other, entry)
+		}
+	}
+	if len(other) > 0 {
+		logrus.WithField("entries", strings.Join(other, ",")).
 			Infoln("egress redirect: NO_PROXY entries that cannot be matched on an address are redirected")
+	}
+	if len(ipv6) > 0 {
+		// IPv6 is disabled while the redirect is in place, so these cannot be reached at all.
+		logrus.WithField("entries", strings.Join(ipv6, ",")).
+			Warnln("egress redirect: IPv6 NO_PROXY entries cannot be honored while IPv6 is disabled for the redirect")
 	}
 	return Plan{ProxyIPs: ips, ProxyPort: port, Exempt: exempt, ExternalIface: iface}, nil
 }
