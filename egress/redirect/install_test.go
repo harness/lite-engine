@@ -354,21 +354,26 @@ func TestScrubForOnlyWhenTheStageUsesTheRedirect(t *testing.T) {
 	env := func() map[string]string { return map[string]string{"HTTPS_PROXY": url} }
 
 	off := env()
-	ScrubFor(off, url, false)
+	ScrubFor(off, url, false, true)
 	if off["HTTPS_PROXY"] != url {
 		t.Fatal("ScrubFor changed the env while the redirect is off")
 	}
 
 	enable(t)
 	on := env()
-	ScrubFor(on, url, false)
+	ScrubFor(on, url, false, true)
 	if on["HTTPS_PROXY"] != bareProxy {
 		t.Fatalf("ScrubFor kept the credential: %v", on)
 	}
 	private := env()
-	ScrubFor(private, url, true)
+	ScrubFor(private, url, true, true)
 	if private["HTTPS_PROXY"] != url {
 		t.Fatal("ScrubFor changed a private-connectivity stage")
+	}
+	unasked := env()
+	ScrubFor(unasked, url, false, false)
+	if unasked["HTTPS_PROXY"] != url {
+		t.Fatal("ScrubFor changed a stage that did not ask for the sidecar")
 	}
 }
 

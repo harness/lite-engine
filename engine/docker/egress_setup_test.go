@@ -62,7 +62,7 @@ func egressConfig(goos string, private bool, policy *spec.EgressProxyConfig, env
 }
 
 func TestConfigureEgressPicksTheRightAction(t *testing.T) {
-	policy := &spec.EgressProxyConfig{ProxyURL: "http://proxy.example:3128", Username: "acct|org", Password: "token", NoProxy: "localhost"}
+	policy := &spec.EgressProxyConfig{ProxyURL: "http://proxy.example:3128", Username: "acct|org", Password: "token", NoProxy: "localhost", SidecarEnabled: true}
 	emptyPolicy := &spec.EgressProxyConfig{}
 	legacyEnv := map[string]string{harnessHTTPSProxy: "http://legacy.example:3128"}
 
@@ -135,7 +135,7 @@ func TestConfigureEgressPicksTheRightAction(t *testing.T) {
 func TestConfigureEgressHandsThePolicyToTheRedirect(t *testing.T) {
 	rec := &egressRecorder{flagOn: true}
 	d := &Docker{egress: rec.steps()}
-	policy := &spec.EgressProxyConfig{ProxyURL: "http://proxy.example:3128", Username: "acct|org", Password: "token", NoProxy: "localhost,10.0.0.0/8"}
+	policy := &spec.EgressProxyConfig{ProxyURL: "http://proxy.example:3128", Username: "acct|org", Password: "token", NoProxy: "localhost,10.0.0.0/8", SidecarEnabled: true}
 	if err := d.configureEgress(context.Background(), egressConfig("linux", false, policy, nil)); err != nil {
 		t.Fatal(err)
 	}
@@ -145,8 +145,23 @@ func TestConfigureEgressHandsThePolicyToTheRedirect(t *testing.T) {
 	}
 }
 
+// A stage that does not ask for the sidecar gets the explicit proxy even when
+// the VM can run the redirect. This keeps the rollout per stage.
+func TestConfigureEgressUsesTheProxyWhenTheStageDoesNotAskForTheSidecar(t *testing.T) {
+	rec := &egressRecorder{flagOn: true}
+	d := &Docker{egress: rec.steps()}
+	policy := &spec.EgressProxyConfig{ProxyURL: "http://proxy.example:3128", Username: "acct|org", Password: "token"}
+	if err := d.configureEgress(context.Background(), egressConfig("linux", false, policy, nil)); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"apply-docker-proxy"}
+	if !reflect.DeepEqual(rec.calls, want) {
+		t.Fatalf("ran %v, want %v", rec.calls, want)
+	}
+}
+
 func TestConfigureEgressWrapsAndStopsOnAFailedAction(t *testing.T) {
-	policy := &spec.EgressProxyConfig{ProxyURL: "http://proxy.example:3128"}
+	policy := &spec.EgressProxyConfig{ProxyURL: "http://proxy.example:3128", SidecarEnabled: true}
 	boom := errors.New("boom")
 	tests := []struct {
 		name      string

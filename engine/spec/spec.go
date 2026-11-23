@@ -17,6 +17,8 @@ type (
 		NoProxy  string `json:"no_proxy,omitempty"`
 		Username string `json:"username,omitempty"`
 		Password string `json:"password,omitempty"`
+		// SidecarEnabled asks for the egress sidecar redirect on this stage.
+		SidecarEnabled bool `json:"sidecar_enabled,omitempty"`
 	}
 
 	// PipelineConfig provides the pipeline level configuration valid for all

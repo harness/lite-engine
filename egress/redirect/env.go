@@ -92,9 +92,10 @@ func Scrub(env map[string]string) {
 }
 
 // ScrubFor does the same before the redirect is installed, for the proxy at
-// proxyURL, when this stage will use the redirect.
-func ScrubFor(env map[string]string, proxyURL string, privateConnectivity bool) {
-	if !Applies(proxyURL, privateConnectivity) {
+// proxyURL, when this stage asks for the redirect and will use it. Otherwise the
+// credential stays, because the explicit proxy path needs it.
+func ScrubFor(env map[string]string, proxyURL string, privateConnectivity, sidecarEnabled bool) {
+	if !sidecarEnabled || !Applies(proxyURL, privateConnectivity) {
 		return
 	}
 	if host, port, err := parseProxy(proxyURL); err == nil {

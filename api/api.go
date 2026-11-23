@@ -28,6 +28,9 @@ type (
 		Password string `json:"password,omitempty"`
 		ProxyURL string `json:"proxy_url,omitempty"`
 		NoProxy  string `json:"no_proxy,omitempty"`
+		// SidecarEnabled asks for the egress sidecar redirect on this stage. The
+		// VM must also have CI_EGRESS_SIDECAR set, or the stage uses the proxy.
+		SidecarEnabled bool `json:"sidecar_enabled,omitempty"`
 	}
 
 	SetupRequest struct {

@@ -165,7 +165,7 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		collector := osstats.New(context.Background(), statsInterval, logProcess)
 
 		if s.EgressPolicy != nil {
-			redirect.ScrubFor(s.Envs, s.EgressPolicy.ProxyURL, pcCfg.Enabled)
+			redirect.ScrubFor(s.Envs, s.EgressPolicy.ProxyURL, pcCfg.Enabled, s.EgressPolicy.SidecarEnabled)
 		}
 		setProxyEnvs(s.Envs)
 		setHarnessEnvs(s.Envs)
@@ -229,10 +229,11 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 		}
 		if s.EgressPolicy != nil && s.EgressPolicy.ProxyURL != "" {
 			cfg.EgressProxy = &spec.EgressProxyConfig{
-				ProxyURL: s.EgressPolicy.ProxyURL,
-				NoProxy:  s.EgressPolicy.NoProxy,
-				Username: s.EgressPolicy.Username,
-				Password: s.EgressPolicy.Password,
+				ProxyURL:       s.EgressPolicy.ProxyURL,
+				NoProxy:        s.EgressPolicy.NoProxy,
+				Username:       s.EgressPolicy.Username,
+				Password:       s.EgressPolicy.Password,
+				SidecarEnabled: s.EgressPolicy.SidecarEnabled,
 			}
 		}
 		collector.Start()
