@@ -196,7 +196,8 @@ func (e *Docker) configureEgress(ctx context.Context, pipelineConfig *spec.Pipel
 		return steps.remove(ctx, goos)
 	}
 	policy := pipelineConfig.EgressProxy
-	if policy != nil && goos == "linux" && policy.SidecarEnabled && steps.applies(policy.ProxyURL, false) {
+	isLinux := goos == "linux"
+	if policy != nil && isLinux && policy.SidecarEnabled && steps.applies(policy.ProxyURL, false) {
 		logrus.Infoln("setup: installing egress sidecar redirect")
 		err := steps.install(ctx, redirect.Proxy{
 			URL:      policy.ProxyURL,
@@ -214,6 +215,11 @@ func (e *Docker) configureEgress(ctx context.Context, pipelineConfig *spec.Pipel
 		// credential, so it must go before this stage uses the proxy.
 		if err := steps.remove(ctx, goos); err != nil {
 			return err
+		}
+		if policy.SidecarEnabled && isLinux {
+			// Only a VM without CI_EGRESS_SIDECAR reaches this branch with the flag
+			// set, so say so instead of leaving the stage on the proxy silently.
+			logrus.Warnln("setup: the stage asked for the egress sidecar but this VM cannot run it; using the explicit proxy")
 		}
 		logrus.WithField("proxy_url", policy.ProxyURL).Infoln("setup: applying egress proxy config")
 		if err := steps.applyProxy(ctx, policy, goos); err != nil {

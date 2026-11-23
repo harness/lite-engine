@@ -12,6 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sirupsen/logrus"
+	logtest "github.com/sirupsen/logrus/hooks/test"
+
 	"github.com/harness/lite-engine/egress/redirect"
 	"github.com/harness/lite-engine/engine/spec"
 )
@@ -158,6 +161,45 @@ func TestConfigureEgressUsesTheProxyWhenTheStageDoesNotAskForTheSidecar(t *testi
 	want := []string{"remove-redirect", "apply-docker-proxy"}
 	if !reflect.DeepEqual(rec.calls, want) {
 		t.Fatalf("ran %v, want %v", rec.calls, want)
+	}
+}
+
+// A stage that asks for the sidecar on a VM that cannot run it falls back to the
+// proxy. That must be visible in the log, or the account flag looks on and does
+// nothing. A stage that did not ask must not warn.
+func TestConfigureEgressWarnsWhenTheSidecarWasAskedForButTheVMCannotRunIt(t *testing.T) {
+	hook := logtest.NewGlobal()
+	t.Cleanup(func() { logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks)) })
+
+	tests := []struct {
+		name     string
+		asked    bool
+		goos     string
+		wantWarn bool
+	}{
+		{"asked, Linux, VM cannot run it", true, "linux", true},
+		{"not asked, Linux", false, "linux", false},
+		{"asked, Windows: the redirect is Linux only", true, "windows", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hook.Reset()
+			rec := &egressRecorder{}
+			d := &Docker{egress: rec.steps()}
+			policy := &spec.EgressProxyConfig{ProxyURL: "http://proxy.example:3128", SidecarEnabled: tt.asked}
+			if err := d.configureEgress(context.Background(), egressConfig(tt.goos, false, policy, nil)); err != nil {
+				t.Fatal(err)
+			}
+			warned := false
+			for _, e := range hook.AllEntries() {
+				if e.Level == logrus.WarnLevel && strings.Contains(e.Message, "egress sidecar") {
+					warned = true
+				}
+			}
+			if warned != tt.wantWarn {
+				t.Fatalf("warned = %v, want %v", warned, tt.wantWarn)
+			}
+		})
 	}
 }
 
