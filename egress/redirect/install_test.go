@@ -234,6 +234,86 @@ func TestRunAllIgnoresOptionalFailures(t *testing.T) {
 	}
 }
 
+// The messages are what iptables prints on a real kernel (iptables 1.8.7): a
+// jump to a missing chain, a missing chain, and a rule that is not there.
+var goneErrors = []string{
+	"iptables v1.8.7 (nf_tables): Chain 'HARNESS_EGRESS' does not exist",
+	"iptables: No chain/target/match by that name.",
+	"iptables: Bad rule (does a matching rule exist in that chain?).",
+}
+
+func TestRunRemoveAcceptsAnAlreadyGoneRule(t *testing.T) {
+	for _, msg := range goneErrors {
+		err := runRemove(context.Background(), []Cmd{{Args: []string{"iptables", "-X", "HARNESS_EGRESS"}}},
+			func(context.Context, ...string) error { return errors.New(msg) })
+		if err != nil {
+			t.Fatalf("%q: runRemove returned %v", msg, err)
+		}
+	}
+}
+
+// A chain that is still referenced cannot be deleted. Ignoring that would
+// report a clean teardown while the redirect is still there.
+func TestRunRemoveReportsARealFailure(t *testing.T) {
+	busy := "iptables v1.8.7 (nf_tables):  CHAIN_USER_DEL failed (Device or resource busy): chain HARNESS_EGRESS"
+	err := runRemove(context.Background(), []Cmd{
+		{Args: []string{"iptables", "-X", "HARNESS_EGRESS"}, Optional: true},
+	}, func(context.Context, ...string) error { return errors.New(busy) })
+	if err == nil {
+		t.Fatal("runRemove ignored a chain that could not be deleted")
+	}
+}
+
+// failTeardown makes every teardown command fail with msg. Installing still
+// succeeds, so the failure is only in Remove.
+func failTeardown(r *recorder, msg string) {
+	r.inst.run = func(_ context.Context, args ...string) error {
+		cmd := strings.Join(args, " ")
+		r.events = append(r.events, "run "+cmd)
+		if args[0] == "iptables" && (strings.Contains(cmd, " -D ") || strings.Contains(cmd, " -F ") || strings.Contains(cmd, " -X ")) {
+			return errors.New(msg)
+		}
+		return nil
+	}
+}
+
+// A failed teardown leaves the redirect in place, so IPv6 must stay off and
+// Remove must say so.
+func TestRemoveKeepsIPv6OffWhenTeardownFails(t *testing.T) {
+	enable(t)
+	r := newRecorder()
+	if err := r.inst.install(context.Background(), testProxy); err != nil {
+		t.Fatal(err)
+	}
+	failTeardown(r, "iptables v1.8.7 (nf_tables):  CHAIN_USER_DEL failed (Device or resource busy): chain HARNESS_EGRESS")
+	r.events = nil
+	if err := r.inst.remove(context.Background()); err == nil {
+		t.Fatal("Remove reported success with the teardown failing")
+	}
+	if r.index("run sysctl -w "+ipv6Sysctl+"=0") >= 0 {
+		t.Fatalf("IPv6 was restored while the redirect was still in place: %v", r.events)
+	}
+}
+
+// Rules that are already gone are a finished teardown, so IPv6 comes back.
+func TestRemoveTreatsGoneRulesAsDone(t *testing.T) {
+	for _, msg := range goneErrors {
+		enable(t)
+		r := newRecorder()
+		if err := r.inst.install(context.Background(), testProxy); err != nil {
+			t.Fatal(err)
+		}
+		failTeardown(r, msg)
+		r.events = nil
+		if err := r.inst.remove(context.Background()); err != nil {
+			t.Fatalf("%q: Remove returned %v", msg, err)
+		}
+		if r.index("run sysctl -w "+ipv6Sysctl+"=0") < 0 {
+			t.Fatalf("%q: IPv6 was not restored: %v", msg, r.events)
+		}
+	}
+}
+
 func TestScrubKeepsTheProxyAndDropsTheCredential(t *testing.T) {
 	enable(t)
 	fleet := map[string]string{

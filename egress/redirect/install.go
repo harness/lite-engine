@@ -98,7 +98,7 @@ func Remove(ctx context.Context) error {
 
 func (i installer) remove(ctx context.Context) error {
 	clearActive()
-	err := runAll(ctx, removeCommands(), i.run)
+	err := runRemove(ctx, removeCommands(), i.run)
 	i.stop()
 	_ = os.Remove(authFile)
 	if err != nil {
@@ -297,6 +297,36 @@ func runAll(ctx context.Context, cmds []Cmd, run execFunc) error {
 		}
 	}
 	return nil
+}
+
+// runRemove runs the teardown and returns the first failure that is not "already
+// gone". Optional is not enough here: it would ignore a rule that could not be
+// deleted, and IPv6 would come back while the redirect was still partly there.
+func runRemove(ctx context.Context, cmds []Cmd, run execFunc) error {
+	for _, cmd := range cmds {
+		if err := run(ctx, cmd.Args...); err != nil && !isAlreadyGone(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// goneMessages are what iptables prints when the rule or chain a teardown
+// command names is not there. Any other failure, such as a chain that is still
+// referenced, is a real error.
+var goneMessages = []string{
+	"No chain/target/match by that name",
+	"Bad rule (does a matching rule exist in that chain?)",
+	"does not exist",
+}
+
+func isAlreadyGone(err error) bool {
+	for _, m := range goneMessages {
+		if strings.Contains(err.Error(), m) {
+			return true
+		}
+	}
+	return false
 }
 
 func runCommand(ctx context.Context, args ...string) error {
