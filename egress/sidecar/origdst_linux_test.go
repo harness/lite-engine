@@ -44,16 +44,34 @@ func dialLoopback(t *testing.T) net.Conn {
 	return c
 }
 
-// A connection that no REDIRECT rule touched has no original destination. Some
-// kernels, with conntrack tracking loopback, report the socket's own address
-// instead of an error. serveConn refuses that case (isLocalAddr), so it counts
-// as not redirected too.
-func TestOriginalDstFailsForAConnectionThatWasNotRedirected(t *testing.T) {
-	conn := dialLoopback(t)
-	ip, port, err := originalDst(conn)
-	if err == nil && !isLocalAddr(conn.LocalAddr(), ip, port) {
-		t.Fatalf("originalDst = %s:%d, nil; local %v, remote %v; want an error or the connection's own address",
-			ip, port, conn.LocalAddr(), conn.RemoteAddr())
+// A connection the sidecar accepts that no REDIRECT rule touched is refused by
+// serveConn when the lookup fails or reports the listener's own address. The
+// lookup runs on the accepted (server-side) socket, as serveConn does. On the
+// client side the kernel reports the peer instead, which is not the case
+// serveConn guards against.
+func TestOriginalDstOfAnAcceptedConnectionThatWasNotRedirectedIsRefused(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		if c, err := ln.Accept(); err == nil {
+			accepted <- c
+		}
+	}()
+	client, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	server := <-accepted
+	t.Cleanup(func() { _ = server.Close() })
+
+	ip, port, err := originalDst(server)
+	if err == nil && !isLocalAddr(server.LocalAddr(), ip, port) {
+		t.Fatalf("originalDst = %s:%d on accepted local %v; serveConn would relay it", ip, port, server.LocalAddr())
 	}
 }
 
