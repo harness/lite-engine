@@ -139,13 +139,14 @@ func TestExemptionsFromNoProxy(t *testing.T) {
 		}
 		return nil, errors.New("no such host")
 	}
-	addrs, skipped := exemptions("localhost, 169.254.169.254,10.0.0.0/8 registry.internal:8443,.corp.example,*.svc,gone.example,10.0.0.0/8", resolve)
+	addrs, skipped := exemptions("localhost, 169.254.169.254,10.0.0.0/8 registry.internal:8443,.corp.example,*.svc,gone.example,10.0.0.0/8,fd00::/8,::1,[fd00::5]:8443", resolve)
 	want := []string{"169.254.169.254", "10.0.0.0/8", "10.2.0.5"}
 	if strings.Join(addrs, ",") != strings.Join(want, ",") {
 		t.Fatalf("addrs = %v, want %v", addrs, want)
 	}
 	// "localhost" is not resolvable by the stub, and is covered by the loopback rule anyway.
-	for _, entry := range []string{".corp.example", "*.svc", "gone.example"} {
+	// IPv6 entries cannot be matched by the IPv4 rules, so they are reported too.
+	for _, entry := range []string{".corp.example", "*.svc", "gone.example", "fd00::/8", "::1", "[fd00::5]:8443"} {
 		if !contains(skipped, entry) {
 			t.Fatalf("%s not reported as skipped: %v", entry, skipped)
 		}

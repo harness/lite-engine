@@ -246,6 +246,8 @@ func exemptions(noProxy string, resolve func(host string) ([]string, error)) (ad
 			if _, network, err := net.ParseCIDR(entry); err == nil {
 				if network.IP.To4() != nil {
 					add(network.String())
+				} else {
+					skipped = append(skipped, entry)
 				}
 				continue
 			}
@@ -256,6 +258,8 @@ func exemptions(noProxy string, resolve func(host string) ([]string, error)) (ad
 			if ip := net.ParseIP(host); ip != nil {
 				if v4 := ip.To4(); v4 != nil {
 					add(v4.String())
+				} else {
+					skipped = append(skipped, entry)
 				}
 				continue
 			}
