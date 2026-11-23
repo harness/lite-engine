@@ -75,6 +75,9 @@ type Docker struct {
 	// The Docker engine should just be a simple wrapper around docker which does
 	// not keep track of the containers it creates.
 	containers []Container
+
+	// egress replaces the egress actions in tests. Nil means the real ones.
+	egress *egressSteps
 }
 
 type Container struct {
@@ -154,21 +157,48 @@ func clearProxyForPrivateConnectivity(ctx context.Context, goos string) error {
 	return nil
 }
 
+// egressSteps are the actions configureEgress chooses between. Setup uses the
+// real ones. A test swaps them to check which branch a pipeline shape takes,
+// because the real ones need iptables, systemd and a Docker daemon.
+type egressSteps struct {
+	applies     func(proxyURL string, privateConnectivity bool) bool
+	clearProxy  func(ctx context.Context, goos string) error
+	install     func(ctx context.Context, proxy redirect.Proxy) error
+	remove      func(ctx context.Context, goos string) error
+	applyProxy  func(ctx context.Context, policy *spec.EgressProxyConfig, goos string) error
+	daemonProxy func(ctx context.Context, pipelineConfig *spec.PipelineConfig)
+}
+
+func (e *Docker) steps() egressSteps {
+	if e.egress != nil {
+		return *e.egress
+	}
+	return egressSteps{
+		applies:     redirect.Applies,
+		clearProxy:  clearProxyForPrivateConnectivity,
+		install:     redirect.Install,
+		remove:      removeLinuxRedirect,
+		applyProxy:  setupEgressProxy,
+		daemonProxy: e.setProxyInDockerDaemon,
+	}
+}
+
 // configureEgress installs the sidecar redirect, or the explicit proxy, for
 // this stage. A stage that does not use the redirect removes one left behind
 // on a reused VM.
 func (e *Docker) configureEgress(ctx context.Context, pipelineConfig *spec.PipelineConfig) error {
+	steps := e.steps()
 	goos := pipelineConfig.Platform.OS
 	if pipelineConfig.PrivateConnectivity {
-		if err := clearProxyForPrivateConnectivity(ctx, goos); err != nil {
+		if err := steps.clearProxy(ctx, goos); err != nil {
 			return fmt.Errorf("failed to clear inherited proxy before private connectivity setup: %w", err)
 		}
-		return removeLinuxRedirect(ctx, goos)
+		return steps.remove(ctx, goos)
 	}
 	policy := pipelineConfig.EgressProxy
-	if policy != nil && goos == "linux" && redirect.Applies(policy.ProxyURL, false) {
+	if policy != nil && goos == "linux" && steps.applies(policy.ProxyURL, false) {
 		logrus.Infoln("setup: installing egress sidecar redirect")
-		err := redirect.Install(ctx, redirect.Proxy{
+		err := steps.install(ctx, redirect.Proxy{
 			URL:      policy.ProxyURL,
 			Username: policy.Username,
 			Password: policy.Password,
@@ -181,15 +211,15 @@ func (e *Docker) configureEgress(ctx context.Context, pipelineConfig *spec.Pipel
 	}
 	if policy != nil && policy.ProxyURL != "" {
 		logrus.WithField("proxy_url", policy.ProxyURL).Infoln("setup: applying egress proxy config")
-		if err := setupEgressProxy(ctx, policy, goos); err != nil {
+		if err := steps.applyProxy(ctx, policy, goos); err != nil {
 			return fmt.Errorf("failed to configure docker proxy for egress: %w", err)
 		}
 		return nil
 	}
 	if _, ok := pipelineConfig.Envs[harnessHTTPSProxy]; ok {
-		e.setProxyInDockerDaemon(ctx, pipelineConfig)
+		steps.daemonProxy(ctx, pipelineConfig)
 	}
-	return removeLinuxRedirect(ctx, goos)
+	return steps.remove(ctx, goos)
 }
 
 // removeLinuxRedirect deletes a redirect left by an earlier stage on this VM.
