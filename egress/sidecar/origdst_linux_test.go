@@ -52,7 +52,8 @@ func TestOriginalDstFailsForAConnectionThatWasNotRedirected(t *testing.T) {
 	conn := dialLoopback(t)
 	ip, port, err := originalDst(conn)
 	if err == nil && !isLocalAddr(conn.LocalAddr(), ip, port) {
-		t.Fatalf("originalDst = %s:%d, nil; want an error or the connection's own address", ip, port)
+		t.Fatalf("originalDst = %s:%d, nil; local %v, remote %v; want an error or the connection's own address",
+			ip, port, conn.LocalAddr(), conn.RemoteAddr())
 	}
 }
 
