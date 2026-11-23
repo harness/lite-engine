@@ -19,11 +19,11 @@ import (
 // egressRecorder stands in for the real egress actions and records which of
 // them configureEgress ran, in order.
 type egressRecorder struct {
-	calls   []string
-	flagOn  bool
-	failAt  string
-	failErr error
-	proxy   redirect.Proxy
+	calls     []string
+	vmCapable bool
+	failAt    string
+	failErr   error
+	proxy     redirect.Proxy
 }
 
 func (r *egressRecorder) step(name string) error {
@@ -37,7 +37,7 @@ func (r *egressRecorder) step(name string) error {
 func (r *egressRecorder) steps() *egressSteps {
 	return &egressSteps{
 		applies: func(proxyURL string, privateConnectivity bool) bool {
-			return r.flagOn && !privateConnectivity && strings.TrimSpace(proxyURL) != ""
+			return r.vmCapable && !privateConnectivity && strings.TrimSpace(proxyURL) != ""
 		},
 		clearProxy: func(context.Context, string) error { return r.step("clear-private-proxy") },
 		install: func(_ context.Context, p redirect.Proxy) error {
@@ -67,39 +67,39 @@ func TestConfigureEgressPicksTheRightAction(t *testing.T) {
 	legacyEnv := map[string]string{harnessHTTPSProxy: "http://legacy.example:3128"}
 
 	tests := []struct {
-		name   string
-		flagOn bool
-		cfg    *spec.PipelineConfig
-		want   []string
+		name      string
+		vmCapable bool
+		cfg       *spec.PipelineConfig
+		want      []string
 	}{
 		{
 			name: "private connectivity clears the proxy and removes a redirect left by an earlier stage",
-			cfg:  egressConfig("linux", true, nil, nil), flagOn: true,
+			cfg:  egressConfig("linux", true, nil, nil), vmCapable: true,
 			want: []string{"clear-private-proxy", "remove-redirect"},
 		},
 		{
 			name: "private connectivity never installs the redirect, even with a proxy policy",
-			cfg:  egressConfig("linux", true, policy, nil), flagOn: true,
+			cfg:  egressConfig("linux", true, policy, nil), vmCapable: true,
 			want: []string{"clear-private-proxy", "remove-redirect"},
 		},
 		{
-			name: "sidecar flag on, Linux, proxy policy: install the redirect",
-			cfg:  egressConfig("linux", false, policy, nil), flagOn: true,
+			name: "VM capable, stage asks, Linux, proxy policy: install the redirect",
+			cfg:  egressConfig("linux", false, policy, nil), vmCapable: true,
 			want: []string{"install-redirect"},
 		},
 		{
-			name: "sidecar flag off: the explicit Docker proxy",
+			name: "VM not capable: clean up, then the explicit Docker proxy",
 			cfg:  egressConfig("linux", false, policy, nil),
-			want: []string{"apply-docker-proxy"},
+			want: []string{"remove-redirect", "apply-docker-proxy"},
 		},
 		{
-			name: "sidecar flag on but not Linux: the explicit Docker proxy",
-			cfg:  egressConfig("windows", false, policy, nil), flagOn: true,
-			want: []string{"apply-docker-proxy"},
+			name: "VM capable but not Linux: clean up, then the explicit Docker proxy",
+			cfg:  egressConfig("windows", false, policy, nil), vmCapable: true,
+			want: []string{"remove-redirect", "apply-docker-proxy"},
 		},
 		{
 			name: "policy without a proxy URL falls through to cleanup",
-			cfg:  egressConfig("linux", false, emptyPolicy, nil), flagOn: true,
+			cfg:  egressConfig("linux", false, emptyPolicy, nil), vmCapable: true,
 			want: []string{"remove-redirect"},
 		},
 		{
@@ -109,7 +109,7 @@ func TestConfigureEgressPicksTheRightAction(t *testing.T) {
 		},
 		{
 			name: "no policy, no proxy: only clean up a redirect left behind",
-			cfg:  egressConfig("linux", false, nil, nil), flagOn: true,
+			cfg:  egressConfig("linux", false, nil, nil), vmCapable: true,
 			want: []string{"remove-redirect"},
 		},
 		{
@@ -120,7 +120,7 @@ func TestConfigureEgressPicksTheRightAction(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := &egressRecorder{flagOn: tt.flagOn}
+			rec := &egressRecorder{vmCapable: tt.vmCapable}
 			d := &Docker{egress: rec.steps()}
 			if err := d.configureEgress(context.Background(), tt.cfg); err != nil {
 				t.Fatal(err)
@@ -133,7 +133,7 @@ func TestConfigureEgressPicksTheRightAction(t *testing.T) {
 }
 
 func TestConfigureEgressHandsThePolicyToTheRedirect(t *testing.T) {
-	rec := &egressRecorder{flagOn: true}
+	rec := &egressRecorder{vmCapable: true}
 	d := &Docker{egress: rec.steps()}
 	policy := &spec.EgressProxyConfig{ProxyURL: "http://proxy.example:3128", Username: "acct|org", Password: "token", NoProxy: "localhost,10.0.0.0/8", SidecarEnabled: true}
 	if err := d.configureEgress(context.Background(), egressConfig("linux", false, policy, nil)); err != nil {
@@ -146,15 +146,16 @@ func TestConfigureEgressHandsThePolicyToTheRedirect(t *testing.T) {
 }
 
 // A stage that does not ask for the sidecar gets the explicit proxy even when
-// the VM can run the redirect. This keeps the rollout per stage.
+// the VM can run the redirect. A redirect an earlier stage left on the VM holds
+// that stage's credential, so it is removed first.
 func TestConfigureEgressUsesTheProxyWhenTheStageDoesNotAskForTheSidecar(t *testing.T) {
-	rec := &egressRecorder{flagOn: true}
+	rec := &egressRecorder{vmCapable: true}
 	d := &Docker{egress: rec.steps()}
 	policy := &spec.EgressProxyConfig{ProxyURL: "http://proxy.example:3128", Username: "acct|org", Password: "token"}
 	if err := d.configureEgress(context.Background(), egressConfig("linux", false, policy, nil)); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"apply-docker-proxy"}
+	want := []string{"remove-redirect", "apply-docker-proxy"}
 	if !reflect.DeepEqual(rec.calls, want) {
 		t.Fatalf("ran %v, want %v", rec.calls, want)
 	}
@@ -165,21 +166,26 @@ func TestConfigureEgressWrapsAndStopsOnAFailedAction(t *testing.T) {
 	boom := errors.New("boom")
 	tests := []struct {
 		name      string
-		flagOn    bool
+		vmCapable bool
 		cfg       *spec.PipelineConfig
 		failAt    string
 		wantText  string
 		wantCalls []string
 	}{
 		{
-			name: "install", flagOn: true, cfg: egressConfig("linux", false, policy, nil),
+			name: "install", vmCapable: true, cfg: egressConfig("linux", false, policy, nil),
 			failAt: "install-redirect", wantText: "failed to install egress sidecar",
 			wantCalls: []string{"install-redirect"},
 		},
 		{
 			name: "docker proxy", cfg: egressConfig("linux", false, policy, nil),
 			failAt: "apply-docker-proxy", wantText: "failed to configure docker proxy for egress",
-			wantCalls: []string{"apply-docker-proxy"},
+			wantCalls: []string{"remove-redirect", "apply-docker-proxy"},
+		},
+		{
+			name: "removing a left-behind redirect before the docker proxy", cfg: egressConfig("linux", false, policy, nil),
+			failAt: "remove-redirect", wantText: boom.Error(),
+			wantCalls: []string{"remove-redirect"},
 		},
 		{
 			name: "clearing the private proxy", cfg: egressConfig("linux", true, nil, nil),
@@ -194,7 +200,7 @@ func TestConfigureEgressWrapsAndStopsOnAFailedAction(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rec := &egressRecorder{flagOn: tt.flagOn, failAt: tt.failAt, failErr: boom}
+			rec := &egressRecorder{vmCapable: tt.vmCapable, failAt: tt.failAt, failErr: boom}
 			d := &Docker{egress: rec.steps()}
 			err := d.configureEgress(context.Background(), tt.cfg)
 			if !errors.Is(err, boom) || !strings.Contains(err.Error(), tt.wantText) {

@@ -5,7 +5,8 @@
 
 // Package redirect installs the hosted Linux egress redirect and starts the sidecar.
 //
-// It stays off unless CI_EGRESS_SIDECAR is true. While it is on, build traffic to
+// It runs only for a stage whose egress policy sets sidecar_enabled, on a VM
+// where CI_EGRESS_SIDECAR is true. While it is on, build traffic to
 // ports 80 and 443 is redirected to the sidecar. A proxy environment variable
 // that points at the fleet proxy loses its credential but keeps the proxy
 // address, so ports the redirect does not cover are still proxied, and the

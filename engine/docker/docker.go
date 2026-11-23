@@ -210,6 +210,11 @@ func (e *Docker) configureEgress(ctx context.Context, pipelineConfig *spec.Pipel
 		return nil
 	}
 	if policy != nil && policy.ProxyURL != "" {
+		// An earlier stage on this VM may have left a redirect that holds its
+		// credential, so it must go before this stage uses the proxy.
+		if err := steps.remove(ctx, goos); err != nil {
+			return err
+		}
 		logrus.WithField("proxy_url", policy.ProxyURL).Infoln("setup: applying egress proxy config")
 		if err := steps.applyProxy(ctx, policy, goos); err != nil {
 			return fmt.Errorf("failed to configure docker proxy for egress: %w", err)

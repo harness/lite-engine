@@ -51,8 +51,9 @@ func Enabled() bool {
 	}
 }
 
-// Applies reports whether a stage with this proxy URL uses the redirect. A stage
-// without a fleet proxy, or one joined to a private network, does not.
+// Applies reports whether this VM can use the redirect for a stage with this
+// proxy URL. A stage without a fleet proxy, or one joined to a private network,
+// cannot. The stage must also ask for it with sidecar_enabled.
 func Applies(proxyURL string, privateConnectivity bool) bool {
 	return Enabled() && !privateConnectivity && strings.TrimSpace(proxyURL) != ""
 }
