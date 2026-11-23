@@ -44,10 +44,15 @@ func dialLoopback(t *testing.T) net.Conn {
 	return c
 }
 
-// A connection that no REDIRECT rule touched has no original destination.
+// A connection that no REDIRECT rule touched has no original destination. Some
+// kernels, with conntrack tracking loopback, report the socket's own address
+// instead of an error. serveConn refuses that case (isLocalAddr), so it counts
+// as not redirected too.
 func TestOriginalDstFailsForAConnectionThatWasNotRedirected(t *testing.T) {
-	if ip, port, err := originalDst(dialLoopback(t)); err == nil {
-		t.Fatalf("originalDst = %s:%d, nil; want an error", ip, port)
+	conn := dialLoopback(t)
+	ip, port, err := originalDst(conn)
+	if err == nil && !isLocalAddr(conn.LocalAddr(), ip, port) {
+		t.Fatalf("originalDst = %s:%d, nil; want an error or the connection's own address", ip, port)
 	}
 }
 
