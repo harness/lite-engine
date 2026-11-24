@@ -117,7 +117,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
 		nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, artifactLookupEnvs(e.engine.GetPipelineEnvs(), r.Envs))
-		gitCloneMetadata := readGitCloneMetadata(r.ID)
+		gitCloneMetadata := readGitCloneMetadata(r.ID, r.Envs)
 		outputs = mergeArtifactVars(outputs, artifactVars)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata,
@@ -207,7 +207,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			wr = getLogStreamWriter(r)
 			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(r, wr)
 			nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, artifactLookupEnvs(e.engine.GetPipelineEnvs(), r.Envs))
-			gitCloneMetadata := readGitCloneMetadata(r.ID)
+			gitCloneMetadata := readGitCloneMetadata(r.ID, r.Envs)
 			outputs = mergeArtifactVars(outputs, artifactVars)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
@@ -782,8 +782,20 @@ func readNativeArtifact(stepID string, envs map[string]string) (rawJSON string, 
 // HARNESS_GIT_CLONE_METADATA_FILE (repo URL + commit SHA) and returns it
 // unparsed - parsing happens on the manager. Returns "" when the step did not write
 // clone metadata (non-clone image, or marker env absent) or the file is unreadable.
-func readGitCloneMetadata(stepID string) string {
-	data, err := os.ReadFile(fmt.Sprintf("%s/%s-git-clone-metadata.json", pipeline.GetSharedVolPath(), stepID))
+//
+// executeRunStep injects the default path only when the env is unset, and that
+// write lands on a copy of r.Envs (see copyEnvs). When the caller preset the
+// env to a custom path, drone-git writes there and this reader must follow it;
+// otherwise it falls back to the default <shared>/<stepID>-git-clone-metadata.json.
+func readGitCloneMetadata(stepID string, envs map[string]string) string {
+	path := ""
+	if envs != nil {
+		path = envs["HARNESS_GIT_CLONE_METADATA_FILE"]
+	}
+	if path == "" {
+		path = fmt.Sprintf("%s/%s-git-clone-metadata.json", pipeline.GetSharedVolPath(), stepID)
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
