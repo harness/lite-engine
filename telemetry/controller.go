@@ -112,6 +112,7 @@ type session struct {
 	logs        *sdklog.LoggerProvider
 	recorder    Recorder
 	hook        *logHook
+	sampler     Sampler
 	stopSampler context.CancelFunc
 	background  sync.WaitGroup
 }
@@ -145,6 +146,13 @@ func (c *Controller) Start(cfg Config) (err error) {
 		return err
 	}
 	c.install(s)
+	// Sampled only now, after install has attached the log hook: the
+	// resourceWatch sampler logs through that hook, and a Flush immediately
+	// after Start (as the setup/destroy handlers, and tests mirroring them,
+	// both do) must deterministically see this first reading rather than
+	// racing a background goroutine for it.
+	sampleOnce(s.sampler)
+	s.startBackground()
 	return nil
 }
 
@@ -189,20 +197,23 @@ func (c *Controller) build(cfg Config) (*session, error) {
 		_ = s.shutdown(context.Background())
 		return nil, fmt.Errorf("create instruments: %w", err)
 	}
-	s.startBackground(samplers{sampler, newResourceWatch(c.opts.stats, c.opts.logger, defaultLimits)})
+	s.sampler = samplers{sampler, newResourceWatch(c.opts.stats, c.opts.logger, defaultLimits)}
 	return s, nil
 }
 
-// startBackground starts the process sampler and, in VM-id mode, the one-off
-// export of the zero baselines. Neither is awaited by Start: an unreachable
+// startBackground hands periodic ticking of the session's sampler off to a
+// background goroutine. The first reading is taken synchronously by Start,
+// before this is called (see Start), so it is not repeated here. In VM-id
+// mode it also starts the one-off export of the zero baselines. Neither the
+// ticking nor the baseline export is awaited by Start: an unreachable
 // endpoint must not delay the setup request.
-func (s *session) startBackground(sampler Sampler) {
+func (s *session) startBackground() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.stopSampler = cancel
 	s.background.Add(1)
 	go func() {
 		defer s.background.Done()
-		runSampler(ctx, sampler, s.cfg.Interval)
+		tickLoop(ctx, s.sampler, s.cfg.Interval)
 	}()
 	if s.cfg.MetricsVMID {
 		s.background.Add(1)

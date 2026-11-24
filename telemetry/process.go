@@ -191,7 +191,19 @@ func newHistogramSampler(meter metric.Meter, attrs metric.MeasurementOption, sta
 // runSampler samples once immediately (so a short-lived VM is still seen) and
 // then every interval until ctx is canceled. A panicking sampler is contained.
 func runSampler(ctx context.Context, s Sampler, interval time.Duration) {
-	contain(s.Sample)
+	sampleOnce(s)
+	tickLoop(ctx, s, interval)
+}
+
+// sampleOnce takes a single reading, containing any panic from the sampler.
+// It is split out of runSampler so a caller that needs the first reading to
+// be visible before it continues (the Controller, so a Flush right after
+// Start deterministically observes it) can take it synchronously instead of
+// racing a goroutine for it.
+func sampleOnce(s Sampler) { contain(s.Sample) }
+
+// tickLoop samples s on every tick until ctx is canceled.
+func tickLoop(ctx context.Context, s Sampler, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
