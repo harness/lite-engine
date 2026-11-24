@@ -198,20 +198,20 @@ type (
 	}
 
 	PollStepResponse struct {
-		Exited                   bool                 `json:"exited,omitempty"`
-		ExitCode                 int                  `json:"exit_code,omitempty"`
-		Error                    string               `json:"error,omitempty"`
-		OOMKilled                bool                 `json:"oom_killed,omitempty"`
-		Outputs                  map[string]string    `json:"outputs,omitempty"`
-		Envs                     map[string]string    `json:"envs,omitempty"` // Env variables exported by step
-		Artifact                 []byte               `json:"artifact,omitempty"`
-		OutputV2                 []*OutputV2          `json:"outputV2,omitempty"`
-		OptimizationState        string               `json:"optimization_state,omitempty"`
-		TelemetryData            *types.TelemetryData `json:"telemetry_data,omitempty"`
-		NativeArtifactOutput     string               `json:"native_artifact_output,omitempty"`
-		ExplicitGitCloneMetadata string               `json:"explicit_git_clone_metadata,omitempty"`
-		LogServiceStats          *LogServiceStats     `json:"log_service_stats,omitempty"`
-		ErrorDetails             *ErrorDetails        `json:"error_details,omitempty"`
+		Exited               bool                 `json:"exited,omitempty"`
+		ExitCode             int                  `json:"exit_code,omitempty"`
+		Error                string               `json:"error,omitempty"`
+		OOMKilled            bool                 `json:"oom_killed,omitempty"`
+		Outputs              map[string]string    `json:"outputs,omitempty"`
+		Envs                 map[string]string    `json:"envs,omitempty"` // Env variables exported by step
+		Artifact             []byte               `json:"artifact,omitempty"`
+		OutputV2             []*OutputV2          `json:"outputV2,omitempty"`
+		OptimizationState    string               `json:"optimization_state,omitempty"`
+		TelemetryData        *types.TelemetryData `json:"telemetry_data,omitempty"`
+		NativeArtifactOutput string               `json:"native_artifact_output,omitempty"`
+		GitCloneMetadata     string               `json:"git_clone_metadata,omitempty"`
+		LogServiceStats      *LogServiceStats     `json:"log_service_stats,omitempty"`
+		ErrorDetails         *ErrorDetails        `json:"error_details,omitempty"`
 	}
 
 	LogServiceStats struct {
@@ -372,7 +372,7 @@ type (
 		TelemetryData                *types.TelemetryData   `json:"telemetry_data,omitempty"`
 		ErrorDetails                 *ErrorDetails          `json:"error_details,omitempty"`
 		NativeArtifactOutput         string                 `json:"native_artifact_output,omitempty"`
-		ExplicitGitCloneMetadata     string                 `json:"explicit_git_clone_metadata,omitempty"`
+		GitCloneMetadata             string                 `json:"git_clone_metadata,omitempty"`
 		TaskExecutionStartedAtMillis int64                  `json:"task_execution_started_at_millis,omitempty"`
 		LogServiceStats              *LogServiceStats       `json:"log_service_stats,omitempty"`
 	}
@@ -386,11 +386,9 @@ const (
 	Timeout CommandExecutionStatus = "TIMEOUT"
 )
 
-
 const FailureTypeTimeout = "TIMEOUT_FAILURE"
 
 const StepTimeoutMessage = "Please Check the timeout configuration on the step to extend the duration of the step"
-
 
 func TimeoutErrorDetails() *ErrorDetails {
 	return &ErrorDetails{

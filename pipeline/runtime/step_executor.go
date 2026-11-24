@@ -43,18 +43,18 @@ type ExecutionStatus int
 type RunFunc func(ctx context.Context, step *spec.Step, output io.Writer, isDrone bool, isHosted bool) (*runtime.State, error)
 
 type StepStatus struct {
-	Status                   ExecutionStatus
-	State                    *runtime.State
-	StepErr                  error
-	Outputs                  map[string]string
-	Envs                     map[string]string
-	Artifact                 []byte
-	OutputV2                 []*api.OutputV2
-	OptimizationState        string
-	TelemetryData            *types.TelemetryData
-	NativeArtifactOutput     string
-	ExplicitGitCloneMetadata string
-	LogServiceStats          *api.LogServiceStats
+	Status               ExecutionStatus
+	State                *runtime.State
+	StepErr              error
+	Outputs              map[string]string
+	Envs                 map[string]string
+	Artifact             []byte
+	OutputV2             []*api.OutputV2
+	OptimizationState    string
+	TelemetryData        *types.TelemetryData
+	NativeArtifactOutput string
+	GitCloneMetadata     string
+	LogServiceStats      *api.LogServiceStats
 }
 
 const (
@@ -117,11 +117,11 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
 		nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, artifactLookupEnvs(e.engine.GetPipelineEnvs(), r.Envs))
-		explicitGitCloneMetadata := readExplicitGitCloneMetadata(r.ID)
+		gitCloneMetadata := readGitCloneMetadata(r.ID)
 		outputs = mergeArtifactVars(outputs, artifactVars)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata,
-			NativeArtifactOutput: nativeArtifactRaw, ExplicitGitCloneMetadata: explicitGitCloneMetadata,
+			NativeArtifactOutput: nativeArtifactRaw, GitCloneMetadata: gitCloneMetadata,
 			LogServiceStats: logServiceStatsFrom(wr)}
 
 		if stepErr == nil && state.ExitCode == 0 && ffEnabled {
@@ -207,11 +207,11 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			wr = getLogStreamWriter(r)
 			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(r, wr)
 			nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, artifactLookupEnvs(e.engine.GetPipelineEnvs(), r.Envs))
-			explicitGitCloneMetadata := readExplicitGitCloneMetadata(r.ID)
+			gitCloneMetadata := readGitCloneMetadata(r.ID)
 			outputs = mergeArtifactVars(outputs, artifactVars)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
-				NativeArtifactOutput: nativeArtifactRaw, ExplicitGitCloneMetadata: explicitGitCloneMetadata,
+				NativeArtifactOutput: nativeArtifactRaw, GitCloneMetadata: gitCloneMetadata,
 				LogServiceStats: logServiceStatsFrom(wr)}
 			pollResponse := convertStatus(status)
 			if stepErr == nil && state.ExitCode == 0 && ffEnabled {
@@ -679,16 +679,16 @@ func getRunnerTaskResponse(r *api.StartStepRequest, response *api.VMTaskExecutio
 
 func convertStatus(status StepStatus) *api.PollStepResponse { //nolint:gocritic
 	r := &api.PollStepResponse{
-		Exited:                   true,
-		Outputs:                  status.Outputs,
-		Envs:                     status.Envs,
-		Artifact:                 status.Artifact,
-		OutputV2:                 status.OutputV2,
-		OptimizationState:        status.OptimizationState,
-		TelemetryData:            status.TelemetryData,
-		NativeArtifactOutput:     status.NativeArtifactOutput,
-		ExplicitGitCloneMetadata: status.ExplicitGitCloneMetadata,
-		LogServiceStats:          status.LogServiceStats,
+		Exited:               true,
+		Outputs:              status.Outputs,
+		Envs:                 status.Envs,
+		Artifact:             status.Artifact,
+		OutputV2:             status.OutputV2,
+		OptimizationState:    status.OptimizationState,
+		TelemetryData:        status.TelemetryData,
+		NativeArtifactOutput: status.NativeArtifactOutput,
+		GitCloneMetadata:     status.GitCloneMetadata,
+		LogServiceStats:      status.LogServiceStats,
 	}
 
 	stepErr := status.StepErr
@@ -778,12 +778,12 @@ func readNativeArtifact(stepID string, envs map[string]string) (rawJSON string, 
 	return rawJSON, vars
 }
 
-// readExplicitGitCloneMetadata reads the raw JSON the drone-git image wrote to
-// HARNESS_EXPLICIT_GIT_CLONE_METADATA_FILE (repo URL + commit SHA) and returns it
+// readGitCloneMetadata reads the raw JSON the drone-git image wrote to
+// HARNESS_GIT_CLONE_METADATA_FILE (repo URL + commit SHA) and returns it
 // unparsed - parsing happens on the manager. Returns "" when the step did not write
 // clone metadata (non-clone image, or marker env absent) or the file is unreadable.
-func readExplicitGitCloneMetadata(stepID string) string {
-	data, err := os.ReadFile(fmt.Sprintf("%s/%s-explicit-git-clone-metadata.json", pipeline.GetSharedVolPath(), stepID))
+func readGitCloneMetadata(stepID string) string {
+	data, err := os.ReadFile(fmt.Sprintf("%s/%s-git-clone-metadata.json", pipeline.GetSharedVolPath(), stepID))
 	if err != nil {
 		return ""
 	}
@@ -833,39 +833,39 @@ func logServiceStatsFrom(wr logstream.Writer) *api.LogServiceStats {
 func convertPollResponseWithErrorDetails(r *api.PollStepResponse, envs map[string]string, errorDetails *api.ErrorDetails) api.VMTaskExecutionResponse {
 	if r.Error == "" {
 		return api.VMTaskExecutionResponse{
-			CommandExecutionStatus:   api.Success,
-			OutputVars:               r.Outputs,
-			Artifact:                 r.Artifact,
-			Outputs:                  r.OutputV2,
-			OptimizationState:        r.OptimizationState,
-			TelemetryData:            r.TelemetryData,
-			NativeArtifactOutput:     r.NativeArtifactOutput,
-			ExplicitGitCloneMetadata: r.ExplicitGitCloneMetadata,
-			LogServiceStats:          r.LogServiceStats,
+			CommandExecutionStatus: api.Success,
+			OutputVars:             r.Outputs,
+			Artifact:               r.Artifact,
+			Outputs:                r.OutputV2,
+			OptimizationState:      r.OptimizationState,
+			TelemetryData:          r.TelemetryData,
+			NativeArtifactOutput:   r.NativeArtifactOutput,
+			GitCloneMetadata:       r.GitCloneMetadata,
+			LogServiceStats:        r.LogServiceStats,
 		}
 	}
 	if report.TestSummaryAsOutputEnabled(envs) {
 		return api.VMTaskExecutionResponse{
-			CommandExecutionStatus:   api.Failure,
-			OutputVars:               r.Outputs,
-			Outputs:                  r.OutputV2,
-			ErrorMessage:             r.Error,
-			OptimizationState:        r.OptimizationState,
-			TelemetryData:            r.TelemetryData,
-			ErrorDetails:             errorDetails,
-			NativeArtifactOutput:     r.NativeArtifactOutput,
-			ExplicitGitCloneMetadata: r.ExplicitGitCloneMetadata,
-			LogServiceStats:          r.LogServiceStats,
+			CommandExecutionStatus: api.Failure,
+			OutputVars:             r.Outputs,
+			Outputs:                r.OutputV2,
+			ErrorMessage:           r.Error,
+			OptimizationState:      r.OptimizationState,
+			TelemetryData:          r.TelemetryData,
+			ErrorDetails:           errorDetails,
+			NativeArtifactOutput:   r.NativeArtifactOutput,
+			GitCloneMetadata:       r.GitCloneMetadata,
+			LogServiceStats:        r.LogServiceStats,
 		}
 	}
 	return api.VMTaskExecutionResponse{
-		CommandExecutionStatus:   api.Failure,
-		ErrorMessage:             r.Error,
-		OptimizationState:        r.OptimizationState,
-		ErrorDetails:             errorDetails,
-		NativeArtifactOutput:     r.NativeArtifactOutput,
-		ExplicitGitCloneMetadata: r.ExplicitGitCloneMetadata,
-		LogServiceStats:          r.LogServiceStats,
+		CommandExecutionStatus: api.Failure,
+		ErrorMessage:           r.Error,
+		OptimizationState:      r.OptimizationState,
+		ErrorDetails:           errorDetails,
+		NativeArtifactOutput:   r.NativeArtifactOutput,
+		GitCloneMetadata:       r.GitCloneMetadata,
+		LogServiceStats:        r.LogServiceStats,
 	}
 }
 
