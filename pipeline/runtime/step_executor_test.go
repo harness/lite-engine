@@ -9,16 +9,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/drone/runner-go/pipeline/runtime"
 	"github.com/harness/lite-engine/api"
+	"github.com/harness/lite-engine/engine"
 	"github.com/harness/lite-engine/engine/spec"
 	"github.com/harness/lite-engine/errors"
 	"github.com/harness/lite-engine/logstream"
+	"github.com/harness/lite-engine/osstats"
 	"github.com/harness/lite-engine/pipeline"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/stretchr/testify/assert"
@@ -393,4 +398,141 @@ func TestConvertPollResponse_FailureWithTestSummaryCarriesMetadata(t *testing.T)
 	vm := convertPollResponse(poll, envs)
 	assert.Equal(t, api.Failure, vm.CommandExecutionStatus)
 	assert.Equal(t, sampleGitCloneReceipt, vm.GitCloneMetadata)
+}
+
+// initPipelineState seeds the global pipeline singleton with a valid (empty)
+// TI config. Without it, the singleton's zero-value tiCfg.Cfg has a nil inner
+// client and the stateful executeStep path panics in GetURL.
+func initPipelineState(t *testing.T) {
+	t.Helper()
+	pipeline.GetState().Set(nil, api.LogConfig{}, *newTestTiConfig(), spec.MtlsConfig{}, &osstats.StatsCollector{})
+}
+
+// hostEngine returns an engine with docker setup disabled: steps with no image
+// run directly on the host via exec.Run, which is all these tests need.
+func hostEngine(t *testing.T) *engine.Engine {
+	t.Helper()
+	disableDocker := false
+	eng := &engine.Engine{}
+	require.NoError(t, eng.Setup(context.Background(),
+		&spec.PipelineConfig{EnableDockerSetup: &disableDocker, Envs: map[string]string{}}))
+	return eng
+}
+
+// startAndPoll drives a full stateful StartStep → PollStep cycle on a host engine.
+func startAndPoll(t *testing.T, req *api.StartStepRequest) *api.PollStepResponse {
+	t.Helper()
+	exec := NewStepExecutor(hostEngine(t))
+	require.NoError(t, exec.StartStep(context.Background(), req))
+
+	done := make(chan struct{})
+	var resp *api.PollStepResponse
+	var err error
+	go func() {
+		resp, err = exec.PollStep(context.Background(), &api.PollStepRequest{ID: req.ID})
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		t.Fatal("PollStep timed out")
+	}
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	return resp
+}
+
+func gitCloneWriterStepRequest(t *testing.T, id string, envs map[string]string) *api.StartStepRequest {
+	return &api.StartStepRequest{
+		ID: id, Name: "clone", Kind: api.Run, LogKey: id,
+		WorkingDir: t.TempDir(),
+		Envs:       envs,
+		Run: api.RunConfig{
+			Entrypoint: []string{"/bin/sh", "-c"},
+			Command:    []string{`printf %s "$RECEIPT" > "$HARNESS_GIT_CLONE_METADATA_FILE"`},
+		},
+	}
+}
+
+func TestStartStep_PollCarriesGitCloneMetadataWrittenToEnvPath(t *testing.T) {
+	initPipelineState(t)
+	require.NoError(t, os.MkdirAll(pipeline.GetSharedVolPath(), 0o755))
+	id := "gc-start-present"
+	t.Cleanup(func() { _ = os.Remove(gitCloneReceiptPath(id)) })
+
+	req := gitCloneWriterStepRequest(t, id, map[string]string{"RECEIPT": sampleGitCloneReceipt})
+	resp := startAndPoll(t, req)
+	assert.Equal(t, 0, resp.ExitCode)
+	assert.Equal(t, sampleGitCloneReceipt, resp.GitCloneMetadata)
+}
+
+func TestStartStep_PollLeavesGitCloneMetadataEmptyWhenFileMissing(t *testing.T) {
+	initPipelineState(t)
+	id := "gc-start-missing"
+	req := &api.StartStepRequest{
+		ID: id, Name: "clone", Kind: api.Run, LogKey: id,
+		WorkingDir: t.TempDir(),
+		Envs:       map[string]string{},
+		Run: api.RunConfig{
+			Entrypoint: []string{"/bin/sh", "-c"},
+			Command:    []string{"true"},
+		},
+	}
+
+	resp := startAndPoll(t, req)
+	assert.Equal(t, 0, resp.ExitCode)
+	assert.Empty(t, resp.GitCloneMetadata)
+}
+
+// StartStepWithStatusUpdate pushes the final VMTaskExecutionResponse to the
+// delegate endpoint; the git clone receipt must ride that payload.
+func TestStartStepWithStatusUpdate_SendsGitCloneMetadata(t *testing.T) {
+	initPipelineState(t)
+	require.NoError(t, os.MkdirAll(pipeline.GetSharedVolPath(), 0o755))
+	id := "gc-status-update"
+	t.Cleanup(func() { _ = os.Remove(gitCloneReceiptPath(id)) })
+
+	bodyCh := make(chan []byte, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		bodyCh <- b
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	req := gitCloneWriterStepRequest(t, id, map[string]string{"RECEIPT": sampleGitCloneReceipt})
+	req.StepStatus = api.StepStatusConfig{
+		Endpoint:   srv.URL,
+		AccountID:  "acc",
+		Token:      "tok",
+		DelegateID: "del-1",
+		TaskID:     "task-1",
+	}
+
+	exec := NewStepExecutor(hostEngine(t))
+	require.NoError(t, exec.StartStepWithStatusUpdate(context.Background(), req))
+
+	select {
+	case b := <-bodyCh:
+		assert.Contains(t, string(b), "git_clone_metadata")
+		assert.Contains(t, string(b), "abc123")
+	case <-time.After(30 * time.Second):
+		t.Fatal("timed out waiting for the step-status POST")
+	}
+}
+
+// Stateless Run (runner local-exec path) builds the response synchronously;
+// the receipt must land on the returned VMTaskExecutionResponse.
+func TestStepExecutorStateless_RunCarriesGitCloneMetadata(t *testing.T) {
+	require.NoError(t, os.MkdirAll(pipeline.GetSharedVolPath(), 0o755))
+	id := "gc-stateless"
+	t.Cleanup(func() { _ = os.Remove(gitCloneReceiptPath(id)) })
+
+	disableDocker := false
+	cfg := &spec.PipelineConfig{EnableDockerSetup: &disableDocker, Envs: map[string]string{}}
+	req := gitCloneWriterStepRequest(t, id, map[string]string{"RECEIPT": sampleGitCloneReceipt})
+
+	resp, err := NewStepExecutorStateless().Run(context.Background(), req, cfg, nil, logstream.NopWriter())
+	require.NoError(t, err)
+	assert.Equal(t, sampleGitCloneReceipt, resp.GitCloneMetadata)
 }
