@@ -30,6 +30,16 @@ type (
 		NoProxy  string `json:"no_proxy,omitempty"`
 	}
 
+	// TelemetryConfig tells lite-engine where and how to push its own health
+	// telemetry. It travels in the setup request rather than the VM environment
+	// so that step code cannot read it.
+	TelemetryConfig struct {
+		Enabled      bool              `json:"enabled,omitempty"`
+		Endpoint     string            `json:"endpoint,omitempty"`      // OTLP/HTTP base URL
+		MetricsVMID  bool              `json:"metrics_vm_id,omitempty"` // label metrics per VM (fallback when the backend cannot aggregate)
+		MetricLabels map[string]string `json:"metric_labels,omitempty"` // fleet-level metric labels (pool, region, ...)
+	}
+
 	SetupRequest struct {
 		Envs                map[string]string  `json:"envs,omitempty"`
 		Network             spec.Network       `json:"network"`
@@ -46,6 +56,7 @@ type (
 		LELogKey            string             `json:"le_log_key,omitempty"`
 		MemoryMetricsLogKey string             `json:"memory_metrics_log_key,omitempty"`
 		EgressPolicy        *EgressPolicy      `json:"egress_policy,omitempty"`
+		Telemetry           *TelemetryConfig   `json:"telemetry,omitempty"`
 	}
 
 	SetupResponse struct{}

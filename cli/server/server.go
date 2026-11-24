@@ -91,6 +91,7 @@ func (c *serverCommand) run(*kingpin.ParseContext) error {
 		stopGoroutineDumpSignals()
 		signal.Stop(s)
 		cancel()
+		shutdownTelemetry()
 	}()
 	safego.SafeGo("signal_handler", func() {
 		select {

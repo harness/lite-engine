@@ -15,6 +15,7 @@ import (
 	"github.com/harness/lite-engine/logstream/filestore"
 	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/osstats"
+	"github.com/harness/lite-engine/telemetry"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/sirupsen/logrus"
 )
@@ -103,15 +104,22 @@ func (s *State) GetLogStreamClient() logstream.Client {
 	defer s.mu.Unlock()
 
 	if s.logClient == nil {
-		if s.logConfig.URL != "" {
-			s.logClient = remote.NewHTTPClientWithLogScope(s.logConfig.URL, s.logConfig.AccountID,
-				s.logConfig.OrgID, s.logConfig.ProjectID, s.logConfig.Token, s.logConfig.IndirectUpload,
-				false, s.mtlsConfig.ClientCert, s.mtlsConfig.ClientCertKey)
-		} else {
-			s.logClient = filestore.New(GetSharedVolPath())
-		}
+		s.logClient = newLogStreamClient(&s.logConfig, &s.mtlsConfig, telemetry.Default().Recorder())
 	}
 	return s.logClient
+}
+
+// newLogStreamClient builds the log service client for the stage. Calls to the
+// remote log service are reported to rec; the local file store is not a remote
+// call and is left unwrapped.
+func newLogStreamClient(logConfig *api.LogConfig, mtlsConfig *spec.MtlsConfig, rec telemetry.Recorder) logstream.Client {
+	if logConfig.URL == "" {
+		return filestore.New(GetSharedVolPath())
+	}
+	remoteClient := remote.NewHTTPClientWithLogScope(logConfig.URL, logConfig.AccountID,
+		logConfig.OrgID, logConfig.ProjectID, logConfig.Token, logConfig.IndirectUpload,
+		false, mtlsConfig.ClientCert, mtlsConfig.ClientCertKey)
+	return logstream.NewInstrumentedClient(remoteClient, rec)
 }
 
 func (s *State) GetTIConfig() *tiCfg.Cfg {

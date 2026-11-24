@@ -20,6 +20,7 @@ import (
 	"github.com/harness/lite-engine/pc"
 	"github.com/harness/lite-engine/pipeline"
 	pruntime "github.com/harness/lite-engine/pipeline/runtime"
+	"github.com/harness/lite-engine/telemetry"
 	"github.com/sirupsen/logrus"
 )
 
@@ -77,6 +78,9 @@ func HandleDestroy(engine *engine.Engine) http.HandlerFunc {
 		}
 
 		stats := buildResourceStats(state, collector, logger.FromRequest(r))
+
+		// The VM is discarded after this response: deliver what telemetry still holds.
+		flushTelemetry(ctx, telemetry.Default(), destroyFlushTimeout, log)
 
 		if destroyErr != nil {
 			WriteError(w, fmt.Errorf("destroy error: %w", destroyErr))

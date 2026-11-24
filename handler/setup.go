@@ -27,6 +27,7 @@ import (
 	"github.com/harness/lite-engine/osstats"
 	"github.com/harness/lite-engine/pc"
 	"github.com/harness/lite-engine/pipeline"
+	"github.com/harness/lite-engine/telemetry"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/sirupsen/logrus"
 )
@@ -170,6 +171,8 @@ func HandleSetup(engine *engine.Engine) http.HandlerFunc { //nolint:gocyclo,funl
 			s.LogConfig.DualLoggingEnabled = true
 		}
 		setLogScopeFromTI(&s.LogConfig, &s.TIConfig)
+
+		startTelemetry(telemetry.Default(), s.Telemetry, logger.FromRequest(r))
 
 		state := pipeline.GetState()
 		state.Set(s.Secrets, s.LogConfig, getTiCfg(&s.TIConfig, &s.MtlsConfig, s.Envs), s.MtlsConfig, collector)

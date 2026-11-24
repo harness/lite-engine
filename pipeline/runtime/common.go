@@ -25,6 +25,7 @@ import (
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/logstream/stdout"
+	"github.com/harness/lite-engine/telemetry"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	ti "github.com/harness/ti-client/types"
 	"github.com/sirupsen/logrus"
@@ -304,15 +305,25 @@ func setTiEnvVariables(step *spec.Step, config *tiCfg.Cfg) {
 }
 
 func getLogServiceClient(cfg *api.LogConfig, useOptimizedClient bool) logstream.Client {
-	if cfg.URL != "" {
-		if useOptimizedClient {
-			return remote.NewOptimizedHTTPClientWithLogScope(
-				cfg.URL, cfg.AccountID, cfg.OrgID, cfg.ProjectID, cfg.Token, cfg.IndirectUpload, false, "", "")
-		}
-		return remote.NewHTTPClientWithLogScope(
+	return getLogServiceClientWithRecorder(cfg, useOptimizedClient, telemetry.Default().Recorder())
+}
+
+// getLogServiceClientWithRecorder builds the log service client, reporting
+// calls to the remote log service to rec. Stdout is not a remote call and is
+// left unwrapped.
+func getLogServiceClientWithRecorder(cfg *api.LogConfig, useOptimizedClient bool, rec telemetry.Recorder) logstream.Client {
+	if cfg.URL == "" {
+		return stdout.New()
+	}
+	var remoteClient logstream.Client
+	if useOptimizedClient {
+		remoteClient = remote.NewOptimizedHTTPClientWithLogScope(
+			cfg.URL, cfg.AccountID, cfg.OrgID, cfg.ProjectID, cfg.Token, cfg.IndirectUpload, false, "", "")
+	} else {
+		remoteClient = remote.NewHTTPClientWithLogScope(
 			cfg.URL, cfg.AccountID, cfg.OrgID, cfg.ProjectID, cfg.Token, cfg.IndirectUpload, false, "", "")
 	}
-	return stdout.New()
+	return logstream.NewInstrumentedClient(remoteClient, rec)
 }
 
 // Used to create a log service client which handles secrets

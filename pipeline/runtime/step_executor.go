@@ -30,6 +30,7 @@ import (
 	"github.com/harness/lite-engine/logstream"
 	"github.com/harness/lite-engine/logstream/remote"
 	"github.com/harness/lite-engine/pipeline"
+	"github.com/harness/lite-engine/telemetry"
 	tiCfg "github.com/harness/lite-engine/ti/config"
 	"github.com/harness/lite-engine/ti/report"
 	"github.com/harness/ti-client/types"
@@ -73,11 +74,13 @@ type StepExecutor struct {
 	stepStatus map[string]StepStatus
 	stepLog    map[string]*StepLog
 	stepWaitCh map[string][]chan StepStatus
+	recorder   telemetry.Recorder
 }
 
 func NewStepExecutor(engine *engine.Engine) *StepExecutor {
 	return &StepExecutor{
 		engine:     engine,
+		recorder:   telemetry.Default().Recorder(),
 		mu:         sync.Mutex{},
 		stepWaitCh: make(map[string][]chan StepStatus),
 		stepLog:    make(map[string]*StepLog),
@@ -424,7 +427,7 @@ func (e *StepExecutor) executeStep(r *api.StartStepRequest, wr logstream.Writer)
 	}
 	ctx := context.Background()
 	logResilience := e.engine.GetPipelineEnvs()[logServiceResilienceFF] == trueValue
-	return executeStepHelper(ctx, r, e.engine.Run, wr, tiConfig, false, logResilience)
+	return executeStepHelper(ctx, r, trackedRunFunc(e.engine.Run, e.recorder), wr, tiConfig, false, logResilience)
 }
 
 // executeStepHelper is a helper function which is used both by this step executor as well as the

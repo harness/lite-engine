@@ -7,6 +7,8 @@ import (
 
 	"github.com/harness/ti-client/client"
 	"github.com/harness/ti-client/types"
+
+	"github.com/harness/lite-engine/telemetry"
 )
 
 var (
@@ -48,11 +50,13 @@ func New(endpoint, token, accountID, orgID, projectID, pipelineID, buildID, stag
 	return cfg
 }
 
+// GetClient returns the TI service client, or nil when none is configured.
+// Report and callgraph calls made through it are reported to telemetry.
 func (c *Cfg) GetClient() client.Client {
 	if c.client == nil {
 		return nil
 	}
-	return c.client
+	return instrumentTIClient(c.client, telemetry.Default().Recorder())
 }
 
 func (c *Cfg) GetURL() string {

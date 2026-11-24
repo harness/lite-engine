@@ -25,7 +25,6 @@ import (
 	"github.com/harness/lite-engine/ti/instrumentation"
 	"github.com/harness/ti-client/chrysalis/types"
 	tiClientUtils "github.com/harness/ti-client/chrysalis/utils"
-	tiClient "github.com/harness/ti-client/client"
 	tiClientTypes "github.com/harness/ti-client/types"
 	"github.com/mattn/go-zglob"
 	"github.com/sirupsen/logrus"
@@ -63,14 +62,7 @@ func Upload(
 	stepDataDir := filepath.Join(cfg.GetDataDir(), instrumentation.GetUniqueHash(uniqueStepID, cfg))
 
 	if enhancedFFVal, ok := r.Envs["CI_TI_V2_ENHANCED_FF"]; ok && enhancedFFVal == "true" {
-		var repo, sha string
-		if httpClient, ok := cfg.GetClient().(*tiClient.HTTPClient); ok {
-			repo = httpClient.Repo
-			sha = httpClient.Sha
-		} else {
-			repo = ""
-			sha = ""
-		}
+		repo, sha := repoAndSha(cfg)
 		cg, err := parseCallgraphFiles(fmt.Sprintf(dir, stepDataDir), log)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse callgraph files: %w", err)
@@ -527,4 +519,13 @@ func CreateUploadPayload(cg *Callgraph, fileChecksums map[string]uint64, nonCode
 		TotalTests:       len(reportTests),
 		PreviousFailures: failedTests,
 	}, nil
+}
+
+// repoAndSha returns the repo and commit the TI client is scoped to, or empty
+// strings when no client is configured.
+func repoAndSha(cfg *tiCfg.Cfg) (repo, sha string) {
+	if cfg.GetClient() == nil {
+		return "", ""
+	}
+	return cfg.GetRepo(), cfg.GetSha()
 }
