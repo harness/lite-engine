@@ -63,3 +63,22 @@ func TestInjectCLIPathForWindowsShell(t *testing.T) {
 		})
 	}
 }
+
+func TestInjectCLIPathForWindowsContainerForOS(t *testing.T) {
+	step := &spec.Step{
+		Image:      "windows-image",
+		Entrypoint: []string{"pwsh"},
+		Command:    []string{"harness version"},
+	}
+	injectCLIPathForWindowsContainerForOS(step, windowsOS)
+	want := `$env:PATH = 'C:\harness\lite-engine;' + $env:PATH; harness version`
+	if !reflect.DeepEqual(step.Command, []string{want}) {
+		t.Fatalf("command = %#v, want %#v", step.Command, []string{want})
+	}
+
+	step.Command = []string{"harness version"}
+	injectCLIPathForWindowsContainerForOS(step, "linux")
+	if !reflect.DeepEqual(step.Command, []string{"harness version"}) {
+		t.Fatalf("non-Windows command changed: %#v", step.Command)
+	}
+}

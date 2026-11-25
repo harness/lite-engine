@@ -367,7 +367,11 @@ func checkStepSuccess(state *runtime.State, err error) bool {
 
 // injectCLIPathForWindowsContainer adds hcli and harness to PATH for Windows container steps.
 func injectCLIPathForWindowsContainer(step *spec.Step) {
-	if goruntime.GOOS != windowsOS {
+	injectCLIPathForWindowsContainerForOS(step, goruntime.GOOS)
+}
+
+func injectCLIPathForWindowsContainerForOS(step *spec.Step, goos string) {
+	if goos != windowsOS {
 		return
 	}
 	injectCLIPathForWindowsShell(step)

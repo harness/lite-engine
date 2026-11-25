@@ -34,7 +34,11 @@ const (
 )
 
 func getCLISourcePath(name, path, macOSFallback string) string {
-	if runtime.GOOS == "darwin" {
+	return getCLISourcePathForOS(runtime.GOOS, name, path, macOSFallback)
+}
+
+func getCLISourcePathForOS(goos, name, path, macOSFallback string) string {
+	if goos == "darwin" {
 		// macOS: Check $HOME/harness/bin, falling back to /tmp/harness/bin.
 		if home, err := os.UserHomeDir(); err == nil && home != "" {
 			return filepath.Join(home, "harness", "bin", name+"-linux")
@@ -169,7 +173,11 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 }
 
 func appendCLIMounts(config *container.HostConfig) {
-	if runtime.GOOS == windowsOS {
+	appendCLIMountsForOS(config, runtime.GOOS)
+}
+
+func appendCLIMountsForOS(config *container.HostConfig, goos string) {
+	if goos == windowsOS {
 		// Windows: Mount directory containing hcli and harness.
 		config.Mounts = append(config.Mounts, mount.Mount{
 			Type:     mount.TypeBind,

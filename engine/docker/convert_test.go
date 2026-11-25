@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/harness/lite-engine/engine/spec"
+	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/api/types/mount"
 )
 
@@ -48,6 +49,43 @@ func TestToHostConfigSkipsMissingHarnessCLI(t *testing.T) {
 			t.Fatalf("unexpected harness mount: %#v", m)
 		}
 	}
+}
+
+func TestGetCLISourcePath(t *testing.T) {
+	homeDir := t.TempDir()
+	tests := []struct {
+		name string
+		goos string
+		home string
+		want string
+	}{
+		{name: "linux", goos: "linux", want: hcliPath},
+		{name: "darwin home", goos: "darwin", home: homeDir, want: filepath.Join(homeDir, "harness", "bin", "hcli-linux")},
+		{name: "darwin fallback", goos: "darwin", want: hcliMacOSFallback},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("HOME", tt.home)
+			t.Setenv("USERPROFILE", tt.home)
+			if got := getCLISourcePathForOS(tt.goos, "hcli", hcliPath, hcliMacOSFallback); got != tt.want {
+				t.Fatalf("getCLISourcePathForOS() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetHarnessSourcePath(t *testing.T) {
+	want := getCLISourcePath("harness", harnessPath, harnessMacOSFallback)
+	if got := getHarnessSourcePath(); got != want {
+		t.Fatalf("getHarnessSourcePath() = %q, want %q", got, want)
+	}
+}
+
+func TestAppendCLIMountsForWindows(t *testing.T) {
+	config := &container.HostConfig{}
+	appendCLIMountsForOS(config, windowsOS)
+	assertCLIMount(t, config.Mounts, `C:\Program Files\lite-engine`, `C:\harness\lite-engine`)
 }
 
 func createTestCLIBinary(t *testing.T, name string) string {
