@@ -25,22 +25,31 @@ import (
 )
 
 const (
-	buildCacheStepName = "harness-build-cache"
-	annotationsFFEnv   = "CI_ENABLE_HARNESS_ANNOTATIONS"
-	hcliPath           = "/usr/bin/hcli"               // Standard Linux location and container target path
-	hcliMacOSFallback  = "/tmp/harness/bin/hcli-linux" // macOS fallback path for hcli binary
+	buildCacheStepName   = "harness-build-cache"
+	annotationsFFEnv     = "CI_ENABLE_HARNESS_ANNOTATIONS"
+	hcliPath             = "/usr/bin/hcli"                  // Standard Linux location and container target path
+	hcliMacOSFallback    = "/tmp/harness/bin/hcli-linux"    // macOS fallback path for hcli binary
+	harnessPath          = "/usr/bin/harness"               // Standard Linux location and container target path
+	harnessMacOSFallback = "/tmp/harness/bin/harness-linux" // macOS fallback path for harness binary
 )
 
-// getHcliSourcePath returns the host path for hcli binary based on OS
-func getHcliSourcePath() string {
+func getCLISourcePath(name, path, macOSFallback string) string {
 	if runtime.GOOS == "darwin" {
-		// macOS: Check $HOME/harness/bin/hcli-linux, fallback to /tmp/harness/bin/hcli-linux
+		// macOS: Check $HOME/harness/bin, falling back to /tmp/harness/bin.
 		if home, err := os.UserHomeDir(); err == nil && home != "" {
-			return filepath.Join(home, "harness", "bin", "hcli-linux")
+			return filepath.Join(home, "harness", "bin", name+"-linux")
 		}
-		return hcliMacOSFallback
+		return macOSFallback
 	}
-	return hcliPath // Linux uses /usr/bin/hcli for both source and target
+	return path // Linux uses the same source and target path.
+}
+
+var getHcliSourcePath = func() string {
+	return getCLISourcePath("hcli", hcliPath, hcliMacOSFallback)
+}
+
+var getHarnessSourcePath = func() string {
+	return getCLISourcePath("harness", harnessPath, harnessMacOSFallback)
 }
 
 // returns a container configuration.
@@ -136,29 +145,7 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.Mounts = toVolumeMounts(pipelineConfig, step)
 	}
 
-	// Mount hcli binary for containers
-	if runtime.GOOS == windowsOS {
-		// Windows: Mount directory
-		config.Mounts = append(config.Mounts, mount.Mount{
-			Type:     mount.TypeBind,
-			Source:   `C:\Program Files\lite-engine`,
-			Target:   `C:\harness\lite-engine`,
-			ReadOnly: true,
-		})
-	} else {
-		// Linux/macOS: Mount hcli binary
-		hcliSourcePath := getHcliSourcePath()
-		if _, err := os.Stat(hcliSourcePath); err == nil {
-			config.Mounts = append(config.Mounts, mount.Mount{
-				Type:     mount.TypeBind,
-				Source:   hcliSourcePath,
-				Target:   hcliPath, // Always /usr/bin/hcli inside container
-				ReadOnly: true,
-			})
-		} else {
-			logrus.WithField("path", hcliSourcePath).Warnln("hcli binary not found for mounting - annotations may not work in containers")
-		}
-	}
+	appendCLIMounts(config)
 
 	appendWorkloadIdentityMount(config, step)
 
@@ -179,6 +166,41 @@ func toHostConfig(pipelineConfig *spec.PipelineConfig, step *spec.Step) *contain
 		config.PortBindings = portBinding
 	}
 	return config
+}
+
+func appendCLIMounts(config *container.HostConfig) {
+	if runtime.GOOS == windowsOS {
+		// Windows: Mount directory containing hcli and harness.
+		config.Mounts = append(config.Mounts, mount.Mount{
+			Type:     mount.TypeBind,
+			Source:   `C:\Program Files\lite-engine`,
+			Target:   `C:\harness\lite-engine`,
+			ReadOnly: true,
+		})
+		return
+	}
+
+	// Linux/macOS: Mount hcli and harness binaries.
+	binaries := []struct {
+		name       string
+		sourcePath string
+		targetPath string
+	}{
+		{name: "hcli", sourcePath: getHcliSourcePath(), targetPath: hcliPath},
+		{name: "harness", sourcePath: getHarnessSourcePath(), targetPath: harnessPath},
+	}
+	for _, binary := range binaries {
+		if _, err := os.Stat(binary.sourcePath); err == nil {
+			config.Mounts = append(config.Mounts, mount.Mount{
+				Type:     mount.TypeBind,
+				Source:   binary.sourcePath,
+				Target:   binary.targetPath,
+				ReadOnly: true,
+			})
+		} else {
+			logrus.WithField("path", binary.sourcePath).Warnf("%s binary not found for mounting - CLI commands may not work in containers", binary.name)
+		}
+	}
 }
 
 // appendWorkloadIdentityMount bind-mounts the WI mint socket dir into the step container at the SAME host
