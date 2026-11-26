@@ -369,10 +369,14 @@ func TestParseSavings_RemoveFailureIsNonFatal(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Make the parent directory read-only so os.Remove fails (non-IsNotExist).
+	// Root (common in CI) can still unlink; probe and skip in that case.
 	if err := os.Chmod(dir, 0o555); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	if err := os.Remove(reportPath); err == nil {
+		t.Skip("os.Remove succeeded on 0555 dir (likely root); cannot exercise remove-failure path")
+	}
 
 	state, reports, _, err := ParseSavings(t.TempDir(), logrus.New(), map[string]string{
 		"HARNESS_GO_CACHE_REPORT_PATH": reportPath,
