@@ -34,8 +34,8 @@ const (
 	ciNewVersionGodotEnv = "CI_NEW_VERSION_GODOTENV"
 	trueValue            = "true"
 
-	// Windows container path where hcli is mounted (used for PATH injection)
-	hcliWindowsContainerPath = `C:\harness\lite-engine`
+	// Windows container path where hcli and harness are mounted (used for PATH injection)
+	cliWindowsContainerPath = `C:\harness\lite-engine`
 )
 
 func getNudges() []logstream.Nudge {
@@ -365,15 +365,26 @@ func checkStepSuccess(state *runtime.State, err error) bool {
 	return false
 }
 
-// injectHcliPathForWindowsContainer adds hcli to PATH for Windows container steps.
-func injectHcliPathForWindowsContainer(step *spec.Step) {
+// injectCLIPathForWindowsContainer adds hcli and harness to PATH for Windows container steps.
+func injectCLIPathForWindowsContainer(step *spec.Step) {
+	injectCLIPathForWindowsContainerForOS(step, goruntime.GOOS)
+}
+
+func injectCLIPathForWindowsContainerForOS(step *spec.Step, goos string) {
+	if goos != windowsOS {
+		return
+	}
+	injectCLIPathForWindowsShell(step)
+}
+
+func injectCLIPathForWindowsShell(step *spec.Step) {
 	defer func() {
 		if r := recover(); r != nil {
-			logrus.WithField("panic", r).Warn("recovered from panic in hcli PATH injection")
+			logrus.WithField("panic", r).Warn("recovered from panic in CLI PATH injection")
 		}
 	}()
 
-	if !shouldInjectHcliPath(step) {
+	if !shouldInjectCLIPath(step) {
 		return
 	}
 
@@ -382,25 +393,16 @@ func injectHcliPathForWindowsContainer(step *spec.Step) {
 		shell = strings.ToLower(step.Entrypoint[0])
 	}
 
-	// Prepend hcli path to ensure our binary is found first
+	// Prepend the CLI path to ensure our binaries are found first.
 	switch {
 	case strings.Contains(shell, "powershell"), strings.Contains(shell, "pwsh"):
-		step.Command[0] = `$env:PATH = '` + hcliWindowsContainerPath + `;' + $env:PATH; ` + step.Command[0]
+		step.Command[0] = `$env:PATH = '` + cliWindowsContainerPath + `;' + $env:PATH; ` + step.Command[0]
 	case strings.Contains(shell, "cmd"):
-		step.Command[0] = `set "PATH=` + hcliWindowsContainerPath + `;%PATH%" & ` + step.Command[0]
+		step.Command[0] = `set "PATH=` + cliWindowsContainerPath + `;%PATH%" & ` + step.Command[0]
 	}
 }
 
-// shouldInjectHcliPath checks if hcli PATH injection should be performed.
-func shouldInjectHcliPath(step *spec.Step) bool {
-	if step == nil || step.Envs == nil {
-		return false
-	}
-	if goruntime.GOOS != windowsOS {
-		return false
-	}
-	if step.Image == "" || len(step.Command) == 0 {
-		return false
-	}
-	return step.Envs[annotationsFFEnv] == trueValue
+// shouldInjectCLIPath checks if CLI PATH injection should be performed.
+func shouldInjectCLIPath(step *spec.Step) bool {
+	return step != nil && step.Image != "" && len(step.Command) > 0
 }
