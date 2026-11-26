@@ -429,7 +429,7 @@ func initGitRepo(t *testing.T, dir string) {
 		{"add", "."},
 		{"-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init"},
 	} {
-		cmd := exec.Command("git", args...)
+		cmd := exec.CommandContext(t.Context(), "git", args...)
 		cmd.Dir = dir
 		out, err := cmd.CombinedOutput()
 		assert.Nil(t, err, string(out))

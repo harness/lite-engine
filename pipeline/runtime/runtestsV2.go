@@ -99,8 +99,8 @@ func executeRunTestsV2Step(ctx context.Context, f RunFunc, r *api.StartStepReque
 	nativeArtifactFile := fmt.Sprintf("%s/%s-artifact.json", pipeline.GetSharedVolPath(), step.ID)
 	step.Envs["HARNESS_ARTIFACT_FILE_PATH"] = engine.PathConverter(nativeArtifactFile)
 
-	// For Windows containers, add hcli directory to PATH
-	injectHcliPathForWindowsContainer(step)
+	// For Windows containers, add the CLI directory to PATH
+	injectCLIPathForWindowsContainer(step)
 
 	if (len(r.OutputVars) > 0 || len(r.Outputs) > 0) && (len(step.Entrypoint) == 0 || len(step.Command) == 0) {
 		return nil, nil, nil, nil, nil, nil, string(optimizationState), fmt.Errorf("output variable should not be set for unset entrypoint or command")
@@ -465,6 +465,35 @@ func distributeSkipTestsForParallelism(
 	return newSkipTests, nil
 }
 
+// getPRChangedFilesForSkip returns the paths of files (still present after the PR) that must always re-run their
+// dependent tests. It only applies to PR executions. runAllTests is true when it is a PR but the changed files
+// could not be determined (or there are none), in which case all the tests must run, same as v1.
+func getPRChangedFilesForSkip(ctx context.Context, workspace string, log *logrus.Logger, tiConfig *tiCfg.Cfg) (paths []string, runAllTests bool) {
+	if instrumentation.IsManualExecution(tiConfig) || instrumentation.IsPushTriggerExecution(tiConfig) {
+		return nil, false
+	}
+	files, err := instrumentation.GetChangedFilesPR(ctx, workspace, log)
+	if err != nil || len(files) == 0 {
+		log.WithError(err).Errorln("Unable to get changed files list for PR. Running all the tests.")
+		return nil, true
+	}
+	log.Infof("Re-running tests depending on %d file(s) changed in the PR", len(files))
+	return getPRChangedFilePaths(files), false
+}
+
+// getPRChangedFilePaths returns the paths of files that still exist after the PR (added/modified).
+// Deleted files are dropped as they have no checksum. Renames are already split into deleted + added.
+func getPRChangedFilePaths(files []types.File) []string {
+	paths := make([]string, 0, len(files))
+	for _, f := range files {
+		if f.Status == types.FileDeleted || f.Name == "" {
+			continue
+		}
+		paths = append(paths, f.Name)
+	}
+	return paths
+}
+
 func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem, stepID, workspace string,
 	log *logrus.Logger, tiConfig *tiCfg.Cfg, skipTestsFilePath, failedTestsFilePath string, envs map[string]string, config *api.RunTestsV2Config) error {
 	log.Debugf("Creating skip tests file at path: %s", skipTestsFilePath)
@@ -507,16 +536,26 @@ func createSkipAndFailedTestsFiles(ctx context.Context, fs filesystem.FileSystem
 			log.Infoln("Starting skip file generation for TI enhanced mode")
 		}
 
-		// Get file checksums from git repository using workspace
-		fileChecksums, _, err := instrumentation.GetGitFileChecksums(ctx, workspace, log)
-		if err == nil {
-			log.Infof("Sending %d git file checksums from %s to ti-service for skip analysis", len(fileChecksums), workspace)
-			skipTests, failedTests, err = sendFileChecksumsToTI(ctx, stepID, workspace, log, tiConfig, fileChecksums, envs)
+		// For PR executions, files changed in the PR (v1 style detection) get a virtual fixed checksum so that
+		// every test depending on them is re-run. Uploads always use the real checksums.
+		prChangedFiles, runAllTests := getPRChangedFilesForSkip(ctx, workspace, log, tiConfig)
+		var err error
+		if !runAllTests {
+			// Get file checksums from git repository using workspace
+			var fileChecksums map[string]uint64
+			fileChecksums, _, err = instrumentation.GetGitFileChecksumsWithChangedFiles(ctx, workspace, log, prChangedFiles)
+			if err == nil {
+				log.Infof("Sending %d git file checksums from %s to ti-service for skip analysis", len(fileChecksums), workspace)
+				skipTests, failedTests, err = sendFileChecksumsToTI(ctx, stepID, workspace, log, tiConfig, fileChecksums, envs)
+			}
 		}
 
 		skipFilesCount := len(extractTestFiles(skipTests))
 		failedFilesCount := len(extractTestFiles(failedTests))
 		switch {
+		case runAllTests:
+			skipTests = []string{}
+			failedTests = []string{}
 		case err != nil:
 			// Do not fail the step on a Test Intelligence error: fall back to a full run
 			// (empty skip and failed lists), consistent with the legacy filter-file path.

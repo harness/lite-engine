@@ -266,7 +266,7 @@ func (c *HTTPClient) Write(ctx context.Context, key string, lines []*logstream.L
 	path := fmt.Sprintf(streamEndpoint, c.AccountID, key)
 	path = appendLogScope(path, c.OrgID, c.ProjectID)
 	l := convertLines(lines)
-	_, err := c.do(ctx, c.Endpoint+path, "PUT", &l, nil) //nolint:bodyclose
+	_, err := c.do(ctx, c.Endpoint+path, "PUT", &l, nil, customKafkaTopicOpt(ctx)) //nolint:bodyclose
 	return err
 }
 
@@ -329,7 +329,7 @@ func (c *HTTPClient) retry(ctx context.Context, method, path string, in, out int
 
 // do is a helper function that posts a signed http request with
 // the input encoded and response decoded from json.
-func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interface{}) (*http.Response, error) {
+func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interface{}, opts ...func(*http.Request)) (*http.Response, error) {
 	var r io.Reader
 
 	if in != nil {
@@ -349,6 +349,9 @@ func (c *HTTPClient) do(ctx context.Context, path, method string, in, out interf
 	// the request should include the secret shared between
 	// the agent and server for authorization.
 	req.Header.Add("X-Harness-Token", c.Token)
+	for _, opt := range opts {
+		opt(req)
+	}
 	res, err := c.client().Do(req)
 	if res != nil {
 		defer func() {
