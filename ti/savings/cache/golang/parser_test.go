@@ -162,6 +162,18 @@ func TestEnvValue_PrefersStepEnvs(t *testing.T) {
 	}
 }
 
+func TestDefaultSharedEngineVolPath(t *testing.T) {
+	t.Setenv("HARNESS_WORKDIR", "")
+	if got := defaultSharedEngineVolPath(nil); got != "/tmp/engine" {
+		t.Fatalf("defaultSharedEngineVolPath(nil) = %q, want /tmp/engine", got)
+	}
+	envs := map[string]string{"HARNESS_WORKDIR": "/ws"}
+	want := filepath.Join("/ws", "tmp", "engine")
+	if got := defaultSharedEngineVolPath(envs); got != want {
+		t.Fatalf("defaultSharedEngineVolPath(envs) = %q, want %q", got, want)
+	}
+}
+
 // TestParseSavings_SharedEngineVolFindsReport covers CI-25598: go-cache-proxy
 // writes under /tmp/engine (LE shared vol) so containerized hosted/VM steps
 // remain visible to host-side lite-engine after the step exits.

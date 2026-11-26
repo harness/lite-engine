@@ -55,14 +55,17 @@ func ParseSavings(workspace string, log *logrus.Logger, envs map[string]string) 
 	return cacheState, reports, totalDurationMs, nil
 }
 
-// sharedEngineVolPath mirrors pipeline.GetSharedVolPath() / harness-cache
-// helper_bi.sharedEngineVolPathFn. Declared as a var for tests.
-var sharedEngineVolPath = func(envs map[string]string) string {
+// defaultSharedEngineVolPath mirrors pipeline.GetSharedVolPath() / harness-cache
+// helper_bi.sharedEngineVolPathFn.
+func defaultSharedEngineVolPath(envs map[string]string) string {
 	if workdir := envValue(envs, "HARNESS_WORKDIR"); workdir != "" {
 		return filepath.Join(workdir, "tmp", "engine")
 	}
 	return "/tmp/engine"
 }
+
+// sharedEngineVolPath is overridable in tests.
+var sharedEngineVolPath = defaultSharedEngineVolPath
 
 func findReportFiles(workspace string, envs map[string]string) []string {
 	candidates := make([]string, 0)
