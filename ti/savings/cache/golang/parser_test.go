@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/harness/ti-client/types"
+	golangTypes "github.com/harness/ti-client/types/cache/golang"
 	"github.com/sirupsen/logrus"
 )
 
@@ -219,5 +220,182 @@ func TestParseSavings_SharedEngineVolFindsReport(t *testing.T) {
 	}
 	if _, err := os.Stat(reportPath); !os.IsNotExist(err) {
 		t.Fatalf("expected report to be removed after parse, err=%v", err)
+	}
+}
+
+func TestParseSavings_FullRunWhenNoHits(t *testing.T) {
+	workspace := t.TempDir()
+	reportPath := filepath.Join(workspace, ".harness", "go-cache-report.json")
+	if err := os.MkdirAll(filepath.Dir(reportPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	payload := map[string]any{"version": 1, "gets": 3, "hits": 0, "misses": 3, "puts": 2, "duration_ms": 100}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(reportPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state, _, _, err := ParseSavings(workspace, logrus.New(), nil)
+	if err != nil {
+		t.Fatalf("ParseSavings error: %v", err)
+	}
+	if state != types.FULL_RUN {
+		t.Fatalf("state = %s, want FULL_RUN", state)
+	}
+}
+
+func TestParseSavings_SkipsInvalidJSON(t *testing.T) {
+	workspace := t.TempDir()
+	reportPath := filepath.Join(workspace, ".harness", "go-cache-report.json")
+	if err := os.MkdirAll(filepath.Dir(reportPath), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(reportPath, []byte("not-json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state, reports, _, err := ParseSavings(workspace, logrus.New(), nil)
+	if err == nil {
+		t.Fatal("expected error when only invalid report exists")
+	}
+	if state != types.DISABLED || len(reports) != 0 {
+		t.Fatalf("state=%s reports=%d", state, len(reports))
+	}
+}
+
+func TestParseSavings_ExplicitReportPathAndWorkdir(t *testing.T) {
+	orig := sharedEngineVolPath
+	sharedEngineVolPath = func(map[string]string) string { return filepath.Join(t.TempDir(), "missing") }
+	t.Cleanup(func() { sharedEngineVolPath = orig })
+
+	explicit := filepath.Join(t.TempDir(), "explicit.json")
+	payload := map[string]any{"version": 0, "gets": 1, "hits": 1, "duration_ms": 10}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(explicit, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	envs := map[string]string{"HARNESS_GO_CACHE_REPORT_PATH": explicit}
+	state, reports, _, err := ParseSavings(t.TempDir(), logrus.New(), envs)
+	if err != nil {
+		t.Fatalf("ParseSavings error: %v", err)
+	}
+	if state != types.OPTIMIZED || len(reports) != 1 || reports[0].Version != 1 {
+		t.Fatalf("unexpected result state=%s reports=%+v", state, reports)
+	}
+
+	workdir := t.TempDir()
+	wdReport := filepath.Join(workdir, ".harness", "go-cache-report.json")
+	if err := os.MkdirAll(filepath.Dir(wdReport), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(wdReport, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state, _, _, err = ParseSavings(t.TempDir(), logrus.New(), map[string]string{"HARNESS_WORKDIR": workdir})
+	if err != nil || state != types.OPTIMIZED {
+		t.Fatalf("workdir report not found: state=%s err=%v", state, err)
+	}
+}
+
+func TestGetMetadataFromGoMetrics(t *testing.T) {
+	gets, hits := GetMetadataFromGoMetrics(nil)
+	if gets != 0 || hits != 0 {
+		t.Fatalf("nil metrics: gets=%d hits=%d", gets, hits)
+	}
+	req := &types.SavingsRequest{}
+	req.GoMetrics.Reports = []golangTypes.Report{
+		{Gets: 4, Hits: 3},
+		{Gets: 2, Hits: 1},
+	}
+	gets, hits = GetMetadataFromGoMetrics(req)
+	if gets != 6 || hits != 4 {
+		t.Fatalf("GetMetadataFromGoMetrics = (%d,%d), want (6,4)", gets, hits)
+	}
+}
+
+func TestExecutionScopeAndSanitize(t *testing.T) {
+	t.Setenv("HARNESS_EXECUTION_ID", "")
+	t.Setenv("HARNESS_STAGE_ID", "")
+	t.Setenv("HARNESS_BUILD_ID", "")
+	if got := executionScopeWithEnvs(nil); got != "unknown" {
+		t.Fatalf("executionScopeWithEnvs = %q, want unknown", got)
+	}
+	if sanitizePathElement("  ") != "" {
+		t.Fatal("expected blank sanitize to return empty")
+	}
+}
+
+func TestParseReportFile_DirectoryError(t *testing.T) {
+	dir := t.TempDir()
+	reportPath := filepath.Join(dir, "go-cache-report.json")
+	if err := os.Mkdir(reportPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := parseReportFile(reportPath); err == nil {
+		t.Fatal("expected error reading directory as report file")
+	}
+}
+
+func TestFindReportFiles_DedupesPaths(t *testing.T) {
+	orig := sharedEngineVolPath
+	sharedEngineVolPath = func(map[string]string) string { return filepath.Join(t.TempDir(), "missing") }
+	t.Cleanup(func() { sharedEngineVolPath = orig })
+
+	dir := t.TempDir()
+	reportPath := filepath.Join(dir, "go-cache-report.json")
+	if err := os.WriteFile(reportPath, []byte(`{"version":1,"gets":1,"hits":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Same path via explicit env and as workspace/.harness would differ; feed explicit twice via env+same file.
+	envs := map[string]string{"HARNESS_GO_CACHE_REPORT_PATH": reportPath}
+	files := findReportFiles(dir, envs)
+	if len(files) != 1 {
+		t.Fatalf("expected deduped single candidate, got %v", files)
+	}
+}
+
+func TestParseSavings_RemoveFailureIsNonFatal(t *testing.T) {
+	orig := sharedEngineVolPath
+	sharedEngineVolPath = func(map[string]string) string { return filepath.Join(t.TempDir(), "missing") }
+	t.Cleanup(func() { sharedEngineVolPath = orig })
+
+	dir := t.TempDir()
+	reportPath := filepath.Join(dir, "go-cache-report.json")
+	if err := os.WriteFile(reportPath, []byte(`{"version":1,"gets":1,"hits":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Make the parent directory read-only so os.Remove fails (non-IsNotExist).
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	state, reports, _, err := ParseSavings(t.TempDir(), logrus.New(), map[string]string{
+		"HARNESS_GO_CACHE_REPORT_PATH": reportPath,
+	})
+	if err != nil {
+		t.Fatalf("ParseSavings error: %v", err)
+	}
+	if state != types.OPTIMIZED || len(reports) != 1 {
+		t.Fatalf("state=%s reports=%d", state, len(reports))
+	}
+	// File should still exist because remove failed.
+	if _, err := os.Stat(reportPath); err != nil {
+		t.Fatalf("expected report to remain after failed remove: %v", err)
+	}
+}
+
+func TestFindReportFiles_EmptyExplicitSkipped(t *testing.T) {
+	orig := sharedEngineVolPath
+	sharedEngineVolPath = func(map[string]string) string { return "" }
+	t.Cleanup(func() { sharedEngineVolPath = orig })
+
+	files := findReportFiles(t.TempDir(), map[string]string{"HARNESS_GO_CACHE_REPORT_PATH": ""})
+	if len(files) != 0 {
+		t.Fatalf("expected no candidates, got %v", files)
 	}
 }
