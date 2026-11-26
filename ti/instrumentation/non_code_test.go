@@ -306,14 +306,14 @@ func TestChangedNonCodeFileChangesNonCodeChain(t *testing.T) {
 		_, chain := PopulateNonCodeEntities(fc, cfg)
 		return chain.Checksum
 	}
-	real := chainFor(nil, NonCodeConfig{})
-	if chainFor([]string{"pom.xml"}, NonCodeConfig{}) == real {
+	realChain := chainFor(nil, NonCodeConfig{})
+	if chainFor([]string{"pom.xml"}, NonCodeConfig{}) == realChain {
 		t.Error("changed included non-code file must change the non-code chain")
 	}
-	if chainFor([]string{"README.md"}, NonCodeConfig{}) != real {
+	if chainFor([]string{"README.md"}, NonCodeConfig{}) != realChain {
 		t.Error("changed non-code file outside the include set must not change the chain")
 	}
-	if chainFor([]string{"src/a.java"}, NonCodeConfig{}) != real {
+	if chainFor([]string{"src/a.java"}, NonCodeConfig{}) != realChain {
 		t.Error("changed code file must not change the non-code chain")
 	}
 	excl := NonCodeConfig{}
@@ -352,7 +352,7 @@ func TestGetGitFileChecksumsWithChangedFiles(t *testing.T) {
 	runGit("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "init")
 
 	ctx := context.Background()
-	real, _, err := GetGitFileChecksums(ctx, repoDir, logrus.New())
+	realSums, _, err := GetGitFileChecksums(ctx, repoDir, logrus.New())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,7 +360,7 @@ func TestGetGitFileChecksumsWithChangedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(real, withNil) {
+	if !reflect.DeepEqual(realSums, withNil) {
 		t.Error("no changed files must equal GetGitFileChecksums")
 	}
 
@@ -368,10 +368,10 @@ func TestGetGitFileChecksumsWithChangedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got["src/A.java"] != changedFileChecksum || got["src/A.java"] == real["src/A.java"] {
+	if got["src/A.java"] != changedFileChecksum || got["src/A.java"] == realSums["src/A.java"] {
 		t.Errorf("changed file checksum = %d", got["src/A.java"])
 	}
-	if got["src/B.java"] != real["src/B.java"] {
+	if got["src/B.java"] != realSums["src/B.java"] {
 		t.Error("unchanged file must keep its real checksum")
 	}
 	if got["gen/G.java"] != constantChecksum {
@@ -384,7 +384,7 @@ func TestGetGitFileChecksumsWithChangedFiles(t *testing.T) {
 		t.Error("deleted file must not be added")
 	}
 	again, _, _ := GetGitFileChecksums(ctx, repoDir, logrus.New())
-	if !reflect.DeepEqual(real, again) {
+	if !reflect.DeepEqual(realSums, again) {
 		t.Error("GetGitFileChecksums must keep returning real checksums (used for upload)")
 	}
 }

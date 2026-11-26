@@ -50,7 +50,7 @@ type prTestRepo struct {
 
 func (r *prTestRepo) git(args ...string) {
 	r.t.Helper()
-	cmd := exec.Command("git", append([]string{"-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
+	cmd := exec.CommandContext(context.Background(), "git", append([]string{"-c", "user.email=t@t", "-c", "user.name=t"}, args...)...) //nolint:gosec // test helper; args are literals from the test
 	cmd.Dir = r.dir
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_SYSTEM=/dev/null")
 	out, err := cmd.CombinedOutput()
@@ -178,7 +178,7 @@ func runSkipFlow(t *testing.T, workspace string, cfg *tiCfg.Cfg) (skipFile strin
 
 func Test_CreateSkipAndFailedTestsFiles_PRChangedFilesGetVirtualChecksum(t *testing.T) {
 	repo := newPRTestRepo(t, true)
-	real, _, err := instrumentation.GetGitFileChecksums(context.Background(), repo.dir, logrus.New())
+	realSums, _, err := instrumentation.GetGitFileChecksums(context.Background(), repo.dir, logrus.New())
 	require.NoError(t, err)
 
 	ti := &recordingTI{skip: []string{instrumentation.NonCodeChainPath, "src/test/XTest.java"}}
@@ -186,35 +186,35 @@ func Test_CreateSkipAndFailedTestsFiles_PRChangedFilesGetVirtualChecksum(t *test
 
 	require.Len(t, ti.calls, 1)
 	sent := ti.calls[0].Files
-	assert.NotEqual(t, real["src/A.java"], sent["src/A.java"], "changed file must not carry its real checksum")
-	assert.NotEqual(t, real["pom.xml"], sent["pom.xml"], "changed non-code file must not carry its real checksum")
-	assert.Equal(t, real["src/B.java"], sent["src/B.java"], "unchanged file keeps its real checksum")
-	assert.Equal(t, real["gen/G.java"], sent["gen/G.java"], "ignored file stays ignored")
+	assert.NotEqual(t, realSums["src/A.java"], sent["src/A.java"], "changed file must not carry its real checksum")
+	assert.NotEqual(t, realSums["pom.xml"], sent["pom.xml"], "changed non-code file must not carry its real checksum")
+	assert.Equal(t, realSums["src/B.java"], sent["src/B.java"], "unchanged file keeps its real checksum")
+	assert.Equal(t, realSums["gen/G.java"], sent["gen/G.java"], "ignored file stays ignored")
 	assert.Contains(t, readTrimmed(t, skipFile), "src/test/XTest.java")
 }
 
 func Test_CreateSkipAndFailedTestsFiles_PushSendsRealChecksums(t *testing.T) {
 	repo := newPRTestRepo(t, true)
-	real, _, err := instrumentation.GetGitFileChecksums(context.Background(), repo.dir, logrus.New())
+	realSums, _, err := instrumentation.GetGitFileChecksums(context.Background(), repo.dir, logrus.New())
 	require.NoError(t, err)
 
 	ti := &recordingTI{skip: []string{instrumentation.NonCodeChainPath}}
 	runSkipFlow(t, repo.dir, ti.cfg(t, "develop", "develop", "sha"))
 
 	require.Len(t, ti.calls, 1)
-	assert.Equal(t, real, ti.calls[0].Files)
+	assert.Equal(t, realSums, ti.calls[0].Files)
 }
 
 func Test_CreateSkipAndFailedTestsFiles_ManualSendsRealChecksums(t *testing.T) {
 	repo := newPRTestRepo(t, true)
-	real, _, err := instrumentation.GetGitFileChecksums(context.Background(), repo.dir, logrus.New())
+	realSums, _, err := instrumentation.GetGitFileChecksums(context.Background(), repo.dir, logrus.New())
 	require.NoError(t, err)
 
 	ti := &recordingTI{skip: []string{instrumentation.NonCodeChainPath}}
 	runSkipFlow(t, repo.dir, ti.cfg(t, "", "", ""))
 
 	require.Len(t, ti.calls, 1)
-	assert.Equal(t, real, ti.calls[0].Files)
+	assert.Equal(t, realSums, ti.calls[0].Files)
 }
 
 func Test_CreateSkipAndFailedTestsFiles_PRWithoutChangesRunsAllWithoutCallingTI(t *testing.T) {
