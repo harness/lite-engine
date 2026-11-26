@@ -63,6 +63,11 @@ const (
 	NonCodeDefaultPath = "HARNESS_TI_NON_CODE_DEFAULT_PATH"
 )
 
+// changedFileChecksum is the virtual checksum given to files changed in a PR while selecting tests to skip.
+// It differs from constantChecksum (ignored files), and from any stored real checksum, so tests depending on a
+// changed file always re-run.
+const changedFileChecksum uint64 = 3
+
 // Code file extensions that are considered "code" files
 var codeFileExtensions = []string{
 	// Java
@@ -1146,6 +1151,14 @@ func ShouldSkipAgentInfrastructure(intelligenceMode bool, envs map[string]string
 // GetGitFileChecksums gets git file checksums from the specified repository
 // and returns them as a map of filepath to 64-bit checksum.
 func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger) (map[string]uint64, NonCodeConfig, error) {
+	return GetGitFileChecksumsWithChangedFiles(ctx, repoDir, log, nil)
+}
+
+// GetGitFileChecksumsWithChangedFiles is like GetGitFileChecksums, but files listed in changedFiles (e.g. files
+// changed in a PR) get a fixed virtual checksum instead of their real one. It must only be used when selecting
+// tests (never when uploading the callgraph) so that tests depending on those files are re-run. Files in the
+// ignore list keep their constant checksum.
+func GetGitFileChecksumsWithChangedFiles(ctx context.Context, repoDir string, log *logrus.Logger, changedFiles []string) (map[string]uint64, NonCodeConfig, error) {
 	// Git ls-tree output format: "<mode> <type> <checksum>\t<filepath>"
 	// Minimum required parts: mode, type, checksum, filepath
 	const minGitLsTreeParts = 4
@@ -1210,6 +1223,7 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 
 		fileChecksums[filepath] = checksum64
 	}
+	applyChangedFilesChecksum(fileChecksums, changedFiles, ignoreList)
 	// Keep a synthetic source available for the empty non-code set. The
 	// sentinel checksum below intentionally excludes this reserved path.
 	fileChecksums[NonCodeDefaultPath] = constantChecksum
@@ -1217,6 +1231,17 @@ func GetGitFileChecksums(ctx context.Context, repoDir string, log *logrus.Logger
 	fileChecksums[NonCodeChainPath] = xxhash.Sum64String(nonCodeChecksumStr)
 	log.Infof("Successfully processed %d files from git repository", len(fileChecksums))
 	return fileChecksums, nonCodeConfig, nil
+}
+
+// applyChangedFilesChecksum virtually overrides the checksum of changed files that exist in fileChecksums.
+// Ignored files are left untouched and files not present (e.g. deleted) are not added.
+func applyChangedFilesChecksum(fileChecksums map[string]uint64, changedFiles, ignoreList []string) {
+	for _, f := range changedFiles {
+		if _, ok := fileChecksums[f]; !ok || isFileInIgnoreList(f, ignoreList) {
+			continue
+		}
+		fileChecksums[f] = changedFileChecksum
+	}
 }
 
 func isFileInIgnoreList(filePath string, ignoreList []string) bool {

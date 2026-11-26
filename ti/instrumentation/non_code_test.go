@@ -240,3 +240,151 @@ func TestGetParsedTiConfigParsesNonCodeConfig(t *testing.T) {
 		t.Fatalf("nonCode.exclude = %#v", got.Config.NonCode.Exclude)
 	}
 }
+
+func TestApplyChangedFilesChecksum(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      map[string]uint64
+		changed []string
+		ignore  []string
+		want    map[string]uint64
+	}{
+		{
+			name:    "changed files get the fixed checksum, others keep the real one",
+			in:      map[string]uint64{"a.java": 100, "b.java": 200, "c.java": 300},
+			changed: []string{"a.java", "c.java"},
+			want:    map[string]uint64{"a.java": changedFileChecksum, "b.java": 200, "c.java": changedFileChecksum},
+		},
+		{
+			name:    "nil changed files is a no-op",
+			in:      map[string]uint64{"a.java": 100},
+			changed: nil,
+			want:    map[string]uint64{"a.java": 100},
+		},
+		{
+			name:    "deleted file (absent from tree) is not added",
+			in:      map[string]uint64{"a.java": 100},
+			changed: []string{"deleted.java"},
+			want:    map[string]uint64{"a.java": 100},
+		},
+		{
+			name:    "ignored changed file keeps the ignore checksum",
+			in:      map[string]uint64{"gen/x.java": constantChecksum, "a.java": 100},
+			changed: []string{"gen/x.java", "a.java"},
+			ignore:  []string{"gen/**"},
+			want:    map[string]uint64{"gen/x.java": constantChecksum, "a.java": changedFileChecksum},
+		},
+		{
+			name:    "duplicates are harmless",
+			in:      map[string]uint64{"a.java": 100},
+			changed: []string{"a.java", "a.java"},
+			want:    map[string]uint64{"a.java": changedFileChecksum},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			applyChangedFilesChecksum(tt.in, tt.changed, tt.ignore)
+			if !reflect.DeepEqual(tt.in, tt.want) {
+				t.Errorf("applyChangedFilesChecksum() = %v, want %v", tt.in, tt.want)
+			}
+		})
+	}
+}
+
+func TestChangedFileChecksumIsDistinctFromConstants(t *testing.T) {
+	if changedFileChecksum == constantChecksum {
+		t.Errorf("changedFileChecksum %d must differ from the ignore checksum", changedFileChecksum)
+	}
+}
+
+func TestChangedNonCodeFileChangesNonCodeChain(t *testing.T) {
+	chainFor := func(changed []string, cfg NonCodeConfig) string {
+		fc := map[string]uint64{"src/a.java": 10, "pom.xml": 20, "README.md": 30, "config/app.yaml": 40}
+		applyChangedFilesChecksum(fc, changed, nil)
+		fc[NonCodeDefaultPath] = constantChecksum
+		fc[NonCodeChainPath] = xxhash.Sum64String(FindNonCodeFiles(fc, cfg))
+		_, chain := PopulateNonCodeEntities(fc, cfg)
+		return chain.Checksum
+	}
+	real := chainFor(nil, NonCodeConfig{})
+	if chainFor([]string{"pom.xml"}, NonCodeConfig{}) == real {
+		t.Error("changed included non-code file must change the non-code chain")
+	}
+	if chainFor([]string{"README.md"}, NonCodeConfig{}) != real {
+		t.Error("changed non-code file outside the include set must not change the chain")
+	}
+	if chainFor([]string{"src/a.java"}, NonCodeConfig{}) != real {
+		t.Error("changed code file must not change the non-code chain")
+	}
+	excl := NonCodeConfig{}
+	excl.Exclude = []string{"config/**"}
+	if chainFor([]string{"config/app.yaml"}, excl) != chainFor(nil, excl) {
+		t.Error("changed excluded non-code file must not change the chain")
+	}
+}
+
+func TestGetGitFileChecksumsWithChangedFiles(t *testing.T) {
+	repoDir := t.TempDir()
+	runGit := func(args ...string) {
+		t.Helper()
+		cmd := exec.CommandContext(context.Background(), "git", args...)
+		cmd.Dir = repoDir
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v failed: %v\n%s", args, err, output)
+		}
+	}
+	write := func(name, content string) {
+		p := filepath.Join(repoDir, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("src/A.java", "class A {}")
+	write("src/B.java", "class B {}")
+	write("gen/G.java", "class G {}")
+	write("pom.xml", "<project/>")
+	write(tiConfigPath, "config:\n  ignore:\n    - gen/**\n")
+	runGit("init")
+	runGit("add", ".")
+	runGit("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "init")
+
+	ctx := context.Background()
+	real, _, err := GetGitFileChecksums(ctx, repoDir, logrus.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	withNil, _, err := GetGitFileChecksumsWithChangedFiles(ctx, repoDir, logrus.New(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(real, withNil) {
+		t.Error("no changed files must equal GetGitFileChecksums")
+	}
+
+	got, _, err := GetGitFileChecksumsWithChangedFiles(ctx, repoDir, logrus.New(), []string{"src/A.java", "gen/G.java", "pom.xml", "gone.java"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["src/A.java"] != changedFileChecksum || got["src/A.java"] == real["src/A.java"] {
+		t.Errorf("changed file checksum = %d", got["src/A.java"])
+	}
+	if got["src/B.java"] != real["src/B.java"] {
+		t.Error("unchanged file must keep its real checksum")
+	}
+	if got["gen/G.java"] != constantChecksum {
+		t.Errorf("ignored file checksum = %d, want %d", got["gen/G.java"], constantChecksum)
+	}
+	if got["pom.xml"] != changedFileChecksum {
+		t.Errorf("changed non-code file checksum = %d", got["pom.xml"])
+	}
+	if _, ok := got["gone.java"]; ok {
+		t.Error("deleted file must not be added")
+	}
+	again, _, _ := GetGitFileChecksums(ctx, repoDir, logrus.New())
+	if !reflect.DeepEqual(real, again) {
+		t.Error("GetGitFileChecksums must keep returning real checksums (used for upload)")
+	}
+}
