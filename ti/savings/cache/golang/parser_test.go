@@ -85,6 +85,9 @@ func TestParseSavings_CloudVMStepEnvsFindsIsolatedReport(t *testing.T) {
 	t.Setenv("HARNESS_TMP_PATH", "")
 	t.Setenv("HARNESS_EXECUTION_ID", "")
 	t.Setenv("HARNESS_GO_CACHE_REPORT_PATH", "")
+	orig := sharedEngineVolPath
+	sharedEngineVolPath = func(map[string]string) string { return filepath.Join(t.TempDir(), "missing-engine") }
+	t.Cleanup(func() { sharedEngineVolPath = orig })
 
 	execID := "ci18519-go-savings-ut"
 	reportDir := "/tmp/harness/" + execID
@@ -156,5 +159,53 @@ func TestEnvValue_PrefersStepEnvs(t *testing.T) {
 	}
 	if got := envValue(map[string]string{"HARNESS_TMP_PATH": "  "}, "HARNESS_TMP_PATH"); got != "/from-process" {
 		t.Fatalf("blank step env should fall back, got %q", got)
+	}
+}
+
+// TestParseSavings_SharedEngineVolFindsReport covers CI-25598: go-cache-proxy
+// writes under /tmp/engine (LE shared vol) so containerized hosted/VM steps
+// remain visible to host-side lite-engine after the step exits.
+func TestParseSavings_SharedEngineVolFindsReport(t *testing.T) {
+	t.Setenv("HARNESS_TMP_PATH", "")
+	t.Setenv("HARNESS_EXECUTION_ID", "")
+	t.Setenv("HARNESS_GO_CACHE_REPORT_PATH", "")
+
+	engine := t.TempDir()
+	orig := sharedEngineVolPath
+	sharedEngineVolPath = func(map[string]string) string { return engine }
+	t.Cleanup(func() { sharedEngineVolPath = orig })
+
+	reportPath := filepath.Join(engine, "go-cache-report.json")
+	payload := map[string]any{
+		"version":     1,
+		"gets":        5,
+		"hits":        4,
+		"misses":      1,
+		"puts":        0,
+		"duration_ms": 700,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(reportPath, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	state, reports, duration, err := ParseSavings(t.TempDir(), logrus.New(), nil)
+	if err != nil {
+		t.Fatalf("ParseSavings error: %v", err)
+	}
+	if state != types.OPTIMIZED {
+		t.Fatalf("state = %s, want OPTIMIZED", state)
+	}
+	if len(reports) != 1 || reports[0].Hits != 4 {
+		t.Fatalf("unexpected reports: %+v", reports)
+	}
+	if duration != 700 {
+		t.Fatalf("duration = %d, want 700", duration)
+	}
+	if _, err := os.Stat(reportPath); !os.IsNotExist(err) {
+		t.Fatalf("expected report to be removed after parse, err=%v", err)
 	}
 }

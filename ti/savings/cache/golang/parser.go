@@ -55,6 +55,15 @@ func ParseSavings(workspace string, log *logrus.Logger, envs map[string]string) 
 	return cacheState, reports, totalDurationMs, nil
 }
 
+// sharedEngineVolPath mirrors pipeline.GetSharedVolPath() / harness-cache
+// helper_bi.sharedEngineVolPathFn. Declared as a var for tests.
+var sharedEngineVolPath = func(envs map[string]string) string {
+	if workdir := envValue(envs, "HARNESS_WORKDIR"); workdir != "" {
+		return filepath.Join(workdir, "tmp", "engine")
+	}
+	return "/tmp/engine"
+}
+
 func findReportFiles(workspace string, envs map[string]string) []string {
 	candidates := make([]string, 0)
 	seen := make(map[string]struct{})
@@ -73,6 +82,12 @@ func findReportFiles(workspace string, envs map[string]string) []string {
 
 	if explicit := envValue(envs, "HARNESS_GO_CACHE_REPORT_PATH"); explicit != "" {
 		add(explicit)
+	}
+	// Prefer the LE shared engine volume (mounted into containerized steps on
+	// hosted/VM/local Docker). Same location bi-go uses so host-side LE can
+	// read the report after the step. K8s has no /tmp/engine — skipped.
+	if eng := sharedEngineVolPath(envs); eng != "" {
+		add(filepath.Join(eng, "go-cache-report.json"))
 	}
 	if tmpPath := envValue(envs, "HARNESS_TMP_PATH"); tmpPath != "" {
 		isolated := isolateSharedTmpWithEnvs(tmpPath, envs)
