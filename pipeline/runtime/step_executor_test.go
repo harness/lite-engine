@@ -397,6 +397,45 @@ func TestReadGitCloneMetadata_RemovesFileAfterRead(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 }
 
+func TestInjectGitCloneMetadataFileEnv_SetsEnvWhenNilMap(t *testing.T) {
+	require.NoError(t, os.MkdirAll(pipeline.GetSharedVolPath(), 0o755))
+	step := &spec.Step{ID: "gc-nil-envs"}
+	injectGitCloneMetadataFileEnv(step)
+	require.NotNil(t, step.Envs)
+	assert.Equal(t, engine.PathConverter(gitCloneReceiptPath("gc-nil-envs")), step.Envs["HARNESS_GIT_CLONE_METADATA_FILE"])
+}
+
+func TestInjectGitCloneMetadataFileEnv_SkipsEscapingStepID(t *testing.T) {
+	step := &spec.Step{ID: "../escape", Envs: map[string]string{"HARNESS_GIT_CLONE_METADATA_FILE": "preset"}}
+	injectGitCloneMetadataFileEnv(step)
+	assert.Equal(t, "preset", step.Envs["HARNESS_GIT_CLONE_METADATA_FILE"])
+}
+
+func TestInjectGitCloneMetadataFileEnv_RemovesStaleReceipt(t *testing.T) {
+	writeGitCloneReceipt(t, "gc-inject-stale", sampleGitCloneReceipt)
+	step := &spec.Step{ID: "gc-inject-stale", Envs: map[string]string{}}
+	injectGitCloneMetadataFileEnv(step)
+	_, err := os.Stat(gitCloneReceiptPath("gc-inject-stale"))
+	assert.True(t, os.IsNotExist(err))
+}
+
+func TestPathIsUnder_RelError(t *testing.T) {
+	// Mixed abs/rel cannot produce a relative path; treat as not under the root.
+	assert.False(t, pathIsUnder("/tmp/engine", "relative"))
+}
+
+func TestReadGitCloneMetadata_UnreadableFile(t *testing.T) {
+	writeGitCloneReceipt(t, "gc-unreadable", sampleGitCloneReceipt)
+	path := gitCloneReceiptPath("gc-unreadable")
+	require.NoError(t, os.Chmod(path, 0))
+	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+	if f, err := os.Open(path); err == nil {
+		_ = f.Close()
+		t.Skip("process can open mode-000 files")
+	}
+	assert.Empty(t, readGitCloneMetadata("gc-unreadable"))
+}
+
 func TestConvertStatus_CarriesGitCloneMetadata(t *testing.T) {
 	resp := convertStatus(StepStatus{
 		Status:           Complete,
