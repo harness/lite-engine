@@ -373,17 +373,21 @@ func TestExecuteRunStep_SetsGitCloneMetadataFileEnvWhenMissing(t *testing.T) {
 	}
 }
 
-func TestExecuteRunStep_DoesNotOverwriteGitCloneMetadataFileEnv(t *testing.T) {
-	preset := "/custom/path/receipt.json"
+func TestExecuteRunStep_OverwritesPresetGitCloneMetadataFileEnv(t *testing.T) {
+	if err := os.MkdirAll(pipeline.GetSharedVolPath(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	id := "gc-env-overwrite"
+	want := engine.PathConverter(fmt.Sprintf("%s/%s-git-clone-metadata.json", pipeline.GetSharedVolPath(), id))
 	tiConfig := tiCfg.New("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", false, "", "")
 	request := &api.StartStepRequest{
-		ID:   "gc-env-keep",
-		Envs: map[string]string{"HARNESS_GIT_CLONE_METADATA_FILE": preset},
+		ID:   id,
+		Envs: map[string]string{"HARNESS_GIT_CLONE_METADATA_FILE": "/custom/path/receipt.json"},
 	}
 
 	run := func(_ context.Context, step *spec.Step, _ io.Writer, _, _ bool) (*runnerRuntime.State, error) {
-		if got := step.Envs["HARNESS_GIT_CLONE_METADATA_FILE"]; got != preset {
-			t.Errorf("HARNESS_GIT_CLONE_METADATA_FILE = %q, want preset %q", got, preset)
+		if got := step.Envs["HARNESS_GIT_CLONE_METADATA_FILE"]; got != want {
+			t.Errorf("HARNESS_GIT_CLONE_METADATA_FILE = %q, want engine path %q", got, want)
 		}
 		return &runnerRuntime.State{Exited: true, ExitCode: 0}, nil
 	}

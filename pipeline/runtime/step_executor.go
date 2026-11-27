@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -118,7 +119,7 @@ func (e *StepExecutor) StartStep(ctx context.Context, r *api.StartStepRequest) e
 		wr := getLogStreamWriter(r)
 		state, outputs, envs, artifact, outputV2, telemetrydata, optimizationState, stepErr := e.executeStep(r, wr)
 		nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, artifactLookupEnvs(e.engine.GetPipelineEnvs(), r.Envs))
-		gitCloneMetadata := readGitCloneMetadata(r.ID, r.Envs)
+		gitCloneMetadata := readGitCloneMetadata(r.ID)
 		outputs = mergeArtifactVars(outputs, artifactVars)
 		status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 			Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetrydata,
@@ -208,7 +209,7 @@ func (e *StepExecutor) StartStepWithStatusUpdate(ctx context.Context, r *api.Sta
 			wr = getLogStreamWriter(r)
 			state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(r, wr)
 			nativeArtifactRaw, artifactVars := readNativeArtifact(r.ID, artifactLookupEnvs(e.engine.GetPipelineEnvs(), r.Envs))
-			gitCloneMetadata := readGitCloneMetadata(r.ID, r.Envs)
+			gitCloneMetadata := readGitCloneMetadata(r.ID)
 			outputs = mergeArtifactVars(outputs, artifactVars)
 			status := StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 				Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
@@ -781,25 +782,83 @@ func readNativeArtifact(stepID string, envs map[string]string) (rawJSON string, 
 	return rawJSON, vars
 }
 
-// readGitCloneMetadata reads the raw JSON the drone-git image wrote to
-// HARNESS_GIT_CLONE_METADATA_FILE (repo URL + commit SHA) and returns it
-// unparsed - parsing happens on the manager. Returns "" when the step did not write
-// clone metadata (non-clone image, or marker env absent) or the file is unreadable.
-//
-// executeRunStep injects the default path only when the env is unset, and that
-// write lands on a copy of r.Envs (see copyEnvs). When the caller preset the
-// env to a custom path, drone-git writes there and this reader must follow it;
-// otherwise it falls back to the default <shared>/<stepID>-git-clone-metadata.json.
-func readGitCloneMetadata(stepID string, envs map[string]string) string {
-	path := ""
-	if envs != nil {
-		path = envs["HARNESS_GIT_CLONE_METADATA_FILE"]
+const (
+	gitCloneMetadataFileSuffix = "-git-clone-metadata.json"
+	// Receipt JSON is a handful of fields (URL, SHA, branch). Anything larger
+	// is treated as invalid so a junk file cannot inflate engine memory.
+	maxGitCloneMetadataBytes = 64 << 10
+)
+
+// gitCloneMetadataHostPath is the engine-owned receipt path on the host:
+// <shared>/<stepID>-git-clone-metadata.json. False if stepID would escape the
+// shared volume (e.g. "../etc/passwd").
+func gitCloneMetadataHostPath(stepID string) (string, bool) {
+	shared := filepath.Clean(pipeline.GetSharedVolPath())
+	path := filepath.Clean(filepath.Join(shared, stepID+gitCloneMetadataFileSuffix))
+	if !pathIsUnder(shared, path) {
+		return "", false
 	}
-	if path == "" {
-		path = fmt.Sprintf("%s/%s-git-clone-metadata.json", pipeline.GetSharedVolPath(), stepID)
-	}
-	data, err := os.ReadFile(path)
+	return path, true
+}
+
+func pathIsUnder(root, path string) bool {
+	rel, err := filepath.Rel(filepath.Clean(root), filepath.Clean(path))
 	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+// injectGitCloneMetadataFileEnv always sets HARNESS_GIT_CLONE_METADATA_FILE to
+// the engine-owned path (container-visible via PathConverter). A preset env
+// from the step request is overwritten so the producer cannot aim the host
+// reader at an arbitrary file.
+func injectGitCloneMetadataFileEnv(step *spec.Step) {
+	path, ok := gitCloneMetadataHostPath(step.ID)
+	if !ok {
+		return
+	}
+	// Drop a leftover receipt from a previous execution of this step ID
+	// before the producer runs, so a step that writes nothing cannot
+	// surface stale metadata.
+	_ = os.Remove(path)
+	if step.Envs == nil {
+		step.Envs = map[string]string{}
+	}
+	step.Envs["HARNESS_GIT_CLONE_METADATA_FILE"] = engine.PathConverter(path)
+}
+
+// readGitCloneMetadata reads the raw JSON the drone-git image wrote at the
+// engine-owned path (repo URL + commit SHA) and returns it unparsed — parsing
+// happens on the manager. Returns "" when the step did not write clone
+// metadata, the path escapes the shared volume, the file is not a regular
+// file within maxGitCloneMetadataBytes, or it is unreadable. The file is
+// removed after the attempt; the returned string is what later polls use.
+// Never uses HARNESS_GIT_CLONE_METADATA_FILE as a host path.
+func readGitCloneMetadata(stepID string) string {
+	path, ok := gitCloneMetadataHostPath(stepID)
+	if !ok {
+		return ""
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return ""
+	}
+	defer os.Remove(path) //nolint:errcheck
+
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return ""
+	}
+	if info.Size() <= 0 || info.Size() > maxGitCloneMetadataBytes {
+		return ""
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxGitCloneMetadataBytes+1))
+	if err != nil || int64(len(data)) > maxGitCloneMetadataBytes {
 		return ""
 	}
 	return string(data)

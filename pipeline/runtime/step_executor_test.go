@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -312,23 +313,23 @@ func writeGitCloneReceipt(t *testing.T, stepID, content string) {
 
 func TestReadGitCloneMetadata_FilePresent_ReturnsRawJSON(t *testing.T) {
 	writeGitCloneReceipt(t, "gc-present", sampleGitCloneReceipt)
-	assert.Equal(t, sampleGitCloneReceipt, readGitCloneMetadata("gc-present", nil))
+	assert.Equal(t, sampleGitCloneReceipt, readGitCloneMetadata("gc-present"))
 }
 
 func TestReadGitCloneMetadata_FileMissing_ReturnsEmpty(t *testing.T) {
-	assert.Empty(t, readGitCloneMetadata("gc-does-not-exist", nil))
+	assert.Empty(t, readGitCloneMetadata("gc-does-not-exist"))
 }
 
 func TestReadGitCloneMetadata_EmptyFile_ReturnsEmpty(t *testing.T) {
 	writeGitCloneReceipt(t, "gc-empty", "")
-	assert.Empty(t, readGitCloneMetadata("gc-empty", nil))
+	assert.Empty(t, readGitCloneMetadata("gc-empty"))
 }
 
 func TestReadGitCloneMetadata_IsolatedPerStep(t *testing.T) {
 	writeGitCloneReceipt(t, "gc-a", `{"commitSha":"aaa"}`)
 	writeGitCloneReceipt(t, "gc-b", `{"commitSha":"bbb"}`)
-	a := readGitCloneMetadata("gc-a", nil)
-	b := readGitCloneMetadata("gc-b", nil)
+	a := readGitCloneMetadata("gc-a")
+	b := readGitCloneMetadata("gc-b")
 	assert.Contains(t, a, "aaa")
 	assert.NotContains(t, a, "bbb")
 	assert.Contains(t, b, "bbb")
@@ -337,36 +338,63 @@ func TestReadGitCloneMetadata_IsolatedPerStep(t *testing.T) {
 
 func TestReadGitCloneMetadata_DoesNotParse(t *testing.T) {
 	writeGitCloneReceipt(t, "gc-raw", "not json at all")
-	assert.Equal(t, "not json at all", readGitCloneMetadata("gc-raw", nil))
+	assert.Equal(t, "not json at all", readGitCloneMetadata("gc-raw"))
 }
 
-func TestReadGitCloneMetadata_UsesEnvPathWhenSet(t *testing.T) {
+func TestReadGitCloneMetadata_IgnoresEnvPathOutsideSharedVol(t *testing.T) {
 	custom := filepath.Join(t.TempDir(), "custom-receipt.json")
 	require.NoError(t, os.WriteFile(custom, []byte(sampleGitCloneReceipt), 0o644))
-	got := readGitCloneMetadata("gc-custom", map[string]string{
-		"HARNESS_GIT_CLONE_METADATA_FILE": custom,
-	})
-	assert.Equal(t, sampleGitCloneReceipt, got)
+	assert.Empty(t, readGitCloneMetadata("gc-custom"))
 }
 
-func TestReadGitCloneMetadata_FallsBackToDefaultWhenEnvUnset(t *testing.T) {
-	writeGitCloneReceipt(t, "gc-fallback", sampleGitCloneReceipt)
-	assert.Equal(t, sampleGitCloneReceipt, readGitCloneMetadata("gc-fallback", nil))
-	assert.Equal(t, sampleGitCloneReceipt, readGitCloneMetadata("gc-fallback", map[string]string{}))
-	assert.Equal(t, sampleGitCloneReceipt, readGitCloneMetadata("gc-fallback", map[string]string{
-		"HARNESS_GIT_CLONE_METADATA_FILE": "",
-	}))
+func TestReadGitCloneMetadata_ReadsEngineOwnedPathOnly(t *testing.T) {
+	writeGitCloneReceipt(t, "gc-owned", sampleGitCloneReceipt)
+	assert.Equal(t, sampleGitCloneReceipt, readGitCloneMetadata("gc-owned"))
 }
 
-func TestReadGitCloneMetadata_EnvPathWinsOverDefaultFile(t *testing.T) {
-	writeGitCloneReceipt(t, "gc-ignored", `{"commitSha":"default"}`)
-	custom := filepath.Join(t.TempDir(), "receipt.json")
-	require.NoError(t, os.WriteFile(custom, []byte(`{"commitSha":"custom"}`), 0o644))
-	got := readGitCloneMetadata("gc-ignored", map[string]string{
-		"HARNESS_GIT_CLONE_METADATA_FILE": custom,
-	})
-	assert.Contains(t, got, "custom")
-	assert.NotContains(t, got, "default")
+func TestReadGitCloneMetadata_RejectsSymlink(t *testing.T) {
+	initPipelineState(t)
+	require.NoError(t, os.MkdirAll(pipeline.GetSharedVolPath(), 0o755))
+	secret := filepath.Join(t.TempDir(), "host-secret")
+	require.NoError(t, os.WriteFile(secret, []byte("host-secret-bytes"), 0o644))
+	link := gitCloneReceiptPath("gc-symlink")
+	if err := os.Symlink(secret, link); err != nil {
+		t.Skipf("symlinks not permitted: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Remove(link) })
+	assert.Empty(t, readGitCloneMetadata("gc-symlink"))
+}
+
+func TestReadGitCloneMetadata_RejectsStepIDPathEscape(t *testing.T) {
+	initPipelineState(t)
+	shared := pipeline.GetSharedVolPath()
+	require.NoError(t, os.MkdirAll(shared, 0o755))
+	escaped := filepath.Clean(filepath.Join(shared, "..", "escape-git-clone-metadata.json"))
+	require.NoError(t, os.WriteFile(escaped, []byte("should-not-be-read"), 0o644))
+	t.Cleanup(func() { _ = os.Remove(escaped) })
+	assert.Empty(t, readGitCloneMetadata("../escape"))
+}
+
+func TestReadGitCloneMetadata_RejectsOversizedFile(t *testing.T) {
+	huge := strings.Repeat("x", maxGitCloneMetadataBytes+1)
+	writeGitCloneReceipt(t, "gc-huge", huge)
+	assert.Empty(t, readGitCloneMetadata("gc-huge"))
+	_, err := os.Stat(gitCloneReceiptPath("gc-huge"))
+	assert.True(t, os.IsNotExist(err), "oversized receipt must be removed")
+}
+
+func TestReadGitCloneMetadata_RejectsDirectory(t *testing.T) {
+	path := gitCloneReceiptPath("gc-dir")
+	require.NoError(t, os.MkdirAll(path, 0o755))
+	t.Cleanup(func() { _ = os.RemoveAll(path) })
+	assert.Empty(t, readGitCloneMetadata("gc-dir"))
+}
+
+func TestReadGitCloneMetadata_RemovesFileAfterRead(t *testing.T) {
+	writeGitCloneReceipt(t, "gc-rm", sampleGitCloneReceipt)
+	assert.Equal(t, sampleGitCloneReceipt, readGitCloneMetadata("gc-rm"))
+	_, err := os.Stat(gitCloneReceiptPath("gc-rm"))
+	assert.True(t, os.IsNotExist(err))
 }
 
 func TestConvertStatus_CarriesGitCloneMetadata(t *testing.T) {
@@ -493,6 +521,54 @@ func TestStartStep_PollCarriesGitCloneMetadataWrittenToEnvPath(t *testing.T) {
 	resp := startAndPoll(t, req)
 	assert.Equal(t, 0, resp.ExitCode)
 	assert.Equal(t, sampleGitCloneReceipt, resp.GitCloneMetadata)
+	_, err := os.Stat(gitCloneReceiptPath(id))
+	assert.True(t, os.IsNotExist(err), "receipt must be removed after collection")
+}
+
+func TestStartStep_SecondPollKeepsGitCloneMetadataAfterFileRemoved(t *testing.T) {
+	initPipelineState(t)
+	require.NoError(t, os.MkdirAll(pipeline.GetSharedVolPath(), 0o755))
+	id := "gc-poll-twice"
+	t.Cleanup(func() { _ = os.Remove(gitCloneReceiptPath(id)) })
+
+	req := gitCloneWriterStepRequest(t, id, map[string]string{"RECEIPT": sampleGitCloneReceipt})
+	exec := NewStepExecutor(hostEngine(t))
+	require.NoError(t, exec.StartStep(context.Background(), req))
+	first, err := exec.PollStep(context.Background(), &api.PollStepRequest{ID: id})
+	require.NoError(t, err)
+	assert.Equal(t, sampleGitCloneReceipt, first.GitCloneMetadata)
+	_, statErr := os.Stat(gitCloneReceiptPath(id))
+	assert.True(t, os.IsNotExist(statErr))
+
+	second, err := exec.PollStep(context.Background(), &api.PollStepRequest{ID: id})
+	require.NoError(t, err)
+	assert.Equal(t, sampleGitCloneReceipt, second.GitCloneMetadata)
+}
+
+func TestStartStep_FreshExecutorReusedStepIDDoesNotReturnStaleReceipt(t *testing.T) {
+	initPipelineState(t)
+	require.NoError(t, os.MkdirAll(pipeline.GetSharedVolPath(), 0o755))
+	id := "gc-reuse-id"
+	writeGitCloneReceipt(t, id, sampleGitCloneReceipt)
+
+	noWrite := &api.StartStepRequest{
+		ID: id, Name: "clone", Kind: api.Run, LogKey: id,
+		WorkingDir: t.TempDir(),
+		Envs:       map[string]string{},
+		Run: api.RunConfig{
+			Entrypoint: []string{"/bin/sh", "-c"},
+			Command:    []string{"true"},
+		},
+	}
+
+	first := startAndPoll(t, noWrite)
+	assert.Equal(t, 0, first.ExitCode)
+	assert.Empty(t, first.GitCloneMetadata, "stale disk receipt must not be returned")
+
+	writeGitCloneReceipt(t, id, `{"commitSha":"stale-again"}`)
+	second := startAndPoll(t, noWrite)
+	assert.Equal(t, 0, second.ExitCode)
+	assert.Empty(t, second.GitCloneMetadata, "fresh executor must not pick up a leftover receipt")
 }
 
 func TestStartStep_PollLeavesGitCloneMetadataEmptyWhenFileMissing(t *testing.T) {
@@ -513,10 +589,13 @@ func TestStartStep_PollLeavesGitCloneMetadataEmptyWhenFileMissing(t *testing.T) 
 	assert.Empty(t, resp.GitCloneMetadata)
 }
 
-func TestStartStep_PollReadsGitCloneMetadataFromPresetEnvPath(t *testing.T) {
+func TestStartStep_PollIgnoresPresetEnvPathAndReadsEngineOwnedFile(t *testing.T) {
 	initPipelineState(t)
+	require.NoError(t, os.MkdirAll(pipeline.GetSharedVolPath(), 0o755))
 	id := "gc-start-custom"
+	t.Cleanup(func() { _ = os.Remove(gitCloneReceiptPath(id)) })
 	custom := filepath.Join(t.TempDir(), "receipt.json")
+	require.NoError(t, os.WriteFile(custom, []byte(`{"commitSha":"from-preset-env"}`), 0o644))
 
 	req := gitCloneWriterStepRequest(t, id, map[string]string{
 		"RECEIPT":                         sampleGitCloneReceipt,
@@ -525,8 +604,9 @@ func TestStartStep_PollReadsGitCloneMetadataFromPresetEnvPath(t *testing.T) {
 	resp := startAndPoll(t, req)
 	assert.Equal(t, 0, resp.ExitCode)
 	assert.Equal(t, sampleGitCloneReceipt, resp.GitCloneMetadata)
-	_, err := os.Stat(gitCloneReceiptPath(id))
-	assert.True(t, os.IsNotExist(err), "drone-git must not have written the default path when the env was preset")
+	preset, err := os.ReadFile(custom)
+	require.NoError(t, err)
+	assert.Contains(t, string(preset), "from-preset-env", "producer must not write to the preset host path")
 }
 
 // StartStepWithStatusUpdate pushes the final VMTaskExecutionResponse to the
@@ -580,4 +660,6 @@ func TestStepExecutorStateless_RunCarriesGitCloneMetadata(t *testing.T) {
 	resp, err := NewStepExecutorStateless().Run(context.Background(), req, cfg, nil, logstream.NopWriter())
 	require.NoError(t, err)
 	assert.Equal(t, sampleGitCloneReceipt, resp.GitCloneMetadata)
+	_, statErr := os.Stat(gitCloneReceiptPath(id))
+	assert.True(t, os.IsNotExist(statErr), "receipt must be removed after collection")
 }

@@ -63,14 +63,10 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	step.Envs["HARNESS_ARTIFACT_FILE_PATH"] = engine.PathConverter(nativeArtifactFile)
 	internalTempFiles = append(internalTempFiles, nativeArtifactFile)
 
-	// On K8s the addon already injects this path; on VMs lite-engine owns the file contract.
-	// Deliberately NOT added to internalTempFiles: the metadata is read after executeRunStep
-	// returns, and the stateless executor forces DeleteTempStepFiles=true (same reason the
-	// annotations file above is excluded).
-	if _, found := step.Envs["HARNESS_GIT_CLONE_METADATA_FILE"]; !found {
-		gitCloneMetadataFile := fmt.Sprintf("%s/%s-git-clone-metadata.json", pipeline.GetSharedVolPath(), step.ID)
-		step.Envs["HARNESS_GIT_CLONE_METADATA_FILE"] = engine.PathConverter(gitCloneMetadataFile)
-	}
+	// Engine-owned receipt: stale file is removed here, the step writes, then
+	// readGitCloneMetadata collects and deletes. Not on internalTempFiles —
+	// DeleteTempStepFiles would race the post-run read.
+	injectGitCloneMetadataFileEnv(step)
 
 	// For Windows containers, add the CLI directory to PATH
 	injectCLIPathForWindowsContainer(step)

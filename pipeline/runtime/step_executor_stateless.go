@@ -52,7 +52,7 @@ func (e *StepExecutorStateless) Run(
 	e.stepStatus = StepStatus{Status: Running}
 
 	state, outputs, envs, artifact, outputV2, telemetryData, optimizationState, stepErr := e.executeStep(ctx, r, cfg, dockerClient, writer)
-	gitCloneMetadata := readGitCloneMetadata(r.ID, r.Envs)
+	gitCloneMetadata := readGitCloneMetadata(r.ID)
 	e.stepStatus = StepStatus{Status: Complete, State: state, StepErr: stepErr, Outputs: outputs, Envs: envs,
 		Artifact: artifact, OutputV2: outputV2, OptimizationState: optimizationState, TelemetryData: telemetryData,
 		GitCloneMetadata: gitCloneMetadata}
