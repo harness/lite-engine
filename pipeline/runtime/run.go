@@ -31,6 +31,8 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	start := time.Now()
 	var internalTempFiles []string
 	step := toStep(r)
+	// Before binary setup: a setup failure returns early, and the executor still reads the receipt.
+	removeStaleGitCloneMetadata(r.ID)
 
 	// run.download on hosted VMs: download the plugin binary and export PLUGIN_PATH/HOME/
 	// DEFAULT_DL_PATH before the command+entrypoint are copied below. Skip when PLUGIN_PATH
@@ -63,7 +65,7 @@ func executeRunStep(ctx context.Context, f RunFunc, r *api.StartStepRequest, out
 	step.Envs["HARNESS_ARTIFACT_FILE_PATH"] = engine.PathConverter(nativeArtifactFile)
 	internalTempFiles = append(internalTempFiles, nativeArtifactFile)
 
-	// Engine-owned receipt: stale file is removed here, the step writes, then
+	// Engine-owned receipt: stale file was removed above, the step writes, then
 	// readGitCloneMetadata collects and deletes. Not on internalTempFiles —
 	// DeleteTempStepFiles would race the post-run read.
 	injectGitCloneMetadataFileEnv(step)

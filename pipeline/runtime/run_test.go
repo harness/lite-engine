@@ -373,6 +373,36 @@ func TestExecuteRunStep_SetsGitCloneMetadataFileEnvWhenMissing(t *testing.T) {
 	}
 }
 
+func TestExecuteRunStep_BinarySetupFailureClearsStaleGitCloneReceipt(t *testing.T) {
+	id := "gc-setup-fail"
+	writeGitCloneReceipt(t, id, sampleGitCloneReceipt)
+	tiConfig := tiCfg.New("", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", false, "", "")
+	// Port 1 refuses connections, so the binary download fails at once without network access.
+	request := &api.StartStepRequest{
+		ID:   id,
+		Envs: map[string]string{},
+		Run: api.RunConfig{Binary: api.Binary{
+			Name:   "gc-setup-fail",
+			Source: []string{"http://127.0.0.1:1/missing"},
+			Target: filepath.Join(t.TempDir(), "plugin"),
+		}},
+	}
+
+	run := func(_ context.Context, _ *spec.Step, _ io.Writer, _, _ bool) (*runnerRuntime.State, error) {
+		t.Error("step must not run when binary setup fails")
+		return &runnerRuntime.State{Exited: true}, nil
+	}
+
+	_, _, _, _, _, _, _, err := executeRunStep(context.Background(), run, request, io.Discard, &tiConfig) //nolint:dogsled
+	if err == nil {
+		t.Fatal("expected binary setup to fail")
+	}
+	// The executor reads the receipt after executeRunStep returns, even on error.
+	if got := readGitCloneMetadata(id); got != "" {
+		t.Fatalf("stale receipt surfaced after failed binary setup: %q", got)
+	}
+}
+
 func TestExecuteRunStep_OverwritesPresetGitCloneMetadataFileEnv(t *testing.T) {
 	if err := os.MkdirAll(pipeline.GetSharedVolPath(), 0o755); err != nil {
 		t.Fatal(err)

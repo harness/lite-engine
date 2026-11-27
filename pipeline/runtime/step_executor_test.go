@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -365,6 +366,25 @@ func TestReadGitCloneMetadata_RejectsSymlink(t *testing.T) {
 	assert.Empty(t, readGitCloneMetadata("gc-symlink"))
 }
 
+func TestReadGitCloneMetadata_RejectsNamedPipe(t *testing.T) {
+	initPipelineState(t)
+	require.NoError(t, os.MkdirAll(pipeline.GetSharedVolPath(), 0o755))
+	mkfifo, err := exec.LookPath("mkfifo")
+	if err != nil {
+		t.Skipf("mkfifo unavailable: %v", err)
+	}
+	path := gitCloneReceiptPath("gc-fifo")
+	// The shared path is fixed, so clear anything an interrupted run left behind.
+	_ = os.Remove(path)
+	t.Cleanup(func() { _ = os.Remove(path) })
+	if out, err := exec.Command(mkfifo, path).CombinedOutput(); err != nil {
+		t.Fatalf("mkfifo failed: %v: %s", err, out)
+	}
+	assert.Empty(t, readGitCloneMetadata("gc-fifo"))
+	_, err = os.Lstat(path)
+	assert.True(t, os.IsNotExist(err), "named pipe receipt must be removed")
+}
+
 func TestReadGitCloneMetadata_RejectsStepIDPathEscape(t *testing.T) {
 	initPipelineState(t)
 	shared := pipeline.GetSharedVolPath()
@@ -411,11 +431,10 @@ func TestInjectGitCloneMetadataFileEnv_SkipsEscapingStepID(t *testing.T) {
 	assert.Equal(t, "preset", step.Envs["HARNESS_GIT_CLONE_METADATA_FILE"])
 }
 
-func TestInjectGitCloneMetadataFileEnv_RemovesStaleReceipt(t *testing.T) {
-	writeGitCloneReceipt(t, "gc-inject-stale", sampleGitCloneReceipt)
-	step := &spec.Step{ID: "gc-inject-stale", Envs: map[string]string{}}
-	injectGitCloneMetadataFileEnv(step)
-	_, err := os.Stat(gitCloneReceiptPath("gc-inject-stale"))
+func TestRemoveStaleGitCloneMetadata_RemovesReceipt(t *testing.T) {
+	writeGitCloneReceipt(t, "gc-stale", sampleGitCloneReceipt)
+	removeStaleGitCloneMetadata("gc-stale")
+	_, err := os.Stat(gitCloneReceiptPath("gc-stale"))
 	assert.True(t, os.IsNotExist(err))
 }
 

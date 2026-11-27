@@ -809,6 +809,15 @@ func pathIsUnder(root, path string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
 }
 
+// removeStaleGitCloneMetadata drops a leftover receipt from a previous
+// execution of this step ID, so a run that writes nothing cannot surface
+// stale metadata.
+func removeStaleGitCloneMetadata(stepID string) {
+	if path, ok := gitCloneMetadataHostPath(stepID); ok {
+		_ = os.Remove(path)
+	}
+}
+
 // injectGitCloneMetadataFileEnv always sets HARNESS_GIT_CLONE_METADATA_FILE to
 // the engine-owned path (container-visible via PathConverter). A preset env
 // from the step request is overwritten so the producer cannot aim the host
@@ -818,10 +827,6 @@ func injectGitCloneMetadataFileEnv(step *spec.Step) {
 	if !ok {
 		return
 	}
-	// Drop a leftover receipt from a previous execution of this step ID
-	// before the producer runs, so a step that writes nothing cannot
-	// surface stale metadata.
-	_ = os.Remove(path)
 	if step.Envs == nil {
 		step.Envs = map[string]string{}
 	}
@@ -840,23 +845,18 @@ func readGitCloneMetadata(stepID string) string {
 	if !ok {
 		return ""
 	}
-	info, err := os.Lstat(path)
-	if err != nil {
-		return ""
-	}
 	defer os.Remove(path) //nolint:errcheck
 
-	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return ""
-	}
-	if info.Size() <= 0 || info.Size() > maxGitCloneMetadataBytes {
-		return ""
-	}
-	f, err := os.Open(path)
+	// Check and read one descriptor, so the path cannot be swapped between them.
+	f, err := openRegularNoFollow(path)
 	if err != nil {
 		return ""
 	}
 	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || info.Size() <= 0 || info.Size() > maxGitCloneMetadataBytes {
+		return ""
+	}
 	data, err := io.ReadAll(io.LimitReader(f, maxGitCloneMetadataBytes+1))
 	if err != nil || int64(len(data)) > maxGitCloneMetadataBytes {
 		return ""
